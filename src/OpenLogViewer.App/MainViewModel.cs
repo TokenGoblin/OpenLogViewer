@@ -170,6 +170,68 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Channels offered as table axes: those that actually vary.</summary>
     public ObservableCollection<ChannelItem> AxisChannels { get; } = [];
 
+    // ----- axis breakpoints -------------------------------------------------
+
+    private AxisSourceOption _axisSource = AxisSourceOption.FromData;
+
+    /// <summary>
+    /// Breakpoint sources: uniform bins from the data, or a table from the tune
+    /// embedded in the log.
+    /// </summary>
+    public ObservableCollection<AxisSourceOption> AxisSources { get; } = [];
+
+    public AxisSourceOption AxisSource
+    {
+        get => _axisSource;
+        set
+        {
+            if (value is null || !Set(ref _axisSource, value)) return;
+
+            Raise(nameof(UsingTuneAxes));
+            Raise(nameof(UsingDataAxes));
+
+            // The tune's axes are RPM against load, so move the pickers onto
+            // matching channels — but only when the current pick does not
+            // already measure the right thing, or choosing a tune table would
+            // silently swap a deliberate selection for an equivalent channel.
+            if (value.Axes is { } axes)
+            {
+                _xAxis = KeepOrMatch(_xAxis, axes.X.Units, "rpm");
+                _yAxis = KeepOrMatch(_yAxis, axes.Y.Units, "kpa");
+                Raise(nameof(XAxis));
+                Raise(nameof(YAxis));
+            }
+
+            HistogramInvalidated?.Invoke();
+        }
+    }
+
+    private TuneAxisSet? _tuneAxes => _axisSource.Axes;
+
+    /// <summary>
+    /// Keeps the current channel when it already measures the right quantity,
+    /// otherwise picks the first one that does.
+    /// </summary>
+    private ChannelItem? KeepOrMatch(ChannelItem? current, string units, string fallback)
+    {
+        if (current is not null && (Matches(current, units) || Matches(current, fallback)))
+            return current;
+
+        return AxisChannels.FirstOrDefault(c => Matches(c, units))
+               ?? AxisChannels.FirstOrDefault(c => Matches(c, fallback))
+               ?? current;
+
+        static bool Matches(ChannelItem c, string units) =>
+            c.Units.Equals(units, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool UsingTuneAxes => _tuneAxes is not null;
+
+    /// <summary>Rows and columns only apply when bins come from the data.</summary>
+    public bool UsingDataAxes => _tuneAxes is null;
+
+    public bool HasTuneAxes => AxisSources.Count > 1;
+
     // ----- data filters -----------------------------------------------------
 
     private readonly FilterStore _filterStore = new();
@@ -409,9 +471,14 @@ public sealed class MainViewModel : ObservableObject
 
         SampleMask mask = SampleFilter.Build(Document, Filters.Select(f => f.Filter));
 
-        Table = HistogramTable.Build(
-            XAxis.Channel, YAxis.Channel, ZAxis.Channel,
-            _columns, _rows, firstSample, lastSample, _statistic, mask);
+        Table = _tuneAxes is { } axes
+            ? HistogramTable.Build(
+                XAxis.Channel, YAxis.Channel, ZAxis.Channel,
+                axes.X.Breakpoints, axes.Y.Breakpoints,
+                firstSample, lastSample, _statistic, mask)
+            : HistogramTable.Build(
+                XAxis.Channel, YAxis.Channel, ZAxis.Channel,
+                _columns, _rows, firstSample, lastSample, _statistic, mask);
 
         if (Table.IsEmpty)
         {
@@ -421,10 +488,13 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        int cells = Table.Columns * Table.Rows;
         var parts = new List<string>
         {
-            $"{Table.SampleCount:N0} samples across {Table.PopulatedCells} of {_columns * _rows} cells",
+            $"{Table.SampleCount:N0} samples across {Table.PopulatedCells} of {cells} cells",
         };
+
+        if (_tuneAxes is not null) parts.Add($"axes from {_tuneAxes.Name}");
 
         if (mask.FiltersApplied)
             parts.Add($"{mask.Total - mask.PassCount:N0} of {mask.Total:N0} excluded by filters");
@@ -436,7 +506,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>Picks sensible axes for a newly opened log.</summary>
-    private void SeedHistogramAxes()
+    private void SeedHistogramAxes(LogDocument document)
     {
         AxisChannels.Clear();
         foreach (ChannelItem item in Channels
@@ -449,10 +519,22 @@ public sealed class MainViewModel : ObservableObject
         _zAxis = Pick("AFR") ?? Pick("Lambda") ?? AxisChannels.Skip(2).FirstOrDefault();
         _newFilterChannel = _xAxis;
 
+        // Offer the tune's own table axes when the log carries a tune.
+        AxisSources.Clear();
+        AxisSources.Add(AxisSourceOption.FromData);
+        foreach (TuneAxisSet set in MsqTune.ReadAxisSets(document.EmbeddedTune))
+            AxisSources.Add(new AxisSourceOption(set.Label, set));
+
+        _axisSource = AxisSourceOption.FromData;
+
         Raise(nameof(XAxis));
         Raise(nameof(YAxis));
         Raise(nameof(ZAxis));
         Raise(nameof(NewFilterChannel));
+        Raise(nameof(AxisSource));
+        Raise(nameof(UsingTuneAxes));
+        Raise(nameof(UsingDataAxes));
+        Raise(nameof(HasTuneAxes));
 
         ChannelItem? Pick(string name) => AxisChannels.FirstOrDefault(
             c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -489,7 +571,7 @@ public sealed class MainViewModel : ObservableObject
 
         Title = $"{Path.GetFileName(path)} — OpenLogViewer";
         Status = Describe(doc);
-        SeedHistogramAxes();
+        SeedHistogramAxes(doc);
         SeedFilters(doc);
         RefreshView();
         PlotInvalidated?.Invoke();

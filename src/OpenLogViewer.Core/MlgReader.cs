@@ -121,6 +121,7 @@ public sealed class MlgReader : ILogReader
             Markers = ReadMarkers(data, dataStart, stride, markerOffsets, time),
             Signature = signature,
             CaptureInfo = info,
+            EmbeddedTune = ReadEmbeddedTune(data, infoStart, dataStart),
             RecordedAt = stamp > 0 ? DateTimeOffset.FromUnixTimeSeconds(stamp) : null,
             FormatName = $"MLG v{version}",
         };
@@ -326,6 +327,23 @@ public sealed class MlgReader : ILogReader
         }
 
         return (quoted.Count > 0 ? quoted[0] : null, quoted.Count > 1 ? quoted[1] : null);
+    }
+
+    /// <summary>
+    /// Pulls the MSQ tune out of the info block. It is declared as ISO-8859-1
+    /// and sits between the metadata strings and the first data record.
+    /// </summary>
+    private static string? ReadEmbeddedTune(byte[] data, int start, int end)
+    {
+        if (start <= 0 || start >= end || end > data.Length) return null;
+
+        string text = Encoding.Latin1.GetString(data, start, end - start);
+
+        int open = text.IndexOf("<?xml", StringComparison.Ordinal);
+        if (open < 0) return null;
+
+        int close = text.IndexOf("</msq>", open, StringComparison.Ordinal);
+        return close < 0 ? null : text[open..(close + 6)];
     }
 
     private static double ReadRaw(byte[] b, int o, MlgDataType type) => type switch

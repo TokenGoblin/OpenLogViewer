@@ -76,6 +76,36 @@ flips between light and dark ink to stay legible on every step.
 cell, which is the quick way to see which parts of the table the drive actually
 exercised.
 
+### Axis breakpoints from the tune
+
+Uniform bins spanning the observed range never line up with the table you are
+actually editing, because ECU axes are not uniform — they are tight at idle and
+wide up top.
+
+Every `.mlg` embeds the `.msq` it was recorded with, so the tune's own axes can
+be read straight out of the log. Pick one under **Axis breakpoints** and the
+table is binned onto exactly those breakpoints, cell for cell against the table
+in TunerStudio. VE, spark and AFR-target tables are offered when present:
+
+```
+VE table 1  (16×16)
+  frpm_table1 [RPM]: 500 800 1100 1400 1800 2200 2600 3000 3500 4000 4300 4700 5200 5700 6100 6500
+  fmap_table1 [kPa]: 30 40 50 60 70 80 90 100 120 140 160 180 200 230 260 300
+```
+
+Samples are assigned to the **nearest** breakpoint, which is how a value between
+two rows is attributed in a tuning table. Values beyond either end fall to the
+nearest one rather than being discarded.
+
+Two quirks of the format are handled, both of which would corrupt a table
+silently. Firmwares pad an axis out to the table's width by repeating the top
+value, which would create zero-width bins, so consecutive duplicates are
+collapsed. And the `…doz` axis variants are stored *rolled* rather than in order
+(`5200 5700 6100 6500 502 801 …`), so any axis that is not ascending is rejected
+outright rather than scrambling the rows.
+
+`--tune` on the dump tool lists the axes found in a log.
+
 ### Data filters
 
 A table built from a whole drive averages warmup, overrun and idle into the same

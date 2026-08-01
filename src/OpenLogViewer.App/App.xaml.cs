@@ -25,7 +25,12 @@ public partial class App : Application
         string? log = e.Args.FirstOrDefault(a => !a.StartsWith("--"));
         if (log is not null) window.LoadFile(log);
 
-        if (e.Args.Contains("--histogram")) window.ShowHistogram();
+        if (e.Args.Contains("--histogram"))
+        {
+            int at = Array.IndexOf(e.Args, "--tune-axes");
+            bool given = at >= 0 && at + 1 < e.Args.Length && int.TryParse(e.Args[at + 1], out _);
+            window.ShowHistogram(given ? int.Parse(e.Args[at + 1]) : 0);
+        }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)

@@ -23,6 +23,12 @@ public sealed class LogDocument
     /// <summary>Annotations captured during logging, ordered by time.</summary>
     public IReadOnlyList<LogMarker> Markers { get; init; } = [];
 
+    /// <summary>
+    /// The tune the log was recorded with, as MSQ XML, when the container
+    /// embeds one. Its table axes can be used as histogram breakpoints.
+    /// </summary>
+    public string? EmbeddedTune { get; init; }
+
     /// <summary>ECU signature string, e.g. "MS2Extra comms342a2: MS2/Extra 3.4.2 release".</summary>
     public string? Signature { get; init; }
 

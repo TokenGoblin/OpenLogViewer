@@ -10,6 +10,10 @@
             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
         </DataTemplate>
 
+        <DataTemplate x:Key="AxisSourceName">
+            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
+        </DataTemplate>
+
         <!-- Dark palette: log analysis is a long-session task and traces read
              better against a dark ground. -->
         <SolidColorBrush x:Key="Bg"        Color="#14171C"/>
@@ -276,3 +280,4 @@
 
     </Application.Resources>
 </Application>
+

@@ -36,13 +36,15 @@ internal sealed class MlgBuilder
         int sampleCount,
         Func<int, int, double> raw,
         (int AfterSample, string Text)[]? markers = null,
-        int? declaredPayloadOverride = null)
+        int? declaredPayloadOverride = null,
+        string? embeddedTune = null)
     {
         markers ??= [];
 
         int payload = PayloadSize;
         int infoStart = 24 + _fields.Count * FieldDescriptorSize;
-        byte[] info = Encoding.UTF8.GetBytes("\"TEST ECU signature\"\0\"Capture Date: test\"\0");
+        byte[] info = Encoding.Latin1.GetBytes(
+            "\"TEST ECU signature\"\0\"Capture Date: test\"\0" + (embeddedTune ?? ""));
         int dataStart = infoStart + info.Length;
 
         var buffer = new MemoryStream();
@@ -105,10 +107,11 @@ internal sealed class MlgBuilder
         int sampleCount,
         Func<int, int, double> raw,
         (int AfterSample, string Text)[]? markers = null,
-        int? declaredPayloadOverride = null)
+        int? declaredPayloadOverride = null,
+        string? embeddedTune = null)
     {
         string path = Path.Combine(Path.GetTempPath(), $"olv-{Guid.NewGuid():N}.mlg");
-        File.WriteAllBytes(path, Build(sampleCount, raw, markers, declaredPayloadOverride));
+        File.WriteAllBytes(path, Build(sampleCount, raw, markers, declaredPayloadOverride, embeddedTune));
         return path;
     }
 

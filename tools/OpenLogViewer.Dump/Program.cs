@@ -11,6 +11,7 @@ if (args.Length == 0)
 
 bool listChannels = args.Contains("--channels");
 bool listCategories = args.Contains("--categories");
+bool listTune = args.Contains("--tune");
 string[] paths = args.Where(a => !a.StartsWith("--")).ToArray();
 int failures = 0;
 
@@ -39,6 +40,28 @@ foreach (string path in paths)
             Console.WriteLine($"  markers   : {log.Markers.Count}");
             foreach (LogMarker m in log.Markers.Take(3))
                 Console.WriteLine($"     @{m.Time,8:F2}s  {m.Text}");
+        }
+
+        if (listTune)
+        {
+            Console.WriteLine();
+            if (log.EmbeddedTune is not { Length: > 0 } tune)
+            {
+                Console.WriteLine("  no tune embedded in this log");
+            }
+            else
+            {
+                Console.WriteLine($"  embedded tune: {tune.Length:N0} chars");
+                var sets = MsqTune.ReadAxisSets(tune);
+                if (sets.Count == 0) Console.WriteLine("  no usable table axes found");
+
+                foreach (TuneAxisSet set in sets)
+                {
+                    Console.WriteLine($"  {set.Label}");
+                    Console.WriteLine($"      {set.X.Constant} [{set.X.Units}]: {string.Join(" ", set.X.Breakpoints)}");
+                    Console.WriteLine($"      {set.Y.Constant} [{set.Y.Units}]: {string.Join(" ", set.Y.Breakpoints)}");
+                }
+            }
         }
 
         if (listCategories)
