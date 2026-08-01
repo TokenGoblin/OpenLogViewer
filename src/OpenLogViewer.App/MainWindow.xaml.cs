@@ -43,12 +43,15 @@ public partial class MainWindow : Window
     /// Switches to the binned table view, optionally selecting one of the
     /// breakpoint sources by position (0 is "from the log data").
     /// </summary>
-    public void ShowHistogram(int axisSource = 0)
+    public void ShowHistogram(int axisSource = 0, bool colourByCount = false, bool countStatistic = false)
     {
         _vm.ShowHistogram = true;
 
         if (axisSource > 0 && axisSource < _vm.AxisSources.Count)
             _vm.AxisSource = _vm.AxisSources[axisSource];
+
+        if (colourByCount) _vm.ColorByCount = true;
+        if (countStatistic) _vm.StatCount = true;
     }
 
     /// <summary>
