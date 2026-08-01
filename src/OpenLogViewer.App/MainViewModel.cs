@@ -39,7 +39,8 @@ public sealed class MainViewModel : ObservableObject
 
     private const string DefaultHint =
         "Scroll = zoom  •  Drag = pan  •  Double-click = fit  •  " +
-        "Hover a trace for its min/max, then click either to jump there  •  Right-click for more";
+        "Hover a trace for its min/max, then click either to jump there  •  " +
+        "Shift-drag to mark a span and summarise it  •  Right-click for more";
 
     private readonly PresetStore _store = new();
 
@@ -628,6 +629,34 @@ public sealed class MainViewModel : ObservableObject
 
         CursorTime = $"{doc.Time.At(index):F3} s   (sample {index:N0})";
         foreach (ChannelItem item in Channels) item.UpdateCursor(index);
+    }
+
+    /// <summary>
+    /// Summarises every channel over a marked span, or restores the whole-log
+    /// figures when the span is cleared.
+    /// </summary>
+    public void UpdateSelection((int First, int Last)? span)
+    {
+        if (Document is not { } doc) return;
+
+        if (span is not { } range)
+        {
+            foreach (ChannelItem item in Channels) item.SetSelection(null);
+            CursorTime = "—";
+            ResetHint();
+            return;
+        }
+
+        foreach (ChannelItem item in Channels)
+            item.SetSelection(ChannelStatistics.Over(item.Channel, range.First, range.Last));
+
+        double from = doc.Time.At(range.First);
+        double to = doc.Time.At(range.Last);
+        int count = range.Last - range.First + 1;
+
+        CursorTime = $"{to - from:F3} s selected   ({count:N0} samples)";
+        Hint = $"Marked {from:F2}–{to:F2} s. Rows show min … max and average over the span. " +
+               "Click the plot to clear.";
     }
 
     public void SetAllVisible(bool visible)

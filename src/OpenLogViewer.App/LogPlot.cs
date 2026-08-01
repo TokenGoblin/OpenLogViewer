@@ -51,6 +51,59 @@ public sealed class LogPlot : FrameworkElement
     private Point _panAnchor;
     private double _panStart, _panEnd;
 
+    private bool _selecting;
+    private double _selectionAnchor = double.NaN;
+    private double _selectionFrom = double.NaN;
+    private double _selectionTo = double.NaN;
+
+    private static readonly Brush SelectionFill =
+        Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0x4F, 0xC3, 0xF7)));
+
+    private static readonly Pen SelectionEdge =
+        Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7)), 1));
+
+    /// <summary>True while a time range is marked on the plot.</summary>
+    public bool HasSelection => !double.IsNaN(_selectionFrom) && _selectionTo > _selectionFrom;
+
+    /// <summary>
+    /// Raised as a range is marked or cleared, carrying the inclusive sample
+    /// span, or null when the selection is dropped.
+    /// </summary>
+    public event Action<(int First, int Last)?>? SelectionChanged;
+
+    /// <summary>Marks a span of the log, in seconds.</summary>
+    public void SelectRange(double fromSeconds, double toSeconds)
+    {
+        if (_document is not { SampleCount: > 0 }) return;
+
+        _selecting = false;
+        _selectionAnchor = fromSeconds;
+        _selectionFrom = Math.Min(fromSeconds, toSeconds);
+        _selectionTo = Math.Max(fromSeconds, toSeconds);
+
+        ReportSelection();
+        InvalidateVisual();
+    }
+
+    public void ClearSelection()
+    {
+        if (!HasSelection && !_selecting) return;
+
+        _selecting = false;
+        _selectionAnchor = _selectionFrom = _selectionTo = double.NaN;
+        SelectionChanged?.Invoke(null);
+        InvalidateVisual();
+    }
+
+    private void ReportSelection()
+    {
+        if (_document is not { SampleCount: > 0 } doc) return;
+
+        SelectionChanged?.Invoke(HasSelection
+            ? (doc.IndexAtTime(_selectionFrom), doc.IndexAtTime(_selectionTo))
+            : null);
+    }
+
     public LogPlot()
     {
         ClipToBounds = true;
@@ -161,9 +214,34 @@ public sealed class LogPlot : FrameworkElement
             dc.DrawGeometry(null, hover.HighlightPen,
                 BuildTrace(hover.Channel, time, i0, i1, area, doc.GapThreshold));
 
+        DrawSelection(dc, doc, area);
         DrawMarkers(dc, doc, area);
         DrawCursor(dc, area);
         DrawHoverCard(dc, area, doc);
+    }
+
+    /// <summary>Shades the marked span and reports its extent.</summary>
+    private void DrawSelection(DrawingContext dc, LogDocument doc, Rect area)
+    {
+        if (!HasSelection) return;
+
+        double left = Math.Max(area.Left, TimeToX(_selectionFrom, area));
+        double right = Math.Min(area.Right, TimeToX(_selectionTo, area));
+        if (right <= left) return;
+
+        dc.DrawRectangle(SelectionFill, null, new Rect(left, area.Top, right - left, area.Height));
+        dc.DrawLine(SelectionEdge, new Point(left, area.Top), new Point(left, area.Bottom));
+        dc.DrawLine(SelectionEdge, new Point(right, area.Top), new Point(right, area.Bottom));
+
+        int first = doc.IndexAtTime(_selectionFrom);
+        int last = doc.IndexAtTime(_selectionTo);
+        double span = _selectionTo - _selectionFrom;
+
+        FormattedText label = Text(
+            $"{span:F2} s   ·   {last - first + 1:N0} samples", 11, SelectionEdge.Brush);
+
+        double x = Math.Clamp(left + 6, area.Left, Math.Max(area.Left, area.Right - label.Width - 2));
+        dc.DrawText(label, new Point(x, area.Top + 20));
     }
 
     /// <summary>
@@ -215,15 +293,27 @@ public sealed class LogPlot : FrameworkElement
         LogChannel channel = hover.Channel;
         FormattedText title = Text(channel.Name, 12, hover.Brush);
 
-        (string Label, string Value)[] rows =
-        [
-            ("now", channel.FormatWithUnits(channel.At(_cursorIndex))),
-            ("max", $"{channel.FormatWithUnits(channel.Max)}  @ {Clock(doc.Time.At(channel.MaxIndex))}"),
-            ("min", $"{channel.FormatWithUnits(channel.Min)}  @ {Clock(doc.Time.At(channel.MinIndex))}"),
-        ];
+        // Over a marked span the card reports that span, since it is what the
+        // user just asked about; otherwise it reports the whole log.
+        (string Label, string Value)[] rows = hover.Selection is { HasData: true } s
+            ?
+            [
+                ("avg", channel.FormatWithUnits(s.Mean)),
+                ("max", channel.FormatWithUnits(s.Max)),
+                ("min", channel.FormatWithUnits(s.Min)),
+            ]
+            :
+            [
+                ("now", channel.FormatWithUnits(channel.At(_cursorIndex))),
+                ("max", $"{channel.FormatWithUnits(channel.Max)}  @ {Clock(doc.Time.At(channel.MaxIndex))}"),
+                ("min", $"{channel.FormatWithUnits(channel.Min)}  @ {Clock(doc.Time.At(channel.MinIndex))}"),
+            ];
 
         // The extremes are clickable, so their labels are tinted to say so.
-        bool canJump = channel is { MaxIndex: >= 0, MinIndex: >= 0 } && !channel.IsFlat;
+        // Over a span they are summary figures, not moments to jump to.
+        bool canJump = channel is { MaxIndex: >= 0, MinIndex: >= 0 }
+                       && !channel.IsFlat
+                       && hover.Selection is not { HasData: true };
         var labels = rows.Select((r, i) =>
             Text(r.Label, 10, canJump && i > 0 ? CardAction : CardLabel)).ToArray();
         var values = rows.Select(r => Text(r.Value, 11, CardValue)).ToArray();
@@ -434,6 +524,16 @@ public sealed class LogPlot : FrameworkElement
         Rect area = PlotArea;
         Point p = e.GetPosition(this);
 
+        if (_selecting)
+        {
+            double here = XToTime(p.X, area);
+            _selectionFrom = Math.Min(_selectionAnchor, here);
+            _selectionTo = Math.Max(_selectionAnchor, here);
+            ReportSelection();
+            InvalidateVisual();
+            return;
+        }
+
         if (_panning)
         {
             double perPixel = (_panEnd - _panStart) / area.Width;
@@ -523,8 +623,25 @@ public sealed class LogPlot : FrameworkElement
 
         if (e.ClickCount == 2) { ResetView(); return; }
 
+        Point start = e.GetPosition(this);
+
+        // Shift-drag marks a span to summarise; a plain drag still pans.
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && _document is { SampleCount: > 0 })
+        {
+            _selecting = true;
+            _selectionAnchor = XToTime(start.X, PlotArea);
+            _selectionFrom = _selectionTo = _selectionAnchor;
+            CaptureMouse();
+            Cursor = Cursors.SizeWE;
+            InvalidateVisual();
+            return;
+        }
+
+        // Clicking away drops an existing selection.
+        if (HasSelection) ClearSelection();
+
         _panning = true;
-        _panAnchor = e.GetPosition(this);
+        _panAnchor = start;
         _panStart = _viewStart;
         _panEnd = _viewEnd;
         CaptureMouse();
@@ -534,6 +651,15 @@ public sealed class LogPlot : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+
+        if (_selecting)
+        {
+            _selecting = false;
+
+            // A shift-click with no drag is a clear, not a zero-width span.
+            if (!HasSelection) ClearSelection(); else ReportSelection();
+        }
+
         _panning = false;
         ReleaseMouseCapture();
         Cursor = Cursors.Cross;
