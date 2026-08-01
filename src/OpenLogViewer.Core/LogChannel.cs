@@ -21,14 +21,26 @@ public sealed class LogChannel
     private readonly double[]? _precise;
 
     public LogChannel(string name, string units, int digits, double[] values, bool preservePrecision = false)
+        : this(name, units, digits, Narrow(values), preservePrecision ? values : null)
+    {
+    }
+
+    /// <summary>
+    /// Builds a channel around a column a reader has already decoded. The array
+    /// is taken over rather than copied, so the caller must not write to it
+    /// again. Readers use this to avoid staging a log as doubles first.
+    /// </summary>
+    public static LogChannel Adopt(string name, string units, int digits, float[] samples) =>
+        new(name, units, digits, samples, null);
+
+    private LogChannel(string name, string units, int digits, float[] samples, double[]? precise)
     {
         Name = name;
         Units = units;
         Digits = digits;
 
-        _values = new float[values.Length];
-        for (int i = 0; i < values.Length; i++) _values[i] = (float)values[i];
-        if (preservePrecision) _precise = values;
+        _values = samples;
+        _precise = precise;
 
         double min = double.PositiveInfinity, max = double.NegativeInfinity;
         int minIndex = -1, maxIndex = -1;
@@ -87,5 +99,12 @@ public sealed class LogChannel
     {
         if ((uint)index >= (uint)_values.Length) return double.NaN;
         return _precise is not null ? _precise[index] : _values[index];
+    }
+
+    private static float[] Narrow(double[] values)
+    {
+        var narrowed = new float[values.Length];
+        for (int i = 0; i < values.Length; i++) narrowed[i] = (float)values[i];
+        return narrowed;
     }
 }

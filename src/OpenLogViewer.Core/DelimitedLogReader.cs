@@ -72,7 +72,11 @@ public sealed class DelimitedLogReader : ILogReader
             if (names[i].Length == 0) names[i] = $"Column {i + 1}";
         }
 
-        double[][] columns = ParseRows(lines, dataIndex, delimiter, width, decimalComma);
+        // The time column is also accumulated at full precision; every other
+        // column goes straight into floats.
+        int timeColumn = FindTimeColumn(names, units);
+        float[][] columns = ParseRows(
+            lines, dataIndex, delimiter, width, decimalComma, timeColumn, out double[]? preciseTime);
 
         var channels = new List<LogChannel>(width);
         var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -89,11 +93,12 @@ public sealed class DelimitedLogReader : ILogReader
             }
             seen[name] = 1;
 
-            channels.Add(new LogChannel(name, units[i], InferDigits(columns[i]), columns[i]));
+            channels.Add(LogChannel.Adopt(name, units[i], InferDigits(columns[i]), columns[i]));
         }
 
         int sampleCount = width > 0 ? columns[0].Length : 0;
-        LogChannel time = ResolveTimeBase(columns, names, units, lines, dataIndex, delimiter, sampleCount);
+        LogChannel time = ResolveTimeBase(
+            preciseTime, timeColumn, names, units, lines, dataIndex, delimiter, sampleCount);
 
         string[] preamble = lines.Take(headerIndex).ToArray();
         string? source = DetectSource(preamble, names);
@@ -328,13 +333,22 @@ public sealed class DelimitedLogReader : ILogReader
 
     // ----- parsing ----------------------------------------------------------
 
-    private static double[][] ParseRows(
-        string[] lines, int dataIndex, char delimiter, int width, bool decimalComma)
+    private static float[][] ParseRows(
+        string[] lines, int dataIndex, char delimiter, int width, bool decimalComma,
+        int timeColumn, out double[]? preciseTime)
     {
-        var buffers = new List<double>[width];
-        for (int i = 0; i < width; i++) buffers[i] = new List<double>(lines.Length - dataIndex);
+        // Row count is established first so each column can be allocated once at
+        // its final size. Growing a list per column and then copying it out cost
+        // more transient memory than the log itself.
+        int rows = CountDataRows(lines, dataIndex, delimiter, width);
 
-        for (int r = dataIndex; r < lines.Length; r++)
+        var columns = new float[width][];
+        for (int i = 0; i < width; i++) columns[i] = new float[rows];
+
+        double[]? time = timeColumn >= 0 && timeColumn < width ? new double[rows] : null;
+
+        int row = 0;
+        for (int r = dataIndex; r < lines.Length && row < rows; r++)
         {
             if (lines[r].Length == 0) continue;
 
@@ -343,12 +357,36 @@ public sealed class DelimitedLogReader : ILogReader
             if (cells.Length < width) continue;
 
             for (int c = 0; c < width; c++)
-                buffers[c].Add(ParseCell(cells[c], decimalComma));
+            {
+                double v = ParseCell(cells[c], decimalComma);
+                columns[c][row] = (float)v;
+                if (c == timeColumn && time is not null) time[row] = v;
+            }
+
+            row++;
         }
 
-        var columns = new double[width][];
-        for (int i = 0; i < width; i++) columns[i] = [.. buffers[i]];
+        preciseTime = time;
         return columns;
+    }
+
+    private static int CountDataRows(string[] lines, int dataIndex, char delimiter, int width)
+    {
+        int rows = 0;
+        for (int r = dataIndex; r < lines.Length; r++)
+        {
+            string line = lines[r];
+            if (line.Length == 0) continue;
+
+            // Counting separators answers the question unless quoting is in play,
+            // and avoids allocating a second split for every row in the file.
+            int fields = line.Contains('"')
+                ? SplitLine(line, delimiter).Length
+                : line.AsSpan().Count(delimiter) + 1;
+
+            if (fields >= width) rows++;
+        }
+        return rows;
     }
 
     private static double ParseCell(string cell, bool decimalComma)
@@ -363,12 +401,12 @@ public sealed class DelimitedLogReader : ILogReader
     }
 
     /// <summary>Infers a sensible display precision from the magnitude of the data.</summary>
-    private static int InferDigits(double[] values)
+    private static int InferDigits(float[] values)
     {
-        foreach (double v in values)
+        foreach (float v in values)
         {
-            if (double.IsNaN(v)) continue;
-            if (v != Math.Floor(v)) return 2;
+            if (float.IsNaN(v)) continue;
+            if (v != MathF.Floor(v)) return 2;
         }
         return 0;
     }
@@ -376,18 +414,15 @@ public sealed class DelimitedLogReader : ILogReader
     // ----- time base --------------------------------------------------------
 
     /// <summary>
-    /// Built from the parsed doubles rather than a stored channel: a time base
-    /// keeps full precision, because it accumulates over the recording.
+    /// Built from the separately parsed doubles rather than a stored channel: a
+    /// time base keeps full precision, because it accumulates over the recording.
     /// </summary>
     private static LogChannel ResolveTimeBase(
-        double[][] columns, string[] names, string[] units,
+        double[]? raw, int index, string[] names, string[] units,
         string[] lines, int dataIndex, char delimiter, int sampleCount)
     {
-        int index = FindTimeColumn(names, units);
-
-        if (index >= 0 && index < columns.Length)
+        if (raw is not null && index >= 0)
         {
-            double[] raw = columns[index];
             double factor = TimeScale(units[index]);
 
             if (IsMonotonic(raw) && raw.Length > 0 && raw[^1] > raw[0])

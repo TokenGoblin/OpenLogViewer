@@ -101,16 +101,22 @@ public sealed class MlgReader : ILogReader
         int stride = ResolveRecordStride(data, dataStart, payloadSize);
         Walk(data, dataStart, stride, out int sampleCount, out List<int> markerOffsets);
 
-        var columns = new double[fieldCount][];
-        for (int i = 0; i < fieldCount; i++) columns[i] = new double[sampleCount];
+        // The time field is decoded a second time at full precision; every other
+        // channel goes straight into its float column, so a log is never staged
+        // as doubles.
+        int timeField = FindTimeField(fields);
 
-        DecodeSamples(data, dataStart, stride, fields, columns, sampleCount);
+        var columns = new float[fieldCount][];
+        for (int i = 0; i < fieldCount; i++) columns[i] = new float[sampleCount];
+        double[]? preciseTime = timeField >= 0 ? new double[sampleCount] : null;
+
+        DecodeSamples(data, dataStart, stride, fields, columns, preciseTime, timeField, sampleCount);
 
         var channels = new List<LogChannel>(fieldCount);
         for (int i = 0; i < fieldCount; i++)
-            channels.Add(new LogChannel(fields[i].Name, fields[i].Units, fields[i].Digits, columns[i]));
+            channels.Add(LogChannel.Adopt(fields[i].Name, fields[i].Units, fields[i].Digits, columns[i]));
 
-        LogChannel time = ResolveTimeBase(fields, columns, sampleCount);
+        LogChannel time = ResolveTimeBase(fields, preciseTime, timeField, sampleCount);
         var (signature, info) = ReadInfoBlock(data, infoStart, dataStart);
 
         return new LogDocument
@@ -128,7 +134,8 @@ public sealed class MlgReader : ILogReader
     }
 
     private static void DecodeSamples(
-        byte[] data, int dataStart, int stride, MlgField[] fields, double[][] columns, int sampleCount)
+        byte[] data, int dataStart, int stride, MlgField[] fields,
+        float[][] columns, double[]? preciseTime, int timeField, int sampleCount)
     {
         int row = 0;
         int o = dataStart;
@@ -142,7 +149,15 @@ public sealed class MlgReader : ILogReader
             for (int f = 0; f < fields.Length; f++)
             {
                 MlgField fd = fields[f];
-                columns[f][row] = ReadRaw(data, payload + fd.Offset, fd.Type) * fd.Scale + fd.Transform;
+                columns[f][row] = (float)(ReadRaw(data, payload + fd.Offset, fd.Type) * fd.Scale + fd.Transform);
+            }
+
+            // Repeated rather than branched on inside the loop above: one extra
+            // field read per row costs less than a test against every field.
+            if (preciseTime is not null)
+            {
+                MlgField tf = fields[timeField];
+                preciseTime[row] = ReadRaw(data, payload + tf.Offset, tf.Type) * tf.Scale + tf.Transform;
             }
 
             row++;
@@ -289,23 +304,25 @@ public sealed class MlgReader : ILogReader
         return markers;
     }
 
-    /// <summary>
-    /// Built from the decoded doubles rather than a stored channel: a time base
-    /// keeps full precision, because it accumulates over the recording.
-    /// </summary>
-    private static LogChannel ResolveTimeBase(MlgField[] fields, double[][] columns, int sampleCount)
+    private static int FindTimeField(MlgField[] fields)
     {
         for (int i = 0; i < fields.Length; i++)
-        {
-            if (!fields[i].Name.Equals("Time", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fields[i].Name.Equals("Time", StringComparison.OrdinalIgnoreCase))
+                return i;
+        return -1;
+    }
 
-            double[] seconds = columns[i];
-            // A time column that never moves is no use as a time base.
-            if (seconds.Length > 1 && seconds[^1] > seconds[0])
-                return new LogChannel(fields[i].Name, fields[i].Units, fields[i].Digits, seconds,
-                                      preservePrecision: true);
-            break;
-        }
+    /// <summary>
+    /// Built from the separately decoded doubles rather than a stored channel: a
+    /// time base keeps full precision, because it accumulates over the recording.
+    /// </summary>
+    private static LogChannel ResolveTimeBase(
+        MlgField[] fields, double[]? seconds, int timeField, int sampleCount)
+    {
+        // A time column that never moves is no use as a time base.
+        if (seconds is { Length: > 1 } && seconds[^1] > seconds[0])
+            return new LogChannel(fields[timeField].Name, fields[timeField].Units,
+                                  fields[timeField].Digits, seconds, preservePrecision: true);
 
         // Fall back to a synthetic index when the log has no usable Time column.
         var synthetic = new double[sampleCount];
