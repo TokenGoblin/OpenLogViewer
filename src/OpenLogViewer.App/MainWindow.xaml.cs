@@ -99,6 +99,31 @@ public partial class MainWindow : Window
 
     private void OnPlotCommonClick(object sender, RoutedEventArgs e) => _vm.PlotCommon();
 
+    // ----- data filters -----------------------------------------------------
+
+    private void OnAddFilterClick(object sender, RoutedEventArgs e) =>
+        FilterEditor.Visibility = Visibility.Visible;
+
+    private void OnConfirmFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.AddFilter()) FilterEditor.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnCancelFilterClick(object sender, RoutedEventArgs e) =>
+        FilterEditor.Visibility = Visibility.Collapsed;
+
+    private void OnFiltersNoneClick(object sender, RoutedEventArgs e) => _vm.SetAllFilters(false);
+
+    private void OnDeleteFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element) return;
+
+        FilterItem? item = element.DataContext as FilterItem
+            ?? ((element.Parent as ContextMenu)?.PlacementTarget as FrameworkElement)?.DataContext as FilterItem;
+
+        if (item is not null) _vm.DeleteFilter(item);
+    }
+
     // ----- presets ----------------------------------------------------------
 
     private void OnSavePresetClick(object sender, RoutedEventArgs e)

@@ -76,6 +76,31 @@ flips between light and dark ink to stay legible on every step.
 cell, which is the quick way to see which parts of the table the drive actually
 exercised.
 
+### Data filters
+
+A table built from a whole drive averages warmup, overrun and idle into the same
+cells as the pulls you care about, and describes none of them. Filters throw out
+the samples that do not belong.
+
+Each filter is a condition on a channel — `CLT ≥ 160`, `TPS > 1`, `AFR between 9
+and 20` — and they combine with AND: a sample must satisfy every ticked
+condition to be counted. Opening a log offers suggestions for the channels it
+has, always switched off, so loading a log never silently changes what the table
+counts. Add your own with **+ Add filter**; right-click one to delete it.
+
+Two things follow from filtering that are easy to miss:
+
+- The status line reports how many samples were excluded, so a suspiciously
+  sparse table explains itself rather than looking broken.
+- **The axes re-scale to the samples that survive.** Filtering to warm running
+  also tightens the RPM and MAP range onto that data, which is usually what you
+  want — but it means two differently-filtered tables are not directly
+  comparable cell for cell.
+
+Filters are matched to channels by name and persist between sessions in
+`%APPDATA%\OpenLogViewer\filters.json`. A filter naming a channel the log does
+not have is reported and skipped, never applied as "reject everything".
+
 ## Features
 
 - **Binary `.mlg` support**, including packed flag bytes and interleaved marker

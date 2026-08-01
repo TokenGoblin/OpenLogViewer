@@ -24,18 +24,6 @@ public sealed class PresetStore
     private const int MaxNameLength = 40;
     private const int MaxPresets = 100;
 
-    // The file is plain text people will hand-edit, so read it forgivingly:
-    // any property casing is accepted, and trailing commas or comments are fine.
-    private static readonly JsonSerializerOptions Json = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
-
     private readonly List<ChannelPreset> _presets = [];
 
     public PresetStore(string? path = null)
@@ -44,10 +32,7 @@ public sealed class PresetStore
         Reload();
     }
 
-    public static string DefaultPath => System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "OpenLogViewer",
-        "presets.json");
+    public static string DefaultPath => JsonSettingsFile.InAppData("presets.json");
 
     public string Path { get; }
 
@@ -60,25 +45,17 @@ public sealed class PresetStore
     public void Reload()
     {
         _presets.Clear();
-        if (!File.Exists(Path)) return;
 
-        try
+        PresetFile? file = JsonSettingsFile.Read<PresetFile>(Path);
+        if (file?.Presets is null) return;
+
+        foreach (StoredPreset stored in file.Presets)
         {
-            var file = JsonSerializer.Deserialize<PresetFile>(File.ReadAllText(Path), Json);
-            if (file?.Presets is null) return;
+            string name = Clean(stored.Name);
+            if (name.Length == 0 || stored.Channels is not { Count: > 0 }) continue;
+            if (_presets.Any(p => Matches(p.Name, name))) continue;
 
-            foreach (StoredPreset stored in file.Presets)
-            {
-                string name = Clean(stored.Name);
-                if (name.Length == 0 || stored.Channels is not { Count: > 0 }) continue;
-                if (_presets.Any(p => Matches(p.Name, name))) continue;
-
-                _presets.Add(new ChannelPreset(name, [.. stored.Channels.Where(c => !string.IsNullOrWhiteSpace(c))]));
-            }
-        }
-        catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
-        {
-            _presets.Clear();
+            _presets.Add(new ChannelPreset(name, [.. stored.Channels.Where(c => !string.IsNullOrWhiteSpace(c))]));
         }
     }
 
@@ -121,25 +98,11 @@ public sealed class PresetStore
     public ChannelPreset? Find(string name) =>
         _presets.FirstOrDefault(p => Matches(p.Name, name));
 
-    /// <summary>
-    /// Writes via a temporary file so an interrupted save cannot leave the user
-    /// with a truncated presets file.
-    /// </summary>
-    private void Persist()
+    private void Persist() => JsonSettingsFile.Write(Path, new PresetFile
     {
-        string? directory = System.IO.Path.GetDirectoryName(Path);
-        if (directory is { Length: > 0 }) Directory.CreateDirectory(directory);
-
-        var file = new PresetFile
-        {
-            Version = 1,
-            Presets = [.. _presets.Select(p => new StoredPreset { Name = p.Name, Channels = [.. p.Channels] })],
-        };
-
-        string temp = Path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(file, Json));
-        File.Move(temp, Path, overwrite: true);
-    }
+        Version = 1,
+        Presets = [.. _presets.Select(p => new StoredPreset { Name = p.Name, Channels = [.. p.Channels] })],
+    });
 
     private static bool Matches(string a, string b) =>
         string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
