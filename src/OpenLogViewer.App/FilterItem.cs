@@ -33,6 +33,16 @@ public sealed class FilterItem : ObservableObject
     public event Action? Changed;
 }
 
+/// <summary>
+/// Where the table's bin edges come from. A real option object rather than a
+/// nullable entry, because WPF will not apply an item template to null and the
+/// "from the data" row would render blank.
+/// </summary>
+public sealed record AxisSourceOption(string Label, TuneAxisSet? Axes)
+{
+    public static AxisSourceOption FromData { get; } = new("From the log data", null);
+}
+
 /// <summary>A comparison paired with the symbol shown for it.</summary>
 public sealed record ComparisonOption(FilterComparison Value, string Label)
 {

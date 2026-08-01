@@ -52,6 +52,9 @@ public sealed class HistogramTable
 
     public required HistogramStatistic Statistic { get; init; }
 
+    /// <summary>True when the axes came from the tune rather than the data range.</summary>
+    public bool FromTune { get; init; }
+
     /// <summary>Smallest aggregated value across populated cells.</summary>
     public double MinValue { get; private set; }
 
@@ -104,6 +107,53 @@ public sealed class HistogramTable
         for (int i = 0; i < columns; i++) table.ColumnCenters[i] = xMin + (i + 0.5) * xStep;
         for (int i = 0; i < rows; i++) table.RowCenters[i] = yMin + (i + 0.5) * yStep;
 
+        return table.Accumulate(x, y, z, from, to, statistic, mask);
+    }
+
+    /// <summary>
+    /// Bins onto breakpoints supplied by the caller — normally the axes of the
+    /// table in the ECU, so each cell here corresponds to a cell being tuned.
+    /// Samples are assigned to the nearest breakpoint, which is how a value
+    /// between two rows is attributed in a tuning table.
+    /// </summary>
+    public static HistogramTable Build(
+        LogChannel x, LogChannel y, LogChannel z,
+        double[] columnBreakpoints, double[] rowBreakpoints,
+        int firstSample, int lastSample,
+        HistogramStatistic statistic,
+        SampleMask? mask = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(columnBreakpoints.Length, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(rowBreakpoints.Length, 1);
+
+        int length = Math.Min(x.Values.Length, Math.Min(y.Values.Length, z.Values.Length));
+        int from = Math.Max(0, Math.Min(firstSample, lastSample));
+        int to = Math.Min(length - 1, Math.Max(firstSample, lastSample));
+
+        var table = new HistogramTable(columnBreakpoints.Length, rowBreakpoints.Length)
+        {
+            X = x,
+            Y = y,
+            Z = z,
+            Statistic = statistic,
+            FromTune = true,
+        };
+
+        columnBreakpoints.CopyTo(table.ColumnCenters, 0);
+        rowBreakpoints.CopyTo(table.RowCenters, 0);
+
+        return from > to ? table.Finish() : table.Accumulate(x, y, z, from, to, statistic, mask);
+    }
+
+    private HistogramTable Accumulate(
+        LogChannel x, LogChannel y, LogChannel z,
+        int from, int to,
+        HistogramStatistic statistic,
+        SampleMask? mask)
+    {
+        int columns = Columns, rows = Rows;
+        HistogramTable table = this;
+
         var sums = new double[columns, rows];
         var mins = new double[columns, rows];
         var maxes = new double[columns, rows];
@@ -115,8 +165,8 @@ public sealed class HistogramTable
             double xv = x.Values[i], yv = y.Values[i], zv = z.Values[i];
             if (double.IsNaN(xv) || double.IsNaN(yv) || double.IsNaN(zv)) continue;
 
-            int column = Bucket(xv, xMin, xStep, columns);
-            int row = Bucket(yv, yMin, yStep, rows);
+            int column = Nearest(table.ColumnCenters, xv);
+            int row = Nearest(table.RowCenters, yv);
 
             if (table.Counts[column, row] == 0)
             {
@@ -200,8 +250,26 @@ public sealed class HistogramTable
         return (min, (max - min) / bins);
     }
 
-    private static int Bucket(double value, double min, double step, int bins) =>
-        Math.Clamp((int)((value - min) / step), 0, bins - 1);
+    /// <summary>
+    /// Index of the closest breakpoint. Ties and out-of-range values fall to the
+    /// nearest end, so every sample lands somewhere rather than being dropped.
+    /// </summary>
+    private static int Nearest(double[] centers, double value)
+    {
+        int best = 0;
+        double bestDistance = Math.Abs(value - centers[0]);
+
+        for (int i = 1; i < centers.Length; i++)
+        {
+            double distance = Math.Abs(value - centers[i]);
+            if (distance >= bestDistance) continue;
+
+            bestDistance = distance;
+            best = i;
+        }
+
+        return best;
+    }
 
     /// <summary>Formats a cell for display, using the Z channel's own precision.</summary>
     public string Format(int column, int row)

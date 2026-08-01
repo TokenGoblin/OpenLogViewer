@@ -39,8 +39,17 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Switches to the binned table view.</summary>
-    public void ShowHistogram() => _vm.ShowHistogram = true;
+    /// <summary>
+    /// Switches to the binned table view, optionally selecting one of the
+    /// breakpoint sources by position (0 is "from the log data").
+    /// </summary>
+    public void ShowHistogram(int axisSource = 0)
+    {
+        _vm.ShowHistogram = true;
+
+        if (axisSource > 0 && axisSource < _vm.AxisSources.Count)
+            _vm.AxisSource = _vm.AxisSources[axisSource];
+    }
 
     /// <summary>
     /// Positions the cursor from fractions of the plot area. Used to capture a

@@ -82,9 +82,30 @@
                         <RadioButton Style="{StaticResource Chip}" Content="Count" IsChecked="{Binding StatCount}"/>
                     </StackPanel>
 
-                    <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
+                    <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
-                    <Grid Margin="0,0,0,12">
+                    <ComboBox ItemsSource="{Binding AxisSources}" SelectedItem="{Binding AxisSource}"
+                              ItemTemplate="{StaticResource AxisSourceName}" Margin="0,0,0,4"
+                              ToolTip="Bin onto the tune's own table axes, so cells line up with the table you are editing"/>
+                    <TextBlock Text="This log carries no tune, so bins come from the data."
+                               FontSize="10" Foreground="#6B7686" TextWrapping="Wrap" Margin="0,0,0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTuneAxes}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"
+                               Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}"/>
+                    <Grid Margin="0,0,0,12"
+                          Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
@@ -428,4 +449,5 @@
         </Grid>
     </DockPanel>
 </Window>
+
 
