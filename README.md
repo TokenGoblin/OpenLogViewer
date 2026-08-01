@@ -76,6 +76,17 @@ flips between light and dark ink to stay legible on every step.
 cell, which is the quick way to see which parts of the table the drive actually
 exercised.
 
+**Click a cell to trace it back to the log.** The view switches to the plot,
+frames the samples that produced that cell and marks them.
+
+An engine passes through the same RPM and load many times in a drive, so a cell
+is almost never one stretch of the recording — showing the span from its first
+to its last sample would cover most of the log. The samples are grouped into
+*visits* instead: the longest is framed and selected, every other visit is
+shaded, and the status line reports how many there were. A cell averaged over
+twelve separate passes is a very different thing from one sustained pull, and
+the table alone cannot show that.
+
 ### Axis breakpoints from the tune
 
 Uniform bins spanning the observed range never line up with the table you are

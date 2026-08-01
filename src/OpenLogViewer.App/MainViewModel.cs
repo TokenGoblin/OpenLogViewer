@@ -768,6 +768,29 @@ public sealed class MainViewModel : ObservableObject
         Hint = $"Deleted preset “{preset.Name}”.";
     }
 
+    /// <summary>
+    /// Explains what a traced cell actually covers. The count of visits is the
+    /// important part: one cell averaged over twelve separate passes is a very
+    /// different thing from one sustained stretch, and the table cannot show that.
+    /// </summary>
+    public void DescribeCellTrace(
+        HistogramTable table,
+        (int Column, int Row) cell,
+        IReadOnlyList<(int First, int Last)> visits,
+        (int First, int Last) longest)
+    {
+        int samples = visits.Sum(v => v.Last - v.First + 1);
+        string where = $"{table.X.Name} {table.ColumnCenters[cell.Column]:G6} · " +
+                       $"{table.Y.Name} {table.RowCenters[cell.Row]:G6}";
+
+        string visitText = visits.Count == 1
+            ? "one visit"
+            : $"{visits.Count} visits, all marked";
+
+        Hint = $"{where} — {table.Format(cell.Column, cell.Row)} from {samples:N0} samples over " +
+               $"{visitText}. Showing the longest ({longest.Last - longest.First + 1:N0} samples).";
+    }
+
     public void ResetHint() => Hint = DefaultHint;
 
     private void RefreshPresets()

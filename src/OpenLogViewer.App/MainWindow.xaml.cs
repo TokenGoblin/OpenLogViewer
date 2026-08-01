@@ -21,6 +21,7 @@ public partial class MainWindow : Window
         Plot.CursorSampleChanged += _vm.UpdateCursor;
         Plot.HoverChannelChanged += _vm.HighlightChannel;
         Plot.SelectionChanged += _vm.UpdateSelection;
+        Histogram.CellActivated += OnHistogramCellActivated;
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
     }
@@ -73,6 +74,13 @@ public partial class MainWindow : Window
     /// <summary>Marks a span of the log, in seconds.</summary>
     public void SelectRange(double from, double to) => Plot.SelectRange(from, to);
 
+    /// <summary>Traces a table cell back to the log.</summary>
+    public void ActivateCell(int column, int row)
+    {
+        RebuildHistogram();
+        OnHistogramCellActivated((column, row));
+    }
+
     /// <summary>Gives each plotted channel its own strip.</summary>
     public void SetStackedLanes(bool stacked) => _vm.StackedLanes = stacked;
 
@@ -111,6 +119,36 @@ public partial class MainWindow : Window
 
         _vm.RebuildHistogram(first, last);
         Histogram.SetTable(_vm.Table, _vm.ColorByCount);
+    }
+
+    /// <summary>
+    /// Traces a table cell back to the log. A cell is nearly always visited many
+    /// times, so the longest visit is selected and the rest are marked — showing
+    /// the span from first to last sample would cover most of the recording.
+    /// </summary>
+    private void OnHistogramCellActivated((int Column, int Row) cell)
+    {
+        if (_vm.Table is not { } table || _vm.Document is not { } doc) return;
+
+        IReadOnlyList<(int First, int Last)> visits = table.VisitsTo(cell.Column, cell.Row);
+        if (visits.Count == 0) return;
+
+        (int First, int Last) longest = table.LongestVisitTo(cell.Column, cell.Row)!.Value;
+
+        Histogram.SetSelectedCell(cell);
+        _vm.ShowHistogram = false;
+
+        Plot.SetOccurrences([.. visits.Select(v => (doc.Time.At(v.First), doc.Time.At(v.Last)))]);
+
+        // Frame the visit with a little room either side, then mark it.
+        double from = doc.Time.At(longest.First);
+        double to = doc.Time.At(longest.Last);
+        double margin = Math.Max((to - from) * 2, 1.0);
+
+        Plot.ZoomTo(from - margin, to + margin);
+        Plot.SelectRange(from, to);
+
+        _vm.DescribeCellTrace(table, cell, visits, longest);
     }
 
     private void OnPlotInvalidated()
@@ -268,4 +306,5 @@ public partial class MainWindow : Window
             LoadFile(files[0]);
     }
 }
+
 

@@ -86,6 +86,90 @@ public sealed class HistogramTable
 
     public bool IsEmpty => PopulatedCells == 0;
 
+    /// <summary>Sample window the table was built over, for tracing cells back.</summary>
+    public int FirstSample { get; private set; }
+
+    public int LastSample { get; private set; }
+
+    private SampleMask? _mask;
+
+    /// <summary>
+    /// Sample indices that landed in one cell, in order.
+    ///
+    /// Recomputed rather than stored: a per-sample cell index would cost memory
+    /// on every table for a lookup used only when a cell is clicked.
+    /// </summary>
+    public IReadOnlyList<int> SamplesIn(int column, int row)
+    {
+        var hits = new List<int>();
+        if ((uint)column >= (uint)Columns || (uint)row >= (uint)Rows) return hits;
+
+        for (int i = FirstSample; i <= LastSample; i++)
+        {
+            if (_mask is not null && !_mask[i]) continue;
+
+            double xv = X.At(i), yv = Y.At(i), zv = Z.At(i);
+            if (double.IsNaN(xv) || double.IsNaN(yv) || double.IsNaN(zv)) continue;
+            if (ZCompare is { } compare && double.IsNaN(compare.At(i))) continue;
+
+            if (Nearest(ColumnCenters, xv) == column && Nearest(RowCenters, yv) == row)
+                hits.Add(i);
+        }
+
+        return hits;
+    }
+
+    /// <summary>
+    /// The cell's samples grouped into visits. An engine passes through the same
+    /// RPM and load many times in a drive, so a cell is almost never one stretch
+    /// of the log — treating it as one would span nearly the whole recording.
+    /// </summary>
+    public IReadOnlyList<(int First, int Last)> VisitsTo(int column, int row, int gapTolerance = 2)
+    {
+        var visits = new List<(int, int)>();
+        int start = -1, previous = -1;
+
+        foreach (int i in SamplesIn(column, row))
+        {
+            if (start < 0) { start = previous = i; continue; }
+
+            // A sample or two of noise should not split one visit in half.
+            if (i - previous <= gapTolerance + 1) { previous = i; continue; }
+
+            visits.Add((start, previous));
+            start = previous = i;
+        }
+
+        if (start >= 0) visits.Add((start, previous));
+        return visits;
+    }
+
+    /// <summary>The longest visit to a cell, which is the one worth looking at first.</summary>
+    public (int First, int Last)? LongestVisitTo(int column, int row)
+    {
+        IReadOnlyList<(int First, int Last)> visits = VisitsTo(column, row);
+        if (visits.Count == 0) return null;
+
+        (int First, int Last) best = visits[0];
+        foreach ((int first, int last) in visits)
+            if (last - first > best.Last - best.First)
+                best = (first, last);
+
+        return best;
+    }
+
+    /// <summary>The cell a sample falls in, or null when it is excluded.</summary>
+    public (int Column, int Row)? CellOf(int sample)
+    {
+        if (sample < FirstSample || sample > LastSample) return null;
+        if (_mask is not null && !_mask[sample]) return null;
+
+        double xv = X.At(sample), yv = Y.At(sample);
+        if (double.IsNaN(xv) || double.IsNaN(yv)) return null;
+
+        return (Nearest(ColumnCenters, xv), Nearest(RowCenters, yv));
+    }
+
     /// <summary>
     /// Bins samples <paramref name="firstSample"/>..<paramref name="lastSample"/>
     /// inclusive. Axis ranges come from that window rather than the whole log, so
@@ -173,6 +257,10 @@ public sealed class HistogramTable
     {
         int columns = Columns, rows = Rows;
         HistogramTable table = this;
+
+        FirstSample = from;
+        LastSample = to;
+        _mask = mask;
 
         var sums = new double[columns, rows];
         var mins = new double[columns, rows];
