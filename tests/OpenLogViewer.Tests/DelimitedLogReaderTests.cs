@@ -21,6 +21,48 @@ public class DelimitedLogReaderTests : IDisposable
     }
 
     [Fact]
+    public void QuotedDelimitersDoNotChangeTheRowCount()
+    {
+        // Columns are sized from a separator count that skips quoted lines. If
+        // that count disagreed with the split, rows would be dropped or the tail
+        // of every column would be left as zeros.
+        string path = Write(".csv",
+            "Time,RPM,MAP,AFR,Note",
+            "0.0,1500,45,14.7,\"idle, warm\"",
+            "0.1,1600,46,14.6,plain",
+            "0.2,1700,47,14.5,\"a,b,c,d\"",
+            "0.3,1800,48,14.4,plain");
+
+        LogDocument log = LogReaderFactory.Load(path);
+
+        Assert.Equal(4, log.SampleCount);
+        Assert.Equal(5, log.Channels.Count);
+
+        LogChannel rpm = log.FindChannel("RPM")!;
+        Assert.Equal(1500, rpm.At(0));
+        Assert.Equal(1800, rpm.At(3));
+        Assert.Equal(1800, rpm.Max);
+    }
+
+    [Fact]
+    public void RaggedRowsAreSkippedWithoutLeavingAGapInTheColumns()
+    {
+        // A short row is dropped, so the allocated column length must count only
+        // the rows that are actually parsed.
+        string path = Write(".csv",
+            "Time,RPM,MAP",
+            "0.0,1500,45",
+            "0.1,1600",
+            "0.2,1700,47");
+
+        LogDocument log = LogReaderFactory.Load(path);
+
+        Assert.Equal(2, log.SampleCount);
+        Assert.Equal([1500, 1700], log.FindChannel("RPM")!.ToArray());
+        Assert.Equal(0.2, log.Time.At(1), 6);
+    }
+
+    [Fact]
     public void ParsesTunerStudioMslWithSignatureAndUnitsRow()
     {
         string path = Write(".msl",
