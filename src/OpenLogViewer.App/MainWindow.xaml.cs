@@ -73,6 +73,9 @@ public partial class MainWindow : Window
     /// <summary>Marks a span of the log, in seconds.</summary>
     public void SelectRange(double from, double to) => Plot.SelectRange(from, to);
 
+    /// <summary>Gives each plotted channel its own strip.</summary>
+    public void SetStackedLanes(bool stacked) => _vm.StackedLanes = stacked;
+
     private void Open()
     {
         var dialog = new OpenFileDialog
@@ -112,6 +115,8 @@ public partial class MainWindow : Window
 
     private void OnPlotInvalidated()
     {
+        Plot.SetStacked(_vm.StackedLanes);
+
         // Channel visibility changed but the document did not, so keep the
         // current zoom window and just redraw.
         if (Plot.ViewEnd > Plot.ViewStart) Plot.Refresh();
@@ -263,3 +268,4 @@ public partial class MainWindow : Window
             LoadFile(files[0]);
     }
 }
+

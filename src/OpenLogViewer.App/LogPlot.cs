@@ -38,6 +38,13 @@ public sealed class LogPlot : FrameworkElement
     private static readonly Brush CardAction = Frozen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7)));
     private static readonly Brush CardRowHover = Frozen(new SolidColorBrush(Color.FromRgb(0x2C, 0x38, 0x45)));
 
+    /// <summary>Vertical gap between stacked lanes, in pixels.</summary>
+    private const double LaneGap = 6;
+
+    private static readonly Pen LanePen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x22, 0x28, 0x31)), 1));
+
+    private bool _stacked;
+
     private LogDocument? _document;
     private IReadOnlyList<ChannelItem> _series = [];
     private double _viewStart, _viewEnd;
@@ -148,6 +155,36 @@ public sealed class LogPlot : FrameworkElement
 
     public void Refresh() => InvalidateVisual();
 
+    /// <summary>
+    /// Gives each plotted channel its own horizontal strip instead of overlaying
+    /// them all. Overlaid traces show phase relationships well but become
+    /// unreadable past a handful of channels.
+    /// </summary>
+    public void SetStacked(bool stacked)
+    {
+        if (_stacked == stacked) return;
+
+        _stacked = stacked;
+        InvalidateVisual();
+    }
+
+    /// <summary>Strip belonging to one channel, or the whole area when overlaid.</summary>
+    private Rect LaneFor(int index, int count, Rect area)
+    {
+        if (!_stacked || count <= 1) return area;
+
+        double height = area.Height / count;
+        return new Rect(area.Left, area.Top + index * height, area.Width, Math.Max(1, height - LaneGap));
+    }
+
+    /// <summary>Which lane a point falls in, ignoring the gaps so there is no dead band.</summary>
+    private int LaneAt(double y, int count, Rect area)
+    {
+        if (!_stacked || count <= 1 || area.Height <= 0) return 0;
+
+        return Math.Clamp((int)((y - area.Top) / (area.Height / count)), 0, count - 1);
+    }
+
     public void ResetView()
     {
         if (_document is { SampleCount: > 0 } doc)
@@ -203,14 +240,28 @@ public sealed class LogPlot : FrameworkElement
         int i0 = Math.Max(0, doc.IndexAtTime(_viewStart) - 1);
         int i1 = Math.Min(time.Length, doc.IndexAtTime(_viewEnd) + 2);
 
-        foreach (ChannelItem item in visible)
+        for (int i = 0; i < visible.Count; i++)
         {
-            // The hovered trace is drawn last so it sits above its neighbours.
+            ChannelItem item = visible[i];
+            Rect lane = LaneFor(i, visible.Count, area);
+
+            if (_stacked)
+            {
+                DrawLaneChrome(dc, item, lane, i, visible.Count);
+
+                // The hovered lane still gets a heavier stroke; without overlap
+                // it reads as emphasis rather than as separation.
+                Pen pen = ReferenceEquals(item, _hover) ? item.HighlightPen : item.Pen;
+                dc.DrawGeometry(null, pen, BuildTrace(item.Channel, time, i0, i1, lane, doc.GapThreshold));
+                continue;
+            }
+
+            // Overlaid: the hovered trace is drawn last so it sits on top.
             if (ReferenceEquals(item, _hover)) continue;
             dc.DrawGeometry(null, item.Pen, BuildTrace(item.Channel, time, i0, i1, area, doc.GapThreshold));
         }
 
-        if (_hover is { IsVisible: true } hover)
+        if (!_stacked && _hover is { IsVisible: true } hover)
             dc.DrawGeometry(null, hover.HighlightPen,
                 BuildTrace(hover.Channel, time, i0, i1, area, doc.GapThreshold));
 
@@ -245,6 +296,29 @@ public sealed class LogPlot : FrameworkElement
     }
 
     /// <summary>
+    /// Separator, name and scale for one lane. Each lane is scaled to its own
+    /// channel, so the labels are what say where the trace actually sits.
+    /// </summary>
+    private void DrawLaneChrome(DrawingContext dc, ChannelItem item, Rect lane, int index, int count)
+    {
+        if (index > 0)
+            dc.DrawLine(LanePen, new Point(lane.Left, lane.Top - LaneGap / 2),
+                                 new Point(lane.Right, lane.Top - LaneGap / 2));
+
+        // Below about this height the labels would cover the trace they describe.
+        if (lane.Height < 26) return;
+
+        LogChannel channel = item.Channel;
+        FormattedText name = Text(channel.Name, 10, item.Brush);
+        dc.DrawText(name, new Point(lane.Left + 4, lane.Top + 1));
+
+        FormattedText high = Text(channel.Format(channel.Max), 9, AxisTextBrush);
+        FormattedText low = Text(channel.Format(channel.Min), 9, AxisTextBrush);
+        dc.DrawText(high, new Point(lane.Right - high.Width - 2, lane.Top + 1));
+        dc.DrawText(low, new Point(lane.Right - low.Width - 2, lane.Bottom - low.Height - 1));
+    }
+
+    /// <summary>
     /// Maps a channel value to a y coordinate. Each channel is scaled to its own
     /// range, so this is the single place that mapping is defined — the trace
     /// geometry and the pointer hit-test must agree exactly.
@@ -261,16 +335,26 @@ public sealed class LogPlot : FrameworkElement
         return top + height * (1 - (value - min) / range);
     }
 
-    /// <summary>Nearest visible trace to the pointer, or null if none is close.</summary>
+    /// <summary>
+    /// Trace under the pointer. Stacked lanes make this exact — the lane the
+    /// pointer is in names the channel — where overlaid traces need a proximity
+    /// test that can legitimately find nothing.
+    /// </summary>
     private ChannelItem? FindTraceAt(Point pointer, Rect area, int index)
     {
+        List<ChannelItem> visible = [.. _series.Where(s => s.IsVisible)];
+        if (visible.Count == 0) return null;
+
+        if (_stacked)
+            return pointer.Y < area.Top || pointer.Y > area.Bottom
+                ? null
+                : visible[LaneAt(pointer.Y, visible.Count, area)];
+
         ChannelItem? best = null;
         double bestDistance = HoverTolerance;
 
-        foreach (ChannelItem item in _series)
+        foreach (ChannelItem item in visible)
         {
-            if (!item.IsVisible) continue;
-
             double value = item.Channel.At(index);
             if (double.IsNaN(value)) continue;
 
@@ -279,6 +363,16 @@ public sealed class LogPlot : FrameworkElement
         }
 
         return best;
+    }
+
+    /// <summary>The lane a channel occupies, for placing the readout beside it.</summary>
+    private Rect LaneOf(ChannelItem item, Rect area)
+    {
+        if (!_stacked) return area;
+
+        List<ChannelItem> visible = [.. _series.Where(s => s.IsVisible)];
+        int index = visible.IndexOf(item);
+        return index < 0 ? area : LaneFor(index, visible.Count, area);
     }
 
     /// <summary>
@@ -327,7 +421,10 @@ public sealed class LogPlot : FrameworkElement
         double x = TimeToX(_cursorTime, area) + 14;
         if (x + width > area.Right) x = TimeToX(_cursorTime, area) - width - 14;
         x = Math.Clamp(x, area.Left, Math.Max(area.Left, area.Right - width));
-        double y = Math.Clamp(ChannelY(channel, channel.At(_cursorIndex), area) - height / 2,
+
+        // Anchored to the trace, but never allowed outside the plot.
+        Rect lane = LaneOf(hover, area);
+        double y = Math.Clamp(ChannelY(channel, channel.At(_cursorIndex), lane) - height / 2,
                               area.Top, Math.Max(area.Top, area.Bottom - height));
 
         dc.DrawRoundedRectangle(CardBrush, CardPen, new Rect(x, y, width, height), 4, 4);

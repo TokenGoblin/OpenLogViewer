@@ -159,6 +159,30 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Raised when the channel set or its visibility changes.</summary>
     public event Action? PlotInvalidated;
 
+    private bool _stackedLanes;
+
+    /// <summary>
+    /// Give each plotted channel its own strip. Overlaid traces read well for
+    /// phase relationships; stacked lanes read well for shape and magnitude.
+    /// </summary>
+    public bool StackedLanes
+    {
+        get => _stackedLanes;
+        set
+        {
+            if (!Set(ref _stackedLanes, value)) return;
+
+            Raise(nameof(OverlaidLanes));
+            PlotInvalidated?.Invoke();
+        }
+    }
+
+    public bool OverlaidLanes
+    {
+        get => !_stackedLanes;
+        set { if (value) StackedLanes = false; }
+    }
+
     // ----- histogram --------------------------------------------------------
 
     private bool _showHistogram;
