@@ -42,7 +42,7 @@ public sealed class MainViewModel : ObservableObject
         "Hover a trace for its min/max, then click either to jump there  •  " +
         "Shift-drag to mark a span and summarise it  •  Right-click for more";
 
-    private readonly PresetStore _store = new();
+    private readonly PresetStore _store;
 
     private LogDocument? _document;
     private string _hint = DefaultHint;
@@ -55,8 +55,15 @@ public sealed class MainViewModel : ObservableObject
     private bool _hideUnused = true;
     private int _colorCursor;
 
-    public MainViewModel()
+    /// <summary>
+    /// Stores are injectable so tests can point them at a temporary directory
+    /// rather than reading and writing the user's real settings.
+    /// </summary>
+    public MainViewModel(PresetStore? presets = null, FilterStore? filters = null)
     {
+        _store = presets ?? new PresetStore();
+        _filterStore = filters ?? new FilterStore();
+
         ChannelView = CollectionViewSource.GetDefaultView(Channels);
         ChannelView.Filter = FilterChannel;
         ApplySort();
@@ -259,7 +266,7 @@ public sealed class MainViewModel : ObservableObject
 
     // ----- data filters -----------------------------------------------------
 
-    private readonly FilterStore _filterStore = new();
+    private readonly FilterStore _filterStore;
     private ChannelItem? _newFilterChannel;
     private ComparisonOption _newComparison = ComparisonOption.All[0];
     private string _newLow = "";
@@ -691,7 +698,10 @@ public sealed class MainViewModel : ObservableObject
             ? ChannelView.Cast<ChannelItem>().ToList()
             : [.. Channels];
 
-        foreach (ChannelItem item in targets) item.IsVisible = visible;
+        Batch(() =>
+        {
+            foreach (ChannelItem item in targets) item.IsVisible = visible;
+        });
     }
 
     /// <summary>Mirrors the plot's hovered trace into the channel list.</summary>
@@ -702,11 +712,11 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>Replaces the selection with the channels most logs are read for.</summary>
-    public void PlotCommon()
+    public void PlotCommon() => Batch(() =>
     {
         foreach (ChannelItem item in Channels)
             item.IsVisible = item.Category == ChannelCategory.Common && !item.IsFlat;
-    }
+    });
 
     // ----- presets ----------------------------------------------------------
 
@@ -751,8 +761,11 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        foreach (ChannelItem item in Channels) item.IsVisible = false;
-        foreach (ChannelItem item in matches) item.IsVisible = true;
+        Batch(() =>
+        {
+            foreach (ChannelItem item in Channels) item.IsVisible = false;
+            foreach (ChannelItem item in matches) item.IsVisible = true;
+        });
 
         int missing = preset.Channels.Count - matches.Count;
         Hint = missing == 0
@@ -862,6 +875,23 @@ public sealed class MainViewModel : ObservableObject
     /// a colour is claimed when a channel is plotted, preferring one no other
     /// visible trace is already using.
     /// </summary>
+    private bool _batching;
+
+    /// <summary>
+    /// Runs a bulk visibility change as one update. Without this, switching a
+    /// preset on a 179-channel log redraws the plot and recounts the list once
+    /// per channel rather than once in total.
+    /// </summary>
+    private void Batch(Action work)
+    {
+        _batching = true;
+        try { work(); }
+        finally { _batching = false; }
+
+        RefreshView();
+        PlotInvalidated?.Invoke();
+    }
+
     private void OnVisibilityChanged(ChannelItem item)
     {
         if (item.IsVisible)
@@ -876,6 +906,12 @@ public sealed class MainViewModel : ObservableObject
             item.SetColor(choice);
         }
 
+        if (_batching) return;
+
+        // Plotting a constant channel changes whether the filter withholds it,
+        // so the list has to be re-evaluated or the row it needs never appears.
+        if (_hideUnused && item.IsFlat) ChannelView.Refresh();
+
         UpdateSummary();
         PlotInvalidated?.Invoke();
     }
@@ -885,8 +921,9 @@ public sealed class MainViewModel : ObservableObject
         if (obj is not ChannelItem item) return false;
         if (_search.Length > 0) return MatchesSearch(item);
 
-        // A plotted channel always stays listed, so it can be switched back off.
-        return !(_hideUnused && item.IsFlat);
+        // A plotted channel always stays listed, whatever the filter says: a
+        // trace on screen with no row to untick it is a trap.
+        return !(_hideUnused && item.IsFlat && !item.IsVisible);
     }
 
     /// <summary>
@@ -900,3 +937,4 @@ public sealed class MainViewModel : ObservableObject
         || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
 }
+

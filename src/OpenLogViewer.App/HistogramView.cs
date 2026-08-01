@@ -169,7 +169,7 @@ public sealed class HistogramView : FrameworkElement
             return Sample(Ramp, Math.Clamp(t, 0, 1));
         }
 
-        if (table.IsDelta)
+        if (table.ShowsDeviation)
         {
             // Scaled by the largest deviation either way, so equal errors in
             // opposite directions get equal intensity.
@@ -233,7 +233,7 @@ public sealed class HistogramView : FrameworkElement
     private void DrawLegend(DrawingContext dc, HistogramTable table)
     {
         const double width = 132, height = 9;
-        bool diverging = table.IsDelta && !_colorByCount;
+        bool diverging = table.ShowsDeviation && !_colorByCount;
 
         (string low, string high) = _colorByCount
             ? ("1", table.MaxCount.ToString("N0"))
@@ -394,3 +394,4 @@ public sealed class HistogramView : FrameworkElement
         return freezable;
     }
 }
+

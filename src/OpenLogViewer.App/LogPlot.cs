@@ -121,10 +121,15 @@ public sealed class LogPlot : FrameworkElement
 
     public void ClearSelection()
     {
-        if (!HasSelection && !_selecting) return;
+        if (!HasSelection && !_selecting && _occurrences.Count == 0) return;
 
         _selecting = false;
         _selectionAnchor = _selectionFrom = _selectionTo = double.NaN;
+
+        // The marked spans belong to the traced cell that produced this
+        // selection; dropping one ends the other.
+        _occurrences = [];
+
         SelectionChanged?.Invoke(null);
         InvalidateVisual();
     }
@@ -177,6 +182,16 @@ public sealed class LogPlot : FrameworkElement
     {
         _document = document;
         _series = series;
+
+        // Selections and traced spans are times in the previous recording. Left
+        // in place they would be drawn over the new log at meaningless offsets.
+        _selecting = false;
+        _selectionAnchor = _selectionFrom = _selectionTo = double.NaN;
+        _occurrences = [];
+        _hover = null;
+        _cursorIndex = -1;
+        _cursorTime = double.NaN;
+
         ResetView();
     }
 

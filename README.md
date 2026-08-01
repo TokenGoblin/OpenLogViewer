@@ -241,9 +241,16 @@ Ignition (24)
 dotnet test -c Release
 ```
 
-The MLG tests build synthetic log files in memory, so they cover the awkward
-cases — packed flag bytes, interleaved markers, scale/transform — without
-needing sample logs checked into the repository.
+Two suites:
+
+- `OpenLogViewer.Tests` — the readers, the histogram, filters and tune axes.
+  The MLG tests build synthetic log files in memory, so they cover the awkward
+  cases — packed flag bytes, interleaved markers, scale/transform — without
+  needing sample logs checked into the repository.
+- `OpenLogViewer.App.Tests` — the view model, driven end to end: write a log,
+  open it, and exercise the channel list, presets, filters and histogram the way
+  the UI does. The preset and filter stores are injected with temporary paths so
+  tests never touch real user settings.
 
 The viewer can also render itself to a PNG, which is how the screenshot above is
 produced (capturing from another process is unreliable under DWM composition):
