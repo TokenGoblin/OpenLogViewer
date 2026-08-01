@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenLogViewer.App/OpenLogViewer.App.csproj" />
+    <Project Path="src/OpenLogViewer.Core/OpenLogViewer.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenLogViewer.Tests/OpenLogViewer.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/OpenLogViewer.Dump/OpenLogViewer.Dump.csproj" />
+  </Folder>
+</Solution>
