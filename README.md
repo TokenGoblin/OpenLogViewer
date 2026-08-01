@@ -157,8 +157,13 @@ not have is reported and skipped, never applied as "reject everything".
   row, right-click → *Jump to maximum / minimum*, or click the max or min line in
   the hover readout itself. All keep the current zoom and plot the channel first
   if it was not already showing
-- Overlaid traces, each scaled to its own range — how tuners actually read logs,
-  where phase relationships matter more than shared magnitude
+- **Overlaid or stacked** — overlaid traces, each scaled to its own range, read
+  well for phase relationships between channels; stacked lanes give each channel
+  its own strip, which is what you want past about four channels. Toggle in the
+  toolbar
+- **Shift-drag to mark a span** — every channel row switches to min … max and the
+  average over that span, and the hover readout reports the span rather than the
+  whole log
 - Scroll to zoom at the pointer, drag to pan, double-click to fit
 - Log markers drawn in place on the timeline
 - **Gaps in logging are drawn as gaps.** Paused-and-resumed logs are common, and

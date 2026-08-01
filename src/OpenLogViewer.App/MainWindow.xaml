@@ -27,6 +27,17 @@
                                  IsChecked="{Binding ShowHistogram}"
                                  ToolTip="Bin the log into a table, like a tuning table"/>
                 </StackPanel>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
+                    <RadioButton Style="{StaticResource Chip}" Content="Overlaid"
+                                 IsChecked="{Binding OverlaidLanes}"
+                                 ToolTip="All traces share the plot — best for comparing timing between channels"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Stacked"
+                                 IsChecked="{Binding StackedLanes}"
+                                 ToolTip="Each channel gets its own strip — best when several are plotted"/>
+                </StackPanel>
                 <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
                            VerticalAlignment="Center" FontFamily="Consolas"
                            Foreground="{StaticResource Accent}" Margin="12,0,4,0"/>

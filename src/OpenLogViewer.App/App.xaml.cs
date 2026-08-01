@@ -25,6 +25,8 @@ public partial class App : Application
         string? log = e.Args.FirstOrDefault(a => !a.StartsWith("--"));
         if (log is not null) window.LoadFile(log);
 
+        if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
+
         int sel = Array.IndexOf(e.Args, "--select");
         if (sel >= 0 && sel + 1 < e.Args.Length)
         {
@@ -97,3 +99,4 @@ public partial class App : Application
         }, DispatcherPriority.ContextIdle);
     }
 }
+
