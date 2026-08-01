@@ -399,6 +399,21 @@ public sealed class MainViewModel : ObservableObject
         set { if (Set(ref _zAxis, value)) HistogramInvalidated?.Invoke(); }
     }
 
+    private CompareOption _zCompare = CompareOption.None;
+
+    /// <summary>Channels Z can be measured against, plus a "None" entry.</summary>
+    public ObservableCollection<CompareOption> CompareOptions { get; } = [];
+
+    /// <summary>
+    /// Subtracting a target turns "what did it read" into "how far off is it",
+    /// which is the question a tuning table is actually asked.
+    /// </summary>
+    public CompareOption ZCompare
+    {
+        get => _zCompare;
+        set { if (value is not null && Set(ref _zCompare, value)) HistogramInvalidated?.Invoke(); }
+    }
+
     public int HistogramColumns
     {
         get => _columns;
@@ -471,14 +486,16 @@ public sealed class MainViewModel : ObservableObject
 
         SampleMask mask = SampleFilter.Build(Document, Filters.Select(f => f.Filter));
 
+        LogChannel? against = _zCompare.Channel?.Channel;
+
         Table = _tuneAxes is { } axes
             ? HistogramTable.Build(
                 XAxis.Channel, YAxis.Channel, ZAxis.Channel,
                 axes.X.Breakpoints, axes.Y.Breakpoints,
-                firstSample, lastSample, _statistic, mask)
+                firstSample, lastSample, _statistic, mask, against)
             : HistogramTable.Build(
                 XAxis.Channel, YAxis.Channel, ZAxis.Channel,
-                _columns, _rows, firstSample, lastSample, _statistic, mask);
+                _columns, _rows, firstSample, lastSample, _statistic, mask, against);
 
         if (Table.IsEmpty)
         {
@@ -519,6 +536,16 @@ public sealed class MainViewModel : ObservableObject
         _zAxis = Pick("AFR") ?? Pick("Lambda") ?? AxisChannels.Skip(2).FirstOrDefault();
         _newFilterChannel = _xAxis;
 
+        // Every channel, not just the ones that vary: a target is very often a
+        // fixed value (a flat 14.7 stoich target), and that is precisely the
+        // case worth measuring against.
+        CompareOptions.Clear();
+        CompareOptions.Add(CompareOption.None);
+        foreach (ChannelItem item in Channels.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+            CompareOptions.Add(new CompareOption(item.Name, item));
+
+        _zCompare = CompareOption.None;
+
         // Offer the tune's own table axes when the log carries a tune.
         AxisSources.Clear();
         AxisSources.Add(AxisSourceOption.FromData);
@@ -531,6 +558,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(YAxis));
         Raise(nameof(ZAxis));
         Raise(nameof(NewFilterChannel));
+        Raise(nameof(ZCompare));
         Raise(nameof(AxisSource));
         Raise(nameof(UsingTuneAxes));
         Raise(nameof(UsingDataAxes));

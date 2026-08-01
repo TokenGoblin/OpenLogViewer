@@ -71,7 +71,13 @@
                     <TextBlock Text="Z axis — the value in each cell" FontSize="11"
                                Foreground="{StaticResource Muted}"/>
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding ZAxis}"
-                              ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,12"/>
+                              ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
+
+                    <TextBlock Text="Compare against — shows the difference" FontSize="11"
+                               Foreground="{StaticResource Muted}"/>
+                    <ComboBox ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding ZCompare}"
+                              ItemTemplate="{StaticResource AxisSourceName}" Margin="0,2,0,12"
+                              ToolTip="Subtract a target channel, so each cell shows how far off it is rather than what it read"/>
 
                     <TextBlock Text="CELL VALUE" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>

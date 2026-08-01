@@ -55,6 +55,22 @@ public sealed class HistogramTable
     /// <summary>True when the axes came from the tune rather than the data range.</summary>
     public bool FromTune { get; init; }
 
+    /// <summary>
+    /// When set, cells hold <see cref="Z"/> minus this channel rather than Z
+    /// itself — "how far off target am I", which is the question being asked of
+    /// a tuning table, rather than "what did it read".
+    /// </summary>
+    public LogChannel? ZCompare { get; init; }
+
+    public bool IsDelta => ZCompare is not null;
+
+    /// <summary>
+    /// Largest deviation either side of zero. A delta scale has to be symmetric
+    /// about zero, or equal errors in opposite directions would be shaded with
+    /// different intensities and read as unequal.
+    /// </summary>
+    public double MaxDeviation => Math.Max(Math.Abs(MinValue), Math.Abs(MaxValue));
+
     /// <summary>Smallest aggregated value across populated cells.</summary>
     public double MinValue { get; private set; }
 
@@ -80,7 +96,8 @@ public sealed class HistogramTable
         int columns, int rows,
         int firstSample, int lastSample,
         HistogramStatistic statistic,
-        SampleMask? mask = null)
+        SampleMask? mask = null,
+        LogChannel? zCompare = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(columns, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
@@ -95,6 +112,7 @@ public sealed class HistogramTable
             Y = y,
             Z = z,
             Statistic = statistic,
+            ZCompare = zCompare,
         };
 
         if (from > to) return table.Finish();
@@ -121,7 +139,8 @@ public sealed class HistogramTable
         double[] columnBreakpoints, double[] rowBreakpoints,
         int firstSample, int lastSample,
         HistogramStatistic statistic,
-        SampleMask? mask = null)
+        SampleMask? mask = null,
+        LogChannel? zCompare = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(columnBreakpoints.Length, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(rowBreakpoints.Length, 1);
@@ -137,6 +156,7 @@ public sealed class HistogramTable
             Z = z,
             Statistic = statistic,
             FromTune = true,
+            ZCompare = zCompare,
         };
 
         columnBreakpoints.CopyTo(table.ColumnCenters, 0);
@@ -164,6 +184,15 @@ public sealed class HistogramTable
 
             double xv = x.Values[i], yv = y.Values[i], zv = z.Values[i];
             if (double.IsNaN(xv) || double.IsNaN(yv) || double.IsNaN(zv)) continue;
+
+            if (ZCompare is { } compare)
+            {
+                // The deviation is taken per sample and then aggregated, so the
+                // mean of the error is reported rather than the error of the means.
+                double target = compare.At(i);
+                if (double.IsNaN(target)) continue;
+                zv -= target;
+            }
 
             int column = Nearest(table.ColumnCenters, xv);
             int row = Nearest(table.RowCenters, yv);
@@ -272,11 +301,18 @@ public sealed class HistogramTable
     }
 
     /// <summary>Formats a cell for display, using the Z channel's own precision.</summary>
-    public string Format(int column, int row)
+    public string Format(int column, int row) =>
+        Values[column, row] is { } value ? Format(value) : "";
+
+    /// <summary>
+    /// Formats a value on this table's scale. Deltas carry an explicit sign, so
+    /// the direction of an error is readable without consulting the colour.
+    /// </summary>
+    public string Format(double value)
     {
-        if (Values[column, row] is not { } value) return "";
-        return Statistic == HistogramStatistic.Count
-            ? ((int)value).ToString("N0")
-            : Z.Format(value);
+        if (Statistic == HistogramStatistic.Count) return ((int)value).ToString("N0");
+
+        string text = Z.Format(value);
+        return IsDelta && value > 0 ? "+" + text : text;
     }
 }

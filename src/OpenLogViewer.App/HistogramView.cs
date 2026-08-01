@@ -33,6 +33,33 @@ public sealed class HistogramView : FrameworkElement
         Color.FromRgb(0xCD, 0xE2, 0xFB),
     ];
 
+    /// <summary>
+    /// Diverging scale for deltas: two hues away from a neutral midpoint, cool
+    /// below the target and warm above it. Polarity is not magnitude — a single
+    /// hue could not show which side of zero a cell sits on. The midpoint is a
+    /// near-surface grey so cells that are on target recede, and each arm is
+    /// validated as its own ramp against this app's surface.
+    /// </summary>
+    private static readonly Color[] CoolArm =
+    [
+        Color.FromRgb(0x38, 0x38, 0x35),
+        Color.FromRgb(0x1C, 0x5C, 0xAB),
+        Color.FromRgb(0x39, 0x87, 0xE5),
+        Color.FromRgb(0x6D, 0xA7, 0xEC),
+        Color.FromRgb(0x9E, 0xC5, 0xF4),
+        Color.FromRgb(0xCD, 0xE2, 0xFB),
+    ];
+
+    private static readonly Color[] WarmArm =
+    [
+        Color.FromRgb(0x38, 0x38, 0x35),
+        Color.FromRgb(0xA3, 0x2A, 0x2A),
+        Color.FromRgb(0xD0, 0x3B, 0x3B),
+        Color.FromRgb(0xE6, 0x67, 0x67),
+        Color.FromRgb(0xEF, 0x9A, 0x9A),
+        Color.FromRgb(0xF7, 0xC9, 0xC9),
+    ];
+
     private static readonly Brush Background = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x17, 0x1C)));
     private static readonly Brush AxisInk = Frozen(new SolidColorBrush(Color.FromRgb(0x89, 0x87, 0x81)));
     private static readonly Brush TitleInk = Frozen(new SolidColorBrush(Color.FromRgb(0xDD, 0xE3, 0xEA)));
@@ -119,30 +146,35 @@ public sealed class HistogramView : FrameworkElement
             Math.Max(1, width - CellGap),
             Math.Max(1, height - CellGap));
 
-    /// <summary>Position of a cell on the ramp, by aggregated value or by sample count.</summary>
+    /// <summary>Position of a cell on the scale, by aggregated value or by sample count.</summary>
     private Color Shade(HistogramTable table, int column, int row, double value)
     {
-        double t;
         if (_colorByCount)
         {
-            t = table.MaxCount <= 1 ? 1 : (double)(table.Counts[column, row] - 1) / (table.MaxCount - 1);
-        }
-        else
-        {
-            double span = table.MaxValue - table.MinValue;
-            t = span <= 0 ? 1 : (value - table.MinValue) / span;
+            double t = table.MaxCount <= 1 ? 1 : (double)(table.Counts[column, row] - 1) / (table.MaxCount - 1);
+            return Sample(Ramp, Math.Clamp(t, 0, 1));
         }
 
-        return Sample(Math.Clamp(t, 0, 1));
+        if (table.IsDelta)
+        {
+            // Scaled by the largest deviation either way, so equal errors in
+            // opposite directions get equal intensity.
+            double reach = table.MaxDeviation;
+            double t = reach <= 0 ? 0 : Math.Clamp(Math.Abs(value) / reach, 0, 1);
+            return Sample(value < 0 ? CoolArm : WarmArm, t);
+        }
+
+        double span = table.MaxValue - table.MinValue;
+        return Sample(Ramp, span <= 0 ? 1 : Math.Clamp((value - table.MinValue) / span, 0, 1));
     }
 
-    private static Color Sample(double t)
+    private static Color Sample(Color[] ramp, double t)
     {
-        double scaled = t * (Ramp.Length - 1);
-        int index = Math.Min((int)scaled, Ramp.Length - 2);
+        double scaled = t * (ramp.Length - 1);
+        int index = Math.Min((int)scaled, ramp.Length - 2);
         double f = scaled - index;
 
-        Color a = Ramp[index], b = Ramp[index + 1];
+        Color a = ramp[index], b = ramp[index + 1];
         return Color.FromRgb(
             (byte)Math.Round(a.R + (b.R - a.R) * f),
             (byte)Math.Round(a.G + (b.G - a.G) * f),
@@ -172,7 +204,11 @@ public sealed class HistogramView : FrameworkElement
             _ => "count of",
         };
 
-        FormattedText title = Label($"{table.X.Name}  ×  {table.Y.Name}   —   {statistic} {table.Z.Name}", 13, TitleInk);
+        string measure = table.IsDelta
+            ? $"{table.Z.Name} − {table.ZCompare!.Name}"
+            : table.Z.Name;
+
+        FormattedText title = Label($"{table.X.Name}  ×  {table.Y.Name}   —   {statistic} {measure}", 13, TitleInk);
         dc.DrawText(title, new Point(LeftGutter, 10));
     }
 
@@ -183,14 +219,18 @@ public sealed class HistogramView : FrameworkElement
     private void DrawLegend(DrawingContext dc, HistogramTable table)
     {
         const double width = 132, height = 9;
+        bool diverging = table.IsDelta && !_colorByCount;
 
         (string low, string high) = _colorByCount
             ? ("1", table.MaxCount.ToString("N0"))
-            : (table.Z.Format(table.MinValue), table.Z.Format(table.MaxValue));
+            : diverging
+                ? ($"−{table.Z.Format(table.MaxDeviation)}", $"+{table.Z.Format(table.MaxDeviation)}")
+                : (table.Format(table.MinValue), table.Format(table.MaxValue));
 
         FormattedText lowText = Label(low, 10, AxisInk);
         FormattedText highText = Label(high, 10, AxisInk);
-        FormattedText caption = Label(_colorByCount ? "samples" : table.Z.Name, 10, AxisInk);
+        FormattedText caption = Label(
+            _colorByCount ? "samples" : diverging ? "vs target" : table.Z.Name, 10, AxisInk);
 
         // Laid out right to left: caption, low value, ramp, high value.
         double right = ActualWidth - RightPad;
@@ -203,8 +243,23 @@ public sealed class HistogramView : FrameworkElement
         double textY = y + (height - lowText.Height) / 2;
 
         for (int i = 0; i < width; i++)
-            dc.DrawRectangle(new SolidColorBrush(Sample(i / (width - 1))), null,
-                             new Rect(barX + i, y, 1.2, height));
+        {
+            double t = i / (width - 1);
+
+            // A diverging bar runs cool → neutral → warm, with zero at the centre.
+            Color c = diverging
+                ? t < 0.5 ? Sample(CoolArm, 1 - t * 2) : Sample(WarmArm, (t - 0.5) * 2)
+                : Sample(Ramp, t);
+
+            dc.DrawRectangle(new SolidColorBrush(c), null, new Rect(barX + i, y, 1.2, height));
+        }
+
+        if (diverging)
+        {
+            // Mark the zero point, so "on target" is locatable on the scale.
+            FormattedText zero = Label("0", 9, AxisInk);
+            dc.DrawText(zero, new Point(barX + width / 2 - zero.Width / 2, y + height + 1));
+        }
 
         dc.DrawText(caption, new Point(captionX, textY));
         dc.DrawText(lowText, new Point(lowX, textY));

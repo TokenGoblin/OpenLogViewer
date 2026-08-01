@@ -43,12 +43,20 @@ public partial class MainWindow : Window
     /// Switches to the binned table view, optionally selecting one of the
     /// breakpoint sources by position (0 is "from the log data").
     /// </summary>
-    public void ShowHistogram(int axisSource = 0, bool colourByCount = false, bool countStatistic = false)
+    public void ShowHistogram(
+        int axisSource = 0, bool colourByCount = false, bool countStatistic = false, string? compareTo = null)
     {
         _vm.ShowHistogram = true;
 
         if (axisSource > 0 && axisSource < _vm.AxisSources.Count)
             _vm.AxisSource = _vm.AxisSources[axisSource];
+
+        if (compareTo is { Length: > 0 })
+        {
+            CompareOption? match = _vm.CompareOptions.FirstOrDefault(
+                o => o.Channel?.Name.Equals(compareTo, StringComparison.OrdinalIgnoreCase) == true);
+            if (match is not null) _vm.ZCompare = match;
+        }
 
         if (colourByCount) _vm.ColorByCount = true;
         if (countStatistic) _vm.StatCount = true;
