@@ -1,0 +1,308 @@
+﻿using System.Globalization;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using OpenLogViewer.Core;
+
+namespace OpenLogViewer.App;
+
+/// <summary>
+/// Renders a <see cref="HistogramTable"/> as a heat table — the shape of an ECU
+/// tuning table, so a log can be read against the tune it came from.
+/// </summary>
+public sealed class HistogramView : FrameworkElement
+{
+    private const double LeftGutter = 66;
+    private const double BottomGutter = 32;
+    private const double TopGutter = 44;
+    private const double RightPad = 14;
+    private const double CellGap = 1.5;
+
+    /// <summary>
+    /// Sequential ramp, low→high. One hue, monotonically lightening: magnitude is
+    /// carried by lightness, which survives colour-vision deficiency and greyscale.
+    /// Validated against this app's surface — the low end holds 2.71:1 against it,
+    /// so a barely-populated cell still reads as distinct from an empty one.
+    /// </summary>
+    private static readonly Color[] Ramp =
+    [
+        Color.FromRgb(0x1C, 0x5C, 0xAB),
+        Color.FromRgb(0x39, 0x87, 0xE5),
+        Color.FromRgb(0x6D, 0xA7, 0xEC),
+        Color.FromRgb(0x9E, 0xC5, 0xF4),
+        Color.FromRgb(0xCD, 0xE2, 0xFB),
+    ];
+
+    private static readonly Brush Background = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x17, 0x1C)));
+    private static readonly Brush AxisInk = Frozen(new SolidColorBrush(Color.FromRgb(0x89, 0x87, 0x81)));
+    private static readonly Brush TitleInk = Frozen(new SolidColorBrush(Color.FromRgb(0xDD, 0xE3, 0xEA)));
+    private static readonly Brush EmptyCell = Frozen(new SolidColorBrush(Color.FromRgb(0x1B, 0x1F, 0x26)));
+    private static readonly Brush DarkInk = Frozen(new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0B)));
+    private static readonly Brush LightInk = Frozen(new SolidColorBrush(Colors.White));
+    private static readonly Pen HoverPen = Frozen(new Pen(new SolidColorBrush(Colors.White), 1.5));
+
+    private HistogramTable? _table;
+    private bool _colorByCount;
+    private (int Column, int Row) _hover = (-1, -1);
+
+    public HistogramView()
+    {
+        ClipToBounds = true;
+    }
+
+    public void SetTable(HistogramTable? table, bool colorByCount)
+    {
+        _table = table;
+        _colorByCount = colorByCount;
+        _hover = (-1, -1);
+        InvalidateVisual();
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        var full = new Rect(0, 0, ActualWidth, ActualHeight);
+        dc.DrawRectangle(Background, null, full);
+
+        if (_table is not { } table)
+        {
+            Centre(dc, full, "Choose channels to build a table");
+            return;
+        }
+
+        if (table.IsEmpty)
+        {
+            Centre(dc, full, "No samples in this range");
+            return;
+        }
+
+        double cellWidth = (ActualWidth - LeftGutter - RightPad) / table.Columns;
+        double cellHeight = (ActualHeight - TopGutter - BottomGutter) / table.Rows;
+        if (cellWidth < 6 || cellHeight < 6) { Centre(dc, full, "Not enough room — reduce rows or columns"); return; }
+
+        DrawTitle(dc, table);
+        DrawLegend(dc, table);
+
+        bool roomForText = cellWidth >= 34 && cellHeight >= 15;
+
+        for (int c = 0; c < table.Columns; c++)
+        for (int r = 0; r < table.Rows; r++)
+        {
+            Rect cell = CellBounds(table, c, r, cellWidth, cellHeight);
+
+            if (table.Values[c, r] is not { } value)
+            {
+                dc.DrawRectangle(EmptyCell, null, cell);
+                continue;
+            }
+
+            Color fill = Shade(table, c, r, value);
+            dc.DrawRectangle(new SolidColorBrush(fill), null, cell);
+
+            if (!roomForText) continue;
+
+            FormattedText text = Label(table.Format(c, r), 11, Ink(fill));
+            if (text.Width > cell.Width - 4) continue;
+
+            dc.DrawText(text, new Point(
+                cell.X + (cell.Width - text.Width) / 2,
+                cell.Y + (cell.Height - text.Height) / 2));
+        }
+
+        DrawAxes(dc, table, cellWidth, cellHeight);
+        DrawHover(dc, table, cellWidth, cellHeight);
+    }
+
+    private Rect CellBounds(HistogramTable table, int column, int row, double width, double height) =>
+        new(LeftGutter + column * width + CellGap / 2,
+            // Row 0 holds the lowest Y value and belongs at the bottom.
+            TopGutter + (table.Rows - 1 - row) * height + CellGap / 2,
+            Math.Max(1, width - CellGap),
+            Math.Max(1, height - CellGap));
+
+    /// <summary>Position of a cell on the ramp, by aggregated value or by sample count.</summary>
+    private Color Shade(HistogramTable table, int column, int row, double value)
+    {
+        double t;
+        if (_colorByCount)
+        {
+            t = table.MaxCount <= 1 ? 1 : (double)(table.Counts[column, row] - 1) / (table.MaxCount - 1);
+        }
+        else
+        {
+            double span = table.MaxValue - table.MinValue;
+            t = span <= 0 ? 1 : (value - table.MinValue) / span;
+        }
+
+        return Sample(Math.Clamp(t, 0, 1));
+    }
+
+    private static Color Sample(double t)
+    {
+        double scaled = t * (Ramp.Length - 1);
+        int index = Math.Min((int)scaled, Ramp.Length - 2);
+        double f = scaled - index;
+
+        Color a = Ramp[index], b = Ramp[index + 1];
+        return Color.FromRgb(
+            (byte)Math.Round(a.R + (b.R - a.R) * f),
+            (byte)Math.Round(a.G + (b.G - a.G) * f),
+            (byte)Math.Round(a.B + (b.B - a.B) * f));
+    }
+
+    /// <summary>Flips the cell text between light and dark so it stays legible on any step.</summary>
+    private static Brush Ink(Color fill)
+    {
+        double luminance = (0.2126 * Channel(fill.R) + 0.7152 * Channel(fill.G) + 0.0722 * Channel(fill.B));
+        return luminance > 0.4 ? DarkInk : LightInk;
+
+        static double Channel(byte v)
+        {
+            double s = v / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+    }
+
+    private void DrawTitle(DrawingContext dc, HistogramTable table)
+    {
+        string statistic = table.Statistic switch
+        {
+            HistogramStatistic.Mean => "mean",
+            HistogramStatistic.Min => "min",
+            HistogramStatistic.Max => "max",
+            _ => "count of",
+        };
+
+        FormattedText title = Label($"{table.X.Name}  ×  {table.Y.Name}   —   {statistic} {table.Z.Name}", 13, TitleInk);
+        dc.DrawText(title, new Point(LeftGutter, 10));
+    }
+
+    /// <summary>
+    /// A ramp legend with its end values, so the colour encoding is never the only
+    /// way to recover a magnitude.
+    /// </summary>
+    private void DrawLegend(DrawingContext dc, HistogramTable table)
+    {
+        const double width = 132, height = 9;
+
+        (string low, string high) = _colorByCount
+            ? ("1", table.MaxCount.ToString("N0"))
+            : (table.Z.Format(table.MinValue), table.Z.Format(table.MaxValue));
+
+        FormattedText lowText = Label(low, 10, AxisInk);
+        FormattedText highText = Label(high, 10, AxisInk);
+        FormattedText caption = Label(_colorByCount ? "samples" : table.Z.Name, 10, AxisInk);
+
+        // Laid out right to left: caption, low value, ramp, high value.
+        double right = ActualWidth - RightPad;
+        double highX = right - highText.Width;
+        double barX = highX - 6 - width;
+        double lowX = barX - 6 - lowText.Width;
+        double captionX = lowX - 10 - caption.Width;
+
+        double y = 16;
+        double textY = y + (height - lowText.Height) / 2;
+
+        for (int i = 0; i < width; i++)
+            dc.DrawRectangle(new SolidColorBrush(Sample(i / (width - 1))), null,
+                             new Rect(barX + i, y, 1.2, height));
+
+        dc.DrawText(caption, new Point(captionX, textY));
+        dc.DrawText(lowText, new Point(lowX, textY));
+        dc.DrawText(highText, new Point(highX, textY));
+    }
+
+    private void DrawAxes(DrawingContext dc, HistogramTable table, double cellWidth, double cellHeight)
+    {
+        // Label every nth bin when they would otherwise collide.
+        int xStride = Math.Max(1, (int)Math.Ceiling(42 / Math.Max(1, cellWidth)));
+        int yStride = Math.Max(1, (int)Math.Ceiling(15 / Math.Max(1, cellHeight)));
+
+        for (int c = 0; c < table.Columns; c += xStride)
+        {
+            FormattedText text = Label(Axis(table.ColumnCenters[c]), 10, AxisInk);
+            double centre = LeftGutter + (c + 0.5) * cellWidth;
+            dc.DrawText(text, new Point(centre - text.Width / 2, TopGutter + table.Rows * cellHeight + 6));
+        }
+
+        for (int r = 0; r < table.Rows; r += yStride)
+        {
+            FormattedText text = Label(Axis(table.RowCenters[r]), 10, AxisInk);
+            double centre = TopGutter + (table.Rows - 1 - r + 0.5) * cellHeight;
+            dc.DrawText(text, new Point(LeftGutter - text.Width - 7, centre - text.Height / 2));
+        }
+
+        FormattedText xName = Label(table.X.Name, 10, AxisInk);
+        dc.DrawText(xName, new Point(
+            LeftGutter + (table.Columns * cellWidth - xName.Width) / 2,
+            ActualHeight - xName.Height - 2));
+    }
+
+    private void DrawHover(DrawingContext dc, HistogramTable table, double cellWidth, double cellHeight)
+    {
+        (int column, int row) = _hover;
+        if (column < 0 || row < 0) return;
+
+        Rect cell = CellBounds(table, column, row, cellWidth, cellHeight);
+        dc.DrawRectangle(null, HoverPen, cell);
+
+        int count = table.Counts[column, row];
+        string detail = count == 0
+            ? $"{table.X.Name} {Axis(table.ColumnCenters[column])} · {table.Y.Name} {Axis(table.RowCenters[row])} — no samples"
+            : $"{table.X.Name} {Axis(table.ColumnCenters[column])} · {table.Y.Name} {Axis(table.RowCenters[row])} — " +
+              $"{table.Z.Name} {table.Format(column, row)} from {count:N0} sample{(count == 1 ? "" : "s")}";
+
+        FormattedText text = Label(detail, 11, TitleInk);
+        dc.DrawText(text, new Point(LeftGutter, ActualHeight - text.Height - 2));
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (_table is not { } table) return;
+
+        double cellWidth = (ActualWidth - LeftGutter - RightPad) / table.Columns;
+        double cellHeight = (ActualHeight - TopGutter - BottomGutter) / table.Rows;
+        if (cellWidth <= 0 || cellHeight <= 0) return;
+
+        Point p = e.GetPosition(this);
+        int column = (int)((p.X - LeftGutter) / cellWidth);
+        int row = table.Rows - 1 - (int)((p.Y - TopGutter) / cellHeight);
+
+        (int, int) hit = p.X < LeftGutter || p.Y < TopGutter
+                         || column < 0 || column >= table.Columns || row < 0 || row >= table.Rows
+            ? (-1, -1)
+            : (column, row);
+
+        if (hit == _hover) return;
+        _hover = hit;
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_hover == (-1, -1)) return;
+
+        _hover = (-1, -1);
+        InvalidateVisual();
+    }
+
+    private static string Axis(double value) =>
+        Math.Abs(value) >= 100 ? value.ToString("N0") : value.ToString("0.#");
+
+    private void Centre(DrawingContext dc, Rect full, string message)
+    {
+        FormattedText text = Label(message, 13, AxisInk);
+        dc.DrawText(text, new Point((full.Width - text.Width) / 2, (full.Height - text.Height) / 2));
+    }
+
+    private FormattedText Label(string s, double size, Brush brush) => new(
+        s, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+        new Typeface("Segoe UI"), size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+    private static T Frozen<T>(T freezable) where T : Freezable
+    {
+        freezable.Freeze();
+        return freezable;
+    }
+}

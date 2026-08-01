@@ -1,0 +1,359 @@
+﻿<Window x:Class="OpenLogViewer.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:OpenLogViewer.App"
+        Title="{Binding Title}"
+        Icon="AppIcon.ico"
+        Height="760" Width="1280"
+        MinHeight="420" MinWidth="760"
+        Background="{StaticResource Bg}"
+        AllowDrop="True"
+        Drop="OnDrop" DragOver="OnDragOver">
+
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}"
+                BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="10,8">
+            <DockPanel>
+                <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
+                <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
+                        Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
+                            VerticalAlignment="Center">
+                    <RadioButton Style="{StaticResource Chip}" Content="Log"
+                                 IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Histogram"
+                                 IsChecked="{Binding ShowHistogram}"
+                                 ToolTip="Bin the log into a table, like a tuning table"/>
+                </StackPanel>
+                <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
+                           VerticalAlignment="Center" FontFamily="Consolas"
+                           Foreground="{StaticResource Accent}" Margin="12,0,4,0"/>
+                <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                           Margin="16,0" TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource Muted}"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Status strip -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel}"
+                BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
+            <TextBlock Foreground="{StaticResource Muted}" FontSize="11"
+                       Text="{Binding Hint}" TextTrimming="CharacterEllipsis"/>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" MinWidth="200"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Channel sidebar -->
+            <!-- Histogram settings replace the channel list in table mode. -->
+            <Border Grid.Column="0" Background="{StaticResource Panel}"
+                    BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"
+                    Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}">
+                <StackPanel Margin="10,10,10,0">
+                    <TextBlock Text="AXIS FIELDS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+
+                    <TextBlock Text="X axis" FontSize="11" Foreground="{StaticResource Muted}"/>
+                    <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding XAxis}"
+                              ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
+
+                    <TextBlock Text="Y axis" FontSize="11" Foreground="{StaticResource Muted}"/>
+                    <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding YAxis}"
+                              ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
+
+                    <TextBlock Text="Z axis — the value in each cell" FontSize="11"
+                               Foreground="{StaticResource Muted}"/>
+                    <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding ZAxis}"
+                              ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,12"/>
+
+                    <TextBlock Text="CELL VALUE" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <RadioButton Style="{StaticResource Chip}" Content="Mean" IsChecked="{Binding StatMean}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Min" IsChecked="{Binding StatMin}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Max" IsChecked="{Binding StatMax}"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Count" IsChecked="{Binding StatCount}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                            <TextBlock Text="Columns" FontSize="11" Foreground="{StaticResource Muted}"/>
+                            <TextBox Text="{Binding HistogramColumns, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                                     Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                            <TextBlock Text="Rows" FontSize="11" Foreground="{StaticResource Muted}"/>
+                            <TextBox Text="{Binding HistogramRows, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                                     Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="DISPLAY" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                    <CheckBox Content="Colour by sample count" IsChecked="{Binding ColorByCount}"
+                              FontSize="11" Margin="0,0,0,5"
+                              ToolTip="Shade cells by how much data backs them, rather than by value"/>
+                    <CheckBox Content="Only the zoomed time range" IsChecked="{Binding HistogramZoomOnly}"
+                              FontSize="11"
+                              ToolTip="Build the table from the range zoomed to in the log view"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="0" Background="{StaticResource Panel}"
+                    BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"
+                    Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="8,8,8,6">
+                        <TextBox x:Name="SearchBox"
+                                 Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                 ToolTip="Filter by channel name, units or category"/>
+
+                        <DockPanel Margin="0,7,0,0">
+                            <CheckBox DockPanel.Dock="Right" IsChecked="{Binding HideUnused}"
+                                      VerticalAlignment="Center" FontSize="11"
+                                      Foreground="{StaticResource Muted}" Content="Hide unused"
+                                      ToolTip="Hide channels that never change value in this log"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource Chip}" Content="Category"
+                                             IsChecked="{Binding SortByCategory}"
+                                             ToolTip="Group channels by what they measure"/>
+                                <RadioButton Style="{StaticResource Chip}" Content="A–Z"
+                                             IsChecked="{Binding SortByName}"
+                                             ToolTip="Flat alphabetical list"/>
+                                <RadioButton Style="{StaticResource Chip}" Content="Plotted"
+                                             IsChecked="{Binding SortByPlotted}"
+                                             ToolTip="Currently plotted channels first"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DockPanel Margin="0,7,0,0">
+                            <Button DockPanel.Dock="Left" Content="Common" Padding="8,3" FontSize="11"
+                                    Click="OnPlotCommonClick"
+                                    ToolTip="Plot the channels most logs are read for"/>
+                            <Button DockPanel.Dock="Left" Content="All" Margin="4,0,0,0" Padding="8,3"
+                                    FontSize="11" Click="OnShowAllClick"
+                                    ToolTip="Plot every channel currently listed"/>
+                            <Button DockPanel.Dock="Left" Content="None" Margin="4,0,0,0" Padding="8,3"
+                                    FontSize="11" Click="OnShowNoneClick" ToolTip="Clear all traces"/>
+                            <TextBlock Text="{Binding FilterSummary}" FontSize="10"
+                                       Foreground="#6B7686" VerticalAlignment="Center"
+                                       TextAlignment="Right" TextTrimming="CharacterEllipsis"
+                                       Margin="8,0,2,0"/>
+                        </DockPanel>
+
+                        <!-- Saved selections. Click applies, right-click deletes. -->
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Content="+ Save" Padding="8,3" FontSize="11"
+                                    VerticalAlignment="Top" Margin="4,0,0,0"
+                                    Click="OnSavePresetClick"
+                                    ToolTip="Save the channels currently plotted as a named preset"/>
+                            <ItemsControl ItemsSource="{Binding Presets}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource PresetChip}"
+                                                Content="{Binding Name}"
+                                                ToolTip="{Binding Summary}"
+                                                Click="OnApplyPresetClick">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Overwrite with current selection"
+                                                              Click="OnOverwritePresetClick"/>
+                                                    <Separator/>
+                                                    <MenuItem Header="Delete preset" Click="OnDeletePresetClick"/>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
+
+                        <!-- Inline naming, rather than a modal dialog. -->
+                        <DockPanel x:Name="PresetNameRow" Margin="0,6,0,0" Visibility="Collapsed">
+                            <Button DockPanel.Dock="Right" Content="Cancel" Padding="8,3" FontSize="11"
+                                    Margin="4,0,0,0" Click="OnCancelPresetClick"/>
+                            <Button DockPanel.Dock="Right" Content="Save" Padding="8,3" FontSize="11"
+                                    Margin="4,0,0,0" Click="OnConfirmPresetClick"/>
+                            <TextBox x:Name="PresetNameBox" MaxLength="40"
+                                     KeyDown="OnPresetNameKeyDown"
+                                     ToolTip="Name this selection, then press Enter"/>
+                        </DockPanel>
+                    </StackPanel>
+
+                    <ListBox ItemsSource="{Binding ChannelView}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.IsVirtualizingWhenGrouping="True">
+
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.ContainerStyle>
+                                    <Style TargetType="GroupItem">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="GroupItem">
+                                                    <StackPanel>
+                                                        <ToggleButton x:Name="Head" IsChecked="True"
+                                                                      Style="{StaticResource GroupHeader}">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Name}" FontSize="11"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource Text}"/>
+                                                                <TextBlock Text="{Binding ItemCount}" FontSize="11"
+                                                                           Margin="6,0,0,0" Foreground="#6B7686"/>
+                                                            </StackPanel>
+                                                        </ToggleButton>
+                                                        <ItemsPresenter x:Name="Items"/>
+                                                    </StackPanel>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger SourceName="Head" Property="IsChecked" Value="False">
+                                                            <Setter TargetName="Items" Property="Visibility"
+                                                                    Value="Collapsed"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </GroupStyle.ContainerStyle>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border Background="{TemplateBinding Background}" Padding="6,3">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#222831"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="Row" CornerRadius="3" Background="Transparent" Padding="0,1">
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Jump to maximum" Click="OnJumpToMaxClick"/>
+                                        <MenuItem Header="Jump to minimum" Click="OnJumpToMinClick"/>
+                                        <Separator/>
+                                        <MenuItem Header="Plot only this channel" Click="OnPlotOnlyClick"/>
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsVisible}"
+                                              VerticalAlignment="Center"/>
+
+                                    <Rectangle Grid.Column="1" Width="3" Height="16" Margin="6,0,7,0"
+                                               RadiusX="1.5" RadiusY="1.5" Fill="{Binding Brush}">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Opacity" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                        <Setter Property="Opacity" Value="0.25"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFlat}" Value="True">
+                                                            <Setter Property="Foreground" Value="#5C6675"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Range}" FontSize="10"
+                                                   Foreground="#6B7686" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- Capped so a long value can never push the
+                                         jump buttons off the edge of the panel. -->
+                                    <TextBlock Grid.Column="3" Text="{Binding Value}"
+                                               VerticalAlignment="Center" Margin="8,0,2,0"
+                                               MaxWidth="96" TextTrimming="CharacterEllipsis"
+                                               FontFamily="Consolas" FontSize="11"
+                                               Foreground="{Binding Brush}"/>
+
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal"
+                                                VerticalAlignment="Center" Margin="4,0,0,0">
+                                        <Button Style="{StaticResource JumpButton}" Content="&#x25B2;"
+                                                Click="OnJumpToMaxClick"
+                                                IsEnabled="{Binding CanJump}"
+                                                ToolTip="Jump to this channel's maximum"/>
+                                        <Button Style="{StaticResource JumpButton}" Content="&#x25BC;"
+                                                Click="OnJumpToMinClick"
+                                                IsEnabled="{Binding CanJump}"
+                                                ToolTip="Jump to this channel's minimum"/>
+                                    </StackPanel>
+                                </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <!-- Hovering the trace in the plot marks its row here. -->
+                                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="#26313D"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource Line}"/>
+
+            <local:LogPlot Grid.Column="2" x:Name="Plot" Cursor="Cross"
+                           Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+            <local:HistogramView Grid.Column="2" x:Name="Histogram"
+                                 Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+    </DockPanel>
+</Window>
+

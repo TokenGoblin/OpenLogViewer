@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenLogViewer.Core\OpenLogViewer.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+
+    <!-- Icon shown by Explorer, the desktop and the taskbar. -->
+    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
+
+    <AssemblyTitle>OpenLogViewer</AssemblyTitle>
+    <Product>OpenLogViewer</Product>
+    <Description>Datalog viewer for MegaSquirt, TunerStudio and other ECU logs.</Description>
+    <Company>OpenLogViewer contributors</Company>
+    <Copyright>Copyright (c) 2026 OpenLogViewer contributors</Copyright>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Also embedded so the window can set it explicitly. -->
+    <Resource Include="AppIcon.ico" />
+  </ItemGroup>
+
+</Project>
