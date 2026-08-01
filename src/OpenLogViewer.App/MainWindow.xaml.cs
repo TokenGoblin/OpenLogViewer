@@ -20,6 +20,7 @@ public partial class MainWindow : Window
         _vm.HistogramInvalidated += RebuildHistogram;
         Plot.CursorSampleChanged += _vm.UpdateCursor;
         Plot.HoverChannelChanged += _vm.HighlightChannel;
+        Plot.SelectionChanged += _vm.UpdateSelection;
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
     }
@@ -68,6 +69,9 @@ public partial class MainWindow : Window
     /// </summary>
     public void PreviewPointer(double fractionX, double fractionY) =>
         Plot.MoveCursorTo(new Point(Plot.ActualWidth * fractionX, Plot.ActualHeight * fractionY));
+
+    /// <summary>Marks a span of the log, in seconds.</summary>
+    public void SelectRange(double from, double to) => Plot.SelectRange(from, to);
 
     private void Open()
     {

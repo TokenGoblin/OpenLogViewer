@@ -25,6 +25,18 @@ public partial class App : Application
         string? log = e.Args.FirstOrDefault(a => !a.StartsWith("--"));
         if (log is not null) window.LoadFile(log);
 
+        int sel = Array.IndexOf(e.Args, "--select");
+        if (sel >= 0 && sel + 1 < e.Args.Length)
+        {
+            string[] bounds = e.Args[sel + 1].Split(',');
+            if (bounds.Length == 2
+                && double.TryParse(bounds[0], out double from)
+                && double.TryParse(bounds[1], out double to))
+            {
+                window.SelectRange(from, to);
+            }
+        }
+
         if (e.Args.Contains("--histogram"))
         {
             int at = Array.IndexOf(e.Args, "--tune-axes");

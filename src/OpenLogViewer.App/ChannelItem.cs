@@ -59,9 +59,35 @@ public sealed class ChannelItem : ObservableObject
         private set => Set(ref _value, value);
     }
 
-    public string Range => Channel.IsFlat
-        ? $"constant {Channel.Format(Channel.Min)}"
-        : $"{Channel.Format(Channel.Min)} … {Channel.Format(Channel.Max)}";
+    private ChannelStatistics? _selection;
+
+    /// <summary>
+    /// Whole-log range, or the marked span's range once one is set — the row
+    /// answers "what did this do here" rather than "over the whole drive".
+    /// </summary>
+    public string Range
+    {
+        get
+        {
+            if (_selection is { HasData: true } s)
+                return $"{Channel.Format(s.Min)} … {Channel.Format(s.Max)}   avg {Channel.Format(s.Mean)}";
+
+            return Channel.IsFlat
+                ? $"constant {Channel.Format(Channel.Min)}"
+                : $"{Channel.Format(Channel.Min)} … {Channel.Format(Channel.Max)}";
+        }
+    }
+
+    /// <summary>Statistics over the marked span, or null when nothing is marked.</summary>
+    public ChannelStatistics? Selection => _selection;
+
+    public void SetSelection(ChannelStatistics? statistics)
+    {
+        _selection = statistics;
+        Raise(nameof(Range));
+        Raise(nameof(Selection));
+        Raise(nameof(Value));
+    }
 
     /// <summary>Flat channels are logged but carry no signal; the UI de-emphasises them.</summary>
     public bool IsFlat => Channel.IsFlat;
@@ -97,6 +123,16 @@ public sealed class ChannelItem : ObservableObject
         Raise(nameof(HighlightPen));
     }
 
-    public void UpdateCursor(int index) =>
+    public void UpdateCursor(int index)
+    {
+        // A marked span outranks the cursor: the average over the span is the
+        // number being read, and the cursor is incidental while dragging.
+        if (_selection is { HasData: true } s)
+        {
+            Value = Channel.FormatWithUnits(s.Mean);
+            return;
+        }
+
         Value = index < 0 ? "—" : Channel.FormatWithUnits(Channel.At(index));
+    }
 }
