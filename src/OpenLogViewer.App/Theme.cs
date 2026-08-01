@@ -1,0 +1,103 @@
+﻿using System.Windows.Media;
+
+namespace OpenLogViewer.App;
+
+public enum ThemeGroup
+{
+    Dark,
+    Light,
+    Editor,
+    HighContrast,
+}
+
+/// <summary>
+/// One colour scheme. A theme states only the colours that carry its identity —
+/// its surfaces, its accent, and its trace palette — and derives the rest, so
+/// hover states and heat-table ramps stay consistent with the surfaces they sit
+/// on without every theme having to restate them.
+///
+/// <see cref="Series"/> is the one part that cannot be derived. Overlaid traces
+/// have to stay separable from one another, including under the common forms of
+/// colour-vision deficiency, so each theme's palette is snapped to steps that
+/// pass that check rather than lifted verbatim from the scheme it is named
+/// after. Editor schemes are built for syntax spans, which are never adjacent
+/// and carry identity from position; traces are neither.
+/// </summary>
+public sealed record Theme
+{
+    public required string Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public required ThemeGroup Group { get; init; }
+
+    /// <summary>Plot and window ground.</summary>
+    public required Color Background { get; init; }
+
+    /// <summary>Sidebars, toolbar and status strip.</summary>
+    public required Color Panel { get; init; }
+
+    /// <summary>Raised surfaces: buttons, popups, chips.</summary>
+    public required Color PanelAlt { get; init; }
+
+    public required Color Line { get; init; }
+
+    public required Color Text { get; init; }
+
+    public required Color Muted { get; init; }
+
+    public required Color Accent { get; init; }
+
+    /// <summary>Log annotations and the highlight on traced-back samples.</summary>
+    public required Color Marker { get; init; }
+
+    /// <summary>Trace colours, handed out in order as channels are plotted.</summary>
+    public required Color[] Series { get; init; }
+
+    /// <summary>Hue for the heat table's sequential scale, and its below-target arm.</summary>
+    public required Color RampCool { get; init; }
+
+    /// <summary>Hue for the heat table's above-target arm.</summary>
+    public required Color RampWarm { get; init; }
+
+    public bool IsDark => ColorMath.Luminance(Background) < 0.35;
+
+    // ----- derived surfaces -------------------------------------------------
+
+    public Color Hover => ColorMath.Blend(PanelAlt, Text, 0.14);
+
+    /// <summary>Supporting text: a channel's range, a hint under a control.</summary>
+    public Color Faint => ColorMath.Blend(Muted, Background, 0.35);
+
+    public Color Selected => ColorMath.Blend(Panel, Accent, 0.22);
+
+    /// <summary>
+    /// Ink for text sitting on top of <see cref="Accent"/>. Taken from the ends
+    /// of the range rather than the theme's own ink: an accent close in
+    /// lightness to both the background and the text would leave a hovered
+    /// button's glyph unreadable whichever of the two it picked.
+    /// </summary>
+    public Color OnAccent =>
+        ColorMath.Readable(Accent, Color.FromRgb(0x0B, 0x0B, 0x0B), Colors.White);
+
+    /// <summary>Category headers in the channel list.</summary>
+    public Color Header => ColorMath.Blend(Panel, Background, 0.5);
+
+    public Color Grid => ColorMath.Blend(Background, Text, 0.13);
+
+    /// <summary>Lane dividers in stacked mode — quieter than the grid.</summary>
+    public Color Lane => ColorMath.Blend(Background, Text, 0.08);
+
+    public Color Cursor => ColorMath.Blend(Text, Background, 0.25);
+
+    /// <summary>Floating readout card, held just off the ground beneath it.</summary>
+    public Color Card => ColorMath.Blend(Panel, Text, 0.04);
+
+    public Color EmptyCell => ColorMath.Blend(Background, Text, 0.05);
+
+    public Color[] SequentialRamp => ColorMath.Ramp(RampCool, IsDark);
+
+    public Color[] CoolArm => ColorMath.DivergingArm(RampCool, Background, IsDark);
+
+    public Color[] WarmArm => ColorMath.DivergingArm(RampWarm, Background, IsDark);
+}

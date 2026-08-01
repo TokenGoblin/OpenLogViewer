@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.IO;
+using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App.Tests;
 
@@ -70,7 +71,14 @@ public sealed class ViewModelHarness : IDisposable
         Directory.CreateDirectory(settingsDirectory);
         _temp.Add(settingsDirectory);
 
-        return new MainViewModel();
+        // Every store is pointed at the temporary directory. Left to their
+        // defaults they resolve to %APPDATA%, and a test run would read — and
+        // save over — the presets, filters and theme the user actually has.
+        string directory = settingsDirectory;
+        return new MainViewModel(
+            new PresetStore(Path.Combine(directory, "presets.json")),
+            new FilterStore(Path.Combine(directory, "filters.json")),
+            new SettingsStore(Path.Combine(directory, "settings.json")));
     }
 
     public void Dispose()

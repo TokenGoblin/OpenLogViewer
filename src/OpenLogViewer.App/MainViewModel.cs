@@ -22,17 +22,12 @@ public enum ChannelSort
 public sealed class MainViewModel : ObservableObject
 {
     /// <summary>
-    /// Trace colours, chosen to stay distinguishable against the dark ground and
-    /// to remain separable for the common red/green colour-vision deficiencies.
+    /// Trace colours, from this view model's own theme rather than the global
+    /// one. <see cref="ThemeManager"/> exists to reach the chrome and the two
+    /// self-drawn surfaces; reading the palette back out of it would make the
+    /// colours depend on whoever set the theme last.
     /// </summary>
-    private static readonly Color[] Palette =
-    [
-        Color.FromRgb(0x4F, 0xC3, 0xF7), Color.FromRgb(0xFF, 0x70, 0x43),
-        Color.FromRgb(0x9C, 0xCC, 0x65), Color.FromRgb(0xFF, 0xCA, 0x28),
-        Color.FromRgb(0xBA, 0x68, 0xC8), Color.FromRgb(0x26, 0xC6, 0xDA),
-        Color.FromRgb(0xF0, 0x62, 0x92), Color.FromRgb(0xA1, 0x88, 0x7F),
-        Color.FromRgb(0x7E, 0x8C, 0xE0), Color.FromRgb(0xFF, 0xA7, 0x26),
-    ];
+    private Color[] Palette => _theme.Series;
 
     /// <summary>Channels ticked on load, when the log has them.</summary>
     private static readonly string[] DefaultChannels = ["RPM", "MAP", "TPS", "AFR", "CLT"];
@@ -43,6 +38,7 @@ public sealed class MainViewModel : ObservableObject
         "Shift-drag to mark a span and summarise it  •  Right-click for more";
 
     private readonly PresetStore _store;
+    private readonly SettingsStore _settings;
 
     private LogDocument? _document;
     private string _hint = DefaultHint;
@@ -59,15 +55,71 @@ public sealed class MainViewModel : ObservableObject
     /// Stores are injectable so tests can point them at a temporary directory
     /// rather than reading and writing the user's real settings.
     /// </summary>
-    public MainViewModel(PresetStore? presets = null, FilterStore? filters = null)
+    public MainViewModel(
+        PresetStore? presets = null, FilterStore? filters = null, SettingsStore? settings = null)
     {
         _store = presets ?? new PresetStore();
         _filterStore = filters ?? new FilterStore();
+        _settings = settings ?? new SettingsStore();
+
+        _theme = ThemeCatalog.Find(_settings.ThemeId);
+        ThemeManager.Apply(_theme);
 
         ChannelView = CollectionViewSource.GetDefaultView(Channels);
         ChannelView.Filter = FilterChannel;
         ApplySort();
         RefreshPresets();
+    }
+
+    public IReadOnlyList<Theme> Themes => ThemeCatalog.Themes;
+
+    private Theme _theme;
+
+    /// <summary>
+    /// The active colour scheme. Changing it recolours the traces as well as the
+    /// chrome: a palette is chosen to sit against one particular background, so
+    /// carrying the old one over to a new theme would undo the check that the
+    /// traces stay apart from each other and from the ground.
+    /// </summary>
+    public Theme SelectedTheme
+    {
+        get => _theme;
+        set { if (value is not null && SwitchTheme(value)) _settings.SetTheme(value.Id); }
+    }
+
+    /// <summary>
+    /// Switches theme for this run only, without recording the choice — the
+    /// <c>--theme</c> switch, which exists so the documentation shots can be
+    /// taken without disturbing the user's setting.
+    /// </summary>
+    public void PreviewTheme(string? id) => SwitchTheme(ThemeCatalog.Find(id));
+
+    private bool SwitchTheme(Theme theme)
+    {
+        if (!Set(ref _theme, theme, nameof(SelectedTheme))) return false;
+
+        ThemeManager.Apply(theme);
+        RecolorChannels();
+        return true;
+    }
+
+    /// <summary>
+    /// Hands out the new palette in the order channels are plotted, so what is on
+    /// screen gets the widely separated entries rather than whatever the file
+    /// order happens to give.
+    /// </summary>
+    private void RecolorChannels()
+    {
+        Color[] palette = Palette;
+        int next = 0;
+
+        foreach (ChannelItem item in Channels.Where(c => c.IsVisible))
+            item.SetColor(palette[next++ % palette.Length]);
+
+        foreach (ChannelItem item in Channels.Where(c => !c.IsVisible))
+            item.SetColor(palette[next++ % palette.Length]);
+
+        _colorCursor = next;
     }
 
     public ObservableCollection<ChannelItem> Channels { get; } = [];

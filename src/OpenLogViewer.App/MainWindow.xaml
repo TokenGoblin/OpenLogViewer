@@ -6,15 +6,15 @@
         Icon="AppIcon.ico"
         Height="760" Width="1280"
         MinHeight="420" MinWidth="760"
-        Background="{StaticResource Bg}"
+        Background="{DynamicResource Bg}"
         AllowDrop="True"
         Drop="OnDrop" DragOver="OnDragOver">
 
     <DockPanel>
 
         <!-- Toolbar -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}"
-                BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="10,8">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="10,8">
             <DockPanel>
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
                 <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
@@ -38,19 +38,24 @@
                                  IsChecked="{Binding StackedLanes}"
                                  ToolTip="Each channel gets its own strip — best when several are plotted"/>
                 </StackPanel>
+                <ComboBox DockPanel.Dock="Right" Width="150" Margin="10,0,0,0"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}"
+                          ItemTemplate="{StaticResource ThemeName}"
+                          ToolTip="Colour scheme — also re-picks the trace colours to suit it"/>
                 <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
                            VerticalAlignment="Center" FontFamily="Consolas"
-                           Foreground="{StaticResource Accent}" Margin="12,0,4,0"/>
+                           Foreground="{DynamicResource Accent}" Margin="12,0,4,0"/>
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
                            Margin="16,0" TextTrimming="CharacterEllipsis"
-                           Foreground="{StaticResource Muted}"/>
+                           Foreground="{DynamicResource Muted}"/>
             </DockPanel>
         </Border>
 
         <!-- Status strip -->
-        <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel}"
-                BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
-            <TextBlock Foreground="{StaticResource Muted}" FontSize="11"
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
+            <TextBlock Foreground="{DynamicResource Muted}" FontSize="11"
                        Text="{Binding Hint}" TextTrimming="CharacterEllipsis"/>
         </Border>
 
@@ -63,35 +68,35 @@
 
             <!-- Channel sidebar -->
             <!-- Histogram settings replace the channel list in table mode. -->
-            <Border Grid.Column="0" Background="{StaticResource Panel}"
-                    BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"
+            <Border Grid.Column="0" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0"
                     Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="10,10,12,12">
                     <TextBlock Text="AXIS FIELDS" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,6"/>
 
-                    <TextBlock Text="X axis" FontSize="11" Foreground="{StaticResource Muted}"/>
+                    <TextBlock Text="X axis" FontSize="11" Foreground="{DynamicResource Muted}"/>
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding XAxis}"
                               ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
 
-                    <TextBlock Text="Y axis" FontSize="11" Foreground="{StaticResource Muted}"/>
+                    <TextBlock Text="Y axis" FontSize="11" Foreground="{DynamicResource Muted}"/>
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding YAxis}"
                               ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
 
                     <TextBlock Text="Z axis — the value in each cell" FontSize="11"
-                               Foreground="{StaticResource Muted}"/>
+                               Foreground="{DynamicResource Muted}"/>
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding ZAxis}"
                               ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
 
                     <TextBlock Text="Compare against — shows the difference" FontSize="11"
-                               Foreground="{StaticResource Muted}"/>
+                               Foreground="{DynamicResource Muted}"/>
                     <ComboBox ItemsSource="{Binding CompareOptions}" SelectedItem="{Binding ZCompare}"
                               ItemTemplate="{StaticResource AxisSourceName}" Margin="0,2,0,12"
                               ToolTip="Subtract a target channel, so each cell shows how far off it is rather than what it read"/>
 
                     <TextBlock Text="CELL VALUE" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <RadioButton Style="{StaticResource Chip}" Content="Mean" IsChecked="{Binding StatMean}"/>
                         <RadioButton Style="{StaticResource Chip}" Content="Min" IsChecked="{Binding StatMin}"/>
@@ -100,12 +105,12 @@
                     </StackPanel>
 
                     <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
                     <ComboBox ItemsSource="{Binding AxisSources}" SelectedItem="{Binding AxisSource}"
                               ItemTemplate="{StaticResource AxisSourceName}" Margin="0,0,0,4"
                               ToolTip="Bin onto the tune's own table axes, so cells line up with the table you are editing"/>
                     <TextBlock Text="This log carries no tune, so bins come from the data."
-                               FontSize="10" Foreground="#6B7686" TextWrapping="Wrap" Margin="0,0,0,8">
+                               FontSize="10" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -119,7 +124,7 @@
                     </TextBlock>
 
                     <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"
                                Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}"/>
                     <Grid Margin="0,0,0,12"
                           Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}">
@@ -128,19 +133,19 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                            <TextBlock Text="Columns" FontSize="11" Foreground="{StaticResource Muted}"/>
+                            <TextBlock Text="Columns" FontSize="11" Foreground="{DynamicResource Muted}"/>
                             <TextBox Text="{Binding HistogramColumns, UpdateSourceTrigger=PropertyChanged, Delay=400}"
                                      Margin="0,2,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                            <TextBlock Text="Rows" FontSize="11" Foreground="{StaticResource Muted}"/>
+                            <TextBlock Text="Rows" FontSize="11" Foreground="{DynamicResource Muted}"/>
                             <TextBox Text="{Binding HistogramRows, UpdateSourceTrigger=PropertyChanged, Delay=400}"
                                      Margin="0,2,0,0"/>
                         </StackPanel>
                     </Grid>
 
                     <TextBlock Text="DISPLAY" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource Muted}" Margin="0,0,0,5"/>
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
                     <CheckBox Content="Colour by sample count" IsChecked="{Binding ColorByCount}"
                               FontSize="11" Margin="0,0,0,5"
                               ToolTip="Shade cells by how much data backs them, rather than by value"/>
@@ -152,11 +157,11 @@
                         <Button DockPanel.Dock="Right" Content="None" Padding="7,2" FontSize="10"
                                 Click="OnFiltersNoneClick" ToolTip="Switch every filter off"/>
                         <TextBlock Text="DATA FILTERS" FontSize="10" FontWeight="SemiBold"
-                                   Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+                                   Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
                     </DockPanel>
 
                     <TextBlock Text="Samples must meet every ticked condition to be counted."
-                               FontSize="10" Foreground="#6B7686" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                               FontSize="10" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,0,0,6"/>
 
                     <ItemsControl ItemsSource="{Binding Filters}">
                         <ItemsControl.ItemTemplate>
@@ -172,10 +177,10 @@
                                                   VerticalAlignment="Center" Margin="0,0,7,0"/>
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" FontSize="11"
-                                                       Foreground="{StaticResource Text}"
+                                                       Foreground="{DynamicResource Text}"
                                                        TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Text="{Binding Description}" FontSize="10"
-                                                       Foreground="#6B7686" TextTrimming="CharacterEllipsis"/>
+                                                       Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -187,8 +192,8 @@
                             HorizontalAlignment="Left" Click="OnAddFilterClick"/>
 
                     <Border x:Name="FilterEditor" Visibility="Collapsed" Margin="0,7,0,0"
-                            Background="{StaticResource Bg}" CornerRadius="4" Padding="8"
-                            BorderBrush="{StaticResource Line}" BorderThickness="1">
+                            Background="{DynamicResource Bg}" CornerRadius="4" Padding="8"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
                         <StackPanel>
                             <ComboBox ItemsSource="{Binding AxisChannels}"
                                       SelectedItem="{Binding NewFilterChannel}"
@@ -221,8 +226,8 @@
                 </ScrollViewer>
             </Border>
 
-            <Border Grid.Column="0" Background="{StaticResource Panel}"
-                    BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"
+            <Border Grid.Column="0" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0"
                     Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top" Margin="8,8,8,6">
@@ -233,7 +238,7 @@
                         <DockPanel Margin="0,7,0,0">
                             <CheckBox DockPanel.Dock="Right" IsChecked="{Binding HideUnused}"
                                       VerticalAlignment="Center" FontSize="11"
-                                      Foreground="{StaticResource Muted}" Content="Hide unused"
+                                      Foreground="{DynamicResource Muted}" Content="Hide unused"
                                       ToolTip="Hide channels that never change value in this log"/>
                             <StackPanel Orientation="Horizontal">
                                 <RadioButton Style="{StaticResource Chip}" Content="Category"
@@ -258,7 +263,7 @@
                             <Button DockPanel.Dock="Left" Content="None" Margin="4,0,0,0" Padding="8,3"
                                     FontSize="11" Click="OnShowNoneClick" ToolTip="Clear all traces"/>
                             <TextBlock Text="{Binding FilterSummary}" FontSize="10"
-                                       Foreground="#6B7686" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Faint}" VerticalAlignment="Center"
                                        TextAlignment="Right" TextTrimming="CharacterEllipsis"
                                        Margin="8,0,2,0"/>
                         </DockPanel>
@@ -327,9 +332,9 @@
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock Text="{Binding Name}" FontSize="11"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="{StaticResource Text}"/>
+                                                                           Foreground="{DynamicResource Text}"/>
                                                                 <TextBlock Text="{Binding ItemCount}" FontSize="11"
-                                                                           Margin="6,0,0,0" Foreground="#6B7686"/>
+                                                                           Margin="6,0,0,0" Foreground="{DynamicResource Faint}"/>
                                                             </StackPanel>
                                                         </ToggleButton>
                                                         <ItemsPresenter x:Name="Items"/>
@@ -360,7 +365,7 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#222831"/>
+                                                    <Setter Property="Background" Value="{DynamicResource Hover}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -410,17 +415,17 @@
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsFlat}" Value="True">
-                                                            <Setter Property="Foreground" Value="#5C6675"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource Faint}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
                                         <TextBlock Text="{Binding Range}" FontSize="10"
-                                                   Foreground="#6B7686" TextTrimming="CharacterEllipsis"/>
+                                                   Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
 
                                     <!-- Capped so a long value can never push the
@@ -447,7 +452,7 @@
                                 <DataTemplate.Triggers>
                                     <!-- Hovering the trace in the plot marks its row here. -->
                                     <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                        <Setter TargetName="Row" Property="Background" Value="#26313D"/>
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource Selected}"/>
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>
@@ -457,7 +462,7 @@
             </Border>
 
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
-                          Background="{StaticResource Line}"/>
+                          Background="{DynamicResource Line}"/>
 
             <local:LogPlot Grid.Column="2" x:Name="Plot" Cursor="Cross"
                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
@@ -466,5 +471,7 @@
         </Grid>
     </DockPanel>
 </Window>
+
+
 
 
