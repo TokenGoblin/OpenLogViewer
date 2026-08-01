@@ -30,10 +30,13 @@ public partial class App : Application
             int at = Array.IndexOf(e.Args, "--tune-axes");
             bool given = at >= 0 && at + 1 < e.Args.Length && int.TryParse(e.Args[at + 1], out _);
 
+            int cmp = Array.IndexOf(e.Args, "--compare");
+
             window.ShowHistogram(
                 given ? int.Parse(e.Args[at + 1]) : 0,
                 e.Args.Contains("--count-colour"),
-                e.Args.Contains("--count-value"));
+                e.Args.Contains("--count-value"),
+                cmp >= 0 && cmp + 1 < e.Args.Length ? e.Args[cmp + 1] : null);
         }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");

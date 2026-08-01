@@ -43,6 +43,15 @@ public sealed record AxisSourceOption(string Label, TuneAxisSet? Axes)
     public static AxisSourceOption FromData { get; } = new("From the log data", null);
 }
 
+/// <summary>
+/// A channel to subtract from Z, or "None". A real option object rather than a
+/// nullable entry, because WPF will not apply an item template to null.
+/// </summary>
+public sealed record CompareOption(string Label, ChannelItem? Channel)
+{
+    public static CompareOption None { get; } = new("None — show the value itself", null);
+}
+
 /// <summary>A comparison paired with the symbol shown for it.</summary>
 public sealed record ComparisonOption(FilterComparison Value, string Label)
 {
