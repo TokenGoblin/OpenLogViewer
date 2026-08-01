@@ -84,9 +84,15 @@ public sealed class ChannelItem : ObservableObject
     public void SetSelection(ChannelStatistics? statistics)
     {
         _selection = statistics;
+
+        // Recomputed, not just re-announced: dropping a span used to leave the
+        // row showing that span's average until the pointer happened to move.
+        Value = statistics is { HasData: true } s
+            ? Channel.FormatWithUnits(s.Mean)
+            : "—";
+
         Raise(nameof(Range));
         Raise(nameof(Selection));
-        Raise(nameof(Value));
     }
 
     /// <summary>Flat channels are logged but carry no signal; the UI de-emphasises them.</summary>

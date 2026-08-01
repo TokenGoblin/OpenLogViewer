@@ -4,6 +4,7 @@
     <Project Path="src/OpenLogViewer.Core/OpenLogViewer.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/OpenLogViewer.App.Tests/OpenLogViewer.App.Tests.csproj" />
     <Project Path="tests/OpenLogViewer.Tests/OpenLogViewer.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

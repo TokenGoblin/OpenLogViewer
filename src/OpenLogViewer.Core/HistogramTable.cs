@@ -65,6 +65,14 @@ public sealed class HistogramTable
     public bool IsDelta => ZCompare is not null;
 
     /// <summary>
+    /// Whether cells hold a signed deviation, which is what makes a diverging
+    /// scale the right one. Counting samples is a magnitude even when a
+    /// comparison channel is set, and shading counts as if they were deviations
+    /// from a target would put "no samples" at the neutral midpoint.
+    /// </summary>
+    public bool ShowsDeviation => IsDelta && Statistic != HistogramStatistic.Count;
+
+    /// <summary>
     /// Largest deviation either side of zero. A delta scale has to be symmetric
     /// about zero, or equal errors in opposite directions would be shaded with
     /// different intensities and read as unequal.
