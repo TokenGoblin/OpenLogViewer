@@ -170,6 +170,133 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Channels offered as table axes: those that actually vary.</summary>
     public ObservableCollection<ChannelItem> AxisChannels { get; } = [];
 
+    // ----- data filters -----------------------------------------------------
+
+    private readonly FilterStore _filterStore = new();
+    private ChannelItem? _newFilterChannel;
+    private ComparisonOption _newComparison = ComparisonOption.All[0];
+    private string _newLow = "";
+    private string _newHigh = "";
+
+    /// <summary>Conditions a sample must meet to be counted in the table.</summary>
+    public ObservableCollection<FilterItem> Filters { get; } = [];
+
+    public IReadOnlyList<ComparisonOption> Comparisons => ComparisonOption.All;
+
+    public ChannelItem? NewFilterChannel
+    {
+        get => _newFilterChannel;
+        set => Set(ref _newFilterChannel, value);
+    }
+
+    public ComparisonOption NewComparison
+    {
+        get => _newComparison;
+        set { if (Set(ref _newComparison, value)) Raise(nameof(NeedsSecondValue)); }
+    }
+
+    public bool NeedsSecondValue => _newComparison.NeedsSecondValue;
+
+    public string NewLow
+    {
+        get => _newLow;
+        set => Set(ref _newLow, value);
+    }
+
+    public string NewHigh
+    {
+        get => _newHigh;
+        set => Set(ref _newHigh, value);
+    }
+
+    /// <summary>Adds the filter described by the editor fields.</summary>
+    public bool AddFilter()
+    {
+        if (NewFilterChannel is null)
+        {
+            Hint = "Pick a channel for the filter.";
+            return false;
+        }
+
+        if (!double.TryParse(_newLow, out double low))
+        {
+            Hint = "Enter a number for the filter value.";
+            return false;
+        }
+
+        double high = 0;
+        if (_newComparison.NeedsSecondValue && !double.TryParse(_newHigh, out high))
+        {
+            Hint = "This comparison needs two values.";
+            return false;
+        }
+
+        var filter = new LogFilter
+        {
+            Name = NewFilterChannel.Name,
+            Channel = NewFilterChannel.Name,
+            Comparison = _newComparison.Value,
+            Low = low,
+            High = high,
+            Enabled = true,
+        };
+
+        AddFilterItem(filter);
+        SaveFilters();
+
+        NewLow = "";
+        NewHigh = "";
+        HistogramInvalidated?.Invoke();
+        return true;
+    }
+
+    public void DeleteFilter(FilterItem item)
+    {
+        if (!Filters.Remove(item)) return;
+
+        SaveFilters();
+        HistogramInvalidated?.Invoke();
+    }
+
+    public void SetAllFilters(bool enabled)
+    {
+        foreach (FilterItem item in Filters) item.Enabled = enabled;
+    }
+
+    private void AddFilterItem(LogFilter filter)
+    {
+        var item = new FilterItem(filter);
+        item.Changed += OnFilterChanged;
+        Filters.Add(item);
+    }
+
+    private void OnFilterChanged()
+    {
+        SaveFilters();
+        HistogramInvalidated?.Invoke();
+    }
+
+    private void SaveFilters() => _filterStore.Replace(Filters.Select(f => f.Filter));
+
+    /// <summary>
+    /// Loads saved filters, then offers suggestions for any channel this log has
+    /// that is not already covered. Suggestions arrive switched off, so opening a
+    /// log never silently changes what the table counts.
+    /// </summary>
+    private void SeedFilters(LogDocument document)
+    {
+        Filters.Clear();
+
+        foreach (LogFilter filter in _filterStore.Filters) AddFilterItem(filter);
+
+        foreach (LogFilter suggestion in SampleFilter.Suggest(document))
+        {
+            bool covered = Filters.Any(f =>
+                f.Filter.Channel.Equals(suggestion.Channel, StringComparison.OrdinalIgnoreCase));
+            if (!covered) AddFilterItem(suggestion);
+        }
+    }
+
     public HistogramTable? Table { get; private set; }
 
     /// <summary>Raised when a histogram setting changes and the table needs rebuilding.</summary>
@@ -280,13 +407,32 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        SampleMask mask = SampleFilter.Build(Document, Filters.Select(f => f.Filter));
+
         Table = HistogramTable.Build(
             XAxis.Channel, YAxis.Channel, ZAxis.Channel,
-            _columns, _rows, firstSample, lastSample, _statistic);
+            _columns, _rows, firstSample, lastSample, _statistic, mask);
 
-        Hint = Table.IsEmpty
-            ? "No samples fall in this table — try a wider time range."
-            : $"{Table.SampleCount:N0} samples across {Table.PopulatedCells} of {_columns * _rows} cells.";
+        if (Table.IsEmpty)
+        {
+            Hint = mask.FiltersApplied && mask.PassCount == 0
+                ? "Every sample was filtered out — loosen or switch off a filter."
+                : "No samples fall in this table — try a wider time range.";
+            return;
+        }
+
+        var parts = new List<string>
+        {
+            $"{Table.SampleCount:N0} samples across {Table.PopulatedCells} of {_columns * _rows} cells",
+        };
+
+        if (mask.FiltersApplied)
+            parts.Add($"{mask.Total - mask.PassCount:N0} of {mask.Total:N0} excluded by filters");
+
+        if (mask.UnknownChannels.Count > 0)
+            parts.Add($"not in this log: {string.Join(", ", mask.UnknownChannels.Distinct())}");
+
+        Hint = string.Join("   •   ", parts);
     }
 
     /// <summary>Picks sensible axes for a newly opened log.</summary>
@@ -301,10 +447,12 @@ public sealed class MainViewModel : ObservableObject
         _xAxis = Pick("RPM") ?? AxisChannels.FirstOrDefault();
         _yAxis = Pick("MAP") ?? Pick("Load") ?? AxisChannels.Skip(1).FirstOrDefault();
         _zAxis = Pick("AFR") ?? Pick("Lambda") ?? AxisChannels.Skip(2).FirstOrDefault();
+        _newFilterChannel = _xAxis;
 
         Raise(nameof(XAxis));
         Raise(nameof(YAxis));
         Raise(nameof(ZAxis));
+        Raise(nameof(NewFilterChannel));
 
         ChannelItem? Pick(string name) => AxisChannels.FirstOrDefault(
             c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -342,6 +490,7 @@ public sealed class MainViewModel : ObservableObject
         Title = $"{Path.GetFileName(path)} — OpenLogViewer";
         Status = Describe(doc);
         SeedHistogramAxes();
+        SeedFilters(doc);
         RefreshView();
         PlotInvalidated?.Invoke();
         HistogramInvalidated?.Invoke();
@@ -512,7 +661,13 @@ public sealed class MainViewModel : ObservableObject
 
         int shown = ChannelView.Cast<object>().Count();
         int plotted = Channels.Count(c => c.IsVisible);
-        FilterSummary = $"{shown}/{Channels.Count} · {plotted} plotted";
+        int hidden = Channels.Count - shown;
+
+        // Say how many are being withheld, so a missing channel is explained
+        // rather than just absent.
+        FilterSummary = hidden > 0
+            ? $"{shown}/{Channels.Count} · {plotted} plotted · {hidden} hidden"
+            : $"{shown}/{Channels.Count} · {plotted} plotted";
     }
 
     /// <summary>
@@ -542,14 +697,20 @@ public sealed class MainViewModel : ObservableObject
     private bool FilterChannel(object obj)
     {
         if (obj is not ChannelItem item) return false;
+        if (_search.Length > 0) return MatchesSearch(item);
 
         // A plotted channel always stays listed, so it can be switched back off.
-        if (_hideUnused && item.IsFlat && !item.IsVisible) return false;
-
-        if (_search.Length == 0) return true;
-
-        return item.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
-               || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
-               || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
+        return !(_hideUnused && item.IsFlat);
     }
+
+    /// <summary>
+    /// Searching is an explicit request for a channel by name, so it overrides
+    /// the unused filter. A channel pinned at one value is exactly what a tuner
+    /// needs to notice — a wideband reading a constant 10.0 AFR is a dead sensor,
+    /// not a boring channel — and silently hiding it from a search would bury it.
+    /// </summary>
+    private bool MatchesSearch(ChannelItem item) =>
+        item.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
 }

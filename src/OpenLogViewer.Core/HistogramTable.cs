@@ -76,7 +76,8 @@ public sealed class HistogramTable
         LogChannel x, LogChannel y, LogChannel z,
         int columns, int rows,
         int firstSample, int lastSample,
-        HistogramStatistic statistic)
+        HistogramStatistic statistic,
+        SampleMask? mask = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(columns, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
@@ -95,8 +96,10 @@ public sealed class HistogramTable
 
         if (from > to) return table.Finish();
 
-        (double xMin, double xStep) = Axis(x.Values, from, to, columns);
-        (double yMin, double yStep) = Axis(y.Values, from, to, rows);
+        // Axes are scaled to the samples that survive filtering, so excluding
+        // warmup or idle also tightens the axis onto the data that remains.
+        (double xMin, double xStep) = Axis(x.Values, from, to, columns, mask);
+        (double yMin, double yStep) = Axis(y.Values, from, to, rows, mask);
 
         for (int i = 0; i < columns; i++) table.ColumnCenters[i] = xMin + (i + 0.5) * xStep;
         for (int i = 0; i < rows; i++) table.RowCenters[i] = yMin + (i + 0.5) * yStep;
@@ -107,6 +110,8 @@ public sealed class HistogramTable
 
         for (int i = from; i <= to; i++)
         {
+            if (mask is not null && !mask[i]) continue;
+
             double xv = x.Values[i], yv = y.Values[i], zv = z.Values[i];
             if (double.IsNaN(xv) || double.IsNaN(yv) || double.IsNaN(zv)) continue;
 
@@ -175,11 +180,14 @@ public sealed class HistogramTable
     /// changes would give a zero-width axis, so it is widened to keep every
     /// sample inside the table.
     /// </summary>
-    private static (double Min, double Step) Axis(double[] values, int from, int to, int bins)
+    private static (double Min, double Step) Axis(
+        double[] values, int from, int to, int bins, SampleMask? mask)
     {
         double min = double.PositiveInfinity, max = double.NegativeInfinity;
         for (int i = from; i <= to; i++)
         {
+            if (mask is not null && !mask[i]) continue;
+
             double v = values[i];
             if (double.IsNaN(v)) continue;
             if (v < min) min = v;

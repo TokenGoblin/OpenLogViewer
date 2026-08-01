@@ -55,7 +55,8 @@
             <Border Grid.Column="0" Background="{StaticResource Panel}"
                     BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0"
                     Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}">
-                <StackPanel Margin="10,10,10,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="10,10,12,12">
                     <TextBlock Text="AXIS FIELDS" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource Muted}" Margin="0,0,0,6"/>
 
@@ -106,9 +107,80 @@
                               FontSize="11" Margin="0,0,0,5"
                               ToolTip="Shade cells by how much data backs them, rather than by value"/>
                     <CheckBox Content="Only the zoomed time range" IsChecked="{Binding HistogramZoomOnly}"
-                              FontSize="11"
+                              FontSize="11" Margin="0,0,0,12"
                               ToolTip="Build the table from the range zoomed to in the log view"/>
+
+                    <DockPanel Margin="0,0,0,5">
+                        <Button DockPanel.Dock="Right" Content="None" Padding="7,2" FontSize="10"
+                                Click="OnFiltersNoneClick" ToolTip="Switch every filter off"/>
+                        <TextBlock Text="DATA FILTERS" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <TextBlock Text="Samples must meet every ticked condition to be counted."
+                               FontSize="10" Foreground="#6B7686" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                    <ItemsControl ItemsSource="{Binding Filters}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="Transparent" Padding="0,2">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Delete filter" Click="OnDeleteFilterClick"/>
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
+                                    <DockPanel>
+                                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}"
+                                                  VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontSize="11"
+                                                       Foreground="{StaticResource Text}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Description}" FontSize="10"
+                                                       Foreground="#6B7686" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Content="+ Add filter" Padding="8,3" FontSize="11" Margin="0,7,0,0"
+                            HorizontalAlignment="Left" Click="OnAddFilterClick"/>
+
+                    <Border x:Name="FilterEditor" Visibility="Collapsed" Margin="0,7,0,0"
+                            Background="{StaticResource Bg}" CornerRadius="4" Padding="8"
+                            BorderBrush="{StaticResource Line}" BorderThickness="1">
+                        <StackPanel>
+                            <ComboBox ItemsSource="{Binding AxisChannels}"
+                                      SelectedItem="{Binding NewFilterChannel}"
+                                      ItemTemplate="{StaticResource ChannelName}" Margin="0,0,0,5"/>
+                            <ComboBox ItemsSource="{Binding Comparisons}"
+                                      SelectedItem="{Binding NewComparison}"
+                                      DisplayMemberPath="Label" Margin="0,0,0,5"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Margin="0,0,3,0"
+                                         Text="{Binding NewLow, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Value"/>
+                                <TextBox Grid.Column="1" Margin="3,0,0,0"
+                                         Text="{Binding NewHigh, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Upper value"
+                                         Visibility="{Binding NeedsSecondValue,
+                                                      Converter={StaticResource BoolToVis}}"/>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <Button Content="Add" Padding="10,3" FontSize="11" Click="OnConfirmFilterClick"/>
+                                <Button Content="Cancel" Padding="10,3" FontSize="11" Margin="5,0,0,0"
+                                        Click="OnCancelFilterClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <Border Grid.Column="0" Background="{StaticResource Panel}"
