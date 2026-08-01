@@ -27,6 +27,14 @@ public partial class App : Application
 
         if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
 
+        int cell = Array.IndexOf(e.Args, "--cell");
+        if (cell >= 0 && cell + 1 < e.Args.Length)
+        {
+            string[] rc = e.Args[cell + 1].Split(',');
+            if (rc.Length == 2 && int.TryParse(rc[0], out int col) && int.TryParse(rc[1], out int row))
+                window.ActivateCell(col, row);
+        }
+
         int sel = Array.IndexOf(e.Args, "--select");
         if (sel >= 0 && sel + 1 < e.Args.Length)
         {
@@ -99,4 +107,5 @@ public partial class App : Application
         }, DispatcherPriority.ContextIdle);
     }
 }
+
 

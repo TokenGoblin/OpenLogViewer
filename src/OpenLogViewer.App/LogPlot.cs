@@ -78,6 +78,22 @@ public sealed class LogPlot : FrameworkElement
     /// </summary>
     public event Action<(int First, int Last)?>? SelectionChanged;
 
+    private IReadOnlyList<(double From, double To)> _occurrences = [];
+
+    private static readonly Brush OccurrenceFill =
+        Frozen(new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xB0, 0x2E)));
+
+    /// <summary>
+    /// Marks every span where some condition held — the other visits to a
+    /// histogram cell, so the one being shown is seen in context rather than as
+    /// if it were the only time the engine was there.
+    /// </summary>
+    public void SetOccurrences(IReadOnlyList<(double From, double To)> spans)
+    {
+        _occurrences = spans;
+        InvalidateVisual();
+    }
+
     /// <summary>Marks a span of the log, in seconds.</summary>
     public void SelectRange(double fromSeconds, double toSeconds)
     {
@@ -89,6 +105,17 @@ public sealed class LogPlot : FrameworkElement
         _selectionTo = Math.Max(fromSeconds, toSeconds);
 
         ReportSelection();
+        InvalidateVisual();
+    }
+
+    /// <summary>Frames a span of the log, clamped to the data.</summary>
+    public void ZoomTo(double fromSeconds, double toSeconds)
+    {
+        if (_document is not { SampleCount: > 0 } doc) return;
+
+        _viewStart = Math.Min(fromSeconds, toSeconds);
+        _viewEnd = Math.Max(fromSeconds, toSeconds);
+        ClampView(doc);
         InvalidateVisual();
     }
 
@@ -265,10 +292,29 @@ public sealed class LogPlot : FrameworkElement
             dc.DrawGeometry(null, hover.HighlightPen,
                 BuildTrace(hover.Channel, time, i0, i1, area, doc.GapThreshold));
 
+        DrawOccurrences(dc, area);
         DrawSelection(dc, doc, area);
         DrawMarkers(dc, doc, area);
         DrawCursor(dc, area);
         DrawHoverCard(dc, area, doc);
+    }
+
+    /// <summary>Faintly shades every span where the traced condition held.</summary>
+    private void DrawOccurrences(DrawingContext dc, Rect area)
+    {
+        foreach ((double from, double to) in _occurrences)
+        {
+            if (to < _viewStart || from > _viewEnd) continue;
+
+            double left = Math.Max(area.Left, TimeToX(from, area));
+            double right = Math.Min(area.Right, TimeToX(to, area));
+
+            // A single-sample visit still has to be visible.
+            if (right - left < 1.5) right = left + 1.5;
+            if (right <= area.Left || left >= area.Right) continue;
+
+            dc.DrawRectangle(OccurrenceFill, null, new Rect(left, area.Top, right - left, area.Height));
+        }
     }
 
     /// <summary>Shades the marked span and reports its extent.</summary>

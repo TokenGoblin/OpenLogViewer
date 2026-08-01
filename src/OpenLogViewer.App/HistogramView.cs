@@ -68,9 +68,23 @@ public sealed class HistogramView : FrameworkElement
     private static readonly Brush LightInk = Frozen(new SolidColorBrush(Colors.White));
     private static readonly Pen HoverPen = Frozen(new Pen(new SolidColorBrush(Colors.White), 1.5));
 
+    private static readonly Pen SelectedCellPen =
+        Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x2E)), 2));
+
     private HistogramTable? _table;
     private bool _colorByCount;
     private (int Column, int Row) _hover = (-1, -1);
+    private (int Column, int Row) _selected = (-1, -1);
+
+    /// <summary>Raised when a populated cell is clicked, to trace it back to the log.</summary>
+    public event Action<(int Column, int Row)>? CellActivated;
+
+    /// <summary>Marks the cell whose samples are being shown in the log view.</summary>
+    public void SetSelectedCell((int Column, int Row)? cell)
+    {
+        _selected = cell ?? (-1, -1);
+        InvalidateVisual();
+    }
 
     public HistogramView()
     {
@@ -294,6 +308,13 @@ public sealed class HistogramView : FrameworkElement
 
     private void DrawHover(DrawingContext dc, HistogramTable table, double cellWidth, double cellHeight)
     {
+        if (_selected is { Column: >= 0, Row: >= 0 }
+            && _selected.Column < table.Columns && _selected.Row < table.Rows)
+        {
+            dc.DrawRectangle(null, SelectedCellPen,
+                CellBounds(table, _selected.Column, _selected.Row, cellWidth, cellHeight));
+        }
+
         (int column, int row) = _hover;
         if (column < 0 || row < 0) return;
 
@@ -331,6 +352,18 @@ public sealed class HistogramView : FrameworkElement
         if (hit == _hover) return;
         _hover = hit;
         InvalidateVisual();
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+
+        // Only cells with data can be traced back to samples.
+        (int column, int row) = _hover;
+        if (_table is null || column < 0 || row < 0) return;
+        if (_table.Counts[column, row] == 0) return;
+
+        CellActivated?.Invoke((column, row));
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
