@@ -18,7 +18,7 @@ public sealed class LogDocument
     /// </summary>
     public required LogChannel Time { get; init; }
 
-    public int SampleCount => Time.Values.Length;
+    public int SampleCount => Time.Length;
 
     /// <summary>Annotations captured during logging, ordered by time.</summary>
     public IReadOnlyList<LogMarker> Markers { get; init; } = [];
@@ -40,7 +40,7 @@ public sealed class LogDocument
     /// <summary>Source format label for display, e.g. "MLG v2" or "MSL".</summary>
     public required string FormatName { get; init; }
 
-    public double Duration => SampleCount == 0 ? 0 : Time.Values[^1] - Time.Values[0];
+    public double Duration => SampleCount == 0 ? 0 : Time.At(SampleCount - 1) - Time.At(0);
 
     private double? _medianInterval;
 
@@ -66,17 +66,17 @@ public sealed class LogDocument
 
     private double ComputeMedianInterval()
     {
-        double[] t = Time.Values;
-        if (t.Length < 3) return 0;
+        int count = Time.Length;
+        if (count < 3) return 0;
 
         // Very long logs are sampled rather than measured in full; the median is
         // stable either way and this keeps loading O(1) in practice.
-        int stride = Math.Max(1, (t.Length - 1) / 20_000);
-        var deltas = new List<double>((t.Length - 1) / stride + 1);
+        int stride = Math.Max(1, (count - 1) / 20_000);
+        var deltas = new List<double>((count - 1) / stride + 1);
 
-        for (int i = stride; i < t.Length; i += stride)
+        for (int i = stride; i < count; i += stride)
         {
-            double delta = (t[i] - t[i - stride]) / stride;
+            double delta = (Time.At(i) - Time.At(i - stride)) / stride;
             if (delta > 0) deltas.Add(delta);
         }
 
@@ -94,14 +94,14 @@ public sealed class LogDocument
     /// </summary>
     public int IndexAtTime(double seconds)
     {
-        double[] t = Time.Values;
-        if (t.Length == 0) return 0;
+        int count = Time.Length;
+        if (count == 0) return 0;
 
-        int lo = 0, hi = t.Length - 1;
+        int lo = 0, hi = count - 1;
         while (lo < hi)
         {
             int mid = (lo + hi + 1) / 2;
-            if (t[mid] <= seconds) lo = mid; else hi = mid - 1;
+            if (Time.At(mid) <= seconds) lo = mid; else hi = mid - 1;
         }
         return lo;
     }

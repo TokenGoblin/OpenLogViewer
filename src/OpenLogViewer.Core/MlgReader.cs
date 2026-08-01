@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Text;
 
 namespace OpenLogViewer.Core;
@@ -110,7 +110,7 @@ public sealed class MlgReader : ILogReader
         for (int i = 0; i < fieldCount; i++)
             channels.Add(new LogChannel(fields[i].Name, fields[i].Units, fields[i].Digits, columns[i]));
 
-        LogChannel time = ResolveTimeBase(channels, sampleCount);
+        LogChannel time = ResolveTimeBase(fields, columns, sampleCount);
         var (signature, info) = ReadInfoBlock(data, infoStart, dataStart);
 
         return new LogDocument
@@ -289,19 +289,28 @@ public sealed class MlgReader : ILogReader
         return markers;
     }
 
-    private static LogChannel ResolveTimeBase(List<LogChannel> channels, int sampleCount)
+    /// <summary>
+    /// Built from the decoded doubles rather than a stored channel: a time base
+    /// keeps full precision, because it accumulates over the recording.
+    /// </summary>
+    private static LogChannel ResolveTimeBase(MlgField[] fields, double[][] columns, int sampleCount)
     {
-        LogChannel? time = channels.FirstOrDefault(
-            c => c.Name.Equals("Time", StringComparison.OrdinalIgnoreCase));
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (!fields[i].Name.Equals("Time", StringComparison.OrdinalIgnoreCase)) continue;
+
+            double[] seconds = columns[i];
+            // A time column that never moves is no use as a time base.
+            if (seconds.Length > 1 && seconds[^1] > seconds[0])
+                return new LogChannel(fields[i].Name, fields[i].Units, fields[i].Digits, seconds,
+                                      preservePrecision: true);
+            break;
+        }
 
         // Fall back to a synthetic index when the log has no usable Time column.
-        if (time is null || time.IsFlat)
-        {
-            var synthetic = new double[sampleCount];
-            for (int i = 0; i < sampleCount; i++) synthetic[i] = i;
-            return new LogChannel("Sample", "#", 0, synthetic);
-        }
-        return time;
+        var synthetic = new double[sampleCount];
+        for (int i = 0; i < sampleCount; i++) synthetic[i] = i;
+        return new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true);
     }
 
     /// <summary>
@@ -406,3 +415,4 @@ public enum MlgDataType : byte
     /// </summary>
     Bits = 16,
 }
+

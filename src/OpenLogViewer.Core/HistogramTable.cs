@@ -194,7 +194,7 @@ public sealed class HistogramTable
         ArgumentOutOfRangeException.ThrowIfLessThan(columns, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
 
-        int length = Math.Min(x.Values.Length, Math.Min(y.Values.Length, z.Values.Length));
+        int length = Math.Min(x.Length, Math.Min(y.Length, z.Length));
         int from = Math.Max(0, Math.Min(firstSample, lastSample));
         int to = Math.Min(length - 1, Math.Max(firstSample, lastSample));
 
@@ -211,8 +211,8 @@ public sealed class HistogramTable
 
         // Axes are scaled to the samples that survive filtering, so excluding
         // warmup or idle also tightens the axis onto the data that remains.
-        (double xMin, double xStep) = Axis(x.Values, from, to, columns, mask);
-        (double yMin, double yStep) = Axis(y.Values, from, to, rows, mask);
+        (double xMin, double xStep) = Axis(x, from, to, columns, mask);
+        (double yMin, double yStep) = Axis(y, from, to, rows, mask);
 
         for (int i = 0; i < columns; i++) table.ColumnCenters[i] = xMin + (i + 0.5) * xStep;
         for (int i = 0; i < rows; i++) table.RowCenters[i] = yMin + (i + 0.5) * yStep;
@@ -237,7 +237,7 @@ public sealed class HistogramTable
         ArgumentOutOfRangeException.ThrowIfLessThan(columnBreakpoints.Length, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(rowBreakpoints.Length, 1);
 
-        int length = Math.Min(x.Values.Length, Math.Min(y.Values.Length, z.Values.Length));
+        int length = Math.Min(x.Length, Math.Min(y.Length, z.Length));
         int from = Math.Max(0, Math.Min(firstSample, lastSample));
         int to = Math.Min(length - 1, Math.Max(firstSample, lastSample));
 
@@ -278,7 +278,7 @@ public sealed class HistogramTable
         {
             if (mask is not null && !mask[i]) continue;
 
-            double xv = x.Values[i], yv = y.Values[i], zv = z.Values[i];
+            double xv = x.At(i), yv = y.At(i), zv = z.At(i);
             if (double.IsNaN(xv) || double.IsNaN(yv) || double.IsNaN(zv)) continue;
 
             if (ZCompare is { } compare)
@@ -356,14 +356,14 @@ public sealed class HistogramTable
     /// sample inside the table.
     /// </summary>
     private static (double Min, double Step) Axis(
-        double[] values, int from, int to, int bins, SampleMask? mask)
+        LogChannel channel, int from, int to, int bins, SampleMask? mask)
     {
         double min = double.PositiveInfinity, max = double.NegativeInfinity;
         for (int i = from; i <= to; i++)
         {
             if (mask is not null && !mask[i]) continue;
 
-            double v = values[i];
+            double v = channel.At(i);
             if (double.IsNaN(v)) continue;
             if (v < min) min = v;
             if (v > max) max = v;
@@ -412,3 +412,4 @@ public sealed class HistogramTable
         return IsDelta && value > 0 ? "+" + text : text;
     }
 }
+

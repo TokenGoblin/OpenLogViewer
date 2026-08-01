@@ -250,4 +250,3 @@ public class TuneAxesTests : IDisposable
         Assert.Null(LogReaderFactory.Load(path).EmbeddedTune);
     }
 }
-

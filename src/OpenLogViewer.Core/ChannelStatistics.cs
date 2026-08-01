@@ -23,18 +23,18 @@ public readonly record struct ChannelStatistics(double Min, double Max, double M
     /// </summary>
     public static ChannelStatistics Over(LogChannel channel, int first, int last)
     {
-        double[] values = channel.Values;
+        int length = channel.Length;
         int from = Math.Max(0, Math.Min(first, last));
-        int to = Math.Min(values.Length - 1, Math.Max(first, last));
+        int to = Math.Min(length - 1, Math.Max(first, last));
 
-        if (values.Length == 0 || from > to) return Empty;
+        if (length == 0 || from > to) return Empty;
 
         double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0;
         int count = 0;
 
         for (int i = from; i <= to; i++)
         {
-            double v = values[i];
+            double v = channel.At(i);
             if (double.IsNaN(v)) continue;
 
             if (v < min) min = v;
@@ -46,3 +46,4 @@ public readonly record struct ChannelStatistics(double Min, double Max, double M
         return count == 0 ? Empty : new ChannelStatistics(min, max, sum / count, count);
     }
 }
+

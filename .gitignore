@@ -4,3 +4,6 @@ obj/
 *.user
 *.suo
 artifacts/
+
+# WPF build leaves these behind
+*_wpftmp.csproj

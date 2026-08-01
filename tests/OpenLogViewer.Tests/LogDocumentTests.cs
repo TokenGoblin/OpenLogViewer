@@ -43,7 +43,7 @@ public class LogDocumentTests : IDisposable
         LogDocument log = Build(0.0, 0.1, 0.21, 0.29, 0.4, 0.5);
 
         // Ordinary jitter must stay below the threshold.
-        double[] t = log.Time.Values;
+        double[] t = log.Time.ToArray();
         for (int i = 1; i < t.Length; i++)
             Assert.True(t[i] - t[i - 1] < log.GapThreshold);
     }
