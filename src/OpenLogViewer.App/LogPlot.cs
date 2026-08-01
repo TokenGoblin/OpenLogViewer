@@ -19,29 +19,63 @@ public sealed class LogPlot : FrameworkElement
     private const double AxisHeight = 26;
     private const double Pad = 8;
 
-    private static readonly Brush BackgroundBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x17, 0x1C)));
-    private static readonly Brush AxisTextBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x82, 0x8D, 0x9E)));
-    private static readonly Pen GridPen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x25, 0x2B, 0x35)), 1));
-    private static readonly Pen CursorPen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xB8, 0xC2, 0xD0)), 1));
-    private static readonly Pen MarkerPen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0xB3, 0x4D)), 1)
-    {
-        DashStyle = new DashStyle([3, 3], 0),
-    });
+    // Rebuilt whenever the theme changes. This element paints itself rather than
+    // going through the styling system, so it has to be told; DynamicResource
+    // reaches the chrome around it but not the drawing below.
+    private Brush BackgroundBrush = null!;
+    private Brush AxisTextBrush = null!;
+    private Pen GridPen = null!;
+    private Pen CursorPen = null!;
+    private Pen MarkerPen = null!;
 
     /// <summary>How close, in pixels, the pointer must be to claim a trace.</summary>
     private const double HoverTolerance = 40;
 
-    private static readonly Brush CardBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xF2, 0x1B, 0x20, 0x28)));
-    private static readonly Pen CardPen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x52)), 1));
-    private static readonly Brush CardLabel = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x94, 0xA3)));
-    private static readonly Brush CardValue = Frozen(new SolidColorBrush(Color.FromRgb(0xE6, 0xEC, 0xF3)));
-    private static readonly Brush CardAction = Frozen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7)));
-    private static readonly Brush CardRowHover = Frozen(new SolidColorBrush(Color.FromRgb(0x2C, 0x38, 0x45)));
+    private Brush CardBrush = null!;
+    private Pen CardPen = null!;
+    private Brush CardLabel = null!;
+    private Brush CardValue = null!;
+    private Brush CardAction = null!;
+    private Brush CardRowHover = null!;
 
     /// <summary>Vertical gap between stacked lanes, in pixels.</summary>
     private const double LaneGap = 6;
 
-    private static readonly Pen LanePen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x22, 0x28, 0x31)), 1));
+    private Pen LanePen = null!;
+
+    private Brush SelectionFill = null!;
+    private Pen SelectionEdge = null!;
+    private Brush OccurrenceFill = null!;
+
+    private void ApplyTheme(Theme theme)
+    {
+        BackgroundBrush = Fill(theme.Background);
+        AxisTextBrush = Fill(theme.Muted);
+        GridPen = Stroke(theme.Grid, 1);
+        CursorPen = Stroke(theme.Cursor, 1);
+        MarkerPen = Frozen(new Pen(Fill(theme.Marker), 1) { DashStyle = new DashStyle([3, 3], 0) });
+
+        // Held just off opaque so a trace running underneath the card is still
+        // faintly readable, which is what tells you the card is floating.
+        CardBrush = Fill(Color.FromArgb(0xF2, theme.Card.R, theme.Card.G, theme.Card.B));
+        CardPen = Stroke(theme.Line, 1);
+        CardLabel = Fill(theme.Muted);
+        CardValue = Fill(theme.Text);
+        CardAction = Fill(theme.Accent);
+        CardRowHover = Fill(theme.Hover);
+
+        LanePen = Stroke(theme.Lane, 1);
+
+        SelectionFill = Fill(Color.FromArgb(0x38, theme.Accent.R, theme.Accent.G, theme.Accent.B));
+        SelectionEdge = Stroke(theme.Accent, 1);
+        OccurrenceFill = Fill(Color.FromArgb(0x33, theme.Marker.R, theme.Marker.G, theme.Marker.B));
+
+        InvalidateVisual();
+    }
+
+    private static Brush Fill(Color c) => Frozen(new SolidColorBrush(c));
+
+    private static Pen Stroke(Color c, double thickness) => Frozen(new Pen(Fill(c), thickness));
 
     private bool _stacked;
 
@@ -63,12 +97,6 @@ public sealed class LogPlot : FrameworkElement
     private double _selectionFrom = double.NaN;
     private double _selectionTo = double.NaN;
 
-    private static readonly Brush SelectionFill =
-        Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0x4F, 0xC3, 0xF7)));
-
-    private static readonly Pen SelectionEdge =
-        Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7)), 1));
-
     /// <summary>True while a time range is marked on the plot.</summary>
     public bool HasSelection => !double.IsNaN(_selectionFrom) && _selectionTo > _selectionFrom;
 
@@ -79,9 +107,6 @@ public sealed class LogPlot : FrameworkElement
     public event Action<(int First, int Last)?>? SelectionChanged;
 
     private IReadOnlyList<(double From, double To)> _occurrences = [];
-
-    private static readonly Brush OccurrenceFill =
-        Frozen(new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xB0, 0x2E)));
 
     /// <summary>
     /// Marks every span where some condition held — the other visits to a
@@ -147,6 +172,10 @@ public sealed class LogPlot : FrameworkElement
     {
         ClipToBounds = true;
         Focusable = true;
+
+        ApplyTheme(ThemeManager.Current);
+        ThemeManager.Changed += ApplyTheme;
+        Unloaded += (_, _) => ThemeManager.Changed -= ApplyTheme;
     }
 
     /// <summary>Raised as the cursor moves, carrying the sample index under it.</summary>

@@ -20,6 +20,11 @@ public partial class App : Application
         // is shown, instead of flashing an empty viewer first.
         var window = new MainWindow();
         MainWindow = window;
+
+        // Before Show, so a themed screenshot never captures the stored theme first.
+        int theme = Array.IndexOf(e.Args, "--theme");
+        if (theme >= 0 && theme + 1 < e.Args.Length) window.PreviewTheme(e.Args[theme + 1]);
+
         window.Show();
 
         string? log = e.Args.FirstOrDefault(a => !a.StartsWith("--"));

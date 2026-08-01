@@ -26,6 +26,9 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
     }
 
+    /// <summary>Applies a theme for this run without recording it as the preference.</summary>
+    public void PreviewTheme(string id) => _vm.PreviewTheme(id);
+
     public void LoadFile(string path)
     {
         try

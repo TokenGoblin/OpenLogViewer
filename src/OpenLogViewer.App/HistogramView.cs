@@ -19,57 +19,54 @@ public sealed class HistogramView : FrameworkElement
     private const double CellGap = 1.5;
 
     /// <summary>
-    /// Sequential ramp, low→high. One hue, monotonically lightening: magnitude is
-    /// carried by lightness, which survives colour-vision deficiency and greyscale.
-    /// Validated against this app's surface — the low end holds 2.71:1 against it,
-    /// so a barely-populated cell still reads as distinct from an empty one.
+    /// Sequential ramp, low→high. One hue, monotonically lightening against a
+    /// dark ground and darkening against a light one: magnitude is carried by
+    /// lightness, which survives colour-vision deficiency and greyscale.
     /// </summary>
-    private static readonly Color[] Ramp =
-    [
-        Color.FromRgb(0x1C, 0x5C, 0xAB),
-        Color.FromRgb(0x39, 0x87, 0xE5),
-        Color.FromRgb(0x6D, 0xA7, 0xEC),
-        Color.FromRgb(0x9E, 0xC5, 0xF4),
-        Color.FromRgb(0xCD, 0xE2, 0xFB),
-    ];
+    private Color[] Ramp = [];
 
     /// <summary>
     /// Diverging scale for deltas: two hues away from a neutral midpoint, cool
     /// below the target and warm above it. Polarity is not magnitude — a single
-    /// hue could not show which side of zero a cell sits on. The midpoint is a
-    /// near-surface grey so cells that are on target recede, and each arm is
-    /// validated as its own ramp against this app's surface.
+    /// hue could not show which side of zero a cell sits on. The midpoint sits
+    /// near the surface so cells that are on target recede.
     /// </summary>
-    private static readonly Color[] CoolArm =
-    [
-        Color.FromRgb(0x38, 0x38, 0x35),
-        Color.FromRgb(0x1C, 0x5C, 0xAB),
-        Color.FromRgb(0x39, 0x87, 0xE5),
-        Color.FromRgb(0x6D, 0xA7, 0xEC),
-        Color.FromRgb(0x9E, 0xC5, 0xF4),
-        Color.FromRgb(0xCD, 0xE2, 0xFB),
-    ];
+    private Color[] CoolArm = [];
 
-    private static readonly Color[] WarmArm =
-    [
-        Color.FromRgb(0x38, 0x38, 0x35),
-        Color.FromRgb(0xA3, 0x2A, 0x2A),
-        Color.FromRgb(0xD0, 0x3B, 0x3B),
-        Color.FromRgb(0xE6, 0x67, 0x67),
-        Color.FromRgb(0xEF, 0x9A, 0x9A),
-        Color.FromRgb(0xF7, 0xC9, 0xC9),
-    ];
+    private Color[] WarmArm = [];
 
-    private static readonly Brush Background = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x17, 0x1C)));
-    private static readonly Brush AxisInk = Frozen(new SolidColorBrush(Color.FromRgb(0x89, 0x87, 0x81)));
-    private static readonly Brush TitleInk = Frozen(new SolidColorBrush(Color.FromRgb(0xDD, 0xE3, 0xEA)));
-    private static readonly Brush EmptyCell = Frozen(new SolidColorBrush(Color.FromRgb(0x1B, 0x1F, 0x26)));
-    private static readonly Brush DarkInk = Frozen(new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x0B)));
-    private static readonly Brush LightInk = Frozen(new SolidColorBrush(Colors.White));
-    private static readonly Pen HoverPen = Frozen(new Pen(new SolidColorBrush(Colors.White), 1.5));
+    private Brush Background = null!;
+    private Brush AxisInk = null!;
+    private Brush TitleInk = null!;
+    private Brush EmptyCell = null!;
+    private Brush DarkInk = null!;
+    private Brush LightInk = null!;
+    private Pen HoverPen = null!;
+    private Pen SelectedCellPen = null!;
 
-    private static readonly Pen SelectedCellPen =
-        Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xFF, 0xB0, 0x2E)), 2));
+    private void ApplyTheme(Theme theme)
+    {
+        Ramp = theme.SequentialRamp;
+        CoolArm = theme.CoolArm;
+        WarmArm = theme.WarmArm;
+
+        Background = Fill(theme.Background);
+        AxisInk = Fill(theme.Muted);
+        TitleInk = Fill(theme.Text);
+        EmptyCell = Fill(theme.EmptyCell);
+
+        // Cell text flips between these two by the fill's luminance, so they are
+        // the extremes rather than the theme's own ink.
+        DarkInk = Fill(Color.FromRgb(0x0B, 0x0B, 0x0B));
+        LightInk = Fill(Colors.White);
+
+        HoverPen = Frozen(new Pen(Fill(theme.Text), 1.5));
+        SelectedCellPen = Frozen(new Pen(Fill(theme.Marker), 2));
+
+        InvalidateVisual();
+    }
+
+    private static Brush Fill(Color c) => Frozen(new SolidColorBrush(c));
 
     private HistogramTable? _table;
     private bool _colorByCount;
@@ -89,6 +86,10 @@ public sealed class HistogramView : FrameworkElement
     public HistogramView()
     {
         ClipToBounds = true;
+
+        ApplyTheme(ThemeManager.Current);
+        ThemeManager.Changed += ApplyTheme;
+        Unloaded += (_, _) => ThemeManager.Changed -= ApplyTheme;
     }
 
     public void SetTable(HistogramTable? table, bool colorByCount)
@@ -196,17 +197,7 @@ public sealed class HistogramView : FrameworkElement
     }
 
     /// <summary>Flips the cell text between light and dark so it stays legible on any step.</summary>
-    private static Brush Ink(Color fill)
-    {
-        double luminance = (0.2126 * Channel(fill.R) + 0.7152 * Channel(fill.G) + 0.0722 * Channel(fill.B));
-        return luminance > 0.4 ? DarkInk : LightInk;
-
-        static double Channel(byte v)
-        {
-            double s = v / 255.0;
-            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
-        }
-    }
+    private Brush Ink(Color fill) => ColorMath.Luminance(fill) > 0.4 ? DarkInk : LightInk;
 
     private void DrawTitle(DrawingContext dc, HistogramTable table)
     {

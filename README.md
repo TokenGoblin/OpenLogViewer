@@ -182,7 +182,45 @@ not have is reported and skipped, never applied as "reject everything".
   never recorded. Traces lift the pen when the step between samples exceeds ten
   times the log's median sample interval
 - Min/max envelope decimation, so a 37,000-sample log scrubs smoothly
+- **Fourteen colour schemes** — see below
 - No third-party dependencies
+
+## Colour schemes
+
+Pick one from the box at the top right. The choice is remembered in
+`%APPDATA%\OpenLogViewer\settings.json`.
+
+| Group | Schemes |
+|---|---|
+| Dark | Midnight (default), Graphite |
+| Light | Daylight, Paper |
+| Editor | Dracula, Nord, Solarized Dark, Solarized Light, Monokai, One Dark, Gruvbox Dark, Tokyo Night |
+| High contrast | High Contrast Dark, High Contrast Light |
+
+A scheme sets more than the chrome. It also carries its own **trace palette**,
+and switching schemes re-picks the colours of everything plotted, because a
+palette is only separable against the background it was chosen for.
+
+Those palettes are not the upstream editor colours verbatim, and that is
+deliberate. A syntax theme colours short spans of text that are never adjacent
+and whose identity comes mostly from position; overlaid traces are neither — two
+of them cross in the middle of the plot, and there is nothing but colour to tell
+them apart. Every palette here was checked against its own background for
+lightness range, chroma, contrast, and separation of neighbouring entries under
+protanopia and deuteranopia. Each keeps its scheme's hues and relative
+saturation and moves only in lightness. Colours are handed out in palette order
+as channels are plotted, so what is on screen takes the entries checked to be
+furthest apart.
+
+The heat-table scales are derived from each scheme rather than listed: a
+sequential ramp in one hue for magnitude, and a two-hue diverging scale about a
+near-background neutral when a comparison channel is set. The derivation is
+pinned by tests — a ramp that reversed direction, or two diverging arms that
+converged at their extremes, would misreport the data rather than merely look
+wrong.
+
+Pass `--theme <id>` to start in a scheme for one run without changing the saved
+preference; ids are the lower-case hyphenated names, e.g. `solarized-dark`.
 
 ## Requirements
 
