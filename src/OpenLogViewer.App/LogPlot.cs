@@ -231,8 +231,8 @@ public sealed class LogPlot : FrameworkElement
     {
         if (_document is { SampleCount: > 0 } doc)
         {
-            _viewStart = doc.Time.Values[0];
-            _viewEnd = doc.Time.Values[^1];
+            _viewStart = doc.Time.At(0);
+            _viewEnd = doc.Time.At(doc.SampleCount - 1);
             if (_viewEnd <= _viewStart) _viewEnd = _viewStart + 1;
         }
         else
@@ -278,7 +278,7 @@ public sealed class LogPlot : FrameworkElement
             return;
         }
 
-        double[] time = doc.Time.Values;
+        LogChannel time = doc.Time;
         int i0 = Math.Max(0, doc.IndexAtTime(_viewStart) - 1);
         int i1 = Math.Min(time.Length, doc.IndexAtTime(_viewEnd) + 2);
 
@@ -520,7 +520,7 @@ public sealed class LogPlot : FrameworkElement
     /// would drop.
     /// </summary>
     private Geometry BuildTrace(
-        LogChannel channel, double[] time, int i0, int i1, Rect area, double gapThreshold)
+        LogChannel channel, LogChannel time, int i0, int i1, Rect area, double gapThreshold)
     {
         var geo = new StreamGeometry();
 
@@ -534,12 +534,12 @@ public sealed class LogPlot : FrameworkElement
 
             for (int i = i0; i < i1; i++)
             {
-                double v = channel.Values[i];
+                double v = channel.At(i);
 
                 // Lift the pen across a pause in logging or a missing sample, so
                 // the trace shows an absence of data rather than a flat line.
                 bool discontinuity = double.IsNaN(v)
-                                     || (i > 0 && time[i] - time[i - 1] > gapThreshold);
+                                     || (i > 0 && time.At(i) - time.At(i - 1) > gapThreshold);
 
                 if (discontinuity)
                 {
@@ -552,7 +552,7 @@ public sealed class LogPlot : FrameworkElement
                     if (double.IsNaN(v)) continue;
                 }
 
-                double x = TimeToX(time[i], area);
+                double x = TimeToX(time.At(i), area);
                 int c = (int)Math.Round(x);
 
                 if (c != column)
@@ -842,8 +842,8 @@ public sealed class LogPlot : FrameworkElement
 
     private void ClampView(LogDocument doc)
     {
-        double lo = doc.Time.Values[0];
-        double hi = doc.Time.Values[^1];
+        double lo = doc.Time.At(0);
+        double hi = doc.Time.At(doc.SampleCount - 1);
         if (hi <= lo) hi = lo + 1;
 
         // Never zoom past a few samples, and never scroll off the data.
@@ -900,3 +900,4 @@ public sealed class LogPlot : FrameworkElement
         return freezable;
     }
 }
+

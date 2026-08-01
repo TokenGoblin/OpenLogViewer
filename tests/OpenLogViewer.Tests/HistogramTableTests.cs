@@ -12,7 +12,7 @@ public class HistogramTableTests
         LogChannel x, LogChannel y, LogChannel z,
         int columns = 2, int rows = 2,
         HistogramStatistic statistic = HistogramStatistic.Mean) =>
-        HistogramTable.Build(x, y, z, columns, rows, 0, x.Values.Length - 1, statistic);
+        HistogramTable.Build(x, y, z, columns, rows, 0, x.Length - 1, statistic);
 
     [Fact]
     public void SamplesLandInTheExpectedCells()

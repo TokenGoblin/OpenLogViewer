@@ -53,8 +53,8 @@ public class MlgReaderTests : IDisposable
 
         LogChannel map = LogReaderFactory.Load(path).FindChannel("MAP")!;
 
-        Assert.Equal(82.0, map.Values[0], 3);
-        Assert.Equal("82.0", map.Format(map.Values[0]));
+        Assert.Equal(82.0, map.At(0), 3);
+        Assert.Equal("82.0", map.Format(map.At(0)));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class MlgReaderTests : IDisposable
         string path = File_(b, 3, (f, s) => f == 1 ? 100 : s);
 
         LogChannel temp = LogReaderFactory.Load(path).FindChannel("Temp")!;
-        Assert.Equal(160.0, temp.Values[0], 3);   // 100 * 2 - 40
+        Assert.Equal(160.0, temp.At(0), 3);   // 100 * 2 - 40
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public class MlgReaderTests : IDisposable
 
         LogDocument log = LogReaderFactory.Load(path);
 
-        Assert.Equal(3000, log.FindChannel("RPM")!.Values[0]);
-        Assert.Equal(95.0, log.FindChannel("MAP")!.Values[0], 3);
-        Assert.Equal(0b1010_0101, log.FindChannel("Flags 1")!.Values[0]);
+        Assert.Equal(3000, log.FindChannel("RPM")!.At(0));
+        Assert.Equal(95.0, log.FindChannel("MAP")!.At(0), 3);
+        Assert.Equal(0b1010_0101, log.FindChannel("Flags 1")!.At(0));
     }
 
     [Fact]
@@ -116,8 +116,8 @@ public class MlgReaderTests : IDisposable
         Assert.Equal("MARK 001 - second", log.Markers[1].Text);
 
         // Samples after a marker must still decode correctly.
-        Assert.Equal(2019, log.FindChannel("RPM")!.Values[19]);
-        Assert.Equal(1.9, log.Time.Values[19], 3);
+        Assert.Equal(2019, log.FindChannel("RPM")!.At(19));
+        Assert.Equal(1.9, log.Time.At(19), 3);
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class MlgReaderTests : IDisposable
         LogDocument log = LogReaderFactory.Load(path);
 
         Assert.Equal("Sample", log.Time.Name);
-        Assert.Equal(5, log.Time.Values[5]);
+        Assert.Equal(5, log.Time.At(5));
     }
 
     [Theory]

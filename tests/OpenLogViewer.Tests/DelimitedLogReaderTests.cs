@@ -41,7 +41,7 @@ public class DelimitedLogReaderTests : IDisposable
 
         LogChannel map = log.FindChannel("MAP")!;
         Assert.Equal("kPa", map.Units);
-        Assert.Equal(45.0, map.Values[0], 3);
+        Assert.Equal(45.0, map.At(0), 3);
         Assert.Equal(48.0, map.Max, 3);
     }
 
@@ -78,7 +78,7 @@ public class DelimitedLogReaderTests : IDisposable
         LogDocument log = LogReaderFactory.Load(path);
 
         Assert.Equal(3, log.SampleCount);
-        Assert.Equal([1500, 1600, 1700], log.FindChannel("RPM")!.Values);
+        Assert.Equal([1500, 1600, 1700], log.FindChannel("RPM")!.ToArray());
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class DelimitedLogReaderTests : IDisposable
 
         LogChannel rpm = LogReaderFactory.Load(path).FindChannel("RPM")!;
 
-        Assert.True(double.IsNaN(rpm.Values[1]));
+        Assert.True(double.IsNaN(rpm.At(1)));
         // Min/max must ignore the gap rather than propagate NaN.
         Assert.Equal(1500, rpm.Min);
         Assert.Equal(1700, rpm.Max);
@@ -150,7 +150,7 @@ public class DelimitedLogReaderTests : IDisposable
 
         Assert.Equal("semicolon CSV", log.FormatName);
         Assert.Equal(3, log.SampleCount);
-        Assert.Equal(45.5, log.FindChannel("MAP")!.Values[0], 3);
+        Assert.Equal(45.5, log.FindChannel("MAP")!.At(0), 3);
         Assert.Equal(0.2, log.Duration, 3);
     }
 
@@ -270,7 +270,7 @@ public class DelimitedLogReaderTests : IDisposable
 
         LogDocument log = LogReaderFactory.Load(path);
 
-        Assert.Equal(2178.174, log.Time.Values[0], 3);
+        Assert.Equal(2178.174, log.Time.At(0), 3);
         Assert.Equal(0.2, log.Duration, 3);
     }
 

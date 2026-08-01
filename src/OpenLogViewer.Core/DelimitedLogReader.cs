@@ -93,7 +93,7 @@ public sealed class DelimitedLogReader : ILogReader
         }
 
         int sampleCount = width > 0 ? columns[0].Length : 0;
-        LogChannel time = ResolveTimeBase(channels, names, units, lines, dataIndex, delimiter, sampleCount);
+        LogChannel time = ResolveTimeBase(columns, names, units, lines, dataIndex, delimiter, sampleCount);
 
         string[] preamble = lines.Take(headerIndex).ToArray();
         string? source = DetectSource(preamble, names);
@@ -375,34 +375,41 @@ public sealed class DelimitedLogReader : ILogReader
 
     // ----- time base --------------------------------------------------------
 
+    /// <summary>
+    /// Built from the parsed doubles rather than a stored channel: a time base
+    /// keeps full precision, because it accumulates over the recording.
+    /// </summary>
     private static LogChannel ResolveTimeBase(
-        List<LogChannel> channels, string[] names, string[] units,
+        double[][] columns, string[] names, string[] units,
         string[] lines, int dataIndex, char delimiter, int sampleCount)
     {
         int index = FindTimeColumn(names, units);
 
-        if (index >= 0)
+        if (index >= 0 && index < columns.Length)
         {
-            LogChannel candidate = channels[index];
+            double[] raw = columns[index];
             double factor = TimeScale(units[index]);
 
-            if (!candidate.IsFlat && IsMonotonic(candidate.Values))
+            if (IsMonotonic(raw) && raw.Length > 0 && raw[^1] > raw[0])
             {
-                if (Math.Abs(factor - 1) < double.Epsilon) return candidate;
+                double[] seconds = raw;
+                if (Math.Abs(factor - 1) > double.Epsilon)
+                {
+                    seconds = new double[raw.Length];
+                    for (int i = 0; i < seconds.Length; i++) seconds[i] = raw[i] * factor;
+                }
 
-                var scaled = new double[candidate.Values.Length];
-                for (int i = 0; i < scaled.Length; i++) scaled[i] = candidate.Values[i] * factor;
-                return new LogChannel(candidate.Name, "s", 3, scaled);
+                return new LogChannel(names[index], "s", 3, seconds, preservePrecision: true);
             }
 
             // The column may hold wall-clock strings rather than numbers.
             if (TryReadTimestamps(lines, dataIndex, delimiter, index, sampleCount, out double[] elapsed))
-                return new LogChannel("Time", "s", 3, elapsed);
+                return new LogChannel("Time", "s", 3, elapsed, preservePrecision: true);
         }
 
         var synthetic = new double[sampleCount];
         for (int i = 0; i < sampleCount; i++) synthetic[i] = i;
-        return new LogChannel("Sample", "#", 0, synthetic);
+        return new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true);
     }
 
     private static int FindTimeColumn(string[] names, string[] units)
@@ -505,3 +512,4 @@ public sealed class DelimitedLogReader : ILogReader
         return Equals(encoding, Encoding.Latin1) ? $"{label} (Latin-1)" : label;
     }
 }
+

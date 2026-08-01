@@ -12,7 +12,7 @@ public class HistogramDeltaTests
         HistogramStatistic statistic = HistogramStatistic.Mean,
         int columns = 1, int rows = 1)
     {
-        int n = z.Values.Length;
+        int n = z.Length;
         var x = new LogChannel("RPM", "RPM", 0, [.. Enumerable.Repeat(1000.0, n)]);
         var y = new LogChannel("MAP", "kPa", 0, [.. Enumerable.Repeat(50.0, n)]);
 

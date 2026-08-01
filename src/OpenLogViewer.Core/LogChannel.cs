@@ -1,24 +1,43 @@
-namespace OpenLogViewer.Core;
+﻿namespace OpenLogViewer.Core;
 
 /// <summary>
 /// One decoded data channel: a dense column of samples aligned with
 /// <see cref="LogDocument.Time"/>.
+///
+/// Samples are held as 32-bit floats. No logger produces more precision than
+/// that — the widest MLG field is an f32, and text logs come from short decimal
+/// strings — and it halves what is by far the largest allocation: 179 channels
+/// over 37,000 samples is 53 MB as doubles against 27 MB as floats.
+///
+/// The exception is a time base, which is cumulative. Over a long recording the
+/// gap between representable floats grows past the interval between samples —
+/// at ten hours it exceeds the 2.4 ms spacing of a 400 Hz logger — and time
+/// would stop increasing. A channel constructed with
+/// <c>preservePrecision</c> keeps its doubles.
 /// </summary>
 public sealed class LogChannel
 {
-    public LogChannel(string name, string units, int digits, double[] values)
+    private readonly float[] _values;
+    private readonly double[]? _precise;
+
+    public LogChannel(string name, string units, int digits, double[] values, bool preservePrecision = false)
     {
         Name = name;
         Units = units;
         Digits = digits;
-        Values = values;
+
+        _values = new float[values.Length];
+        for (int i = 0; i < values.Length; i++) _values[i] = (float)values[i];
+        if (preservePrecision) _precise = values;
 
         double min = double.PositiveInfinity, max = double.NegativeInfinity;
         int minIndex = -1, maxIndex = -1;
 
-        for (int i = 0; i < values.Length; i++)
+        // Measured from the stored samples, so the extremes are values the
+        // channel can actually return rather than pre-rounding artefacts.
+        for (int i = 0; i < _values.Length; i++)
         {
-            double v = values[i];
+            double v = At(i);
             if (double.IsNaN(v)) continue;
             if (v < min) { min = v; minIndex = i; }
             if (v > max) { max = v; maxIndex = i; }
@@ -39,7 +58,10 @@ public sealed class LogChannel
     /// <summary>Decimal places the logger intends for display.</summary>
     public int Digits { get; }
 
-    public double[] Values { get; }
+    public int Length => _values.Length;
+
+    /// <summary>The stored samples, for bulk reads that do not need a time base's precision.</summary>
+    public ReadOnlySpan<float> Samples => _values;
 
     public double Min { get; }
 
@@ -61,6 +83,9 @@ public sealed class LogChannel
         Units.Length == 0 ? Format(value) : $"{Format(value)} {Units}";
 
     /// <summary>Sample at <paramref name="index"/>, or NaN when out of range.</summary>
-    public double At(int index) =>
-        (uint)index < (uint)Values.Length ? Values[index] : double.NaN;
+    public double At(int index)
+    {
+        if ((uint)index >= (uint)_values.Length) return double.NaN;
+        return _precise is not null ? _precise[index] : _values[index];
+    }
 }
