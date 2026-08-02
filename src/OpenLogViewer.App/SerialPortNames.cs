@@ -19,6 +19,20 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     public bool IsIncoming { get; init; }
 
     /// <summary>
+    /// Name of the Bluetooth device this port reaches, where there is one.
+    ///
+    /// The port is called "Standard Serial over Bluetooth link" whatever is on
+    /// the other end, so this is the only thing that says which ECU it is — and
+    /// a MaxxECU has to be told apart before connecting, because it speaks a
+    /// different protocol entirely.
+    /// </summary>
+    public string DeviceName { get; init; } = "";
+
+    /// <summary>True when this port reaches a MaxxECU, which advertises as MaxxECU_&lt;serial&gt;.</summary>
+    public bool IsMaxxEcu =>
+        DeviceName.StartsWith("MaxxECU", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// What to show in the connect menu.
     ///
     /// A bare COM number is not enough to choose between three of them, and the
@@ -41,7 +55,8 @@ public static class SerialPortNames
     private static Dictionary<string, Entry> _cached = [];
     private static DateTime _cachedAt = DateTime.MinValue;
 
-    private readonly record struct Entry(string Description, bool Bluetooth, bool Incoming);
+    private readonly record struct Entry(
+        string Description, bool Bluetooth, bool Incoming, string DeviceName);
 
     /// <summary>
     /// How long a lookup is reused. The query costs about 200 ms, which is a
@@ -77,11 +92,12 @@ public static class SerialPortNames
         [
             .. names.Select(name =>
             {
-                Entry entry = known.GetValueOrDefault(name, new Entry("", false, false));
+                Entry entry = known.GetValueOrDefault(name, new Entry("", false, false, ""));
 
                 return new SerialPortInfo(name, entry.Description, entry.Bluetooth)
                 {
                     IsIncoming = entry.Incoming,
+                    DeviceName = entry.DeviceName,
                 };
             }),
         ];
@@ -120,6 +136,7 @@ public static class SerialPortNames
     private static Dictionary<string, Entry> FromDeviceTree()
     {
         var found = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> bluetoothNames = BluetoothDeviceNames();
 
         using var search = new ManagementObjectSearcher(
             "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
@@ -139,12 +156,59 @@ public static class SerialPortNames
                 string id = device["PNPDeviceID"] as string ?? "";
                 bool bluetooth = id.StartsWith("BTHENUM", StringComparison.OrdinalIgnoreCase);
 
+                string reaches = bluetooth
+                    ? bluetoothNames.GetValueOrDefault(AddressIn(id), "")
+                    : "";
+
                 found[name[(open + 1)..close]] =
-                    new Entry(name[..open].Trim(), bluetooth, bluetooth && IsIncoming(id));
+                    new Entry(name[..open].Trim(), bluetooth, bluetooth && IsIncoming(id), reaches);
             }
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// Paired Bluetooth device names by address.
+    ///
+    /// The serial port is called the same thing whatever it reaches, so the
+    /// device behind it has to be looked up separately. Its address is in the
+    /// port's own instance id.
+    /// </summary>
+    private static Dictionary<string, string> BluetoothDeviceNames()
+    {
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        using var search = new ManagementObjectSearcher(
+            "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE PNPDeviceID LIKE 'BTHENUM%'");
+
+        foreach (ManagementBaseObject paired in search.Get())
+        {
+            using (paired)
+            {
+                if (paired["Name"] is not string name) continue;
+                if (paired["PNPDeviceID"] is not string id) continue;
+
+                // The serial-port entries are the ones to skip: they carry the
+                // address but not the device's name.
+                if (name.Contains("(COM", StringComparison.OrdinalIgnoreCase)) continue;
+
+                string address = AddressIn(id);
+                if (address.Length > 0) names.TryAdd(address, name);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>The Bluetooth address embedded in an instance id, or empty.</summary>
+    private static string AddressIn(string deviceId)
+    {
+        foreach (string part in deviceId.Split('\\', '&', '_'))
+            if (part.Length == 12 && part.All(Uri.IsHexDigit) && part.Any(c => c != '0'))
+                return part;
+
+        return "";
     }
 
     /// <summary>

@@ -75,11 +75,9 @@ public sealed record LiveSessionStatus(
 /// </summary>
 public sealed class LiveSession : IDisposable
 {
-    private readonly EcuConnection _connection;
-    private readonly RealtimeDecoder _decoder;
+    private readonly ILiveSource _source;
     private readonly LiveSessionSettings _settings;
 
-    private readonly int[] _sourceIndex;
     private readonly string[] _names;
     private readonly string[] _units;
     private readonly int[] _digits;
@@ -99,44 +97,29 @@ public sealed class LiveSession : IDisposable
     private LogDocument? _snapshot;
     private int _snapshotAt = -1;
 
+    /// <summary>
+    /// A session over any live source: the poll loop, the pacing, the recording
+    /// and the reconnection are the same whatever is on the other end.
+    /// </summary>
+    public LiveSession(ILiveSource source, LiveSessionSettings? settings = null)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _settings = settings ?? new LiveSessionSettings();
+
+        _names = [.. source.Names];
+        _units = [.. source.Units];
+        _digits = [.. source.Digits];
+        _columns = [.. _names.Select(_ => new List<float>())];
+    }
+
+    /// <summary>A session over the TunerStudio protocol, which is most of them.</summary>
     public LiveSession(
         EcuConnection connection,
         RealtimeDecoder decoder,
         IReadOnlyList<DatalogEntry> datalog,
         LiveSessionSettings? settings = null)
+        : this(new TunerStudioSource(connection, decoder, datalog), settings)
     {
-        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-        _decoder = decoder ?? throw new ArgumentNullException(nameof(decoder));
-        _settings = settings ?? new LiveSessionSettings();
-
-        // The datalog definition decides what a session carries and what each
-        // channel is called. Taking every decoded value instead would give a few
-        // hundred internal names no preset or filter would ever match.
-        var indices = new List<int>();
-        var names = new List<string>();
-        var units = new List<string>();
-        var digits = new List<int>();
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (DatalogEntry entry in datalog)
-        {
-            int at = LastIndexOf(decoder.Names, entry.Channel);
-            if (at < 0) continue;
-
-            string label = entry.Label.Length > 0 ? entry.Label : entry.Channel;
-            if (!taken.Add(label)) continue;
-
-            indices.Add(at);
-            names.Add(label);
-            units.Add(decoder.Units[at]);
-            digits.Add(entry.Digits);
-        }
-
-        _sourceIndex = [.. indices];
-        _names = [.. names];
-        _units = [.. units];
-        _digits = [.. digits];
-        _columns = [.. _names.Select(_ => new List<float>())];
     }
 
     /// <summary>Channels this session records, in order.</summary>
@@ -159,7 +142,7 @@ public sealed class LiveSession : IDisposable
                 return new LiveSessionStatus(
                     _time.Count, seconds,
                     seconds > 0 ? _time.Count / seconds : 0,
-                    _connection.Retries, _failures, _error, _reconnecting);
+                    _source.Retries, _failures, _error, _reconnecting);
             }
         }
     }
@@ -171,7 +154,7 @@ public sealed class LiveSession : IDisposable
 
         _error = null;
         _failures = 0;
-        _connection.Open();
+        _source.Open();
 
         if (_settings.RecordingPath is { Length: > 0 } path)
         {
@@ -224,7 +207,6 @@ public sealed class LiveSession : IDisposable
 
     private void Poll(CancellationToken token)
     {
-        int size = _decoder.Layout.BlockSize;
         var row = new double[_names.Length + 1];
         var pace = new Pacer(_settings.MaximumRate);
 
@@ -232,14 +214,14 @@ public sealed class LiveSession : IDisposable
         {
             try
             {
-                double[] values = _decoder.Decode(_connection.ReadRealtime(size));
+                double[] values = _source.Read();
                 double at = _clock.Elapsed.TotalSeconds;
 
                 Append(at, values);
                 _failures = 0;
 
                 row[0] = at;
-                for (int i = 0; i < _sourceIndex.Length; i++) row[i + 1] = values[_sourceIndex[i]];
+                values.AsSpan(0, _names.Length).CopyTo(row.AsSpan(1));
                 if (_recorder is { } recorder) CsvExport.WriteRow(recorder, row);
             }
             catch (Exception e)
@@ -341,12 +323,10 @@ public sealed class LiveSession : IDisposable
 
                 try
                 {
-                    _connection.Reopen();
-
                     // Opening a port proves nothing — the adapter can enumerate
-                    // before the ECU behind it is answering. A block has to come
-                    // back before the link counts as recovered.
-                    _connection.ReadRealtime(_decoder.Layout.BlockSize);
+                    // before the ECU behind it is answering — so the source is
+                    // expected to prove it with a reading of its own.
+                    _source.Recover();
 
                     _failures = 0;
                     return true;
@@ -383,8 +363,7 @@ public sealed class LiveSession : IDisposable
         lock (_gate)
         {
             _time.Add(seconds);
-            for (int i = 0; i < _sourceIndex.Length; i++)
-                _columns[i].Add((float)values[_sourceIndex[i]]);
+            for (int i = 0; i < _columns.Length; i++) _columns[i].Add((float)values[i]);
 
             // Trimmed from the front, so the view stays bounded on a long session
             // while the recording on disk keeps everything.
@@ -440,6 +419,6 @@ public sealed class LiveSession : IDisposable
     {
         Stop();
 
-        try { _connection.Dispose(); } catch (Exception) { /* the port may already be gone */ }
+        try { _source.Dispose(); } catch (Exception) { /* the link may already be gone */ }
     }
 }

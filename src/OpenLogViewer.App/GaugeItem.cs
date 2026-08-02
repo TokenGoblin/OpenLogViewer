@@ -16,7 +16,20 @@ public sealed class GaugeItem(GaugeSpec spec, string? column) : ObservableObject
     private double _value = double.NaN;
     private bool _shown;
 
-    public GaugeSpec Spec { get; } = spec;
+    public GaugeSpec Spec { get; private set; } = spec;
+
+    /// <summary>
+    /// Replaces the description of this gauge, keeping its readings and its
+    /// peaks. For a scale that is only knowable once the ECU has said something
+    /// — a rev counter that should run to the limiter rather than to the top of
+    /// what the datatype could hold.
+    /// </summary>
+    public void Retarget(GaugeSpec spec)
+    {
+        Spec = spec;
+        Raise(nameof(Spec));
+        Raise(nameof(Title));
+    }
 
     /// <summary>The session column feeding this gauge, or null when nothing does.</summary>
     public string? Column { get; } = column;

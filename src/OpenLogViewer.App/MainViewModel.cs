@@ -1134,6 +1134,53 @@ public sealed class MainViewModel : ObservableObject
                 ? channel.At(last)
                 : double.NaN);
         }
+
+        ScaleRevCounter();
+    }
+
+    /// <summary>
+    /// True except on a MaxxECU, whose rev counter is scaled from its own
+    /// limiter once it reports one. The firmwares with an INI already publish a
+    /// sensible range, so nothing needs looking for.
+    /// </summary>
+    private bool _revCounterScaled = true;
+
+    /// <summary>
+    /// Scales a MaxxECU's rev counter to the engine rather than to the datatype.
+    ///
+    /// MTune's limits say what a channel can hold, not what it should read: RPM
+    /// is declared 0 to 18,000, which on an engine limited at 5,000 leaves the
+    /// needle in the first quarter for its whole life. The ECU publishes its own
+    /// limiter, so the dial is built from that — the same thing the rusEFI path
+    /// does with rpmHardLimit, and the ECU's number rather than a guess.
+    ///
+    /// Once only, and only when the ECU has actually said something sensible.
+    /// </summary>
+    private void ScaleRevCounter()
+    {
+        if (_revCounterScaled) return;
+
+        GaugeItem? limit = AllGauges.FirstOrDefault(g => g.Spec.Name == "Rev limit");
+        GaugeItem? rpm = AllGauges.FirstOrDefault(g => g.Spec.Name == "RPM");
+
+        if (limit is null || rpm is null) return;
+        if (double.IsNaN(limit.Value) || limit.Value is < 1000 or > 20000) return;
+
+        double top = Math.Ceiling((limit.Value + 1000) / 500) * 500;
+
+        // The low limits sit on the bottom of the scale rather than being left
+        // out: a band is only believed when all four are ordered, and a limit on
+        // the end of the scale already means there is no limit at that end.
+        rpm.Retarget(rpm.Spec with
+        {
+            High = top,
+            LowDanger = 0,
+            LowWarning = 0,
+            HighWarning = limit.Value - 500,
+            HighDanger = limit.Value,
+        });
+
+        _revCounterScaled = true;
     }
 
     /// <summary>Clears every gauge's remembered extremes.</summary>
@@ -1210,6 +1257,92 @@ public sealed class MainViewModel : ObservableObject
     /// refusal here is the only thing between a live session and confident
     /// nonsense.
     /// </summary>
+    /// <summary>
+    /// Starts a session against a MaxxECU, which speaks its own protocol.
+    ///
+    /// Nothing of the TunerStudio path applies: there is no signature to ask
+    /// for, no firmware INI, and no way to read the tune — so this gets gauges
+    /// and logging, and calibration stays empty. The fourteen channels are
+    /// fixed, because a subscription can only be replayed from one that was
+    /// captured and not composed.
+    /// </summary>
+    public void ConnectMaxxEcu(string port)
+    {
+        Disconnect();
+
+        var source = new MaxxEcuSource(new SerialEcuTransport(port) { OpenAttempts = 3 });
+        string recording = Workspace.NewRecording(DateTime.Now);
+
+        _live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
+
+        _live.Start();
+
+        _livePort = port;
+        _liveSignature = "MaxxECU";
+        _liveVersion = "";
+        _liveIni = "";
+        _liveRecording = recording;
+
+        SeedMaxxGauges();
+
+        Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
+        Title = "Live: MaxxECU — OpenLogViewer";
+        Hint = $"Recording to {recording}. A MaxxECU sends a fixed set of channels, "
+               + "and its tune cannot be read, so calibration is not available for it.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+    }
+
+    /// <summary>
+    /// Builds gauges for a MaxxECU from MTune's own channel definitions.
+    ///
+    /// There is no INI to take ranges from, but MTune ships every channel's
+    /// name, unit, scale and limits — so the dials come from the same place the
+    /// decode does rather than from anything invented here.
+    /// </summary>
+    private void SeedMaxxGauges()
+    {
+        foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
+
+        AllGauges.Clear();
+        Dashboard.Clear();
+        _gaugeIni = null;
+        _revCounterScaled = false;
+
+        IReadOnlyList<GaugeSpec> specs = MaxxGauges.For(MaxxProtocol.Subscribed, MaxxGauges.FindDefinitions());
+
+        foreach (GaugeSpec spec in specs)
+        {
+            var item = new GaugeItem(spec, spec.Channel);
+            item.ShownChanged += OnGaugeShownChanged;
+            AllGauges.Add(item);
+
+            // Every one of them: fourteen is a dashboard, not a catalogue.
+            if (item.IsConnected)
+            {
+                item.Show(true);
+                Dashboard.Add(item);
+            }
+        }
+
+        GaugeChoices.Refresh();
+
+        // Said rather than swallowed: without MTune's definitions the dials have
+        // no ranges, and a row of bare numbers with no explanation looks broken.
+        _projectTuneName = MaxxGauges.Problem.Length > 0 ? "" : "MTune's channel definitions";
+        if (MaxxGauges.Problem.Length > 0) Hint = MaxxGauges.Problem;
+
+        Raise(nameof(GaugeSummary));
+        Raise(nameof(HasGauges));
+        Raise(nameof(NoGauges));
+    }
+
     public void Connect(string port, bool bluetooth = false)
     {
         Disconnect();
@@ -1218,7 +1351,7 @@ public sealed class MainViewModel : ObservableObject
         // answers in hundreds of milliseconds where a cable answers in three, so
         // it needs longer to reply and longer to fall quiet between attempts.
         var connection = new EcuConnection(
-            new SerialEcuTransport(port),
+            new SerialEcuTransport(port) { OpenAttempts = bluetooth ? 3 : 1 },
             bluetooth ? EcuConnectionSettings.Bluetooth : null);
 
         connection.Open();
