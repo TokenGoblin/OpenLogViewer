@@ -5,14 +5,18 @@ namespace OpenLogViewer.Core;
 /// <summary>
 /// Turns a realtime block from an ECU into channel values.
 ///
-/// Big-endian, like the MLG format and for the same reason: MegaSquirt runs on
-/// a Freescale S12 and writes its numbers the way that core does.
+/// Byte order is whatever the INI declares, because it differs by firmware and
+/// there is no way to tell from the bytes: MegaSquirt runs on a Freescale S12
+/// and is big-endian, rusEFI runs on an ARM and is little. Read the wrong way
+/// round, a block does not fail — every channel comes out a different number
+/// that is still a number.
 /// </summary>
 public sealed class RealtimeDecoder
 {
     private readonly RealtimeField[] _fields;
     private readonly MathExpression?[] _expressions;
     private readonly RealtimeExpression[] _declared;
+    private readonly bool _littleEndian;
 
     private readonly Dictionary<string, double> _settings;
 
@@ -31,6 +35,7 @@ public sealed class RealtimeDecoder
         Layout = layout;
         _fields = [.. layout.Fields];
         _declared = [.. layout.Expressions];
+        _littleEndian = layout.LittleEndian;
         _settings = tuneSettings is null
             ? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, double>(tuneSettings, StringComparer.OrdinalIgnoreCase);
@@ -93,7 +98,7 @@ public sealed class RealtimeDecoder
     {
         var values = new double[Names.Count];
 
-        for (int i = 0; i < _fields.Length; i++) values[i] = Read(block, _fields[i]);
+        for (int i = 0; i < _fields.Length; i++) values[i] = Read(block, _fields[i], _littleEndian);
 
         int at = _fields.Length;
         Span<double> inputs = stackalloc double[16];
@@ -133,7 +138,7 @@ public sealed class RealtimeDecoder
         return _settings.TryGetValue(name, out double setting) ? setting : double.NaN;
     }
 
-    private static double Read(ReadOnlySpan<byte> block, RealtimeField field)
+    private static double Read(ReadOnlySpan<byte> block, RealtimeField field, bool little)
     {
         if (field.Offset + field.Size > block.Length) return double.NaN;
 
@@ -143,10 +148,11 @@ public sealed class RealtimeDecoder
         {
             RealtimeType.U08 => at[0],
             RealtimeType.S08 => (sbyte)at[0],
-            RealtimeType.U16 => BinaryPrimitives.ReadUInt16BigEndian(at),
-            RealtimeType.S16 => BinaryPrimitives.ReadInt16BigEndian(at),
-            RealtimeType.U32 => BinaryPrimitives.ReadUInt32BigEndian(at),
-            RealtimeType.S32 => BinaryPrimitives.ReadInt32BigEndian(at),
+            RealtimeType.U16 => little ? BinaryPrimitives.ReadUInt16LittleEndian(at) : BinaryPrimitives.ReadUInt16BigEndian(at),
+            RealtimeType.S16 => little ? BinaryPrimitives.ReadInt16LittleEndian(at) : BinaryPrimitives.ReadInt16BigEndian(at),
+            RealtimeType.U32 => little ? BinaryPrimitives.ReadUInt32LittleEndian(at) : BinaryPrimitives.ReadUInt32BigEndian(at),
+            RealtimeType.S32 => little ? BinaryPrimitives.ReadInt32LittleEndian(at) : BinaryPrimitives.ReadInt32BigEndian(at),
+            RealtimeType.F32 => little ? BinaryPrimitives.ReadSingleLittleEndian(at) : BinaryPrimitives.ReadSingleBigEndian(at),
             _ => double.NaN,
         };
 

@@ -71,6 +71,31 @@ public static class IniCatalog
         return found;
     }
 
+    /// <summary>
+    /// The first of several candidate strings that matches an INI, with the INI
+    /// it matched.
+    ///
+    /// An ECU is asked several questions about itself because no single one
+    /// works across firmware families. This is what turns the answers into an
+    /// identity: the signature is whichever reply a definition file recognises,
+    /// and the rest are build strings.
+    /// </summary>
+    public static (IniFile Ini, string Signature)? MatchAny(
+        IEnumerable<string> candidates, IEnumerable<IniFile> catalogue)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        // Materialised because it is walked once per candidate, and Scan returns
+        // a list only by convention.
+        IniFile[] files = [.. catalogue];
+
+        foreach (string candidate in candidates)
+            if (Match(candidate, files) is { } ini)
+                return (ini, candidate);
+
+        return null;
+    }
+
     /// <summary>The INI matching a signature, or null when none does.</summary>
     public static IniFile? Match(string signature, IEnumerable<IniFile> catalogue)
     {

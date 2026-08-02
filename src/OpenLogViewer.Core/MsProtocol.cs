@@ -4,7 +4,15 @@ using System.Text;
 namespace OpenLogViewer.Core;
 
 /// <summary>Raised when a reply is missing, malformed, or fails its checksum.</summary>
-public sealed class EcuProtocolException(string message) : Exception(message);
+public sealed class EcuProtocolException(string message) : Exception(message)
+{
+    /// <summary>
+    /// True when the ECU understood the request and declined it, rather than the
+    /// reply going astray. Worth telling apart: a refusal repeated is refused
+    /// again, so retrying one only spends the timeout.
+    /// </summary>
+    public bool Refused { get; init; }
+}
 
 /// <summary>Somewhere to send bytes and read them back — a serial port, or a fake in a test.</summary>
 public interface IEcuTransport : IDisposable
@@ -45,6 +53,18 @@ public static class MsProtocol
 
     /// <summary>Command that returns the longer version string.</summary>
     public const byte QueryVersion = (byte)'S';
+
+    /// <summary>
+    /// Every command that makes an ECU say what it is, in the order worth asking.
+    ///
+    /// There is no single one, and the same letter means different things on
+    /// different firmware: MegaSquirt answers 'Q' with its signature and 'S'
+    /// with a build string, while rusEFI answers 'S' with its signature, 'V'
+    /// with a build string, and refuses 'Q' outright. Rather than deciding in
+    /// advance which family is on the other end, ask all three and let the one
+    /// that matches an INI settle it.
+    /// </summary>
+    public static ReadOnlySpan<byte> IdentityCommands => "SQV"u8;
 
     private const byte ReadCommand = (byte)'r';
 
@@ -91,7 +111,10 @@ public static class MsProtocol
                 $"Reply failed its checksum ({actual:X8} against {declared:X8}); the link dropped bytes.");
 
         if (body[0] != Ok)
-            throw new EcuProtocolException($"The ECU refused the request (status 0x{body[0]:X2}).");
+            throw new EcuProtocolException($"The ECU refused the request (status 0x{body[0]:X2}).")
+            {
+                Refused = true,
+            };
 
         return body[1..].ToArray();
     }
