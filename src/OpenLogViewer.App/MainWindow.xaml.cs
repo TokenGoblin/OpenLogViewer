@@ -84,9 +84,11 @@ public partial class MainWindow : Window
 
         if (table is null) return;
 
-        // Filters as well as selects, so the argument reads as "show me this"
-        // rather than "scroll to this in a list of seventy-five".
-        _vm.EcuTableSearch = table;
+        // Through the search box rather than straight at the view model, so a
+        // scripted run exercises the same path a person's typing does — setting
+        // the property directly would pass whether or not the box is bound to it.
+        TableSearch.Text = table;
+        TableSearch.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
 
         _vm.SelectedEcuTable = _vm.EcuTables.FirstOrDefault(
             t => t.Name.Contains(table, StringComparison.OrdinalIgnoreCase));
