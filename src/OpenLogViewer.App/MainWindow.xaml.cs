@@ -234,8 +234,11 @@ public partial class MainWindow : Window
     {
         // Asked here rather than passed in, so every route to a connection gets
         // it right — the menu, the command line, and anything added later.
-        bool bluetooth = SerialPortNames.Describe()
-            .Any(p => p.PortName.Equals(port, StringComparison.OrdinalIgnoreCase) && p.IsBluetooth);
+        SerialPortInfo? described = SerialPortNames.Describe()
+            .FirstOrDefault(p => p.PortName.Equals(port, StringComparison.OrdinalIgnoreCase));
+
+        bool bluetooth = described?.IsBluetooth ?? false;
+        bool maxxEcu = described?.IsMaxxEcu ?? false;
 
         // Connecting reads the ECU's whole settings memory, which is 50 ms on a
         // rusEFI over USB and three seconds on a MegaSquirt over serial — 20 KB
@@ -245,7 +248,10 @@ public partial class MainWindow : Window
 
         try
         {
-            _vm.Connect(port, bluetooth);
+            // A MaxxECU speaks its own protocol; probing it with TunerStudio
+            // commands would find nothing and tell the user the ECU is unknown.
+            if (maxxEcu) _vm.ConnectMaxxEcu(port);
+            else _vm.Connect(port, bluetooth);
         }
         // Broad on the scripted path on purpose: this runs during startup, and
         // anything escaping here takes down the app behind a crash dialog with

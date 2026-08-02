@@ -39,7 +39,38 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         }
     }
 
+    /// <summary>
+    /// How many times to try opening the port.
+    ///
+    /// One for a cable, which either works or does not. More for Bluetooth:
+    /// establishing an RFCOMM link is reported to fail on the first attempt
+    /// after an ECU boots — an SDP discovery failure rather than anything
+    /// wrong — and to succeed on the second. Retrying costs a moment; not
+    /// retrying costs a connection that would have worked.
+    /// </summary>
+    public int OpenAttempts { get; init; } = 1;
+
     public void Open()
+    {
+        if (IsOpen) return;
+
+        for (int attempt = 1; attempt < Math.Max(1, OpenAttempts); attempt++)
+        {
+            try
+            {
+                OpenOnce();
+                return;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(700);
+            }
+        }
+
+        OpenOnce();
+    }
+
+    private void OpenOnce()
     {
         if (IsOpen) return;
 
