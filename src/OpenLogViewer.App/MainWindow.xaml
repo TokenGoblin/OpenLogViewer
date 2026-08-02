@@ -43,8 +43,18 @@
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
                            Margin="7,0,0,0" MaxWidth="300" TextTrimming="CharacterEllipsis"
                            Text="{Binding LiveStatus}" ToolTip="{Binding LiveDetail}"
-                           Foreground="{DynamicResource Accent}"
-                           Visibility="{Binding IsLive, Converter={StaticResource BoolToVis}}"/>
+                           Visibility="{Binding IsLive, Converter={StaticResource BoolToVis}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LiveHealthy}" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
                 <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
                         Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>

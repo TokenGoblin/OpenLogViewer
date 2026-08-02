@@ -15,13 +15,28 @@ public sealed record LiveSessionSettings
     /// </summary>
     public int MaximumSamples { get; init; } = 500_000;
 
-    /// <summary>Consecutive failures before the session gives up on the link.</summary>
+    /// <summary>Consecutive failures before the link is treated as lost.</summary>
     public int FailuresBeforeStopping { get; init; } = 20;
+
+    /// <summary>
+    /// How long to keep trying to get a lost link back before ending the
+    /// session.
+    ///
+    /// Not zero, because the thing that most often ends a link is the key going
+    /// off and on again. A session that dies from that loses everything after
+    /// it for no better reason than the ECU rebooting, which is a thing ECUs do.
+    /// Zero disables it and ends the session at the first loss.
+    /// </summary>
+    public TimeSpan ReconnectFor { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Wait between attempts to get the link back.</summary>
+    public TimeSpan ReconnectEvery { get; init; } = TimeSpan.FromMilliseconds(750);
 }
 
 /// <summary>What a session has done so far, for the status line.</summary>
 public sealed record LiveSessionStatus(
-    int Samples, double Seconds, double Rate, int Retries, int Failures, string? Error)
+    int Samples, double Seconds, double Rate, int Retries, int Failures,
+    string? Error, bool Reconnecting = false)
 {
     public bool Faulted => Error is not null;
 }
@@ -61,6 +76,7 @@ public sealed class LiveSession : IDisposable
     private CancellationTokenSource? _cancel;
 
     private int _failures;
+    private volatile bool _reconnecting;
     private string? _error;
     private LogDocument? _snapshot;
     private int _snapshotAt = -1;
@@ -125,7 +141,7 @@ public sealed class LiveSession : IDisposable
                 return new LiveSessionStatus(
                     _time.Count, seconds,
                     seconds > 0 ? _time.Count / seconds : 0,
-                    _connection.Retries, _failures, _error);
+                    _connection.Retries, _failures, _error, _reconnecting);
             }
         }
     }
@@ -211,18 +227,21 @@ public sealed class LiveSession : IDisposable
             {
                 // Deliberately everything. This runs on a background thread, and
                 // an exception that escapes one of those does not fail the
-                // session — it terminates the process. Switching an ECU off mid
-                // session takes its USB adapter with it, and a serial port whose
+                // session — it terminates the process. A serial port whose
                 // device has gone throws whatever it likes: ObjectDisposedException
-                // from the closed handle, ArgumentOutOfRangeException from setting
-                // a timeout on it. Naming the types that seemed likely was how
-                // this crashed.
-                if (++_failures < _settings.FailuresBeforeStopping && !Gone(e)) continue;
+                // from the closed handle, ArgumentOutOfRangeException from
+                // setting a timeout on it, IOException from the read itself.
+                // Which one you get depends on where the port was when it died,
+                // so none of them can be treated as the signal.
+                if (++_failures < _settings.FailuresBeforeStopping) continue;
 
-                _error = Gone(e)
-                    ? "The ECU stopped responding — switched off, or the cable pulled. " +
+                if (Recover(token)) continue;
+
+                _error = _settings.ReconnectFor > TimeSpan.Zero
+                    ? $"The ECU did not come back within {_settings.ReconnectFor.TotalSeconds:F0} seconds. " +
                       "The session so far is still here and its recording is complete."
-                    : $"Lost the ECU after {_failures} failed reads: {e.Message}";
+                    : "The ECU stopped responding — switched off, or the cable pulled. " +
+                      "The session so far is still here and its recording is complete.";
 
                 break;
             }
@@ -234,15 +253,54 @@ public sealed class LiveSession : IDisposable
     }
 
     /// <summary>
-    /// Whether the link is gone rather than merely unhappy.
+    /// Tries to get a lost link back, and says whether polling can resume.
     ///
-    /// A checksum failure is worth retrying; a handle that no longer exists is
-    /// not, and retrying it twenty times only delays telling the user what
-    /// happened.
+    /// The link has to be closed before it is reopened: a handle whose device
+    /// has gone still reports itself open, so reopening alone does nothing and
+    /// every read afterwards fails identically. That is also why the failure
+    /// looks different the second time — the port is already shut by then, and
+    /// throws a different exception on the way out.
     /// </summary>
-    private static bool Gone(Exception e) =>
-        e is ObjectDisposedException or ArgumentOutOfRangeException
-            or InvalidOperationException or UnauthorizedAccessException;
+    private bool Recover(CancellationToken token)
+    {
+        if (_settings.ReconnectFor <= TimeSpan.Zero) return false;
+
+        _reconnecting = true;
+        Announce();
+
+        try
+        {
+            DateTime deadline = DateTime.UtcNow + _settings.ReconnectFor;
+
+            while (!token.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                if (token.WaitHandle.WaitOne(_settings.ReconnectEvery)) break;
+
+                try
+                {
+                    _connection.Reopen();
+
+                    // Opening a port proves nothing — the adapter can enumerate
+                    // before the ECU behind it is answering. A block has to come
+                    // back before the link counts as recovered.
+                    _connection.ReadRealtime(_decoder.Layout.BlockSize);
+
+                    _failures = 0;
+                    return true;
+                }
+                catch (Exception)
+                {
+                    // Still gone. Wait and try again until the window closes.
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            _reconnecting = false;
+        }
+    }
 
     /// <summary>Reporting a fault must not become one; a handler that throws is not our problem to inherit.</summary>
     private void Announce()

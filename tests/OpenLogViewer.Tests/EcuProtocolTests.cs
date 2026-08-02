@@ -78,6 +78,63 @@ internal sealed class ThrowingTransport(Exception thrown) : IEcuTransport
     public void Dispose() => Close();
 }
 
+/// <summary>
+/// A link that can be taken away and given back, the way a key-off and key-on
+/// does. Each drop can throw a different exception, because a real port does:
+/// it depends where the port was when the device went.
+/// </summary>
+internal sealed class FlakyTransport(byte[] reply) : IEcuTransport
+{
+    private byte[] _pending = [];
+
+    public bool IsOpen { get; private set; }
+
+    /// <summary>Set to make every operation throw until it is cleared.</summary>
+    public Exception? Down { get; set; }
+
+    public int Opens { get; private set; }
+
+    public int Closes { get; private set; }
+
+    public void Open()
+    {
+        if (Down is not null) throw Down;
+
+        Opens++;
+        IsOpen = true;
+    }
+
+    public void Close()
+    {
+        Closes++;
+        IsOpen = false;
+    }
+
+    public void Write(ReadOnlySpan<byte> data)
+    {
+        if (Down is not null) throw Down;
+        _pending = reply;
+    }
+
+    public int Read(Span<byte> buffer, TimeSpan timeout)
+    {
+        if (Down is not null) throw Down;
+
+        int take = Math.Min(buffer.Length, _pending.Length);
+        _pending.AsSpan(0, take).CopyTo(buffer);
+        _pending = _pending[take..];
+
+        return take;
+    }
+
+    public void DiscardInput()
+    {
+        if (Down is not null) throw Down;
+    }
+
+    public void Dispose() => Close();
+}
+
 public class EcuProtocolTests
 {
     private static byte[] Reply(params byte[] data)

@@ -598,6 +598,15 @@ public sealed class MainViewModel : ObservableObject
         private set => Set(ref _liveStatus, value);
     }
 
+    private bool _liveHealthy = true;
+
+    /// <summary>False while the link is down and being waited on.</summary>
+    public bool LiveHealthy
+    {
+        get => _liveHealthy;
+        private set => Set(ref _liveHealthy, value);
+    }
+
     /// <summary>The whole picture, for the tooltip: everything the toolbar trims.</summary>
     public string LiveDetail => IsLive
         ? string.Join(Environment.NewLine,
@@ -716,10 +725,18 @@ public sealed class MainViewModel : ObservableObject
 
         // The dot is the recording indicator; retries only appear once there are
         // any, so a healthy link stays quiet.
-        LiveStatus = status.Faulted
-            ? status.Error!
-            : $"● {_livePort} · {_liveSignature} · {status.Rate:F1} Hz" +
-              (status.Retries > 0 ? $" · {status.Retries} retries" : "");
+        LiveStatus = status switch
+        {
+            { Faulted: true } => status.Error!,
+            { Reconnecting: true } => $"○ {_livePort} · waiting for the ECU to come back…",
+            _ => $"● {_livePort} · {_liveSignature} · {status.Rate:F1} Hz" +
+                 (status.Retries > 0 ? $" · {status.Retries} retries" : ""),
+        };
+
+        // Hollow dot and a warning colour while the link is down, so a session
+        // that has quietly stopped receiving is not mistaken for a healthy one
+        // that happens to be sitting still.
+        LiveHealthy = !status.Reconnecting;
 
         if (status.Faulted)
         {
