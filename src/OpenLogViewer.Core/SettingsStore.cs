@@ -47,6 +47,32 @@ public sealed class SettingsStore
             : DefaultLiveRate;
 
         SingleRequestBlock = file?.SingleRequestBlock ?? false;
+
+        KnownEcus = file?.KnownEcus is { Count: > 0 } known
+            ? new Dictionary<string, string>(known, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// What answered on each serial device, keyed by its hardware id.
+    ///
+    /// Remembered between sessions because it is most wanted before connecting:
+    /// Windows calls a Speeduino "Arduino Mega 2560", which names the chip and
+    /// not the ECU, and having to connect once to find out defeats the purpose.
+    /// The hardware id rather than the COM number, so a replug that lands on a
+    /// different port is still recognised.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> KnownEcus { get; private set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public void SetKnownEcus(IReadOnlyDictionary<string, string> known)
+    {
+        if (known.Count == KnownEcus.Count &&
+            known.All(e => KnownEcus.GetValueOrDefault(e.Key) == e.Value))
+            return;
+
+        KnownEcus = new Dictionary<string, string>(known, StringComparer.OrdinalIgnoreCase);
+        Persist();
     }
 
     /// <summary>Above this the cap is meaningless — no link answers that fast.</summary>
@@ -104,6 +130,7 @@ public sealed class SettingsStore
         DataFolder = DataFolder,
         LiveRate = LiveRate,
         SingleRequestBlock = SingleRequestBlock,
+        KnownEcus = KnownEcus.Count > 0 ? new Dictionary<string, string>(KnownEcus) : null,
     });
 
     private sealed class SettingsFile
@@ -113,5 +140,6 @@ public sealed class SettingsStore
         public string? DataFolder { get; set; }
         public double? LiveRate { get; set; }
         public bool? SingleRequestBlock { get; set; }
+        public Dictionary<string, string>? KnownEcus { get; set; }
     }
 }

@@ -47,4 +47,55 @@ public class SerialPortNameTests
         Assert.False(SerialPortNames.IsIncoming("BTHENUM"));
         Assert.False(SerialPortNames.IsIncoming(@"BTHENUM\odd\9&3058B9ED&0&"));
     }
+
+    // ----- naming the port ---------------------------------------------------
+
+    [Fact]
+    public void AnEcuThatHasAnsweredIsNamedAheadOfTheChip()
+    {
+        // Windows calls a Speeduino "Arduino Mega 2560", which names the chip the
+        // firmware happens to run on. Nobody hunting for their ECU in a list is
+        // looking for that.
+        var port = new SerialPortInfo("COM14", "Arduino Mega 2560", IsBluetooth: false)
+        {
+            KnownEcu = "Speeduino 2025.01.7",
+        };
+
+        Assert.Equal("COM14 — Speeduino 2025.01.7", port.Label);
+    }
+
+    [Fact]
+    public void WindowsDescriptionIsUsedUntilSomethingHasAnswered()
+    {
+        var port = new SerialPortInfo("COM14", "Arduino Mega 2560", IsBluetooth: false);
+
+        Assert.Equal("COM14 — Arduino Mega 2560", port.Label);
+    }
+
+    [Fact]
+    public void ABluetoothDeviceStillNamesItselfWhenNoEcuHasAnswered()
+    {
+        var port = new SerialPortInfo("COM10", "Standard Serial over Bluetooth link", IsBluetooth: true)
+        {
+            DeviceName = "MaxxECU_12345",
+        };
+
+        Assert.Equal("COM10 — MaxxECU_12345 (Bluetooth)", port.Label);
+    }
+
+    [Fact]
+    public void WhatAnsweredSurvivesBeingSavedAndRestored()
+    {
+        // Worth remembering between sessions precisely because it is wanted
+        // before connecting — having to connect once to find out what is on a
+        // port defeats the point of labelling it.
+        SerialPortNames.Recall(new Dictionary<string, string>
+        {
+            [@"USB\VID_2341&PID_0042\95730333837351C01221"] = "Speeduino 2025.01.7",
+        });
+
+        Assert.Equal(
+            "Speeduino 2025.01.7",
+            SerialPortNames.Remembered()[@"usb\vid_2341&pid_0042\95730333837351C01221"]);
+    }
 }

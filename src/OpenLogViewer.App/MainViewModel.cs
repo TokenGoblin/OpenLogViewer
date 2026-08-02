@@ -67,6 +67,7 @@ public sealed class MainViewModel : ObservableObject
         _mathStore = math ?? new MathChannelStore();
 
         Workspace = new Workspace(_settings.DataFolder);
+        SerialPortNames.Recall(_settings.KnownEcus);
 
         _theme = ThemeCatalog.Find(_settings.ThemeId);
         ThemeManager.Apply(_theme);
@@ -1038,6 +1039,38 @@ public sealed class MainViewModel : ObservableObject
         if (_gaugeIni is { } ini) SeedGauges(ini, _gaugeDatalog);
     }
 
+    /// <summary>
+    /// The recorded column feeding a gauge, following the firmware's own aliases
+    /// to find it.
+    ///
+    /// A gauge names a channel and a session records the datalog's names, and the
+    /// two need not be the same word for the same number: Speeduino's throttle
+    /// gauge reads <c>throttle</c>, which the firmware declares as <c>{ tps }</c>,
+    /// and it is <c>tps</c> that the datalog records. Matching on the name alone
+    /// dropped that gauge off the front page with the value being received all
+    /// along.
+    ///
+    /// Chains are followed a few hops, which is more than any of these files
+    /// actually use, and the bound means one that refers back to itself stops.
+    /// </summary>
+    private static string? ColumnFor(
+        string channel,
+        IReadOnlyDictionary<string, string> columns,
+        IReadOnlyDictionary<string, string> aliases)
+    {
+        string name = channel;
+
+        for (int hop = 0; hop < 4; hop++)
+        {
+            if (columns.TryGetValue(name, out string? column)) return column;
+            if (!aliases.TryGetValue(name, out string? target)) return null;
+
+            name = target;
+        }
+
+        return null;
+    }
+
     private void SeedGauges(string iniText, IReadOnlyList<DatalogEntry> datalog)
     {
         _gaugeIni = iniText;
@@ -1070,9 +1103,11 @@ public sealed class MainViewModel : ObservableObject
 
         var byName = new Dictionary<string, GaugeItem>(StringComparer.OrdinalIgnoreCase);
 
+        IReadOnlyDictionary<string, string> aliases = MsqIni.ReadAliases(iniText);
+
         foreach (GaugeSpec spec in specs)
         {
-            var item = new GaugeItem(spec, columns.GetValueOrDefault(spec.Channel));
+            var item = new GaugeItem(spec, ColumnFor(spec.Channel, columns, aliases));
             item.ShownChanged += OnGaugeShownChanged;
 
             AllGauges.Add(item);
@@ -1387,6 +1422,13 @@ public sealed class MainViewModel : ObservableObject
         // Whatever else it said is the build string — the same reply that is the
         // signature on one firmware family is the version on the other.
         string version = identity.FirstOrDefault(t => t != signature) ?? signature;
+
+        // Remembered against the port so the connect menu can name the ECU next
+        // time. Windows names the chip — a Speeduino shows up as "Arduino Mega
+        // 2560" — which does not distinguish two boards, and is the wrong half
+        // of the answer when the question is which ECU to connect to.
+        SerialPortNames.Remember(port, version);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
 
         string iniText = TuningText.Read(ini.Path);
         RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
