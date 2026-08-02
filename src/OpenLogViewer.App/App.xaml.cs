@@ -97,7 +97,8 @@ public partial class App : Application
         if (log is not null) window.LoadFile(log);
 
         int connect = Array.IndexOf(e.Args, "--connect");
-        if (connect >= 0 && connect + 1 < e.Args.Length) window.ConnectTo(e.Args[connect + 1]);
+        if (connect >= 0 && connect + 1 < e.Args.Length)
+            window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
 
         int viaMenu = Array.IndexOf(e.Args, "--connect-menu");
         if (viaMenu >= 0 && viaMenu + 1 < e.Args.Length)

@@ -51,6 +51,23 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
         DeviceName.StartsWith("MaxxECU", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True when this port looks like an OBD2 adapter.
+    ///
+    /// Guessed from the name, because there is nothing else to go on and the
+    /// alternative is a wrong guess in the other direction: probing an adapter
+    /// with TunerStudio commands finds nothing and reports an unknown ECU, which
+    /// is a confusing thing to be told about a dongle that is working perfectly.
+    /// The names are what the common ones advertise as. A dongle calling itself
+    /// something else still connects from the menu's OBD2 entry.
+    /// </summary>
+    public bool IsObd2 => Obd2Names.Any(
+        n => DeviceName.Contains(n, StringComparison.OrdinalIgnoreCase)
+             || Description.Contains(n, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] Obd2Names =
+        ["OBDII", "OBD2", "OBDLink", "ELM327", "Vgate", "V-LINK", "VEEPEAK", "Konnwei"];
+
+    /// <summary>
     /// What to show in the connect menu.
     ///
     /// The device's own name where there is one, because that is the only thing

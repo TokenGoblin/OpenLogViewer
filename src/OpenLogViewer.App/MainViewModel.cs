@@ -749,6 +749,17 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>The whole picture, for the tooltip: everything the toolbar trims.</summary>
+    /// <summary>
+    /// The channels the running session is recording, or nothing when there is
+    /// no session.
+    ///
+    /// A gauge is fed by name, so this is what a gauge's column has to be one of.
+    /// Twice now a gauge has been paired with a column that no session records —
+    /// a face that never shows a number, which looks exactly like a channel that
+    /// is not being read.
+    /// </summary>
+    public IReadOnlyList<string> LiveChannelNames => _live?.Names ?? [];
+
     public string LiveDetail => IsLive
         ? string.Join(Environment.NewLine,
         [
@@ -1335,6 +1346,114 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
+    }
+
+    /// <summary>
+    /// Connects to an OBD2 vehicle through an ELM327 adapter.
+    ///
+    /// The only connection here that needs nothing set up in advance: the
+    /// standard fixes what every parameter means, and the car reports which ones
+    /// it answers to, so this works on a vehicle nobody has ever plugged it into.
+    ///
+    /// Slow, though, and worth saying so — one request per parameter rather than
+    /// a block, so a row of readings takes most of a second.
+    /// </summary>
+    /// <summary>
+    /// Connects to whichever speed the adapter turns out to be set to. Unlike
+    /// every other link here it cannot be assumed — a genuine ELM327 ships at
+    /// 38,400 and clones at anything.
+    /// </summary>
+    public void ConnectObd2(string port) => StartObd2(Elm327Source.ConnectOnPort(port), port);
+
+    /// <summary>
+    /// The same, over a link that is already decided on.
+    ///
+    /// Separated so the whole path — discovery, channels, which gauges reach the
+    /// dashboard — can be exercised against an adapter in software. There is no
+    /// other way to test it: a car is required otherwise, and the parts that have
+    /// actually gone wrong here are in choosing gauges rather than in the wire.
+    /// </summary>
+    public void ConnectObd2(IEcuTransport transport, string port) =>
+        StartObd2(Elm327Source.Connect(transport), port);
+
+    private void StartObd2(Elm327Source source, string port)
+    {
+        Disconnect();
+
+        string recording = Workspace.NewRecording(DateTime.Now);
+
+        _live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
+
+        _live.Start();
+
+        _livePort = port;
+        _liveSignature = source.Adapter.Length > 0 ? source.Adapter : "OBD2";
+        _liveVersion = "";
+        _liveIni = "";
+        _liveRecording = recording;
+
+        SeedObd2Gauges(source);
+
+        SerialPortNames.Remember(port, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+
+        Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
+        Title = $"Live: OBD2 — OpenLogViewer";
+        Hint = $"Recording to {recording}. OBD2 asks for one parameter at a time, so this "
+               + "updates about once a second rather than 25 times — the protocol's limit, "
+               + "not the link's. A standard vehicle has no tune to read, so calibration "
+               + "is not available for it.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+    }
+
+    /// <summary>
+    /// Builds gauges from the parameters the car actually reported.
+    ///
+    /// Ranges come from the standard rather than from anything invented here, and
+    /// only the handful a driver watches start on screen — a car reporting thirty
+    /// parameters would otherwise open as thirty dials of diagnostic counters.
+    /// </summary>
+    private void SeedObd2Gauges(Elm327Source source)
+    {
+        foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
+
+        AllGauges.Clear();
+        Dashboard.Clear();
+        _gaugeIni = null;
+        _revCounterScaled = false;
+
+        var byName = new Dictionary<string, GaugeItem>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (GaugeSpec spec in Obd2Gauges.For(source.Parameters))
+        {
+            var item = new GaugeItem(spec, spec.Channel);
+            item.ShownChanged += OnGaugeShownChanged;
+
+            AllGauges.Add(item);
+            byName.TryAdd(spec.Name, item);
+        }
+
+        foreach (string name in Obd2Gauges.FrontPage)
+        {
+            if (!byName.TryGetValue(name, out GaugeItem? item)) continue;
+
+            item.Show(true);
+            Dashboard.Add(item);
+        }
+
+        _projectTuneName = "the OBD2 standard";
+
+        GaugeChoices.Refresh();
+        Raise(nameof(GaugeSummary));
+        Raise(nameof(HasGauges));
+        Raise(nameof(NoGauges));
     }
 
     /// <summary>

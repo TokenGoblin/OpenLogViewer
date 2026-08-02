@@ -187,7 +187,8 @@ not have is reported and skipped, never applied as "reject everything".
 - **Fourteen colour schemes** — see below
 - **Calculated channels** — see below
 - **VE Calibration** — see below
-- **Live connection to a MegaSquirt** — see below
+- **Live connection** to MegaSquirt, rusEFI, Speeduino, MaxxECU, and any OBD2
+  vehicle through an ELM327 — see below
 - **Export** — see below
 - One dependency: `System.IO.Ports`, for the live connection
 
@@ -262,6 +263,45 @@ Read-only, always: the only commands sent are the two that ask what the firmware
 is and the one that reads the realtime page, which is what TunerStudio reads
 continuously. Nothing here can write a value, burn a page, or change a setting,
 and VE Calibration suggests a table rather than applying one.
+
+### OBD2 through an ELM327
+
+Any standard vehicle, with no definition file and no aftermarket ECU. This is
+the one connection here that needs nothing set up in advance: SAE J1979 fixes
+what every parameter means, so the numbering, the scaling and the units are the
+same on every compliant car, and the car itself reports which parameters it
+answers to. Plug in a dongle on a vehicle nobody has ever tried this on and you
+get named, scaled channels.
+
+Dongles that advertise as one — `OBDII`, `OBDLink`, `ELM327`, `Vgate` and the
+rest — are recognised in the port list and connected as adapters automatically.
+Generic ones that Windows only describes as a `USB-SERIAL CH340` are
+indistinguishable from a tuning cable until something talks to them, and the two
+want opposite opening moves, so those go through **Connect ▾ → Connect as an
+OBD2 adapter**.
+
+The speed is found rather than assumed. A genuine ELM327 ships at 38,400 and
+clones ship at whatever the batch was built with, so 38,400, 115,200, 9,600 and
+500,000 are tried in that order. A Bluetooth dongle ignores the setting
+entirely. A wrong speed is told apart from a key left out, because the two need
+different things done about them.
+
+**It is slow, and that is the protocol rather than this.** Every other ECU here
+hands over its whole realtime block in one exchange; OBD2 has no such thing, so
+each parameter is a separate request and a separate wait. Expect around one row
+a second against forty on a tuning cable — fine for watching a car, no use for
+catching a misfire. The parameters a needle follows (RPM, speed, throttle, load,
+MAP) are asked for every round and the rest take turns, so the headline gauges
+stay live while the fuel level updates when it gets to it.
+
+Dials are drawn to the standard's own ranges, with two deliberate exceptions
+worth knowing: no gauge has a warning or danger band, because OBD2 describes
+what a value is and never what a safe one would be; and the rev counter is drawn
+to 8,000 rather than to the 16,383.75 the encoding permits, since there is no
+way to ask a car for its redline and a dial drawn to the counter's ceiling
+leaves every real reading in the first quarter.
+
+A standard vehicle has no tune to read, so Calibration is not available for it.
 
 ## Calculated channels
 
