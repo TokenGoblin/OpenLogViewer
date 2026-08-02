@@ -35,11 +35,18 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// <summary>
     /// What to show in the connect menu.
     ///
-    /// A bare COM number is not enough to choose between three of them, and the
-    /// one worth finding is often the Bluetooth module — which is otherwise
-    /// indistinguishable from a tuning cable.
+    /// The device's own name where there is one, because that is the only thing
+    /// that distinguishes two Bluetooth ports: every one of them is called
+    /// "Standard Serial over Bluetooth link", so with two ECUs paired the menu
+    /// offered two identical entries and picking the wrong one waited out a
+    /// timeout to say nothing useful.
     /// </summary>
-    public string Label => Description.Length > 0 ? $"{PortName} — {Description}" : PortName;
+    public string Label => this switch
+    {
+        { DeviceName.Length: > 0 } => $"{PortName} — {DeviceName} (Bluetooth)",
+        { Description.Length: > 0 } => $"{PortName} — {Description}",
+        _ => PortName,
+    };
 }
 
 /// <summary>
