@@ -40,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
 
     private readonly PresetStore _store;
     private readonly SettingsStore _settings;
+    private readonly MathChannelStore _mathStore;
 
     private LogDocument? _document;
     private string _hint = DefaultHint;
@@ -57,11 +58,13 @@ public sealed class MainViewModel : ObservableObject
     /// rather than reading and writing the user's real settings.
     /// </summary>
     public MainViewModel(
-        PresetStore? presets = null, FilterStore? filters = null, SettingsStore? settings = null)
+        PresetStore? presets = null, FilterStore? filters = null,
+        SettingsStore? settings = null, MathChannelStore? math = null)
     {
         _store = presets ?? new PresetStore();
         _filterStore = filters ?? new FilterStore();
         _settings = settings ?? new SettingsStore();
+        _mathStore = math ?? new MathChannelStore();
 
         _theme = ThemeCatalog.Find(_settings.ThemeId);
         ThemeManager.Apply(_theme);
@@ -70,6 +73,7 @@ public sealed class MainViewModel : ObservableObject
         ChannelView.Filter = FilterChannel;
         ApplySort();
         RefreshPresets();
+        RefreshMathChannels();
     }
 
     public IReadOnlyList<Theme> Themes => ThemeCatalog.Themes;
@@ -668,13 +672,28 @@ public sealed class MainViewModel : ObservableObject
 
         // Added in file order; the collection view applies the chosen ordering.
         foreach (LogChannel channel in doc.Channels.Where(c => !doc.IsTimeBase(c)))
+            Add(channel, calculated: false);
+
+        // Appended so they behave like any other channel from here on: plottable,
+        // usable as a histogram axis, and available to filters.
+        MathChannelResult math = MathChannelBuilder.Build(doc, _mathStore.Channels);
+        foreach (LogChannel channel in math.Channels) Add(channel, calculated: true);
+
+        _mathProblems = math.Problems;
+        RefreshMathChannels();
+
+        Document = doc;
+
+        void Add(LogChannel channel, bool calculated)
         {
-            var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length]);
+            var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length])
+            {
+                IsCalculated = calculated,
+            };
+
             item.VisibilityChanged += OnVisibilityChanged;
             Channels.Add(item);
         }
-
-        Document = doc;
 
         foreach (string name in DefaultChannels)
         {
@@ -750,6 +769,227 @@ public sealed class MainViewModel : ObservableObject
         CursorTime = $"{to - from:F3} s selected   ({count:N0} samples)";
         Hint = $"Marked {from:F2}–{to:F2} s. Rows show min … max and average over the span. " +
                "Click the plot to clear.";
+    }
+
+    // ----- calculated channels ---------------------------------------------
+
+    private IReadOnlyList<MathChannelProblem> _mathProblems = [];
+    private string _newMathName = "";
+    private string _newMathUnits = "";
+    private string _newMathExpression = "";
+    private MathChannel? _editing;
+    private bool _editWasPlotted;
+
+    /// <summary>The user's definitions, for the sidebar list.</summary>
+    public ObservableCollection<MathChannel> MathChannels { get; } = [];
+
+    public string NewMathName
+    {
+        get => _newMathName;
+        set { if (Set(ref _newMathName, value)) Raise(nameof(MathPreview)); }
+    }
+
+    public string NewMathUnits
+    {
+        get => _newMathUnits;
+        set => Set(ref _newMathUnits, value);
+    }
+
+    public string NewMathExpression
+    {
+        get => _newMathExpression;
+        set { if (Set(ref _newMathExpression, value)) Raise(nameof(MathPreview)); }
+    }
+
+    /// <summary>
+    /// Checks the expression as it is typed and says what it would produce, so a
+    /// mistake is caught while the cursor is still on it rather than after the
+    /// channel has been created and plotted as a flat line of nothing.
+    /// </summary>
+    public string MathPreview
+    {
+        get
+        {
+            if (_newMathExpression.Trim().Length == 0) return "Type an expression, e.g. AFR - AFR Target 1";
+            if (Document is not { } doc) return "Open a log to check this expression.";
+
+            IEnumerable<string> names = Channels.Select(c => c.Name).Append(doc.Time.Name);
+
+            if (!MathExpression.TryParse(_newMathExpression, names, out MathExpression? expression, out string? error))
+                return error!;
+
+            LogChannel? sample = Preview(doc, expression!);
+            if (sample is null) return "Reads: " + string.Join(", ", expression!.References);
+
+            return sample.IsFlat
+                ? $"Constant {sample.Format(sample.Min)}"
+                : $"Ranges {sample.Format(sample.Min)} … {sample.Format(sample.Max)}";
+        }
+    }
+
+    /// <summary>Evaluates a candidate over the open log without adding it.</summary>
+    private LogChannel? Preview(LogDocument doc, MathExpression expression)
+    {
+        MathChannelResult result = MathChannelBuilder.Build(doc,
+            [new MathChannel { Name = PreviewName(doc), Units = _newMathUnits, Expression = _newMathExpression }]);
+
+        return result.Channels.Count > 0 ? result.Channels[0] : null;
+
+        // A name that cannot collide with a real one, since the name being typed
+        // may well already be taken at this instant.
+        static string PreviewName(LogDocument doc) => " preview";
+    }
+
+    /// <summary>Definitions that could not be applied to the open log.</summary>
+    public string MathProblems => _mathProblems.Count == 0
+        ? ""
+        : string.Join("   •   ", _mathProblems.Select(p => $"{p.Name}: {p.Reason}"));
+
+    public bool HasMathProblems => _mathProblems.Count > 0;
+
+    public void AddMathChannel()
+    {
+        string name = _newMathName.Trim();
+        if (name.Length == 0 || _newMathExpression.Trim().Length == 0) return;
+
+        _mathStore.Add(new MathChannel
+        {
+            Name = name,
+            Units = _newMathUnits.Trim(),
+            Expression = _newMathExpression.Trim(),
+            Digits = 2,
+        });
+
+        NewMathName = "";
+        NewMathUnits = "";
+        NewMathExpression = "";
+
+        RefreshMathChannels();
+        Reapply();
+
+        // Editing is a remove and a re-add, so a channel that was on the plot has
+        // to be put back on it — including under a new name, if it was renamed.
+        if (_editWasPlotted)
+        {
+            _editWasPlotted = false;
+
+            ChannelItem? added = Channels.FirstOrDefault(
+                c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (added is not null) added.IsVisible = true;
+        }
+
+        Hint = $"Added the calculated channel \"{name}\".";
+    }
+
+    public void RemoveMathChannel(MathChannel channel)
+    {
+        if (!_mathStore.Remove(channel)) return;
+
+        RefreshMathChannels();
+        Reapply();
+        Hint = $"Removed \"{channel.Name}\".";
+    }
+
+    /// <summary>Loads the definition back into the editor so it can be changed.</summary>
+    public void EditMathChannel(MathChannel channel)
+    {
+        _editing = channel;
+        _editWasPlotted = Channels.Any(
+            c => c.IsVisible && c.Name.Equals(channel.Name, StringComparison.OrdinalIgnoreCase));
+
+        NewMathName = channel.Name;
+        NewMathUnits = channel.Units;
+        NewMathExpression = channel.Expression;
+
+        _mathStore.Remove(channel);
+        RefreshMathChannels();
+        Reapply();
+    }
+
+    /// <summary>
+    /// Abandons an edit. Opening the editor removes the definition, so cancelling
+    /// has to put the original back — not whatever was half-typed over it.
+    /// </summary>
+    public void CancelMathEdit()
+    {
+        MathChannel? original = _editing;
+
+        _editing = null;
+        NewMathName = "";
+        NewMathUnits = "";
+        NewMathExpression = "";
+
+        if (original is null)
+        {
+            _editWasPlotted = false;
+            return;
+        }
+
+        _mathStore.Add(original);
+        RefreshMathChannels();
+        Reapply();
+
+        if (!_editWasPlotted) return;
+        _editWasPlotted = false;
+
+        ChannelItem? restored = Channels.FirstOrDefault(
+            c => c.Name.Equals(original.Name, StringComparison.OrdinalIgnoreCase));
+        if (restored is not null) restored.IsVisible = true;
+    }
+
+    private void RefreshMathChannels()
+    {
+        MathChannels.Clear();
+        foreach (MathChannel channel in _mathStore.Channels) MathChannels.Add(channel);
+
+        Raise(nameof(MathProblems));
+        Raise(nameof(HasMathProblems));
+        Raise(nameof(HasMathChannels));
+    }
+
+    public bool HasMathChannels => MathChannels.Count > 0;
+
+    /// <summary>
+    /// Rebuilds the calculated channels over the open log, keeping what was
+    /// plotted plotted. Reloading the file would be simpler but would throw away
+    /// the zoom, the marked span and the selection along with it.
+    /// </summary>
+    private void Reapply()
+    {
+        if (Document is not { } doc) return;
+
+        var plotted = Channels.Where(c => c.IsVisible).Select(c => c.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Batch(() =>
+        {
+            foreach (ChannelItem item in Channels.Where(c => c.IsCalculated).ToList())
+            {
+                item.IsVisible = false;
+                Channels.Remove(item);
+            }
+
+            MathChannelResult math = MathChannelBuilder.Build(doc, _mathStore.Channels);
+            _mathProblems = math.Problems;
+
+            foreach (LogChannel channel in math.Channels)
+            {
+                var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length])
+                {
+                    IsCalculated = true,
+                };
+
+                item.VisibilityChanged += OnVisibilityChanged;
+                Channels.Add(item);
+
+                if (plotted.Contains(channel.Name)) item.IsVisible = true;
+            }
+        });
+
+        Raise(nameof(MathProblems));
+        Raise(nameof(HasMathProblems));
+        SeedHistogramAxes(doc);
+        HistogramInvalidated?.Invoke();
     }
 
     /// <summary>Marked sample span, or null when the whole log is in scope.</summary>
@@ -1089,5 +1329,6 @@ public sealed class MainViewModel : ObservableObject
         || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
 }
+
 
 

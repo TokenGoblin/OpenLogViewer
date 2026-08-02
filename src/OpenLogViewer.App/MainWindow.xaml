@@ -329,6 +329,82 @@
                             </ItemsControl>
                         </DockPanel>
 
+                        <!-- Calculated channels. Once built they behave like any
+                             other channel, so the list here is only the definitions. -->
+                        <StackPanel Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding MathChannels}"
+                                          Visibility="{Binding HasMathChannels,
+                                                       Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource PresetChip}"
+                                                Content="{Binding Name}"
+                                                ToolTip="{Binding Expression}"
+                                                Click="OnEditMathChannelClick">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Edit" Click="OnEditMathChannelClick"/>
+                                                    <Separator/>
+                                                    <MenuItem Header="Delete calculated channel"
+                                                              Click="OnDeleteMathChannelClick"/>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="{Binding MathProblems}" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource Marker}" Margin="0,2,0,0"
+                                       Visibility="{Binding HasMathProblems,
+                                                    Converter={StaticResource BoolToVis}}"/>
+
+                            <Button Content="ƒ  Add calculated channel" Padding="8,3" FontSize="11"
+                                    HorizontalAlignment="Left" Margin="0,4,0,0"
+                                    Click="OnAddMathChannelClick"
+                                    ToolTip="Define a channel from the ones the log already has"/>
+
+                            <Border x:Name="MathEditor" Visibility="Collapsed" Margin="0,6,0,0"
+                                    Background="{DynamicResource Bg}" CornerRadius="4" Padding="8"
+                                    BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="70"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{Binding NewMathName,
+                                                 UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Name, e.g. AFR Error"/>
+                                        <TextBox Grid.Column="2" Text="{Binding NewMathUnits,
+                                                 UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Units, e.g. AFR"/>
+                                    </Grid>
+
+                                    <TextBox Text="{Binding NewMathExpression,
+                                             UpdateSourceTrigger=PropertyChanged}"
+                                             FontFamily="Consolas" AcceptsReturn="False"
+                                             ToolTip="Channel names may contain spaces and need no quoting"/>
+
+                                    <TextBlock Text="{Binding MathPreview}" FontSize="10" Margin="0,4,0,0"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource Faint}"/>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                        <Button Content="Add" Padding="10,3" FontSize="11"
+                                                Click="OnSaveMathChannelClick"/>
+                                        <Button Content="Cancel" Padding="10,3" FontSize="11" Margin="5,0,0,0"
+                                                Click="OnCancelMathChannelClick"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Inline naming, rather than a modal dialog. -->
                         <DockPanel x:Name="PresetNameRow" Margin="0,6,0,0" Visibility="Collapsed">
                             <Button DockPanel.Dock="Right" Content="Cancel" Padding="8,3" FontSize="11"
@@ -441,6 +517,15 @@
                                     </Rectangle>
 
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                      <DockPanel>
+                                        <!-- Marks a channel the user defined rather than the
+                                             logger recorded. -->
+                                        <TextBlock DockPanel.Dock="Left" Text="ƒ" FontSize="11"
+                                                   Margin="0,0,4,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   ToolTip="Calculated channel"
+                                                   Visibility="{Binding IsCalculated,
+                                                                Converter={StaticResource BoolToVis}}"/>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -453,6 +538,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
+                                      </DockPanel>
                                         <TextBlock Text="{Binding Range}" FontSize="10"
                                                    Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
