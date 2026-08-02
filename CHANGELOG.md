@@ -23,6 +23,15 @@ Verified against a 60,356-sample MS3 log and its tune — 128 of 256 cells
 suggested, 62 too thin — with the same result whether the tune is read from
 inside the log or from the `.msq` alongside it.
 
+**Opening a tune.** Tables come from the log by default. *Open tune…* beside
+*Axis breakpoints* loads a `.msq` instead, and one can be dropped on the window
+— needed for `.msl` and `.csv` logs, which carry no tune.
+
+For an MLG it is usually the wrong thing to do, so the sidebar compares the two
+and warns when the opened tune's fuel table differs from the log's: VE Calibration
+scales the numbers that produced the logged AFR, and a table edited since the
+drive scales numbers the engine never ran.
+
 **Calculated channels.** Define a channel from the ones the log already has:
 `AFR - AFR Target 1`, `RPM * Torque / 5252`, `if(Boost psi > 0, Boost psi, 0)`.
 Once built they are ordinary channels — plottable, usable as a histogram axis,

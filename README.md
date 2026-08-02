@@ -251,7 +251,20 @@ suggested, how many were too thin, and the largest change.
 
 Toggle *Show the new numbers* to switch between how far each cell moves and the
 values themselves, then export the table as CSV to paste into your tuning app.
-Reading the tune needs it embedded in the log, which TunerStudio does by default.
+
+### Where the tune comes from
+
+By default, the one stored inside the log — TunerStudio embeds it in an MLG,
+and that copy is the one that was actually running when the log was recorded.
+*Open tune…* next to **Axis breakpoints** loads a `.msq` instead, and you can
+drop one on the window. The line underneath says which is in use.
+
+Opening a tune by hand is what you need for a `.msl` or `.csv` log, which
+carries no tune at all. **For an MLG it is usually the wrong thing to do.** VE
+Analyze scales the numbers that produced the logged AFR; feed it a table you
+have edited since the drive and it will scale numbers the engine never ran, and
+suggest a table wrong by however much the tune moved in between. If the opened
+tune's fuel table differs from the log's, the sidebar says so.
 
 ## Export
 

@@ -133,12 +133,30 @@
                         <RadioButton Style="{StaticResource Chip}" Content="Count" IsChecked="{Binding StatCount}"/>
                     </StackPanel>
 
-                    <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
+                    <DockPanel Margin="0,0,0,2">
+                        <Button DockPanel.Dock="Right" Content="Open tune…" Padding="7,2" FontSize="10"
+                                Click="OnOpenTuneClick"
+                                ToolTip="Use tables from a .msq file instead of the one stored in the log"/>
+                        <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <DockPanel Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right" Content="✕" Padding="5,0" FontSize="10"
+                                Click="OnClearTuneClick" ToolTip="Go back to the tune stored in the log"
+                                Visibility="{Binding UsingLoadedTune, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="{Binding TuneSource, StringFormat=Tune: {0}}" FontSize="10"
+                                   Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding TuneWarning}" FontSize="10" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Marker}" Margin="0,0,0,4"
+                               Visibility="{Binding HasTuneWarning, Converter={StaticResource BoolToVis}}"/>
+
                     <ComboBox ItemsSource="{Binding AxisSources}" SelectedItem="{Binding AxisSource}"
                               ItemTemplate="{StaticResource AxisSourceName}" Margin="0,0,0,4"
                               ToolTip="Bin onto the tune's own table axes, so cells line up with the table you are editing"/>
-                    <TextBlock Text="This log carries no tune, so bins come from the data."
+                    <TextBlock Text="No tune available, so bins come from the data. Open a .msq to use its tables."
                                FontSize="10" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
