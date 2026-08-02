@@ -41,8 +41,8 @@
                 </Button>
 
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
-                           Margin="7,0,0,0" MaxWidth="190" TextTrimming="CharacterEllipsis"
-                           Text="{Binding LiveStatus}"
+                           Margin="7,0,0,0" MaxWidth="300" TextTrimming="CharacterEllipsis"
+                           Text="{Binding LiveStatus}" ToolTip="{Binding LiveDetail}"
                            Foreground="{DynamicResource Accent}"
                            Visibility="{Binding IsLive, Converter={StaticResource BoolToVis}}"/>
 
@@ -129,8 +129,11 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+                <!-- The flexible middle: it gives way to everything else, so the
+                     tooltip is how the trimmed tail is recovered. -->
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
                            Margin="16,0" TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Status}"
                            Foreground="{DynamicResource Muted}"/>
             </DockPanel>
         </Border>

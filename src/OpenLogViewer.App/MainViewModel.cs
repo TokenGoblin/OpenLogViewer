@@ -576,16 +576,40 @@ public sealed class MainViewModel : ObservableObject
 
     private LiveSession? _live;
     private string _liveStatus = "";
+    private string _livePort = "";
+    private string _liveSignature = "";
+    private string _liveVersion = "";
+    private string _liveIni = "";
+    private string _liveRecording = "";
 
     /// <summary>True while connected to an ECU.</summary>
     public bool IsLive => _live is { IsRunning: true };
 
-    /// <summary>Samples, rate and any fault, for the toolbar.</summary>
+    /// <summary>
+    /// What is connected and how it is doing, for the toolbar.
+    ///
+    /// The port and the firmware lead, because that is the question being
+    /// asked — a rate alone says the link is working without saying what it is
+    /// working with, and a wrong firmware match is the failure that matters.
+    /// </summary>
     public string LiveStatus
     {
         get => _liveStatus;
         private set => Set(ref _liveStatus, value);
     }
+
+    /// <summary>The whole picture, for the tooltip: everything the toolbar trims.</summary>
+    public string LiveDetail => IsLive
+        ? string.Join(Environment.NewLine,
+        [
+            $"Port      {_livePort}",
+            $"Firmware  {_liveSignature}",
+            $"Build     {_liveVersion}",
+            $"INI       {_liveIni}",
+            $"Channels  {_live!.Names.Count}",
+            $"Recording {_liveRecording}",
+        ])
+        : "Not connected.";
 
     /// <summary>COM ports present right now, for the connect menu.</summary>
     public IReadOnlyList<string> SerialPorts => SerialEcuTransport.AvailablePorts();
@@ -607,6 +631,7 @@ public sealed class MainViewModel : ObservableObject
         connection.Open();
 
         string signature = connection.ReadSignature();
+        string version = connection.ReadVersion();
         IniFile? ini = IniCatalog.Match(signature, IniCatalog.Scan());
 
         if (ini is null)
@@ -636,6 +661,12 @@ public sealed class MainViewModel : ObservableObject
 
         _live.Start();
 
+        _livePort = port;
+        _liveSignature = signature;
+        _liveVersion = version;
+        _liveIni = ini.Path;
+        _liveRecording = recording;
+
         Status = $"Live — {signature}   •   {_live.Names.Count} channels   •   {ini.Name}";
 
         // Worth saying plainly: on a bench almost nothing moves, and the default
@@ -648,6 +679,7 @@ public sealed class MainViewModel : ObservableObject
         Hint = $"Recording to {recording}. The plot follows the newest data until you zoom or pan." + quiet;
 
         Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
     }
 
@@ -661,7 +693,10 @@ public sealed class MainViewModel : ObservableObject
         _live = null;
 
         LiveStatus = "";
+        _livePort = _liveSignature = _liveVersion = _liveIni = _liveRecording = "";
+
         Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
 
         if (Document is not null)
             Hint = "Disconnected. The session is still here, and its recording is on disk.";
@@ -678,10 +713,13 @@ public sealed class MainViewModel : ObservableObject
         if (_live is null) return false;
 
         LiveSessionStatus status = _live.Status;
+
+        // The dot is the recording indicator; retries only appear once there are
+        // any, so a healthy link stays quiet.
         LiveStatus = status.Faulted
             ? status.Error!
-            : $"{status.Samples:N0} samples   {status.Rate:F1} Hz" +
-              (status.Retries > 0 ? $"   {status.Retries} retries" : "");
+            : $"● {_livePort} · {_liveSignature} · {status.Rate:F1} Hz" +
+              (status.Retries > 0 ? $" · {status.Retries} retries" : "");
 
         if (status.Faulted)
         {
