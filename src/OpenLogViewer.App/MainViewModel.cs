@@ -637,8 +637,15 @@ public sealed class MainViewModel : ObservableObject
         _live.Start();
 
         Status = $"Live — {signature}   •   {_live.Names.Count} channels   •   {ini.Name}";
+
+        // Worth saying plainly: on a bench almost nothing moves, and the default
+        // filter then hides almost everything. The channels are all being
+        // recorded regardless.
+        string quiet = _live.Names.Count > 0
+            ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
+            : "";
         Title = $"Live: {signature} — OpenLogViewer";
-        Hint = $"Recording to {recording}. The plot follows the newest data until you zoom or pan.";
+        Hint = $"Recording to {recording}. The plot follows the newest data until you zoom or pan." + quiet;
 
         Raise(nameof(IsLive));
         Raise(nameof(CanExport));
@@ -686,17 +693,40 @@ public sealed class MainViewModel : ObservableObject
         LogDocument snapshot = _live.Snapshot();
         if (snapshot.SampleCount == 0) return false;
 
-        if (Channels.Count == 0) SeedLiveChannels(snapshot);
-        else foreach (ChannelItem item in Channels)
-            if (snapshot.FindChannel(item.Name) is { } channel) item.Rebind(channel);
+        if (Channels.Count == 0)
+        {
+            SeedLiveChannels(snapshot);
+        }
+        else
+        {
+            foreach (ChannelItem item in Channels)
+                if (snapshot.FindChannel(item.Name) is { } channel) item.Rebind(channel);
+
+            // Channels come alive as the session runs — nothing moves on a bench
+            // with the engine off, and "hide unused" is then hiding almost
+            // everything. Without re-evaluating, a channel that starts moving
+            // stays hidden for the rest of the session.
+            //
+            // A range only ever widens, so a channel can go from flat to moving
+            // but never back; counting them is enough to know when to look again.
+            int moving = Channels.Count(c => !c.IsFlat);
+            if (moving != _movingChannels)
+            {
+                _movingChannels = moving;
+                RefreshView();
+            }
+        }
 
         Document = snapshot;
         return true;
     }
 
+    private int _movingChannels = -1;
+
     private void SeedLiveChannels(LogDocument snapshot)
     {
         _colorCursor = 0;
+        _movingChannels = -1;
 
         foreach (LogChannel channel in snapshot.Channels.Where(c => !snapshot.IsTimeBase(c)))
         {
