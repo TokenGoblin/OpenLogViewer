@@ -584,17 +584,27 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private string? TuneXml => _loadedTune ?? Document?.EmbeddedTune;
 
+    /// <summary>
+    /// Which tune is in use, short enough for the toolbar. Always shown, so
+    /// "the log's own" is never something the user has to infer from the absence
+    /// of anything else.
+    /// </summary>
     public string TuneSource
     {
         get
         {
             if (_loadedTune is not null) return _loadedTuneName;
 
-            return Document?.EmbeddedTune is { Length: > 0 }
-                ? "from the log"
-                : "none — this log carries no tune";
+            return Document?.EmbeddedTune is { Length: > 0 } ? "from the log" : "none";
         }
     }
+
+    /// <summary>The longer form, for the tooltip on the toolbar indicator.</summary>
+    public string TuneDetail => _loadedTune is not null
+        ? $"Tables come from {_loadedTuneName}. Right-click to go back to the log's own tune."
+        : Document?.EmbeddedTune is { Length: > 0 }
+            ? "Tables come from the tune stored in this log — the one that was running when it was recorded."
+            : "This log carries no tune. Open a .msq to bin onto its table axes and to use VE Calibration.";
 
     /// <summary>
     /// Set when an opened tune's fuel table differs from the one in the log.
@@ -625,13 +635,11 @@ public sealed class MainViewModel : ObservableObject
         _loadedTuneName = Path.GetFileName(path);
         TuneWarning = CompareWithEmbedded(xml);
 
-        if (Document is { } doc) SeedHistogramAxes(doc);
-
         Hint = TuneWarning.Length > 0
             ? TuneWarning
             : $"Using tables from {_loadedTuneName}.";
 
-        HistogramInvalidated?.Invoke();
+        TuneChanged();
     }
 
     /// <summary>Goes back to the tune the log carries.</summary>
@@ -643,9 +651,30 @@ public sealed class MainViewModel : ObservableObject
         _loadedTuneName = "";
         TuneWarning = "";
 
-        if (Document is { } doc) SeedHistogramAxes(doc);
-
         Hint = "Back to the tune stored in the log.";
+        TuneChanged();
+    }
+
+    /// <summary>
+    /// Announces the change and rebuilds the axis list. Announced directly rather
+    /// than only through the axis rebuild, because a tune can be opened before
+    /// any log is — and the toolbar has to say so either way.
+    /// </summary>
+    private void TuneChanged()
+    {
+        if (Document is { } doc)
+        {
+            SeedHistogramAxes(doc);
+        }
+        else
+        {
+            Raise(nameof(TuneSource));
+            Raise(nameof(TuneDetail));
+            Raise(nameof(TuneWarning));
+            Raise(nameof(HasTuneWarning));
+            Raise(nameof(UsingLoadedTune));
+        }
+
         HistogramInvalidated?.Invoke();
     }
 
@@ -867,6 +896,7 @@ public sealed class MainViewModel : ObservableObject
         _veAnalyze = false;
 
         Raise(nameof(TuneSource));
+        Raise(nameof(TuneDetail));
         Raise(nameof(TuneWarning));
         Raise(nameof(HasTuneWarning));
         Raise(nameof(UsingLoadedTune));

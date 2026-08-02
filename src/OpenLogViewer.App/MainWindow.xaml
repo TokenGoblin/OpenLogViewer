@@ -17,6 +17,45 @@
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="10,8">
             <DockPanel>
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
+                <!-- Beside Open log so it is obvious both can be opened. The
+                     indicator next to it always says which tune is in use, so
+                     the button has a visible effect in either view. -->
+                <Button Content="Open tune…" Click="OnOpenTuneClick" Margin="6,0,0,0" DockPanel.Dock="Left"
+                        ToolTip="Use tables from a .msq file instead of the one stored in the log">
+                    <Button.ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                  RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
+                                      IsEnabled="{Binding UsingLoadedTune}"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+
+                <!-- Labelled rather than bare: "from the log" on its own does not
+                     say what it is describing. The width this costs comes out of
+                     the log summary, which trims and has a tooltip of its own. -->
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                           Margin="6,0,0,0" MaxWidth="150" TextTrimming="CharacterEllipsis"
+                           Text="{Binding TuneSource, StringFormat=Tune: {0}}"
+                           ToolTip="{Binding TuneDetail}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource Faint}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding UsingLoadedTune}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                </DataTrigger>
+                                <!-- Last, so it wins: a tune that does not match
+                                     the log is the one case that must catch the
+                                     eye, and it is also a loaded one. -->
+                                <DataTrigger Binding="{Binding HasTuneWarning}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
                 <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
                         Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
 

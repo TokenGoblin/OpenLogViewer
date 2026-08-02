@@ -256,8 +256,12 @@ values themselves, then export the table as CSV to paste into your tuning app.
 
 By default, the one stored inside the log — TunerStudio embeds it in an MLG,
 and that copy is the one that was actually running when the log was recorded.
-*Open tune…* next to **Axis breakpoints** loads a `.msq` instead, and you can
-drop one on the window. The line underneath says which is in use.
+
+*Open tune…* sits beside *Open log…* in the toolbar, and again next to **Axis
+breakpoints** where it takes effect; you can also drop a `.msq` on the window.
+The toolbar always says which tune is in use — *from the log*, the filename, or
+*none* — and turns amber if it does not match the log. Right-click the toolbar
+button to go back to the log's own.
 
 Opening a tune by hand is what you need for a `.msl` or `.csv` log, which
 carries no tune at all. **For an MLG it is usually the wrong thing to do.** VE

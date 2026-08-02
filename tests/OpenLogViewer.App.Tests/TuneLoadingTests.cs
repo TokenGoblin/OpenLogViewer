@@ -53,8 +53,9 @@ public class TuneLoadingTests : IDisposable
         MainViewModel vm = Loaded();
 
         Assert.False(vm.UsingLoadedTune);
-        Assert.Contains("no tune", vm.TuneSource);
+        Assert.Equal("none", vm.TuneSource);
         Assert.False(vm.HasTuneAxes);
+        Assert.Contains("no tune", vm.TuneDetail);
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public class TuneLoadingTests : IDisposable
 
         Assert.False(vm.UsingLoadedTune);
         Assert.False(vm.HasTuneAxes);
-        Assert.Contains("no tune", vm.TuneSource);
+        Assert.Equal("none", vm.TuneSource);
     }
 
     [Fact]

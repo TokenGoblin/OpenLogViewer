@@ -23,9 +23,11 @@ Verified against a 60,356-sample MS3 log and its tune — 128 of 256 cells
 suggested, 62 too thin — with the same result whether the tune is read from
 inside the log or from the `.msq` alongside it.
 
-**Opening a tune.** Tables come from the log by default. *Open tune…* beside
-*Axis breakpoints* loads a `.msq` instead, and one can be dropped on the window
-— needed for `.msl` and `.csv` logs, which carry no tune.
+**Opening a tune.** Tables come from the log by default. *Open tune…* sits
+beside *Open log…* in the toolbar and again next to *Axis breakpoints*, and a
+`.msq` can be dropped on the window — needed for `.msl` and `.csv` logs, which
+carry no tune. The toolbar always names the tune in use, so which one is loaded
+is visible from the main view rather than only from the histogram sidebar.
 
 For an MLG it is usually the wrong thing to do, so the sidebar compares the two
 and warns when the opened tune's fuel table differs from the log's: VE Calibration
