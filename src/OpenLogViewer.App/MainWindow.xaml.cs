@@ -171,6 +171,19 @@ public partial class MainWindow : Window
         PortsMenu.Items.Add(new Separator());
         PortsMenu.Items.Add(RateMenu());
 
+        var whole = new MenuItem
+        {
+            Header = "Read the block in one request",
+            IsCheckable = true,
+            IsChecked = _vm.SingleRequestBlock,
+            ToolTip = "Faster on a MegaSquirt, which serves its whole block despite declaring "
+                      + "a smaller limit. A rusEFI asked for more than it declares stops "
+                      + "responding until it is replugged.",
+        };
+
+        whole.Click += (_, _) => _vm.SingleRequestBlock = whole.IsChecked;
+        PortsMenu.Items.Add(whole);
+
         PortsMenu.PlacementTarget = ConnectButton;
         PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         PortsMenu.IsOpen = true;

@@ -118,13 +118,25 @@ public sealed class EcuConnection : IDisposable
     /// — until then the MegaSquirt page read is assumed, since that is what the
     /// identity commands need and they are the same on both families.
     /// </summary>
-    public void Use(RealtimeLayout layout)
+    /// <param name="singleRequest">
+    /// Ask for the whole realtime block in one reply, ignoring the blocking
+    /// factor.
+    ///
+    /// Off by default because whether a firmware tolerates it is not something
+    /// the INI says, and finding out the wrong way is expensive. Measured on two:
+    /// an MS3 declaring 256 serves its whole 512-byte block quite happily, while
+    /// a rusEFI declaring 1024 answers 1024 and, asked for 1280, stops replying
+    /// and leaves the USB bus until it is replugged. So it is worth a third of
+    /// the poll rate on one and unusable on the other, which makes it a choice
+    /// rather than a default.
+    /// </param>
+    public void Use(RealtimeLayout layout, bool singleRequest = false)
     {
         ArgumentNullException.ThrowIfNull(layout);
 
         _command = layout.Command;
         _littleEndian = layout.LittleEndian;
-        _chunk = layout.BlockingFactor;
+        _chunk = singleRequest ? 0 : layout.BlockingFactor;
 
         // Sized for the largest reply this firmware will send, which is one
         // chunk when it chunks and the whole block when it does not.
@@ -152,6 +164,23 @@ public sealed class EcuConnection : IDisposable
     /// the bytes rather than the turnaround. The one real loss is that a split
     /// sample is no longer taken at a single instant.
     /// </summary>
+    /// <summary>
+    /// Asks for a realtime block in one reply regardless of the blocking factor.
+    ///
+    /// For finding out what a firmware will actually serve. Not the path a
+    /// session uses — a rusEFI asked for more than it can send has been seen to
+    /// leave the USB bus rather than refuse.
+    /// </summary>
+    public byte[] ReadRealtimeUnchunked(int size)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
+
+        int wanted = 2 + 1 + size + 4;
+        if (_buffer.Length < wanted) _buffer = new byte[wanted];
+
+        return Request(_command.Build(0, size, Settings.CanId, _littleEndian));
+    }
+
     public byte[] ReadRealtime(int size)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);

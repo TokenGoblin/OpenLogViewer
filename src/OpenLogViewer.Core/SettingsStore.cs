@@ -45,10 +45,26 @@ public sealed class SettingsStore
         LiveRate = file?.LiveRate is { } rate && rate is > 0 and <= MaximumLiveRate
             ? rate
             : DefaultLiveRate;
+
+        SingleRequestBlock = file?.SingleRequestBlock ?? false;
     }
 
     /// <summary>Above this the cap is meaningless — no link answers that fast.</summary>
     public const double MaximumLiveRate = 1000;
+
+    /// <summary>
+    /// Ask for the realtime block in one request rather than in blocking-factor
+    /// pieces. Faster where the firmware allows it, fatal where it does not.
+    /// </summary>
+    public bool SingleRequestBlock { get; private set; }
+
+    public void SetSingleRequestBlock(bool single)
+    {
+        if (single == SingleRequestBlock) return;
+
+        SingleRequestBlock = single;
+        Persist();
+    }
 
     public void SetLiveRate(double rate)
     {
@@ -87,6 +103,7 @@ public sealed class SettingsStore
         ThemeId = ThemeId,
         DataFolder = DataFolder,
         LiveRate = LiveRate,
+        SingleRequestBlock = SingleRequestBlock,
     });
 
     private sealed class SettingsFile
@@ -95,5 +112,6 @@ public sealed class SettingsStore
         public string? ThemeId { get; set; }
         public string? DataFolder { get; set; }
         public double? LiveRate { get; set; }
+        public bool? SingleRequestBlock { get; set; }
     }
 }
