@@ -33,12 +33,19 @@ public static class TuningContext
     /// outright always beats one the INI would have derived.
     /// </summary>
     public static IReadOnlyDictionary<string, double> Build(
-        string? iniText, string? tuneXml, IReadOnlySet<string>? symbols = null)
+        string? iniText, string? tuneXml, IReadOnlySet<string>? symbols = null,
+        IReadOnlyDictionary<string, double>? fromEcu = null)
     {
         var known = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
+        // The ECU first and unconditionally: what the controller is running
+        // beats what a file last recorded, and a file may be stale or absent.
+        if (fromEcu is not null)
+            foreach ((string name, double value) in fromEcu)
+                known[name] = value;
+
         foreach ((string name, double value) in MsqTune.ReadScalars(tuneXml))
-            known[name] = value;
+            known.TryAdd(name, value);
 
         if (iniText is null or "") return known;
 

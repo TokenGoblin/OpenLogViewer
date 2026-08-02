@@ -187,6 +187,53 @@ public sealed class EcuConnection : IDisposable
     /// link has dropped, the retries are the thing that gets back into step, so
     /// only a caller expecting to be refused may skip them.
     /// </summary>
+    /// <summary>
+    /// Reads one page of the ECU's settings.
+    ///
+    /// Chunked at the blocking factor like a realtime read, and for the harder
+    /// reason: this is 22,960 bytes on a rusEFI where one reply holds 1,024.
+    ///
+    /// Still a read. The page write and burn commands are not implemented here.
+    /// </summary>
+    public byte[] ReadTunePage(
+        TunePage page, int blockingFactor, bool littleEndian, Action<int>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentOutOfRangeException.ThrowIfLessThan(page.Size, 1);
+
+        RealtimeCommand command = RealtimeCommand.Parse(page.ReadCommand);
+
+        if (!command.TakesRange)
+            throw new EcuProtocolException(
+                $"Page {page.Index} declares \"{page.ReadCommand}\", which cannot ask for part of a page.");
+
+        byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
+
+        int chunk = blockingFactor > 0 ? Math.Min(blockingFactor, page.Size) : page.Size;
+        var image = new byte[page.Size];
+
+        // A larger buffer than a realtime block needs.
+        int wanted = 2 + 1 + chunk + 4;
+        if (_buffer.Length < wanted) _buffer = new byte[wanted];
+
+        for (int at = 0; at < page.Size;)
+        {
+            int take = Math.Min(chunk, page.Size - at);
+            byte[] piece = Request(command.Build(at, take, Settings.CanId, littleEndian, identifier));
+
+            if (piece.Length < take)
+                throw new EcuProtocolException(
+                    $"The ECU sent {piece.Length} of the {take} bytes asked for at offset {at} of page {page.Index}.");
+
+            piece.AsSpan(0, take).CopyTo(image.AsSpan(at));
+            at += take;
+
+            progress?.Invoke(at);
+        }
+
+        return image;
+    }
+
     private byte[] Request(ReadOnlySpan<byte> payload, bool retryRefusals = true)
     {
         byte[] framed = MsProtocol.Frame(payload);

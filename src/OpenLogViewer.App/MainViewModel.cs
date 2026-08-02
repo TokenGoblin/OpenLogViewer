@@ -687,6 +687,82 @@ public sealed class MainViewModel : ObservableObject
         ])
         : "Not connected.";
 
+    // ----- the tune in the ECU ------------------------------------------------
+
+    private EcuTune? _ecuTune;
+    private string _ecuTuneSummary = "";
+
+    /// <summary>The tables read off the ECU, empty until a connection provides them.</summary>
+    public ObservableCollection<TuneTable> EcuTables { get; } = [];
+
+    private TuneTable? _selectedEcuTable;
+
+    /// <summary>The table on screen in calibration mode.</summary>
+    public TuneTable? SelectedEcuTable
+    {
+        get => _selectedEcuTable;
+        set => Set(ref _selectedEcuTable, value);
+    }
+
+    public bool HasEcuTune => _ecuTune is not null;
+
+    public bool NoEcuTune => _ecuTune is null;
+
+    /// <summary>What was read, for the calibration header.</summary>
+    public string EcuTuneSummary
+    {
+        get => _ecuTuneSummary;
+        private set => Set(ref _ecuTuneSummary, value);
+    }
+
+    /// <summary>
+    /// Pulls the ECU's settings down at connect.
+    ///
+    /// Worth doing every time rather than on request: it is 22,960 bytes and
+    /// about 50 ms on a rusEFI, and almost everything else wants it. Gauge scales
+    /// are written against tune constants, VE Calibration needs the table being
+    /// calibrated, and rusEFI's saved tunes carry no tables at all — so without
+    /// this there is no way to get the fuel table for that firmware.
+    ///
+    /// Best-effort. A firmware whose pages will not read is still perfectly
+    /// usable for logging, and failing the whole connection over it would be a
+    /// poor trade.
+    /// </summary>
+    private void ReadTuneFromEcu(EcuConnection connection, string iniText)
+    {
+        _ecuTune = null;
+        EcuTables.Clear();
+        EcuTuneSummary = "";
+
+        try
+        {
+            TuneLayout layout = TuneLayoutReader.Read(iniText);
+            if (layout.Pages.Count == 0) return;
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            EcuTune tune = EcuTune.Read(connection, layout);
+            clock.Stop();
+
+            _ecuTune = tune;
+
+            foreach (TuneTable table in tune.Tables(TableEditorReader.Read(iniText)))
+                EcuTables.Add(table);
+
+            EcuTuneSummary =
+                $"{layout.TotalSize:N0} bytes read from the ECU in {clock.ElapsedMilliseconds:N0} ms · "
+                + $"{EcuTables.Count} tables · {tune.Scalars().Count:N0} settings";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            EcuTuneSummary = $"The ECU's settings could not be read: {e.Message}";
+        }
+        finally
+        {
+            Raise(nameof(HasEcuTune));
+            Raise(nameof(NoEcuTune));
+        }
+    }
+
     // ----- gauges -------------------------------------------------------------
 
     /// <summary>Every gauge this firmware defines, whether shown or not.</summary>
@@ -774,7 +850,8 @@ public sealed class MainViewModel : ObservableObject
         foreach (DatalogEntry entry in datalog)
             columns[entry.Channel] = entry.Label.Length > 0 ? entry.Label : entry.Channel;
 
-        IReadOnlyDictionary<string, double> context = TuningContext.Build(iniText, TuneXml);
+        IReadOnlyDictionary<string, double> context =
+            TuningContext.Build(iniText, TuneXml, fromEcu: _ecuTune?.Scalars());
         IReadOnlyList<GaugeSpec> specs = GaugeCatalog.Read(iniText, context);
         IReadOnlyList<string> front = GaugeCatalog.ReadFrontPage(iniText);
 
@@ -921,6 +998,7 @@ public sealed class MainViewModel : ObservableObject
         // way one program reads both a MegaSquirt page and a rusEFI block.
         connection.Use(layout);
 
+        ReadTuneFromEcu(connection, iniText);
         SeedGauges(iniText, datalog);
 
         // The tune supplies what the wire does not: firmware derives channels
