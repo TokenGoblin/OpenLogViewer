@@ -136,6 +136,51 @@ public class MathExpressionTests
     [Fact]
     public void ConstantsAreAvailable() => Assert.Equal(Math.PI, Eval("pi"), 9);
 
+    [Theory]
+    [InlineData("1 ? 10 : 20", 10)]
+    [InlineData("0 ? 10 : 20", 20)]
+    [InlineData("RPM > 500 ? 1 : 2", 1)]
+    [InlineData("1 ? 2 ? 3 : 4 : 5", 3)]
+    public void TheConditionalOperatorWorksLikeIf(string text, double expected) =>
+        Assert.Equal(expected, Eval(text, ("RPM", 800)), 9);
+
+    [Fact]
+    public void TheConditionalOperatorAlsoGuardsItsBranches()
+    {
+        // Firmware INIs are written this way — "rpm ? 60000.0 / rpm : 0" — and
+        // it only works if the untaken branch is not evaluated.
+        Assert.Equal(0, Eval("RPM ? 60000 / RPM : 0", ("RPM", 0)), 9);
+    }
+
+    [Fact]
+    public void AConditionalWithoutItsColonIsRejected() =>
+        Assert.Contains(":", ErrorFor("1 ? 2"));
+
+    [Theory]
+    [InlineData("6 & 3", 2)]
+    [InlineData("6 | 1", 7)]
+    [InlineData("5 & 1", 1)]
+    public void BitwiseOperatorsWorkOnTheIntegerValue(string text, double expected) =>
+        Assert.Equal(expected, Eval(text), 9);
+
+    [Fact]
+    public void ASingleAmpersandIsNotTakenFromALogicalAnd()
+    {
+        // "1 && 0" must stay a logical and, not parse as "1 & (& 0)".
+        Assert.Equal(0, Eval("1 && 0"), 9);
+        Assert.Equal(1, Eval("1 || 0"), 9);
+    }
+
+    [Fact]
+    public void BitwiseAndBindsLooserThanComparison()
+    {
+        // C's precedence, which is what firmware INIs are written against:
+        // "6 & 3 == 2" is 6 & (3 == 2), not (6 & 3) == 2. Worth pinning, because
+        // the other reading gives 1 here and would quietly change a flag test.
+        Assert.Equal(0, Eval("6 & 3 == 2"), 9);
+        Assert.Equal(1, Eval("(6 & 3) == 2"), 9);
+    }
+
     // ----- missing readings -------------------------------------------------
 
     [Fact]

@@ -161,6 +161,45 @@ public static class MsqTune
         return cells;
     }
 
+    /// <summary>
+    /// The tune's single-value settings, by name.
+    ///
+    /// Needed to read a live connection: the firmware's derived channels are
+    /// written in terms of the tune as well as the realtime block — duty cycle
+    /// divides by <c>nCylinders</c>, injector timing tests <c>twoStroke</c> —
+    /// and none of those arrive over the wire.
+    /// </summary>
+    public static IReadOnlyDictionary<string, double> ReadScalars(string? msqXml)
+    {
+        var scalars = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(msqXml)) return scalars;
+
+        XDocument document;
+        try
+        {
+            document = XDocument.Parse(msqXml);
+        }
+        catch (System.Xml.XmlException)
+        {
+            return scalars;
+        }
+
+        foreach (XElement element in document.Descendants().Where(e => e.Name.LocalName == "constant"))
+        {
+            string? name = element.Attribute("name")?.Value;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            // Tables and arrays declare their shape; a setting is a lone value.
+            if (element.Attribute("cols") is not null || element.Attribute("rows") is not null) continue;
+
+            string text = element.Value.Trim();
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                scalars[name] = value;
+        }
+
+        return scalars;
+    }
+
     /// <summary>Parses the one-dimensional numeric constants that can serve as axes.</summary>
     private static Dictionary<string, TuneAxis>? ReadConstants(string? msqXml)
     {
