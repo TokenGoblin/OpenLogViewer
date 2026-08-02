@@ -211,6 +211,12 @@ public partial class MainWindow : Window
 
     private void StartLive(string port, bool quiet = false)
     {
+        // Connecting reads the ECU's whole settings memory, which is 50 ms on a
+        // rusEFI over USB and three seconds on a MegaSquirt over serial — 20 KB
+        // in 256-byte pieces at 115200 baud. The window cannot repaint while
+        // that runs, so at least say the wait is deliberate.
+        Mouse.OverrideCursor = Cursors.Wait;
+
         try
         {
             _vm.Connect(port);
@@ -228,6 +234,10 @@ public partial class MainWindow : Window
                     "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
 
             return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
         }
 
         ConnectButton.Content = "Disconnect";

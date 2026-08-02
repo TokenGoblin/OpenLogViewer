@@ -59,7 +59,23 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         // Anything already buffered predates this session and would be read as
         // the front of the first reply.
         Thread.Sleep(150);
-        _port.DiscardInBuffer();
+
+        try
+        {
+            _port.DiscardInBuffer();
+        }
+        catch (InvalidOperationException e)
+        {
+            // The handle went away between opening it and this line, which a USB
+            // adapter does while Windows is still attaching it — plug one in and
+            // connect straight away and the port lists, opens, and is gone again
+            // a moment later. Reported as an IOException because that is what a
+            // port that will not stay open is, and what every caller already
+            // expects to catch.
+            throw new IOException(
+                $"{PortName} opened and then closed again. If the adapter was just plugged in, "
+                + "give it a moment and try again.", e);
+        }
     }
 
     /// <summary>
