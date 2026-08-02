@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="OpenLogViewer.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Only to name the COM ports in the connect menu, which is the difference
          between picking a Bluetooth module and guessing. Windows-only, which is
          why it is here and not in the core. -->

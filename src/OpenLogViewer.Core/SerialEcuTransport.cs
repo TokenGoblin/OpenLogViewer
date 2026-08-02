@@ -104,7 +104,25 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
     {
         if (_port is not { IsOpen: true }) throw new InvalidOperationException("The port is not open.");
 
-        _port.Write(data.ToArray(), 0, data.Length);
+        try
+        {
+            _port.Write(data.ToArray(), 0, data.Length);
+        }
+        catch (TimeoutException e)
+        {
+            // A port that will not even accept bytes. Windows' incoming
+            // Bluetooth port does this — it is a listener waiting for something
+            // to dial in, so nothing is on the other end of a write and it
+            // blocks until the timeout.
+            //
+            // Reported as an IOException because that is what it is, and because
+            // TimeoutException is not something a caller of a transport has any
+            // reason to expect — it escaped the connect path and took the
+            // application down with it.
+            throw new IOException(
+                $"{PortName} would not accept the request. If this is a Bluetooth port, "
+                + "it may be the incoming one, which waits to be dialled rather than dialling out.", e);
+        }
     }
 
     /// <summary>
