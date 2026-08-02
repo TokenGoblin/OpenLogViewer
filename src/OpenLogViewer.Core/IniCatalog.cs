@@ -96,6 +96,44 @@ public static class IniCatalog
         return null;
     }
 
+    /// <summary>
+    /// The tune belonging to the TunerStudio project an INI came out of.
+    ///
+    /// Worth finding, because some of what a gauge needs is kept nowhere else.
+    /// A MegaSquirt tachometer runs to <c>{rpmhigh}</c> and warns at
+    /// <c>{rpmwarn}</c>, and those are TunerStudio's variables rather than the
+    /// firmware's — not in the ECU, not derivable, and absent from a tune
+    /// exported on its own. They live in the project, two directories up from
+    /// its copy of the firmware definition.
+    ///
+    /// Null when the INI is a plain firmware definition rather than part of a
+    /// project, which is the usual case for the ones under ecuDef.
+    /// </summary>
+    public static string? ProjectTuneFor(string iniPath)
+    {
+        ArgumentNullException.ThrowIfNull(iniPath);
+
+        try
+        {
+            string? configuration = Path.GetDirectoryName(iniPath);
+            if (configuration is null) return null;
+
+            if (!Path.GetFileName(configuration).Equals("projectCfg", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string? project = Path.GetDirectoryName(configuration);
+            if (project is null) return null;
+
+            string tune = Path.Combine(project, "CurrentTune.msq");
+
+            return File.Exists(tune) ? tune : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The INI matching a signature, or null when none does.</summary>
     public static IniFile? Match(string signature, IEnumerable<IniFile> catalogue)
     {

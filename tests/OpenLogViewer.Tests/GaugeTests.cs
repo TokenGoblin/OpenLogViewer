@@ -206,6 +206,93 @@ public class GaugeTests
         Assert.Equal(["lambda1Gauge"], GaugeCatalog.ReadFrontPage(ini, new HashSet<string> { "LAMBDA" }));
     }
 
+    // ----- the project's own tune -------------------------------------------
+
+    [Fact]
+    public void TheProjectTuneIsFoundBesideTheFirmwareDefinition()
+    {
+        // A MegaSquirt tachometer runs to {rpmhigh}, which is TunerStudio's
+        // variable rather than the firmware's: not in the ECU, not derivable,
+        // and absent from a tune exported on its own. It is in the project.
+        string project = Path.Combine(Path.GetTempPath(), $"olv-proj-{Guid.NewGuid():N}");
+        string configuration = Path.Combine(project, "projectCfg");
+
+        Directory.CreateDirectory(configuration);
+
+        try
+        {
+            string ini = Path.Combine(configuration, "mainController.ini");
+            string tune = Path.Combine(project, "CurrentTune.msq");
+
+            File.WriteAllText(ini, "[MegaTune]\nsignature = \"test\"\n");
+            File.WriteAllText(tune, "<msq/>");
+
+            Assert.Equal(tune, IniCatalog.ProjectTuneFor(ini));
+        }
+        finally
+        {
+            try { Directory.Delete(project, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void APlainFirmwareDefinitionHasNoProjectTune()
+    {
+        // The ones under ecuDef are not part of a project, and inventing a path
+        // beside them would read whatever happened to be there.
+        string folder = Path.Combine(Path.GetTempPath(), $"olv-ecudef-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(folder);
+
+        try
+        {
+            string ini = Path.Combine(folder, "MS3Format0569.ini");
+            File.WriteAllText(ini, "[MegaTune]\n");
+            File.WriteAllText(Path.Combine(folder, "CurrentTune.msq"), "<msq/>");
+
+            Assert.Null(IniCatalog.ProjectTuneFor(ini));
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void AProjectWithNoTuneYieldsNothing()
+    {
+        string project = Path.Combine(Path.GetTempPath(), $"olv-proj-{Guid.NewGuid():N}");
+        string configuration = Path.Combine(project, "projectCfg");
+
+        Directory.CreateDirectory(configuration);
+
+        try
+        {
+            string ini = Path.Combine(configuration, "mainController.ini");
+            File.WriteAllText(ini, "[MegaTune]\n");
+
+            Assert.Null(IniCatalog.ProjectTuneFor(ini));
+        }
+        finally
+        {
+            try { Directory.Delete(project, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void PcVariablesWithAttributesAreStillRead()
+    {
+        // TunerStudio writes these with units and digits attributes, which a
+        // reader looking for a bare name attribute misses entirely.
+        const string tune = """
+            <?xml version="1.0"?>
+            <msq><page>
+            <pcVariable digits="0" name="rpmhigh" units="rpm">9000.0</pcVariable>
+            </page></msq>
+            """;
+
+        Assert.Equal("9000.0", TuningContext.ReadPcVariables(tune)["rpmhigh"]);
+    }
+
     // ----- the dial ---------------------------------------------------------
 
     [Fact]

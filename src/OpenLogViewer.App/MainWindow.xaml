@@ -813,7 +813,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <local:GaugeView Width="150" Height="160" Margin="5"
+                            <local:GaugeView Width="160" Height="180" Margin="5"
                                              Spec="{Binding Spec}" Value="{Binding Value}"
                                              Peak="{Binding Peak}" Trough="{Binding Trough}"/>
                         </DataTemplate>
