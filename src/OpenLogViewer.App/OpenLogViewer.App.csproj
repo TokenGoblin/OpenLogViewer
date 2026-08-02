@@ -4,6 +4,13 @@
     <ProjectReference Include="..\OpenLogViewer.Core\OpenLogViewer.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Only to name the COM ports in the connect menu, which is the difference
+         between picking a Bluetooth module and guessing. Windows-only, which is
+         why it is here and not in the core. -->
+    <PackageReference Include="System.Management" Version="9.0.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>

@@ -186,18 +186,16 @@ public sealed class EcuConnection : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
         if (!_command.TakesRange || _chunk <= 0 || size <= _chunk)
-            return Request(_command.Build(0, size, Settings.CanId, _littleEndian));
+            return Request(_command.Build(0, size, Settings.CanId, _littleEndian), expected: size);
 
         var block = new byte[size];
 
         for (int at = 0; at < size;)
         {
             int wanted = Math.Min(_chunk, size - at);
-            byte[] piece = Request(_command.Build(at, wanted, Settings.CanId, _littleEndian));
 
-            if (piece.Length < wanted)
-                throw new EcuProtocolException(
-                    $"The ECU sent {piece.Length} of the {wanted} bytes asked for at offset {at}.");
+            byte[] piece = Request(
+                _command.Build(at, wanted, Settings.CanId, _littleEndian), expected: wanted);
 
             piece.AsSpan(0, wanted).CopyTo(block.AsSpan(at));
             at += wanted;
@@ -333,11 +331,9 @@ public sealed class EcuConnection : IDisposable
         for (int at = 0; at < count;)
         {
             int take = Math.Min(chunk, count - at);
-            byte[] piece = Request(command.Build(offset + at, take, Settings.CanId, littleEndian, identifier));
-
-            if (piece.Length < take)
-                throw new EcuProtocolException(
-                    $"The ECU sent {piece.Length} of the {take} bytes asked for at offset {offset + at}.");
+            byte[] piece = Request(
+                command.Build(offset + at, take, Settings.CanId, littleEndian, identifier),
+                expected: take);
 
             piece.AsSpan(0, take).CopyTo(image.AsSpan(at));
             at += take;
@@ -348,7 +344,17 @@ public sealed class EcuConnection : IDisposable
         return image;
     }
 
-    private byte[] Request(ReadOnlySpan<byte> payload, bool retryRefusals = true)
+    /// <summary>
+    /// Sends one request and returns its data.
+    ///
+    /// <paramref name="expected"/> is how many bytes the reply should carry, or
+    /// zero when anything is acceptable. Checked because a reply says nothing
+    /// about which request it answers — there is no echo of the offset or the
+    /// count — so a late one from a previous attempt is otherwise decoded as the
+    /// answer to this one, at offsets it was never read from. That produces
+    /// well-formed nonsense: a stationary car reading 230 km/h.
+    /// </summary>
+    private byte[] Request(ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0)
     {
         byte[] framed = MsProtocol.Frame(payload);
         EcuProtocolException? last = null;
@@ -362,21 +368,60 @@ public sealed class EcuConnection : IDisposable
                 _transport.DiscardInput();
                 _transport.Write(framed);
 
-                return MsProtocol.Unframe(ReadFrame());
+                byte[] data = MsProtocol.Unframe(ReadFrame());
+
+                if (expected > 0 && data.Length != expected)
+                    throw new EcuProtocolException(
+                        $"The reply carried {data.Length} bytes where {expected} were asked for; "
+                        + "it belongs to an earlier request.");
+
+                return data;
             }
             catch (EcuProtocolException e)
             {
                 last = e;
 
-                // A partial reply may still be arriving; letting it land keeps it
-                // from being read as the front of the next one.
-                Thread.Sleep(Settings.RetryPause);
+                // Wait for the link to fall silent before trying again. A fixed
+                // pause is not enough: over Bluetooth a reply can still be on its
+                // way when the next request goes out, and rusEFI's command
+                // handler has no queue — a request arriving mid-reply
+                // desynchronises it permanently, and only a power cycle brings
+                // the ECU back. Never more than one request outstanding.
+                Settle();
 
                 if (e.Refused && !retryRefusals) break;
             }
         }
 
         throw last ?? new EcuProtocolException("The ECU did not reply.");
+    }
+
+    /// <summary>
+    /// Reads and throws away whatever is still arriving, until the link is quiet
+    /// or the allowance runs out.
+    /// </summary>
+    private void Settle()
+    {
+        Span<byte> discard = stackalloc byte[256];
+        DateTime deadline = DateTime.UtcNow + Settings.SettleFor;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            int got;
+
+            try
+            {
+                got = _transport.Read(discard, Settings.QuietFor);
+            }
+            catch (Exception)
+            {
+                // A port whose device has gone cannot be drained, and saying so
+                // is the caller's job rather than this one's.
+                return;
+            }
+
+            if (got == 0) return;
+        }
     }
 
     /// <summary>
@@ -419,6 +464,28 @@ public sealed record EcuConnectionSettings
 
     /// <summary>Settling time after a bad reply, so its tail does not corrupt the next.</summary>
     public TimeSpan RetryPause { get; init; } = TimeSpan.FromMilliseconds(60);
+
+    /// <summary>How long to keep draining a link before giving up on it going quiet.</summary>
+    public TimeSpan SettleFor { get; init; } = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>Silence of this length counts as quiet.</summary>
+    public TimeSpan QuietFor { get; init; } = TimeSpan.FromMilliseconds(40);
+
+    /// <summary>
+    /// Settings for a link that is slower and less orderly than a cable.
+    ///
+    /// A Bluetooth SPP port is a virtual COM port, so nothing else about the
+    /// connection changes — but a reply that would arrive in three milliseconds
+    /// over USB can take hundreds, and one that is merely late is worse than one
+    /// that never comes.
+    /// </summary>
+    public static EcuConnectionSettings Bluetooth { get; } = new()
+    {
+        Timeout = TimeSpan.FromMilliseconds(1000),
+        SettleFor = TimeSpan.FromMilliseconds(1200),
+        QuietFor = TimeSpan.FromMilliseconds(120),
+        Retries = 2,
+    };
 
     /// <summary>CAN id of the controller; 0 is the ECU itself.</summary>
     public byte CanId { get; init; }

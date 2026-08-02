@@ -1210,11 +1210,17 @@ public sealed class MainViewModel : ObservableObject
     /// refusal here is the only thing between a live session and confident
     /// nonsense.
     /// </summary>
-    public void Connect(string port)
+    public void Connect(string port, bool bluetooth = false)
     {
         Disconnect();
 
-        var connection = new EcuConnection(new SerialEcuTransport(port));
+        // A Bluetooth link is the same protocol over a virtual COM port, but it
+        // answers in hundreds of milliseconds where a cable answers in three, so
+        // it needs longer to reply and longer to fall quiet between attempts.
+        var connection = new EcuConnection(
+            new SerialEcuTransport(port),
+            bluetooth ? EcuConnectionSettings.Bluetooth : null);
+
         connection.Open();
 
         IReadOnlyList<string> identity = connection.ReadIdentity();
