@@ -146,15 +146,26 @@ public sealed class GaugeView : FrameworkElement
 
         dc.DrawRoundedRectangle(_face, null, bounds, 8, 8);
 
-        // The face is square and centred; the title sits above it and the
-        // reading inside the gap at the bottom.
-        double size = Math.Min(bounds.Width, bounds.Height - 18);
-        var centre = new Point(bounds.Width / 2, 18 + size / 2);
+        // Four strips: title, dial, reading, extremes.
+        //
+        // The reading gets its own rather than sitting inside the face, which is
+        // where it was and where it cannot go: a needle pivots at the centre, so
+        // at the bottom of the scale it lies straight across a centred number
+        // and over the low end label as well. There is no position inside a
+        // 270° dial that a needle cannot reach.
+        const double TitleStrip = 18;
+        const double ReadingStrip = 30;
+        const double ExtremeStrip = 14;
 
-        // Room for the end labels, which sit outside the track.
-        double radius = size / 2 - 22;
+        double dialStrip = bounds.Height - TitleStrip - ReadingStrip - ExtremeStrip;
 
         DrawTitle(dc, spec, bounds);
+
+        // The arc spans a full width but only 1.707 radii of height — one above
+        // the centre and 0.707 below, where its mouth is — so height is the
+        // binding constraint far more often than width.
+        double radius = Math.Min((bounds.Width - 28) / 2, (dialStrip - 14) / 1.707);
+        var centre = new Point(bounds.Width / 2, TitleStrip + radius + 4);
 
         if (radius > 10 && spec.HasScale)
         {
@@ -164,7 +175,11 @@ public sealed class GaugeView : FrameworkElement
             DrawNeedle(dc, spec, centre, radius);
         }
 
-        DrawReading(dc, spec, centre, radius);
+        double readingTop = spec.HasScale && radius > 10
+            ? bounds.Height - ReadingStrip - ExtremeStrip
+            : (bounds.Height - ReadingStrip) / 2;
+
+        DrawReading(dc, spec, bounds, readingTop);
         DrawExtremeReadings(dc, spec, bounds);
     }
 
@@ -285,8 +300,13 @@ public sealed class GaugeView : FrameworkElement
         dc.DrawEllipse(_ink, null, centre, 3, 3);
     }
 
-    /// <summary>The reading itself, coloured by the band it falls in.</summary>
-    private void DrawReading(DrawingContext dc, GaugeSpec spec, Point centre, double radius)
+    /// <summary>
+    /// The reading and its units, side by side under the dial.
+    ///
+    /// On one line so the strip stays short: a units label under the number
+    /// would cost as much height again for something that never changes.
+    /// </summary>
+    private void DrawReading(DrawingContext dc, GaugeSpec spec, Rect bounds, double top)
     {
         double value = Value;
 
@@ -301,18 +321,18 @@ public sealed class GaugeView : FrameworkElement
             ? "—"
             : value.ToString($"F{spec.ValueDigits}", CultureInfo.CurrentCulture);
 
-        double scale = spec.HasScale ? 1 : 1.4;
-        FormattedText text = Text(reading, Math.Max(13, radius * 0.34 * scale), ink);
+        FormattedText text = Text(reading, 19, ink);
+        FormattedText? units = spec.Units.Length > 0 ? Text(" " + spec.Units, 10, _muted) : null;
 
-        // In the gap at the bottom of a dial, or in the middle of a face that has
-        // no dial to sit inside.
-        double y = spec.HasScale ? centre.Y + radius * 0.42 : centre.Y - text.Height / 2;
-        dc.DrawText(text, new Point(centre.X - text.Width / 2, y));
+        // Centred as a pair, so the number does not shift when the units are
+        // long enough to matter.
+        double width = text.Width + (units?.Width ?? 0);
+        double left = (bounds.Width - width) / 2;
 
-        if (spec.Units.Length == 0) return;
+        dc.DrawText(text, new Point(left, top));
 
-        FormattedText units = Text(spec.Units, 9.5, _muted);
-        dc.DrawText(units, new Point(centre.X - units.Width / 2, y + text.Height - 2));
+        if (units is not null)
+            dc.DrawText(units, new Point(left + text.Width, top + text.Height - units.Height - 2));
     }
 
     /// <summary>An arc of the dial between two positions along it, 0 to 1.</summary>

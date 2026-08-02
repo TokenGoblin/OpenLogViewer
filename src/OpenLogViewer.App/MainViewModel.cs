@@ -776,6 +776,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Table definitions from the INI, paired with the tables read off the ECU.</summary>
     private IReadOnlyList<TableDefinition> _ecuTableDefinitions = [];
 
+    /// <summary>The TunerStudio project's tune, when the matched INI came from one.</summary>
+    private string? _projectTune;
+
     /// <summary>The tables read off the ECU, empty until a connection provides them.</summary>
     public ObservableCollection<TuneTable> EcuTables { get; } = [];
 
@@ -877,6 +880,31 @@ public sealed class MainViewModel : ObservableObject
     /// usable for logging, and failing the whole connection over it would be a
     /// poor trade.
     /// </summary>
+    /// <summary>
+    /// Reads the TunerStudio project's tune, for the variables only it holds.
+    ///
+    /// Used to resolve gauge scales, not adopted as the tune on display —
+    /// finding a file next to the firmware definition is a good reason to read
+    /// it and a poor reason to say the user opened it.
+    /// </summary>
+    private string? ReadProjectTune(string iniPath)
+    {
+        if (IniCatalog.ProjectTuneFor(iniPath) is not { } path) return null;
+
+        try
+        {
+            _projectTuneName = Path.GetFileName(path);
+            return TuningText.Read(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _projectTuneName = "";
+            return null;
+        }
+    }
+
+    private string _projectTuneName = "";
+
     private void ReadTuneFromEcu(EcuConnection connection, string iniText)
     {
         _ecuTune = null;
@@ -961,9 +989,29 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public string GaugeSummary => AllGauges.Count == 0
-        ? "Connect to an ECU to see its gauges."
-        : $"{Dashboard.Count} shown · {AllGauges.Count(g => g.IsConnected)} available";
+    public string GaugeSummary
+    {
+        get
+        {
+            if (AllGauges.Count == 0) return "Connect to an ECU to see its gauges.";
+
+            var parts = new List<string>
+            {
+                $"{Dashboard.Count} shown · {AllGauges.Count(g => g.IsConnected)} available",
+            };
+
+            // Said rather than assumed: a scale that came from a file found on
+            // disk should be attributable when it turns out to be wrong.
+            if (_projectTuneName.Length > 0)
+                parts.Add($"scales from {_projectTuneName}");
+
+            int faceless = Dashboard.Count(g => !g.Spec.HasScale);
+            if (faceless > 0)
+                parts.Add($"{faceless} without a scale — open the tune that sets them");
+
+            return string.Join(" · ", parts);
+        }
+    }
 
     /// <summary>
     /// Builds the gauge list for a firmware.
@@ -1008,8 +1056,12 @@ public sealed class MainViewModel : ObservableObject
 
         _logNames = columns;
 
-        IReadOnlyDictionary<string, double> context =
-            TuningContext.Build(iniText, TuneXml, fromEcu: _ecuTune?.Scalars());
+        // The project tune fills in what neither the ECU nor an opened file has:
+        // TunerStudio's own variables, which is where a MegaSquirt keeps the top
+        // of its rev counter. Without them three of its eight front-page gauges
+        // have no scale at all.
+        IReadOnlyDictionary<string, double> context = TuningContext.Build(
+            iniText, TuneXml ?? _projectTune, fromEcu: _ecuTune?.Scalars());
         IReadOnlyList<GaugeSpec> specs = GaugeCatalog.Read(iniText, context);
         IReadOnlyList<string> front = GaugeCatalog.ReadFrontPage(iniText);
 
@@ -1163,6 +1215,8 @@ public sealed class MainViewModel : ObservableObject
         // From here the firmware's own request format is used, which is the only
         // way one program reads both a MegaSquirt page and a rusEFI block.
         connection.Use(layout);
+
+        _projectTune = ReadProjectTune(ini.Path);
 
         ReadTuneFromEcu(connection, iniText);
         SeedGauges(iniText, datalog);
