@@ -101,6 +101,24 @@ public partial class MainWindow : Window
     /// window is shown, and a modal box there blocks startup with nothing behind
     /// it — which looks exactly like a hang.
     /// </summary>
+    /// <summary>
+    /// Connects the way the menu does, for a scripted run.
+    ///
+    /// Separate from <see cref="ConnectTo"/> because the menu takes a different
+    /// route — it probes the port off the interface thread first — and checking
+    /// the other route proves nothing about this one.
+    /// </summary>
+    public async Task ConnectViaMenu(string port)
+    {
+        SerialPortInfo described = SerialPortNames.Describe()
+            .FirstOrDefault(p => p.PortName.Equals(port, StringComparison.OrdinalIgnoreCase))
+            ?? new SerialPortInfo(port, "", false);
+
+        App.Report($"connecting via the menu on {port}…");
+        await StartLiveFromMenu(described);
+        App.Report(_vm.IsLive ? $"live: {_vm.Status}" : $"not live: {_vm.Hint}");
+    }
+
     public void ConnectTo(string port)
     {
         App.Report($"connecting on {port}…");
@@ -162,19 +180,23 @@ public partial class MainWindow : Window
         {
             foreach (SerialPortInfo port in ports)
             {
+                string label = _unreachable.TryGetValue(port.PortName, out DateTime when)
+                    ? $"{port.Label} — no answer at {when:HH:mm}"
+                    : port.Label;
+
                 var item = new MenuItem
                 {
                     // Doubled, because a menu header reads a single underscore
                     // as an access key and swallows it — which turned a device
                     // advertising as MaxxECU_28xf7p into MaxxECU28xf7p.
-                    Header = port.Label.Replace("_", "__", StringComparison.Ordinal),
+                    Header = label.Replace("_", "__", StringComparison.Ordinal),
                     ToolTip = port.IsBluetooth
                         ? "A Bluetooth link. Slower to answer than a cable, so it is given "
                           + "longer to reply and more room to settle between attempts."
                         : null,
                 };
 
-                item.Click += (_, _) => StartLive(port.PortName);
+                item.Click += async (_, _) => await StartLiveFromMenu(port);
                 PortsMenu.Items.Add(item);
             }
         }
@@ -233,6 +255,81 @@ public partial class MainWindow : Window
         return menu;
     }
 
+    /// <summary>
+    /// Connects from the menu, without freezing the window while it tries.
+    ///
+    /// Opening a Bluetooth port whose device is switched off blocks for the best
+    /// part of twenty seconds — a paired port stays listed whether or not
+    /// anything is on the other end, so this is the ordinary way to discover an
+    /// ECU is off. Doing that on the interface thread greys the window out and
+    /// Windows files it as a hang, which is indistinguishable from a crash to
+    /// anyone watching.
+    ///
+    /// So the port is opened and closed on a background thread first, and the
+    /// connection proper only starts once something is known to answer. The
+    /// second open costs milliseconds on a link that is already up.
+    /// </summary>
+    private async Task StartLiveFromMenu(SerialPortInfo port)
+    {
+        ConnectButton.IsEnabled = false;
+        _vm.SetHint($"Connecting to {port.Label}…");
+
+        try
+        {
+            Exception? failure = await Task.Run(() => TryReach(port));
+
+            if (failure is not null)
+            {
+                // Remembered so the menu can say so next time. Windows lists a
+                // paired Bluetooth port whether or not anything is on the other
+                // end — both a live ECU and a switched-off one report Status=OK
+                // and Present=True — so having tried is the only knowledge there
+                // is, and throwing it away means finding out again each time.
+                _unreachable[port.PortName] = DateTime.Now;
+
+                MessageBox.Show(this,
+                    $"Could not connect on {port.PortName}.\n\n{failure.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                _vm.SetHint($"{port.PortName} did not answer.");
+                return;
+            }
+
+            _unreachable.Remove(port.PortName);
+        }
+        finally
+        {
+            ConnectButton.IsEnabled = true;
+        }
+
+        StartLive(port.PortName);
+    }
+
+    /// <summary>Ports that did not answer this session, and when.</summary>
+    private readonly Dictionary<string, DateTime> _unreachable = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Opens the port and closes it again, returning why it could not be reached.</summary>
+    private static Exception? TryReach(SerialPortInfo port)
+    {
+        // One attempt for a cable, which either works or does not; a second for
+        // Bluetooth, where establishing the link is reported to fail once after
+        // an ECU boots and succeed immediately after.
+        using var transport = new SerialEcuTransport(port.PortName)
+        {
+            OpenAttempts = port.IsBluetooth ? 2 : 1,
+        };
+
+        try
+        {
+            transport.Open();
+            return null;
+        }
+        catch (Exception e)
+        {
+            return e;
+        }
+    }
+
     private void StartLive(string port, bool quiet = false)
     {
         // Asked here rather than passed in, so every route to a connection gets
@@ -256,11 +353,13 @@ public partial class MainWindow : Window
             if (maxxEcu) _vm.ConnectMaxxEcu(port);
             else _vm.Connect(port, bluetooth);
         }
-        // Broad on the scripted path on purpose: this runs during startup, and
-        // anything escaping here takes down the app behind a crash dialog with
-        // no window and no explanation.
-        catch (Exception ex) when (quiet || ex is LogFormatException or IOException
-                                      or UnauthorizedAccessException or EcuProtocolException)
+        // Everything, deliberately. Naming the expected types looked careful and
+        // was not: a serial port answers with whatever it likes depending on
+        // where it was when it failed, and each type left off the list is an
+        // application that disappears instead of showing a message. It has
+        // already been TimeoutException from a write and InvalidOperationException
+        // from discarding a buffer. Failing to connect is never worth a crash.
+        catch (Exception ex)
         {
             if (quiet) App.Report($"Could not connect on {port}: {ex}");
             else
