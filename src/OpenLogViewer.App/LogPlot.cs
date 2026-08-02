@@ -227,6 +227,62 @@ public sealed class LogPlot : FrameworkElement
     public void Refresh() => InvalidateVisual();
 
     /// <summary>
+    /// Swaps in a longer version of the same recording, as a live session does
+    /// every time it polls.
+    ///
+    /// Not <see cref="SetDocument"/>: that resets the view, which on a live
+    /// session would yank the plot back to full extent several times a second
+    /// and make it impossible to look at anything. The window keeps its width
+    /// and, while <paramref name="follow"/> holds, slides to stay on the newest
+    /// data — which stops as soon as the user zooms or pans, because at that
+    /// point they are reading history rather than watching.
+    /// </summary>
+    /// <summary>
+    /// Raised when the user zooms, pans or fits the view. A live session stops
+    /// following the newest data at that point: they are reading history, and
+    /// having the window slide out from under them is the worst of both.
+    /// </summary>
+    public event Action? ViewChangedByUser;
+
+    public void ExtendDocument(LogDocument document, IReadOnlyList<ChannelItem> series, bool follow)
+    {
+        _document = document;
+
+        // The series list has to come too. Without it the plot holds the rows
+        // from whatever was open before — which for a session that started with
+        // no file is nothing, and the plot draws an empty frame while the
+        // sidebar shows five channels ticked.
+        _series = series;
+
+        if (document.SampleCount == 0) { InvalidateVisual(); return; }
+
+        double oldest = document.Time.At(0);
+        double newest = document.Time.At(document.SampleCount - 1);
+
+        if (follow)
+        {
+            _viewEnd = newest;
+
+            // A young session has less data than the window is wide; showing the
+            // empty minute before it started is just blank space.
+            _viewStart = Math.Max(oldest, newest - FollowSpan);
+            if (_viewEnd - _viewStart < 1e-6) _viewEnd = _viewStart + 1;
+        }
+
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// How much of a live session the window shows, in seconds.
+    ///
+    /// Held rather than taken from the current view each time. Deriving it from
+    /// the view meant the clamp against the session's start shortened it, and
+    /// that shortened span became the next tick's input — the window collapsed
+    /// to milliseconds within a second or two.
+    /// </summary>
+    public double FollowSpan { get; set; } = 30;
+
+    /// <summary>
     /// Gives each plotted channel its own horizontal strip instead of overlaying
     /// them all. Overlaid traces show phase relationships well but become
     /// unreadable past a handful of channels.
@@ -808,7 +864,7 @@ public sealed class LogPlot : FrameworkElement
             }
         }
 
-        if (e.ClickCount == 2) { ResetView(); return; }
+        if (e.ClickCount == 2) { ViewChangedByUser?.Invoke(); ResetView(); return; }
 
         Point start = e.GetPosition(this);
 
@@ -828,6 +884,7 @@ public sealed class LogPlot : FrameworkElement
         if (HasSelection) ClearSelection();
 
         _panning = true;
+        ViewChangedByUser?.Invoke();
         _panAnchor = start;
         _panStart = _viewStart;
         _panEnd = _viewEnd;
@@ -856,6 +913,8 @@ public sealed class LogPlot : FrameworkElement
     {
         base.OnMouseWheel(e);
         if (_document is not { SampleCount: > 0 } doc) return;
+
+        ViewChangedByUser?.Invoke();
 
         Rect area = PlotArea;
         double focus = XToTime(e.GetPosition(this).X, area);

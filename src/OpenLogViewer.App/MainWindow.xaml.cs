@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using OpenLogViewer.Core;
 
@@ -23,12 +24,127 @@ public partial class MainWindow : Window
         Plot.HoverChannelChanged += _vm.HighlightChannel;
         Plot.SelectionChanged += _vm.UpdateSelection;
         Histogram.CellActivated += OnHistogramCellActivated;
+        Plot.ViewChangedByUser += () => _follow = false;
+
+        // A live session holds a port open and a file being written; neither
+        // should outlive the window.
+        Closed += (_, _) => StopLive();
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
     }
 
     /// <summary>Applies a theme for this run without recording it as the preference.</summary>
     public void PreviewTheme(string id) => _vm.PreviewTheme(id);
+
+    /// <summary>
+    /// Connects to an ECU on startup, for a scripted run.
+    ///
+    /// Reports a failure to stderr rather than in a dialog: this runs before the
+    /// window is shown, and a modal box there blocks startup with nothing behind
+    /// it — which looks exactly like a hang.
+    /// </summary>
+    public void ConnectTo(string port)
+    {
+        App.Report($"connecting on {port}…");
+        StartLive(port, quiet: true);
+        App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
+    }
+
+    // ----- live connection --------------------------------------------------
+
+    /// <summary>
+    /// How often the plot takes a new snapshot. Well under the poll rate on
+    /// purpose: redrawing a few hundred channels for every block would spend
+    /// more time painting than reading, and the eye cannot tell.
+    /// </summary>
+    private static readonly TimeSpan LiveRefresh = TimeSpan.FromMilliseconds(200);
+
+    private DispatcherTimer? _liveTimer;
+
+    /// <summary>
+    /// True while the plot should stay on the newest data. Cleared as soon as the
+    /// user zooms or pans, because from then on they are reading history.
+    /// </summary>
+    private bool _follow = true;
+
+    private void OnConnectClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.IsLive) { StopLive(); return; }
+
+        PortsMenu.Items.Clear();
+
+        IReadOnlyList<string> ports = _vm.SerialPorts;
+        if (ports.Count == 0)
+        {
+            PortsMenu.Items.Add(new MenuItem { Header = "No serial ports found", IsEnabled = false });
+        }
+        else
+        {
+            foreach (string port in ports)
+            {
+                var item = new MenuItem { Header = port };
+                item.Click += (_, _) => StartLive(port);
+                PortsMenu.Items.Add(item);
+            }
+        }
+
+        PortsMenu.PlacementTarget = ConnectButton;
+        PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        PortsMenu.IsOpen = true;
+    }
+
+    private void StartLive(string port, bool quiet = false)
+    {
+        try
+        {
+            _vm.Connect(port);
+        }
+        // Broad on the scripted path on purpose: this runs during startup, and
+        // anything escaping here takes down the app behind a crash dialog with
+        // no window and no explanation.
+        catch (Exception ex) when (quiet || ex is LogFormatException or IOException
+                                      or UnauthorizedAccessException or EcuProtocolException)
+        {
+            if (quiet) App.Report($"Could not connect on {port}: {ex}");
+            else
+                MessageBox.Show(this,
+                    $"Could not connect on {port}.\n\n{ex.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return;
+        }
+
+        ConnectButton.Content = "Disconnect";
+        _follow = true;
+
+        _liveTimer = new DispatcherTimer { Interval = LiveRefresh };
+        _liveTimer.Tick += OnLiveTick;
+        _liveTimer.Start();
+    }
+
+    private void StopLive()
+    {
+        _liveTimer?.Stop();
+        _liveTimer = null;
+
+        _vm.Disconnect();
+        ConnectButton.Content = "Connect ▾";
+    }
+
+    private void OnLiveTick(object? sender, EventArgs e)
+    {
+        if (!_vm.RefreshLive()) return;
+
+        if (!_vm.IsLive) { StopLive(); return; }
+
+        if (_vm.Document is { } document) Plot.ExtendDocument(document, _vm.Channels, _follow);
+
+        // The heat table is far more work than the plot, so it is rebuilt at a
+        // fraction of the rate — and only when it is the thing being looked at.
+        if (_vm.ShowHistogram && ++_histogramTick % 5 == 0) RebuildHistogram();
+    }
+
+    private int _histogramTick;
 
     // ----- export -----------------------------------------------------------
 
@@ -296,7 +412,13 @@ public partial class MainWindow : Window
 
     private void OnOpenClick(object sender, RoutedEventArgs e) => Open();
 
-    private void OnResetZoomClick(object sender, RoutedEventArgs e) => Plot.ResetView();
+    private void OnResetZoomClick(object sender, RoutedEventArgs e)
+    {
+        // On a live session this is also how you get back to watching, after
+        // having zoomed in to read something that went past.
+        if (_vm.IsLive) _follow = true;
+        else Plot.ResetView();
+    }
 
     private void OnPlotCommonClick(object sender, RoutedEventArgs e) => _vm.PlotCommon();
 

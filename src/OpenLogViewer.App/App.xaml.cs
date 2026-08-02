@@ -10,6 +10,61 @@ public partial class App : Application
 {
     private string[] _args = [];
 
+    /// <summary>
+    /// Where a scripted run reports what went wrong.
+    ///
+    /// A file, not the console: this is a Windows GUI application, so it has no
+    /// console attached and anything written to one goes nowhere. A failed
+    /// --connect or --screenshot was therefore silent, which is the worst way
+    /// for a scripted run to fail.
+    /// </summary>
+    public static string RunLog { get; } =
+        Path.Combine(Path.GetTempPath(), "openlogviewer-run.log");
+
+    public static void Report(string message)
+    {
+        try
+        {
+            File.AppendAllText(RunLog, $"{DateTime.Now:HH:mm:ss}  {message}{Environment.NewLine}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Reporting a failure must not itself become one.
+        }
+    }
+
+    /// <summary>Switches that are followed by a value rather than standing alone.</summary>
+    private static readonly string[] TakesAValue =
+    [
+        "--theme", "--screenshot", "--export", "--connect", "--settle",
+        "--cell", "--select", "--compare", "--tune-axes", "--pointer",
+    ];
+
+    /// <summary>
+    /// The file to open, which is the one argument that is not a switch or a
+    /// switch's value.
+    ///
+    /// Worth doing properly rather than taking the first token without a leading
+    /// dash: that reads "--connect COM9" as a request to open a log called COM9,
+    /// and the failure surfaces as a modal dialog before the window is shown,
+    /// which looks exactly like the app hanging on startup.
+    /// </summary>
+    private static string? LogPathIn(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i].StartsWith("--", StringComparison.Ordinal))
+            {
+                if (TakesAValue.Contains(args[i], StringComparer.OrdinalIgnoreCase)) i++;
+                continue;
+            }
+
+            return args[i];
+        }
+
+        return null;
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -27,8 +82,11 @@ public partial class App : Application
 
         window.Show();
 
-        string? log = e.Args.FirstOrDefault(a => !a.StartsWith("--"));
+        string? log = LogPathIn(e.Args);
         if (log is not null) window.LoadFile(log);
+
+        int connect = Array.IndexOf(e.Args, "--connect");
+        if (connect >= 0 && connect + 1 < e.Args.Length) window.ConnectTo(e.Args[connect + 1]);
 
         if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
 
@@ -99,19 +157,43 @@ public partial class App : Application
     /// </summary>
     private void RunThenExit(Window window, Action work)
     {
-        window.Dispatcher.InvokeAsync(() =>
+        // "--settle <ms>" lets a scripted run wait before capturing, which a
+        // live connection needs: there is nothing to draw until blocks arrive.
+        int at = Array.IndexOf(_args, "--settle");
+        if (at >= 0 && at + 1 < _args.Length && int.TryParse(_args[at + 1], out int delay) && delay > 0)
         {
-            try
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(delay) };
+            timer.Tick += (_, _) =>
             {
-                work();
-                Shutdown();
-            }
-            catch (Exception e)
-            {
-                Console.Error.WriteLine(e);
-                Shutdown(1);
-            }
-        }, DispatcherPriority.ContextIdle);
+                timer.Stop();
+
+                // Run here rather than queueing at ContextIdle. A live session
+                // polls on a Background-priority timer, which outranks
+                // ContextIdle, so queued work never runs while one is going —
+                // the capture simply never happened. Waiting is what the settle
+                // delay was for, so the layout has long since settled anyway.
+                Capture(work);
+            };
+
+            timer.Start();
+            return;
+        }
+
+        window.Dispatcher.InvokeAsync(() => Capture(work), DispatcherPriority.ContextIdle);
+    }
+
+    private void Capture(Action work)
+    {
+        try
+        {
+            work();
+            Shutdown();
+        }
+        catch (Exception e)
+        {
+            Report($"scripted run failed: {e}");
+            Shutdown(1);
+        }
     }
 
     /// <summary>
