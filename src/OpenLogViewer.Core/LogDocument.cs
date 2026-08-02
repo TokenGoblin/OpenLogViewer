@@ -20,6 +20,20 @@ public sealed class LogDocument
 
     public int SampleCount => Time.Length;
 
+    /// <summary>
+    /// Whether a channel is the column serving as the time base.
+    ///
+    /// Matched by name, not by reference. <see cref="Time"/> is built from its
+    /// own full-precision copy of the column, so it is never the same object as
+    /// the entry in <see cref="Channels"/> and a reference comparison quietly
+    /// matches nothing — which is how the time column ended up offered as a
+    /// plottable channel. A synthesised base is named "Sample" and matches no
+    /// real channel, which is correct: there is none to exclude.
+    /// </summary>
+    public bool IsTimeBase(LogChannel channel) =>
+        ReferenceEquals(channel, Time)
+        || channel.Name.Equals(Time.Name, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Annotations captured during logging, ordered by time.</summary>
     public IReadOnlyList<LogMarker> Markers { get; init; } = [];
 

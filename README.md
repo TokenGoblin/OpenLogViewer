@@ -183,7 +183,46 @@ not have is reported and skipped, never applied as "reject everything".
   times the log's median sample interval
 - Min/max envelope decimation, so a 37,000-sample log scrubs smoothly
 - **Fourteen colour schemes** — see below
+- **Export** — see below
 - No third-party dependencies
+
+## Export
+
+*Export ▾* in the toolbar. What it offers follows the mode you are in.
+
+In log view:
+
+| | |
+|---|---|
+| Plotted channels as CSV | just what is on the plot |
+| All channels as CSV | everything the log carries |
+| Plot as PNG | the plot as drawn, at 2× |
+
+**Mark a span first and the CSV covers only that span** — the menu says which it
+is about to write. Numbers are always invariant-culture, so a file written on a
+machine with a comma decimal separator opens everywhere, and each value is the
+shortest text that reads back as the same sample rather than the float's
+rounding error printed to seventeen digits.
+
+An exported CSV opens again in OpenLogViewer: the header and units rows are the
+shape the delimited reader already detects, and a missing reading is an empty
+cell, which it already decodes as one. Gaps in logging survive the round trip.
+
+In histogram view:
+
+| | |
+|---|---|
+| Table as CSV | the binned values, highest row first |
+| Sample counts as CSV | how many samples landed in each cell |
+| Table as PNG | the heat table as drawn, at 2× |
+
+The table is written in the shape a tuning table has — X breakpoints across the
+top, Y down the side, highest row first — so a block can be pasted straight into
+a tuning app. Cells that were never visited are left empty rather than written
+as zero, which would read as a measurement of nothing.
+
+`--export <folder>` writes every export for the current mode without the
+dialogs, for scripted use.
 
 ## Colour schemes
 
