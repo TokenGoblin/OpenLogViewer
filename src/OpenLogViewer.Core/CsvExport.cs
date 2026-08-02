@@ -77,6 +77,35 @@ public static class CsvExport
         }
     }
 
+    /// <summary>
+    /// Writes the header and units rows. Shared with the live recorder, so a
+    /// session captured from an ECU is the same shape as an exported log and
+    /// reopens the same way.
+    /// </summary>
+    public static void WriteHeader(
+        TextWriter writer, IReadOnlyList<string> names, IReadOnlyList<string> units)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(names);
+
+        writer.WriteLine(string.Join(',', names.Select(Escape)));
+        writer.WriteLine(string.Join(',', names.Select((_, i) => Escape(i < units.Count ? units[i] : ""))));
+    }
+
+    /// <summary>One row of values, formatted as the exporter formats them.</summary>
+    public static void WriteRow(TextWriter writer, ReadOnlySpan<double> values)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        for (int i = 0; i < values.Length; i++)
+        {
+            if (i > 0) writer.Write(',');
+            writer.Write(Number(values[i]));
+        }
+
+        writer.WriteLine();
+    }
+
     /// <summary>Sample counts per cell, in the same shape as <see cref="WriteTable"/>.</summary>
     public static void WriteTableCounts(TextWriter writer, HistogramTable table)
     {
@@ -107,9 +136,10 @@ public static class CsvExport
     /// same treatment, which is why this asks whether the value survives the
     /// narrowing rather than which column it came from.
     /// </summary>
-    private static string Number(LogChannel channel, int index)
+    private static string Number(LogChannel channel, int index) => Number(channel.At(index));
+
+    private static string Number(double value)
     {
-        double value = channel.At(index);
         if (double.IsNaN(value)) return "";
 
         float narrowed = (float)value;

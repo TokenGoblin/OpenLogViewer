@@ -14,6 +14,9 @@ internal sealed class FakeTransport : IEcuTransport
     private readonly Queue<byte[]> _replies = new();
     private byte[] _pending = [];
 
+    /// <summary>Answered indefinitely once the queue runs dry, for a polling test.</summary>
+    public byte[]? Repeating { get; set; }
+
     public List<byte[]> Written { get; } = [];
 
     public bool IsOpen { get; private set; }
@@ -32,7 +35,7 @@ internal sealed class FakeTransport : IEcuTransport
     public void Write(ReadOnlySpan<byte> data)
     {
         Written.Add(data.ToArray());
-        _pending = _replies.Count > 0 ? _replies.Dequeue() : [];
+        _pending = _replies.Count > 0 ? _replies.Dequeue() : Repeating ?? [];
     }
 
     public int Read(Span<byte> buffer, TimeSpan timeout)
