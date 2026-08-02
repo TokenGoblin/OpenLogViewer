@@ -19,6 +19,24 @@ public sealed record LiveSessionSettings
     public int FailuresBeforeStopping { get; init; } = 20;
 
     /// <summary>
+    /// Samples per second to aim for. Zero polls as fast as the link allows.
+    ///
+    /// A cap rather than a target, and it exists because the link is often much
+    /// faster than the data is worth. A rusEFI over USB answers about 280 times
+    /// a second, and taking it up on that writes 14 MB a minute and holds 3.2 KB
+    /// of memory per sample across 823 channels — an hour of driving that no
+    /// laptop finishes.
+    ///
+    /// Nothing is lost by slowing down. A wideband takes 100 ms or more to
+    /// respond and the exhaust takes another 50 to 300 to reach it, so the
+    /// mixture reading is band-limited to under 10 Hz before it arrives; 25
+    /// samples a second is already well clear of it. Raise it for transient work
+    /// — accel enrichment, knock, per-cylinder events — where the signal really
+    /// does move that fast.
+    /// </summary>
+    public double MaximumRate { get; init; } = 25;
+
+    /// <summary>
     /// How long to keep trying to get a lost link back before ending the
     /// session.
     ///
@@ -208,6 +226,7 @@ public sealed class LiveSession : IDisposable
     {
         int size = _decoder.Layout.BlockSize;
         var row = new double[_names.Length + 1];
+        var pace = new Pacer(_settings.MaximumRate);
 
         while (!token.IsCancellationRequested)
         {
@@ -247,9 +266,53 @@ public sealed class LiveSession : IDisposable
             }
 
             Announce();
+            pace.WaitForNext(token);
         }
 
         Announce();
+    }
+
+    /// <summary>
+    /// Holds the poll loop to a rate.
+    ///
+    /// Each period is due at a fixed distance from the last, not from whenever
+    /// the previous one finished — so the reads a slow sample delays are made up
+    /// afterwards and the average rate is the one asked for, even though Windows
+    /// wakes a thread on a 15.6 ms tick and no individual period lands exactly.
+    /// A long stall resets the schedule instead of being repaid, since a burst
+    /// of catch-up reads after the link recovers is samples of nothing.
+    /// </summary>
+    private struct Pacer(double ratePerSecond)
+    {
+        private readonly TimeSpan _period = ratePerSecond > 0
+            ? TimeSpan.FromSeconds(1 / ratePerSecond)
+            : TimeSpan.Zero;
+
+        private readonly Stopwatch _clock = Stopwatch.StartNew();
+        private TimeSpan _due;
+
+        public void WaitForNext(CancellationToken token)
+        {
+            if (_period <= TimeSpan.Zero) return;
+
+            _due += _period;
+
+            TimeSpan now = _clock.Elapsed;
+            TimeSpan wait = _due - now;
+
+            // Behind by more than a whole period: the link stalled, or the reads
+            // are simply slower than the rate asked for. Either way, start
+            // counting again from here.
+            if (wait < -_period)
+            {
+                _due = now;
+                return;
+            }
+
+            // Cancellation is waited on rather than slept through, so stopping a
+            // session at 1 Hz does not take a second to notice.
+            if (wait > TimeSpan.Zero) token.WaitHandle.WaitOne(wait);
+        }
     }
 
     /// <summary>

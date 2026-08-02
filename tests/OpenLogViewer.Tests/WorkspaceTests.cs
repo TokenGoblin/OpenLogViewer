@@ -149,4 +149,57 @@ public class WorkspaceTests : IDisposable
         Assert.Null(new SettingsStore(path).DataFolder);
         Assert.True(new Workspace(new SettingsStore(path).DataFolder).IsDefault);
     }
+
+    // ----- logging rate -----------------------------------------------------
+
+    [Fact]
+    public void TheLoggingRateDefaultsTo25() =>
+        Assert.Equal(25, new SettingsStore(SettingsPath()).LiveRate);
+
+    [Fact]
+    public void TheLoggingRateSurvivesARestart()
+    {
+        string path = SettingsPath();
+        new SettingsStore(path).SetLiveRate(100);
+
+        Assert.Equal(100, new SettingsStore(path).LiveRate);
+    }
+
+    [Fact]
+    public void TheLoggingRateIsSavedAlongsideEverythingElse()
+    {
+        string path = SettingsPath();
+
+        var store = new SettingsStore(path);
+        store.SetLiveRate(50);
+        store.SetTheme("gruvbox");
+
+        var reloaded = new SettingsStore(path);
+        Assert.Equal(50, reloaded.LiveRate);
+        Assert.Equal("gruvbox", reloaded.ThemeId);
+    }
+
+    [Fact]
+    public void ASettingsFileWrittenBeforeThereWasARateTakesTheDefault()
+    {
+        // Not zero, which is what a missing number reads as and which would
+        // uncap a session nobody asked to uncap.
+        string path = SettingsPath();
+        File.WriteAllText(path, """{"Version":1,"ThemeId":"gruvbox"}""");
+
+        Assert.Equal(25, new SettingsStore(path).LiveRate);
+    }
+
+    [Fact]
+    public void AnAbsurdRateIsBroughtBackIntoRange()
+    {
+        string path = SettingsPath();
+
+        var store = new SettingsStore(path);
+        store.SetLiveRate(0);
+        Assert.Equal(1, store.LiveRate);
+
+        store.SetLiveRate(100_000);
+        Assert.Equal(SettingsStore.MaximumLiveRate, store.LiveRate);
+    }
 }

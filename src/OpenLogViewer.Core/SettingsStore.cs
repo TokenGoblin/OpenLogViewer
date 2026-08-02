@@ -24,11 +24,39 @@ public sealed class SettingsStore
     /// </summary>
     public string? DataFolder { get; private set; }
 
+    /// <summary>Samples per second to record live, or zero for as fast as the link goes.</summary>
+    public double LiveRate { get; private set; } = DefaultLiveRate;
+
+    /// <summary>
+    /// What a session records when nothing has been chosen. Well above what a
+    /// wideband can actually resolve, and far below what a USB link will offer.
+    /// </summary>
+    public const double DefaultLiveRate = 25;
+
     public void Reload()
     {
         SettingsFile? file = JsonSettingsFile.Read<SettingsFile>(Path);
         ThemeId = string.IsNullOrWhiteSpace(file?.ThemeId) ? null : file.ThemeId.Trim();
         DataFolder = string.IsNullOrWhiteSpace(file?.DataFolder) ? null : file.DataFolder.Trim();
+
+        // A missing or nonsensical rate takes the default rather than being
+        // honoured: a zero read out of an older settings file would silently
+        // uncap a session that was never asked to be uncapped.
+        LiveRate = file?.LiveRate is { } rate && rate is > 0 and <= MaximumLiveRate
+            ? rate
+            : DefaultLiveRate;
+    }
+
+    /// <summary>Above this the cap is meaningless — no link answers that fast.</summary>
+    public const double MaximumLiveRate = 1000;
+
+    public void SetLiveRate(double rate)
+    {
+        double clamped = Math.Clamp(rate, 1, MaximumLiveRate);
+        if (clamped == LiveRate) return;
+
+        LiveRate = clamped;
+        Persist();
     }
 
     public void SetDataFolder(string? folder)
@@ -58,6 +86,7 @@ public sealed class SettingsStore
         Version = 1,
         ThemeId = ThemeId,
         DataFolder = DataFolder,
+        LiveRate = LiveRate,
     });
 
     private sealed class SettingsFile
@@ -65,5 +94,6 @@ public sealed class SettingsStore
         public int Version { get; set; }
         public string? ThemeId { get; set; }
         public string? DataFolder { get; set; }
+        public double? LiveRate { get; set; }
     }
 }

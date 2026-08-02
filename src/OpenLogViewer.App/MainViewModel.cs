@@ -649,6 +649,34 @@ public sealed class MainViewModel : ObservableObject
     public IReadOnlyList<string> SerialPorts => SerialEcuTransport.AvailablePorts();
 
     /// <summary>
+    /// Rates offered in the connect menu.
+    ///
+    /// 25 is the default and enough for fuelling work, where the wideband is the
+    /// slow part. The faster ones are for transients — accel enrichment, knock,
+    /// per-cylinder events — and cost what they sound like they cost: at 100 Hz
+    /// a rusEFI's 823 channels are 14 MB a minute on disk.
+    /// </summary>
+    public static IReadOnlyList<double> LiveRates { get; } = [5, 10, 25, 50, 100, 200];
+
+    /// <summary>Samples a second a live session records. Applied when the next one starts.</summary>
+    public double LiveRate
+    {
+        get => _settings.LiveRate;
+        set
+        {
+            if (value == _settings.LiveRate) return;
+
+            _settings.SetLiveRate(value);
+            Raise(nameof(LiveRate));
+
+            Hint = IsLive
+                ? $"Logging rate set to {_settings.LiveRate:N0} Hz — it applies to the next connection."
+                : $"Logging rate set to {_settings.LiveRate:N0} Hz.";
+        }
+    }
+
+
+    /// <summary>
     /// Opens a port, works out what the ECU is, and starts recording.
     ///
     /// The INI is chosen by the signature the ECU reports and the attempt is
@@ -695,8 +723,11 @@ public sealed class MainViewModel : ObservableObject
 
         string recording = Workspace.NewRecording(DateTime.Now);
 
-        _live = new LiveSession(connection, decoder, datalog,
-            new LiveSessionSettings { RecordingPath = recording });
+        _live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
 
         _live.Start();
 
