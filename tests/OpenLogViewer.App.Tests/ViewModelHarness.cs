@@ -78,7 +78,8 @@ public sealed class ViewModelHarness : IDisposable
         return new MainViewModel(
             new PresetStore(Path.Combine(directory, "presets.json")),
             new FilterStore(Path.Combine(directory, "filters.json")),
-            new SettingsStore(Path.Combine(directory, "settings.json")));
+            new SettingsStore(Path.Combine(directory, "settings.json")),
+            new MathChannelStore(Path.Combine(directory, "math.json")));
     }
 
     public void Dispose()

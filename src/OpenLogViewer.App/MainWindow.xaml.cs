@@ -318,6 +318,59 @@ public partial class MainWindow : Window
         if (item is not null) _vm.DeleteFilter(item);
     }
 
+    // ----- calculated channels ----------------------------------------------
+
+    private void OnAddMathChannelClick(object sender, RoutedEventArgs e) =>
+        MathEditor.Visibility = Visibility.Visible;
+
+    private void OnCancelMathChannelClick(object sender, RoutedEventArgs e)
+    {
+        _vm.CancelMathEdit();
+        MathEditor.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnSaveMathChannelClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _vm.AddMathChannel();
+            MathEditor.Visibility = Visibility.Collapsed;
+        }
+        catch (InvalidOperationException ex)
+        {
+            // A name already taken, or the limit reached. The editor stays open
+            // with what was typed still in it.
+            MessageBox.Show(this, ex.Message, "OpenLogViewer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Reopens a definition in the editor, which removes it until saved again.</summary>
+    private void OnEditMathChannelClick(object sender, RoutedEventArgs e)
+    {
+        if (Definition(sender) is not { } channel) return;
+
+        _vm.EditMathChannel(channel);
+        MathEditor.Visibility = Visibility.Visible;
+    }
+
+    private void OnDeleteMathChannelClick(object sender, RoutedEventArgs e)
+    {
+        if (Definition(sender) is { } channel) _vm.RemoveMathChannel(channel);
+    }
+
+    /// <summary>
+    /// The definition behind a chip or its context menu. A menu item's data
+    /// context is the menu, not the button it was opened from.
+    /// </summary>
+    private static MathChannel? Definition(object sender)
+    {
+        if (sender is not FrameworkElement element) return null;
+
+        return element.DataContext as MathChannel
+            ?? ((element.Parent as ContextMenu)?.PlacementTarget as FrameworkElement)?.DataContext as MathChannel;
+    }
+
     // ----- presets ----------------------------------------------------------
 
     private void OnSavePresetClick(object sender, RoutedEventArgs e)

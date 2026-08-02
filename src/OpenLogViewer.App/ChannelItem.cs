@@ -25,6 +25,13 @@ public sealed class ChannelItem : ObservableObject
 
     public ChannelCategory Category { get; }
 
+    /// <summary>
+    /// True for a channel the user defined rather than the logger recorded. The
+    /// list marks these: a value that was computed and one that was measured
+    /// answer different questions when a trace looks wrong.
+    /// </summary>
+    public bool IsCalculated { get; init; }
+
     public string CategoryName => ChannelClassifier.DisplayName(Category);
 
     /// <summary>Groups sort by this, so categories appear in a deliberate order.</summary>
