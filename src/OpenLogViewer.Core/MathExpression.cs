@@ -106,13 +106,29 @@ public sealed class MathExpression
         {
             if (_text.Trim().Length == 0) throw Error("The expression is empty.", 0);
 
-            Node node = ParseOr();
+            Node node = ParseTernary();
             SkipSpace();
 
             if (_at < _text.Length)
                 throw Error($"Unexpected '{_text[_at]}'.", _at);
 
             return node;
+        }
+
+        /// <summary>
+        /// C's conditional operator, at the lowest precedence. Firmware INI files
+        /// are written in it — "rpm ? 60000.0 / rpm : 0" — and it is the same
+        /// thing as the "if" function, guarded branch and all.
+        /// </summary>
+        private Node ParseTernary()
+        {
+            Node condition = ParseOr();
+            if (!Take("?")) return condition;
+
+            Node then = ParseTernary();
+            if (!Take(":")) throw Error("A '?' needs a matching ':'.", _at);
+
+            return new Call("if", [condition, then, ParseTernary()]);
         }
 
         private Node ParseOr()
@@ -124,9 +140,37 @@ public sealed class MathExpression
 
         private Node ParseAnd()
         {
-            Node left = ParseComparison();
-            while (Take("&&")) left = new Binary("&&", left, ParseComparison());
+            Node left = ParseBitOr();
+            while (Take("&&")) left = new Binary("&&", left, ParseBitOr());
             return left;
+        }
+
+        private Node ParseBitOr()
+        {
+            Node left = ParseBitAnd();
+
+            // Not '||', which was taken by the caller: a single '|' here is the
+            // bitwise one, as in the flag tests firmware INIs use.
+            while (Peek('|', '|')) left = new Binary("|", left, ParseBitAnd());
+            return left;
+        }
+
+        private Node ParseBitAnd()
+        {
+            Node left = ParseComparison();
+            while (Peek('&', '&')) left = new Binary("&", left, ParseComparison());
+            return left;
+        }
+
+        /// <summary>Takes a single character operator, unless it is doubled.</summary>
+        private bool Peek(char op, char doubled)
+        {
+            SkipSpace();
+            if (_at >= _text.Length || _text[_at] != op) return false;
+            if (_at + 1 < _text.Length && _text[_at + 1] == doubled) return false;
+
+            _at++;
+            return true;
         }
 
         private Node ParseComparison()
@@ -372,6 +416,10 @@ public sealed class MathExpression
                 "==" => a == b ? 1 : 0,
                 "!=" => a != b ? 1 : 0,
                 "&&" => a != 0 && b != 0 ? 1 : 0,
+                // Bitwise, on the integer the value represents: firmware INIs
+                // test packed flags this way.
+                "&" => (long)a & (long)b,
+                "|" => (long)a | (long)b,
                 "||" => a != 0 || b != 0 ? 1 : 0,
                 _ => double.NaN,
             };
