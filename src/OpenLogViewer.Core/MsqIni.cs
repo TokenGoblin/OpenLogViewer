@@ -304,7 +304,7 @@ public static class MsqIni
     /// arrives in Celsius or Fahrenheit, and picking the wrong branch scales
     /// every reading of it wrongly while still looking like a number.
     /// </summary>
-    private static IEnumerable<string> Section(string text, string name, IReadOnlySet<string> symbols)
+    internal static IEnumerable<string> Section(string text, string name, IReadOnlySet<string> symbols)
     {
         bool inside = false;
 
@@ -370,7 +370,7 @@ public static class MsqIni
         return symbols.Contains(symbol) ^ negated;
     }
 
-    private static string Strip(string line)
+    internal static string Strip(string line)
     {
         int comment = line.IndexOf(';');
         return (comment >= 0 ? line[..comment] : line).TrimEnd();
