@@ -758,6 +758,9 @@
                     <TextBlock DockPanel.Dock="Bottom" Margin="0,6,4,0" FontSize="11"
                                Foreground="{DynamicResource Muted}"
                                Text="{Binding GaugeSummary}" TextWrapping="Wrap"/>
+                    <Button DockPanel.Dock="Bottom" Content="Clear peaks" Margin="0,6,4,0"
+                            Click="OnResetGaugePeaksClick"
+                            ToolTip="Forget the high and low markers on every dial"/>
 
                     <ListBox ItemsSource="{Binding GaugeChoices}" BorderThickness="0"
                              Background="Transparent"
@@ -810,8 +813,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <local:GaugeView Width="150" Height="150" Margin="5"
-                                             Spec="{Binding Spec}" Value="{Binding Value}"/>
+                            <local:GaugeView Width="150" Height="160" Margin="5"
+                                             Spec="{Binding Spec}" Value="{Binding Value}"
+                                             Peak="{Binding Peak}" Trough="{Binding Trough}"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

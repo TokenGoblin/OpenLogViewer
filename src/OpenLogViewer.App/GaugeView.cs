@@ -42,6 +42,14 @@ public sealed class GaugeView : FrameworkElement
         nameof(Value), typeof(double), typeof(GaugeView),
         new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty PeakProperty = DependencyProperty.Register(
+        nameof(Peak), typeof(double), typeof(GaugeView),
+        new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty TroughProperty = DependencyProperty.Register(
+        nameof(Trough), typeof(double), typeof(GaugeView),
+        new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private Brush _face = null!;
     private Brush _ink = null!;
     private Brush _muted = null!;
@@ -50,6 +58,9 @@ public sealed class GaugeView : FrameworkElement
     private Pen _warningBand = null!;
     private Pen _dangerBand = null!;
     private Pen _needle = null!;
+    private Pen _hold = null!;
+    private Pen _warningHold = null!;
+    private Pen _dangerHold = null!;
     private Brush _warningInk = null!;
     private Brush _dangerInk = null!;
     private Typeface _typeface = null!;
@@ -74,6 +85,20 @@ public sealed class GaugeView : FrameworkElement
         set => SetValue(ValueProperty, value);
     }
 
+    /// <summary>Highest reading so far, marked on the face. NaN hides the marker.</summary>
+    public double Peak
+    {
+        get => (double)GetValue(PeakProperty);
+        set => SetValue(PeakProperty, value);
+    }
+
+    /// <summary>Lowest reading so far.</summary>
+    public double Trough
+    {
+        get => (double)GetValue(TroughProperty);
+        set => SetValue(TroughProperty, value);
+    }
+
     private void ApplyTheme(Theme theme)
     {
         _face = Fill(theme.Card);
@@ -87,6 +112,10 @@ public sealed class GaugeView : FrameworkElement
         _warningBand = Pen(theme.Warning, 7);
         _dangerBand = Pen(theme.Danger, 7);
         _needle = Pen(theme.Text, 2.5);
+
+        _hold = Pen(theme.Muted, 2);
+        _warningHold = Pen(theme.Warning, 2);
+        _dangerHold = Pen(theme.Danger, 2);
 
         _typeface = new Typeface(
             new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
@@ -130,10 +159,13 @@ public sealed class GaugeView : FrameworkElement
         if (radius > 10 && spec.HasScale)
         {
             DrawFace(dc, spec, centre, radius);
+            DrawExtreme(dc, spec, centre, radius, Peak);
+            DrawExtreme(dc, spec, centre, radius, Trough);
             DrawNeedle(dc, spec, centre, radius);
         }
 
         DrawReading(dc, spec, centre, radius);
+        DrawExtremeReadings(dc, spec, bounds);
     }
 
     private void DrawTitle(DrawingContext dc, GaugeSpec spec, Rect bounds)
@@ -196,6 +228,50 @@ public sealed class GaugeView : FrameworkElement
         if (to - from < 0.004) return;
 
         dc.DrawGeometry(null, pen, Arc(centre, radius, Math.Max(0, from), Math.Min(1, to)));
+    }
+
+    /// <summary>
+    /// A tick left behind at an extreme, the way a max-hold needle would sit.
+    ///
+    /// Outside the track rather than on it, so it neither hides a band nor gets
+    /// hidden by the needle passing over it.
+    /// </summary>
+    private void DrawExtreme(DrawingContext dc, GaugeSpec spec, Point centre, double radius, double value)
+    {
+        if (double.IsNaN(value)) return;
+
+        double at = spec.Fraction(value);
+
+        Pen pen = spec.BandFor(value) switch
+        {
+            GaugeBand.Danger => _dangerHold,
+            GaugeBand.Warning => _warningHold,
+            _ => _hold,
+        };
+
+        dc.DrawLine(pen, At(centre, radius + 1, at), At(centre, radius + 6, at));
+    }
+
+    /// <summary>
+    /// The two extremes in figures, under the title.
+    ///
+    /// A marker on the face says where, but not what — and a peak is usually
+    /// wanted as a number, since the point of holding it is that the moment has
+    /// passed.
+    /// </summary>
+    private void DrawExtremeReadings(DrawingContext dc, GaugeSpec spec, Rect bounds)
+    {
+        if (double.IsNaN(Peak) && double.IsNaN(Trough)) return;
+
+        string format = $"F{spec.ValueDigits}";
+        string low = double.IsNaN(Trough) ? "—" : Trough.ToString(format, CultureInfo.CurrentCulture);
+        string high = double.IsNaN(Peak) ? "—" : Peak.ToString(format, CultureInfo.CurrentCulture);
+
+        FormattedText text = Text($"▾{low}   ▴{high}", 9, _muted);
+        text.MaxTextWidth = Math.Max(20, bounds.Width - 6);
+        text.MaxLineCount = 1;
+
+        dc.DrawText(text, new Point((bounds.Width - text.Width) / 2, bounds.Height - text.Height - 2));
     }
 
     private void DrawNeedle(DrawingContext dc, GaugeSpec spec, Point centre, double radius)

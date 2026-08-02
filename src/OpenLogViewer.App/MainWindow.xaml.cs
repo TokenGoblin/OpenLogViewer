@@ -75,6 +75,8 @@ public partial class MainWindow : Window
     /// <summary>Switches to the gauge dashboard, for a scripted run.</summary>
     public void ShowGauges() => _vm.Mode = WorkspaceMode.Gauges;
 
+    private void OnResetGaugePeaksClick(object sender, RoutedEventArgs e) => _vm.ResetGaugePeaks();
+
     /// <summary>Switches to calibration, optionally on a named table, for a scripted run.</summary>
     public void ShowCalibration(string? table)
     {

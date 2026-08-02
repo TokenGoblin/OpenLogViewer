@@ -1007,10 +1007,18 @@ public sealed class MainViewModel : ObservableObject
 
         foreach (GaugeItem item in Dashboard)
         {
-            item.Value = item.Column is { } column && snapshot.FindChannel(column) is { } channel
+            item.Record(item.Column is { } column && snapshot.FindChannel(column) is { } channel
                 ? channel.At(last)
-                : double.NaN;
+                : double.NaN);
         }
+    }
+
+    /// <summary>Clears every gauge's remembered extremes.</summary>
+    public void ResetGaugePeaks()
+    {
+        foreach (GaugeItem item in AllGauges) item.ResetPeaks();
+
+        Hint = "Peak and low markers cleared.";
     }
 
     /// <summary>COM ports present right now, for the connect menu.</summary>
