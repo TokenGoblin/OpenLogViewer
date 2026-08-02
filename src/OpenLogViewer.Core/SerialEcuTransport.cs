@@ -67,7 +67,21 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
             }
         }
 
-        OpenOnce();
+        try
+        {
+            OpenOnce();
+        }
+        catch (IOException e) when (e.Message.Contains("semaphore", StringComparison.OrdinalIgnoreCase))
+        {
+            // What Windows says when an RFCOMM link cannot be established. The
+            // message names a kernel primitive and tells the user nothing; the
+            // cause is almost always that the device is switched off or out of
+            // range, since a paired port exists whether or not anything answers
+            // on it.
+            throw new IOException(
+                $"{PortName} did not answer. A paired Bluetooth port stays listed whether or not "
+                + "the device is switched on, so check the ECU has power and is in range.", e);
+        }
     }
 
     private void OpenOnce()

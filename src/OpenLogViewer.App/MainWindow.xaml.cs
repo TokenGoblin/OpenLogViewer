@@ -164,7 +164,10 @@ public partial class MainWindow : Window
             {
                 var item = new MenuItem
                 {
-                    Header = port.Label,
+                    // Doubled, because a menu header reads a single underscore
+                    // as an access key and swallows it — which turned a device
+                    // advertising as MaxxECU_28xf7p into MaxxECU28xf7p.
+                    Header = port.Label.Replace("_", "__", StringComparison.Ordinal),
                     ToolTip = port.IsBluetooth
                         ? "A Bluetooth link. Slower to answer than a cable, so it is given "
                           + "longer to reply and more room to settle between attempts."
