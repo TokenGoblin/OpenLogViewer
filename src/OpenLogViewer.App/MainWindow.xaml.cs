@@ -171,7 +171,7 @@ public partial class MainWindow : Window
                         : null,
                 };
 
-                item.Click += (_, _) => StartLive(port.PortName, bluetooth: port.IsBluetooth);
+                item.Click += (_, _) => StartLive(port.PortName);
                 PortsMenu.Items.Add(item);
             }
         }
@@ -230,8 +230,13 @@ public partial class MainWindow : Window
         return menu;
     }
 
-    private void StartLive(string port, bool quiet = false, bool bluetooth = false)
+    private void StartLive(string port, bool quiet = false)
     {
+        // Asked here rather than passed in, so every route to a connection gets
+        // it right — the menu, the command line, and anything added later.
+        bool bluetooth = SerialPortNames.Describe()
+            .Any(p => p.PortName.Equals(port, StringComparison.OrdinalIgnoreCase) && p.IsBluetooth);
+
         // Connecting reads the ECU's whole settings memory, which is 50 ms on a
         // rusEFI over USB and three seconds on a MegaSquirt over serial — 20 KB
         // in 256-byte pieces at 115200 baud. The window cannot repaint while
