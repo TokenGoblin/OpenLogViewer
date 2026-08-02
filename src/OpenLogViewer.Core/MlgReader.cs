@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 
 namespace OpenLogViewer.Core;
@@ -249,8 +250,8 @@ public sealed class MlgReader : ILogReader
                 Type = type,
                 Name = ReadString(data, o + 1, 34, isBits ? $"Flags {++bitFieldSeq}" : $"Channel {i}"),
                 Units = ReadString(data, o + 35, 11, isBits ? "bits" : ""),
-                Scale = isBits ? 1f : BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(o + 46)),
-                Transform = isBits ? 0f : BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(o + 50)),
+                Scale = isBits ? 1 : Decimalise(BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(o + 46))),
+                Transform = isBits ? 0 : Decimalise(BinaryPrimitives.ReadSingleBigEndian(data.AsSpan(o + 50))),
                 Digits = isBits ? 0 : data[o + 54],
                 Offset = offset,
             };
@@ -372,6 +373,20 @@ public sealed class MlgReader : ILogReader
         return close < 0 ? null : text[open..(close + 6)];
     }
 
+    /// <summary>
+    /// Recovers the decimal a scale was authored as.
+    ///
+    /// Descriptors store the scale as a 32-bit float, so a channel scaled by 0.1
+    /// holds 0.100000001490116. Widening that to double and multiplying carries
+    /// the error into every sample: a raw 341 decodes to 34.10000228 rather than
+    /// the 34.1 the logger meant, which is a rounding step away and reads as
+    /// noise once it is written to a file. Round-tripping through the float's
+    /// shortest decimal gives back 0.1, and the sample lands on the nearest
+    /// float to 34.1.
+    /// </summary>
+    private static double Decimalise(float value) =>
+        double.Parse(value.ToString("R", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+
     private static double ReadRaw(byte[] b, int o, MlgDataType type) => type switch
     {
         MlgDataType.U08 => b[o],
@@ -408,8 +423,8 @@ public sealed class MlgReader : ILogReader
         public MlgDataType Type;
         public string Name;
         public string Units;
-        public float Scale;
-        public float Transform;
+        public double Scale;
+        public double Transform;
         public int Digits;
         public int Offset;
     }
@@ -432,4 +447,5 @@ public enum MlgDataType : byte
     /// </summary>
     Bits = 16,
 }
+
 

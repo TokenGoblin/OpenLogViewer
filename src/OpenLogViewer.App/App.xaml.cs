@@ -69,6 +69,25 @@ public partial class App : Application
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)
             CaptureAndExit(window, e.Args[shot + 1]);
+
+        int export = Array.IndexOf(e.Args, "--export");
+        if (export >= 0 && export + 1 < e.Args.Length)
+            ExportAndExit(window, e.Args[export + 1]);
+    }
+
+    /// <summary>
+    /// Writes every export for the current mode into a folder and exits. Waits
+    /// for layout first: the image exports render the views, which have no size
+    /// until the window has been arranged.
+    /// </summary>
+    private void ExportAndExit(MainWindow window, string folder)
+    {
+        window.Dispatcher.InvokeAsync(() =>
+        {
+            window.UpdateLayout();
+            window.ExportAll(folder);
+            Shutdown();
+        }, DispatcherPriority.ContextIdle);
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using OpenLogViewer.Core;
 
@@ -28,6 +29,129 @@ public partial class MainWindow : Window
 
     /// <summary>Applies a theme for this run without recording it as the preference.</summary>
     public void PreviewTheme(string id) => _vm.PreviewTheme(id);
+
+    // ----- export -----------------------------------------------------------
+
+    private void OnExportClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { ContextMenu: { } menu }) return;
+
+        menu.PlacementTarget = (Button)sender;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void OnExportPlottedCsvClick(object sender, RoutedEventArgs e) => ExportCsv(plottedOnly: true);
+
+    private void OnExportAllCsvClick(object sender, RoutedEventArgs e) => ExportCsv(plottedOnly: false);
+
+    private void ExportCsv(bool plottedOnly)
+    {
+        string? path = AskWhereToSave(
+            _vm.SuggestExportName(plottedOnly ? "plotted" : "channels", ".csv"),
+            "CSV file|*.csv|All files|*.*");
+
+        if (path is not null) Export(() => _vm.ExportLogCsv(path, plottedOnly));
+    }
+
+    private void OnExportTableCsvClick(object sender, RoutedEventArgs e) => ExportTableCsv(counts: false);
+
+    private void OnExportCountsCsvClick(object sender, RoutedEventArgs e) => ExportTableCsv(counts: true);
+
+    private void ExportTableCsv(bool counts)
+    {
+        string? path = AskWhereToSave(
+            _vm.SuggestExportName(counts ? "counts" : "table", ".csv"),
+            "CSV file|*.csv|All files|*.*");
+
+        if (path is not null) Export(() => _vm.ExportTableCsv(path, counts));
+    }
+
+    private void OnExportPlotPngClick(object sender, RoutedEventArgs e) => ExportPng(Plot, "plot");
+
+    private void OnExportTablePngClick(object sender, RoutedEventArgs e) => ExportPng(Histogram, "table");
+
+    private void ExportPng(FrameworkElement view, string suffix)
+    {
+        string? path = AskWhereToSave(
+            _vm.SuggestExportName(suffix, ".png"), "PNG image|*.png|All files|*.*");
+
+        if (path is null) return;
+
+        Export(() =>
+        {
+            // Both views draw their own ground, but only within their bounds; the
+            // backdrop covers the rounding at the edges.
+            ImageExport.Save(view, path, Backdrop());
+            _vm.ReportSaved(path, suffix);
+        });
+    }
+
+    /// <summary>
+    /// Writes every export the current mode offers into a folder, skipping the
+    /// dialogs. Drives the same code the menu does, so a scripted run and a
+    /// clicked one cannot drift apart.
+    /// </summary>
+    public void ExportAll(string folder)
+    {
+        System.IO.Directory.CreateDirectory(folder);
+
+        string In(string suffix, string extension) =>
+            Path.Combine(folder, _vm.SuggestExportName(suffix, extension));
+
+        if (_vm.ShowHistogram)
+        {
+            _vm.ExportTableCsv(In("table", ".csv"), counts: false);
+            _vm.ExportTableCsv(In("counts", ".csv"), counts: true);
+            ImageExport.Save(Histogram, In("table", ".png"), Backdrop());
+            return;
+        }
+
+        _vm.ExportLogCsv(In("plotted", ".csv"), plottedOnly: true);
+        _vm.ExportLogCsv(In("channels", ".csv"), plottedOnly: false);
+        ImageExport.Save(Plot, In("plot", ".png"), Backdrop());
+    }
+
+    private static Brush Backdrop() => new SolidColorBrush(ThemeManager.Current.Background);
+
+    private string? AskWhereToSave(string suggestedName, string filter)
+    {
+        var dialog = new SaveFileDialog
+        {
+            FileName = suggestedName,
+            Filter = filter,
+            AddExtension = true,
+            OverwritePrompt = true,
+            InitialDirectory = Directory(_vm.Document?.FilePath),
+        };
+
+        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+
+        static string Directory(string? logPath) =>
+            logPath is { Length: > 0 } && File.Exists(logPath)
+                ? Path.GetDirectoryName(logPath) ?? ""
+                : "";
+    }
+
+    /// <summary>
+    /// A failed save is reported where the user is looking rather than only in
+    /// the status strip: a read-only folder or a file open in a spreadsheet are
+    /// both ordinary, and silence would look like success.
+    /// </summary>
+    private void Export(Action write)
+    {
+        try
+        {
+            write();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or NotSupportedException or InvalidOperationException)
+        {
+            MessageBox.Show(this,
+                $"Could not save the file.\n\n{ex.Message}",
+                "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
 
     public void LoadFile(string path)
     {
@@ -309,5 +433,6 @@ public partial class MainWindow : Window
             LoadFile(files[0]);
     }
 }
+
 
 

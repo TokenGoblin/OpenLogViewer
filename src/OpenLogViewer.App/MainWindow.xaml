@@ -19,6 +19,35 @@
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
                 <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
                         Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+
+                <Button Content="Export ▾" Click="OnExportClick" Margin="8,0,0,0" DockPanel.Dock="Left"
+                        IsEnabled="{Binding CanExport}"
+                        ToolTip="Save the data or the view to a file">
+                    <Button.ContextMenu>
+                        <!-- A context menu is outside the visual tree, so it has to be
+                             handed the window's data context explicitly. -->
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                  RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="Plotted channels as CSV…" Click="OnExportPlottedCsvClick"
+                                      IsEnabled="{Binding CanExportPlotted}"
+                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="All channels as CSV…" Click="OnExportAllCsvClick"
+                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="Plot as PNG…" Click="OnExportPlotPngClick"
+                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="Table as CSV…" Click="OnExportTableCsvClick"
+                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="Sample counts as CSV…" Click="OnExportCountsCsvClick"
+                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="Table as PNG…" Click="OnExportTablePngClick"
+                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                            <Separator Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="{Binding ExportScope, StringFormat=CSV covers the {0}}"
+                                      IsEnabled="False"
+                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
                             VerticalAlignment="Center">
                     <RadioButton Style="{StaticResource Chip}" Content="Log"

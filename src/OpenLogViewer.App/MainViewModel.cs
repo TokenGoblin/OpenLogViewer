@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Text;
 using System.Windows.Data;
 using System.Windows.Media;
 using OpenLogViewer.Core;
@@ -139,7 +140,13 @@ public sealed class MainViewModel : ObservableObject
     public LogDocument? Document
     {
         get => _document;
-        private set => Set(ref _document, value);
+        private set
+        {
+            if (!Set(ref _document, value)) return;
+
+            Raise(nameof(CanExport));
+            Raise(nameof(CanExportPlotted));
+        }
     }
 
     public string Search
@@ -660,7 +667,7 @@ public sealed class MainViewModel : ObservableObject
         _colorCursor = 0;
 
         // Added in file order; the collection view applies the chosen ordering.
-        foreach (LogChannel channel in doc.Channels.Where(c => !ReferenceEquals(c, doc.Time)))
+        foreach (LogChannel channel in doc.Channels.Where(c => !doc.IsTimeBase(c)))
         {
             var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length]);
             item.VisibilityChanged += OnVisibilityChanged;
@@ -722,6 +729,9 @@ public sealed class MainViewModel : ObservableObject
     {
         if (Document is not { } doc) return;
 
+        Selection = span;
+        Raise(nameof(ExportScope));
+
         if (span is not { } range)
         {
             foreach (ChannelItem item in Channels) item.SetSelection(null);
@@ -740,6 +750,94 @@ public sealed class MainViewModel : ObservableObject
         CursorTime = $"{to - from:F3} s selected   ({count:N0} samples)";
         Hint = $"Marked {from:F2}–{to:F2} s. Rows show min … max and average over the span. " +
                "Click the plot to clear.";
+    }
+
+    /// <summary>Marked sample span, or null when the whole log is in scope.</summary>
+    public (int First, int Last)? Selection { get; private set; }
+
+    public bool CanExport => Document is not null;
+
+    public bool CanExportPlotted => Channels.Any(c => c.IsVisible);
+
+    /// <summary>
+    /// What an export would cover, for the menu to say so before it happens —
+    /// exporting forty minutes when the user meant the marked corner is a slow
+    /// mistake to notice.
+    /// </summary>
+    public string ExportScope =>
+        Selection is { } span
+            ? $"marked span, {span.Last - span.First + 1:N0} samples"
+            : "whole log";
+
+    /// <summary>A name beside the log's own, so exports land together and sort together.</summary>
+    public string SuggestExportName(string suffix, string extension)
+    {
+        string stem = Document is { FilePath.Length: > 0 } doc
+            ? Path.GetFileNameWithoutExtension(doc.FilePath)
+            : "log";
+
+        return $"{stem}-{suffix}{extension}";
+    }
+
+    /// <summary>
+    /// Writes the log as CSV over the marked span, or all of it when nothing is
+    /// marked. Channels keep the log's own order rather than the sidebar's, so
+    /// the file does not change shape with the sort the user happens to be on.
+    /// </summary>
+    public void ExportLogCsv(string path, bool plottedOnly)
+    {
+        if (Document is not { } doc) return;
+
+        List<LogChannel> channels =
+        [
+            .. Channels.Where(c => !plottedOnly || c.IsVisible).Select(c => c.Channel)
+        ];
+
+        (int first, int last) = Selection ?? (0, doc.SampleCount - 1);
+
+        WriteAtomic(path, writer => CsvExport.WriteLog(writer, doc, channels, first, last));
+
+        Hint = $"Saved {channels.Count} channel{(channels.Count == 1 ? "" : "s")} " +
+               $"over the {ExportScope} to {Path.GetFileName(path)}";
+    }
+
+    /// <summary>
+    /// Reports a save the window carried out itself. Rendering a view to an image
+    /// needs the visual tree, so that one export cannot live here, but its
+    /// outcome still belongs in the same place as every other.
+    /// </summary>
+    public void ReportSaved(string path, string what) =>
+        Hint = $"Saved the {what} to {Path.GetFileName(path)}";
+
+    /// <summary>Writes the current heat table, either its values or its sample counts.</summary>
+    public void ExportTableCsv(string path, bool counts)
+    {
+        if (Table is not { } table) return;
+
+        WriteAtomic(path, writer =>
+        {
+            if (counts) CsvExport.WriteTableCounts(writer, table);
+            else CsvExport.WriteTable(writer, table);
+        });
+
+        Hint = $"Saved the {table.Columns}×{table.Rows} table to {Path.GetFileName(path)}";
+    }
+
+    /// <summary>
+    /// Written to a temporary file and moved into place. An export interrupted
+    /// part way leaves the previous file intact rather than a truncated one that
+    /// still looks like a successful save.
+    /// </summary>
+    private static void WriteAtomic(string path, Action<TextWriter> write)
+    {
+        string temporary = path + ".tmp";
+
+        // No BOM: it is the first thing a spreadsheet or a parser sees, and
+        // plenty of them read it as part of the first column name.
+        using (var writer = new StreamWriter(temporary, false, new UTF8Encoding(false)))
+            write(writer);
+
+        File.Move(temporary, path, overwrite: true);
     }
 
     public void SetAllVisible(bool visible)
@@ -941,6 +1039,7 @@ public sealed class MainViewModel : ObservableObject
         finally { _batching = false; }
 
         RefreshView();
+        Raise(nameof(CanExportPlotted));
         PlotInvalidated?.Invoke();
     }
 
@@ -964,6 +1063,7 @@ public sealed class MainViewModel : ObservableObject
         // so the list has to be re-evaluated or the row it needs never appears.
         if (_hideUnused && item.IsFlat) ChannelView.Refresh();
 
+        Raise(nameof(CanExportPlotted));
         UpdateSummary();
         PlotInvalidated?.Invoke();
     }
@@ -989,4 +1089,5 @@ public sealed class MainViewModel : ObservableObject
         || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
 }
+
 

@@ -1,0 +1,135 @@
+﻿using System.Globalization;
+
+namespace OpenLogViewer.Core;
+
+/// <summary>
+/// Writes logs and heat tables out as CSV.
+///
+/// Two things are deliberate. Numbers are always invariant-culture, so a file
+/// written on a machine with a comma decimal separator still opens everywhere —
+/// an export that only works on the machine that made it is worse than none.
+/// And a written log reads back into this app: the header and units rows are the
+/// shape <see cref="DelimitedLogReader"/> already detects, and a missing reading
+/// is an empty cell, which it already decodes as one.
+/// </summary>
+public static class CsvExport
+{
+    /// <summary>
+    /// Writes the time base followed by the given channels, over an inclusive
+    /// sample range. Channels are written in the order supplied.
+    /// </summary>
+    public static void WriteLog(
+        TextWriter writer, LogDocument document, IReadOnlyList<LogChannel> channels,
+        int firstSample, int lastSample)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(channels);
+
+        int first = Math.Max(0, firstSample);
+        int last = Math.Min(document.SampleCount - 1, lastSample);
+
+        // The time base leads and is never repeated, however the caller ordered
+        // its list — a second Time column would make the file ambiguous.
+        var columns = new List<LogChannel> { document.Time };
+        columns.AddRange(channels.Where(c => !document.IsTimeBase(c)));
+
+        writer.WriteLine(string.Join(',', columns.Select(c => Escape(c.Name))));
+        writer.WriteLine(string.Join(',', columns.Select(c => Escape(c.Units))));
+
+        var cells = new string[columns.Count];
+        for (int i = first; i <= last; i++)
+        {
+            for (int c = 0; c < columns.Count; c++) cells[c] = Number(columns[c], i);
+            writer.WriteLine(string.Join(',', cells));
+        }
+    }
+
+    /// <summary>
+    /// Writes a heat table in the shape a tuning table has: the X breakpoints
+    /// across the top, the Y breakpoints down the side, highest row first so it
+    /// matches what is on screen and what a tuning app expects. Cells that were
+    /// never visited are left empty rather than written as zero, which would
+    /// read as a real measurement of nothing.
+    /// </summary>
+    public static void WriteTable(TextWriter writer, HistogramTable table)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(table);
+
+        var header = new List<string> { Escape($"{table.Y.Name} \\ {table.X.Name}") };
+        header.AddRange(table.ColumnCenters.Select(Axis));
+        writer.WriteLine(string.Join(',', header));
+
+        for (int row = table.Rows - 1; row >= 0; row--)
+        {
+            var cells = new List<string> { Axis(table.RowCenters[row]) };
+
+            for (int column = 0; column < table.Columns; column++)
+            {
+                double? value = table.Values[column, row];
+                cells.Add(value is null
+                    ? ""
+                    : Round(value.Value).ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            writer.WriteLine(string.Join(',', cells));
+        }
+    }
+
+    /// <summary>Sample counts per cell, in the same shape as <see cref="WriteTable"/>.</summary>
+    public static void WriteTableCounts(TextWriter writer, HistogramTable table)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(table);
+
+        var header = new List<string> { Escape($"{table.Y.Name} \\ {table.X.Name}") };
+        header.AddRange(table.ColumnCenters.Select(Axis));
+        writer.WriteLine(string.Join(',', header));
+
+        for (int row = table.Rows - 1; row >= 0; row--)
+        {
+            var cells = new List<string> { Axis(table.RowCenters[row]) };
+            for (int column = 0; column < table.Columns; column++)
+                cells.Add(table.Counts[column, row].ToString(CultureInfo.InvariantCulture));
+
+            writer.WriteLine(string.Join(',', cells));
+        }
+    }
+
+    /// <summary>
+    /// The shortest string that reads back as the same sample.
+    ///
+    /// Samples are held as float and would print seventeen digits of rounding
+    /// error if formatted as the doubles they widen to — 13.399999618530273 for
+    /// a reading of 13.4. The time base is held as double, but only some bases
+    /// need it: one taken from a 32-bit field is a widened float and gets the
+    /// same treatment, which is why this asks whether the value survives the
+    /// narrowing rather than which column it came from.
+    /// </summary>
+    private static string Number(LogChannel channel, int index)
+    {
+        double value = channel.At(index);
+        if (double.IsNaN(value)) return "";
+
+        float narrowed = (float)value;
+        return narrowed == value
+            ? narrowed.ToString("R", CultureInfo.InvariantCulture)
+            : value.ToString("R", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Breakpoints are display values, so they are not worth full precision.</summary>
+    private static string Axis(double value) =>
+        Math.Round(value, 4).ToString("R", CultureInfo.InvariantCulture);
+
+    private static double Round(double value) => Math.Round(value, 6);
+
+    /// <summary>RFC 4180 quoting, for the channel names that contain a comma.</summary>
+    private static string Escape(string field)
+    {
+        if (field.Length == 0) return field;
+        if (field.IndexOfAny([',', '"', '\r', '\n']) < 0) return field;
+
+        return $"\"{field.Replace("\"", "\"\"")}\"";
+    }
+}
