@@ -32,6 +32,8 @@
         <SolidColorBrush x:Key="Text"      Color="#DDE3EA"/>
         <SolidColorBrush x:Key="Muted"     Color="#828D9E"/>
         <SolidColorBrush x:Key="Faint"     Color="#6B7686"/>
+        <SolidColorBrush x:Key="Scroll"    Color="#5E6674"/>
+        <SolidColorBrush x:Key="ScrollHover" Color="#828D9E"/>
         <SolidColorBrush x:Key="Accent"    Color="#4FC3F7"/>
         <SolidColorBrush x:Key="OnAccent"  Color="#12161B"/>
         <SolidColorBrush x:Key="Marker"    Color="#FFB34D"/>
@@ -260,6 +262,105 @@
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="10,6"/>
+        </Style>
+
+        <!-- Scrollbars.
+
+             Slim, with no stepper arrows: the sidebar is scrolled by wheel and
+             by dragging, and a pair of 17px arrow buttons at each end would take
+             more room than they earn. The track stays transparent so the bar
+             reads as part of the panel it sits in rather than as a channel cut
+             through it. -->
+        <Style x:Key="ScrollThumb" TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="b" CornerRadius="3" Margin="2"
+                                Background="{DynamicResource Scroll}"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background"
+                                        Value="{DynamicResource ScrollHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="b" Property="Background"
+                                        Value="{DynamicResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The page-up/page-down halves of the track. Invisible, but they must
+             stay hit-testable or clicking beside the thumb would do nothing. -->
+        <Style x:Key="ScrollPage" TargetType="RepeatButton">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="VerticalScrollBar" TargetType="ScrollBar">
+            <Grid Background="Transparent">
+                <Track x:Name="PART_Track" IsDirectionReversed="True">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Style="{StaticResource ScrollPage}"
+                                      Command="ScrollBar.PageUpCommand"/>
+                    </Track.DecreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb Style="{StaticResource ScrollThumb}"/>
+                    </Track.Thumb>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Style="{StaticResource ScrollPage}"
+                                      Command="ScrollBar.PageDownCommand"/>
+                    </Track.IncreaseRepeatButton>
+                </Track>
+            </Grid>
+        </ControlTemplate>
+
+        <ControlTemplate x:Key="HorizontalScrollBar" TargetType="ScrollBar">
+            <Grid Background="Transparent">
+                <Track x:Name="PART_Track" Orientation="Horizontal">
+                    <Track.DecreaseRepeatButton>
+                        <RepeatButton Style="{StaticResource ScrollPage}"
+                                      Command="ScrollBar.PageLeftCommand"/>
+                    </Track.DecreaseRepeatButton>
+                    <Track.Thumb>
+                        <Thumb Style="{StaticResource ScrollThumb}"/>
+                    </Track.Thumb>
+                    <Track.IncreaseRepeatButton>
+                        <RepeatButton Style="{StaticResource ScrollPage}"
+                                      Command="ScrollBar.PageRightCommand"/>
+                    </Track.IncreaseRepeatButton>
+                </Track>
+            </Grid>
+        </ControlTemplate>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="11"/>
+            <Setter Property="MinWidth" Value="11"/>
+            <Setter Property="Template" Value="{StaticResource VerticalScrollBar}"/>
+            <Style.Triggers>
+                <!-- Orientation is set by the ScrollViewer after the style is
+                     applied, so the horizontal case has to be a trigger rather
+                     than a second style. -->
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="Height" Value="11"/>
+                    <Setter Property="MinHeight" Value="11"/>
+                    <Setter Property="Template" Value="{StaticResource HorizontalScrollBar}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- Collapsible category header in the channel list. -->
