@@ -100,6 +100,8 @@ public partial class App : Application
 
         if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
 
+        if (e.Args.Contains("--gauges")) window.ShowGauges();
+
         int menu = Array.IndexOf(e.Args, "--menu");
         if (menu >= 0 && menu + 1 < e.Args.Length)
         {

@@ -95,11 +95,29 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <!-- Above the Log/Histogram choice, which is two ways of reading
+                     one recording; these are different jobs. -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
                             VerticalAlignment="Center">
-                    <RadioButton Style="{StaticResource Chip}" Content="Log"
+                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="Mode"
+                                 IsChecked="{Binding InLogMode}" ToolTip="Recordings: the plot and the heat table"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Gauges" GroupName="Mode"
+                                 IsChecked="{Binding InGaugeMode}"
+                                 ToolTip="Live dials, as the firmware defines them"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
+                                 IsChecked="{Binding InCalibrationMode}"
+                                 ToolTip="Work on the tune itself"/>
+                </StackPanel>
+
+                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
+                           Fill="{DynamicResource Line}"/>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
+                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="LogView"
                                  IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Histogram"
+                    <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
                                  IsChecked="{Binding ShowHistogram}"
                                  ToolTip="Bin the log into a table, like a tuning table"/>
                 </StackPanel>
@@ -164,6 +182,9 @@
         </Border>
 
         <Grid>
+
+        <!-- Log mode: the plot and the heat table over a recording. -->
+        <Grid Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="300" MinWidth="200"/>
                 <ColumnDefinition Width="4"/>
@@ -716,6 +737,100 @@
                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
             <local:HistogramView Grid.Column="2" x:Name="Histogram"
                                  Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- Gauge mode: the firmware's own dials over a live connection. -->
+        <Grid Visibility="{Binding InGaugeMode, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" MinWidth="180"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Which gauges to show. Three hundred are defined; the firmware's
+                 own front page decides the first eight. -->
+            <Border Grid.Column="0" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0">
+                <DockPanel Margin="10,10,6,10">
+                    <TextBox DockPanel.Dock="Top" Margin="0,0,4,6"
+                             Text="{Binding GaugeSearch, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                             ToolTip="Search by name, channel or category"/>
+                    <TextBlock DockPanel.Dock="Bottom" Margin="0,6,4,0" FontSize="11"
+                               Foreground="{DynamicResource Muted}"
+                               Text="{Binding GaugeSummary}" TextWrapping="Wrap"/>
+
+                    <ListBox ItemsSource="{Binding GaugeChoices}" BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Muted}" Margin="0,8,0,3"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsShown}" IsEnabled="{Binding IsConnected}"
+                                          Margin="0,2" ToolTip="{Binding Spec.Channel}">
+                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                </CheckBox>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{DynamicResource Line}"/>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="10">
+                <ItemsControl ItemsSource="{Binding Dashboard}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <local:GaugeView Width="150" Height="150" Margin="5"
+                                             Spec="{Binding Spec}" Value="{Binding Value}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Nothing to show until a connection says what the ECU is. -->
+            <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource Muted}" TextAlignment="Center"
+                       Text="Connect to an ECU to see its gauges.&#10;The firmware supplies the dials, their ranges and their limits."
+                       Visibility="{Binding NoGauges, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- Calibration mode: not built yet. -->
+        <Grid Visibility="{Binding InCalibrationMode, Converter={StaticResource BoolToVis}}">
+            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource Muted}" TextAlignment="Center"
+                       Text="Calibration is not built yet.&#10;Next: reading the tune off the ECU, then the table editor."/>
+        </Grid>
+
         </Grid>
     </DockPanel>
 </Window>

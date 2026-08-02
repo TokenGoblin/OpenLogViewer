@@ -125,6 +125,35 @@ public class GaugeTests
     }
 
     [Fact]
+    public void ALimitOnTheEndOfTheScaleMeansThereIsNoLimitThere()
+    {
+        // A throttle runs 0 to 100 with its lower limits at 0. Read literally
+        // that paints a closed throttle red, which it was doing.
+        const string ini = """
+            [GaugeConfigurations]
+            throttleGauge = tps, "Throttle", "%", 0, 100, 0, 0, 100, 100, 1, 0
+            """;
+
+        GaugeSpec throttle = Assert.Single(GaugeCatalog.Read(ini));
+
+        Assert.Equal(GaugeBand.Normal, throttle.BandFor(0));
+        Assert.Equal(GaugeBand.Normal, throttle.BandFor(50));
+        Assert.Equal(GaugeBand.Normal, throttle.BandFor(100));
+    }
+
+    [Fact]
+    public void ALimitInsideTheScaleStillBites()
+    {
+        // The same rule must not disarm a limit that means something: coolant
+        // runs to 140 and is in trouble at 110.
+        GaugeSpec clt = Named("cltGauge");
+
+        Assert.Equal(GaugeBand.Danger, clt.BandFor(240));
+        Assert.Equal(GaugeBand.Warning, clt.BandFor(210));
+        Assert.Equal(GaugeBand.Normal, clt.BandFor(90));
+    }
+
+    [Fact]
     public void LimitsFilledInWithTheSamePairAreNotTreatedAsBands()
     {
         // Generated INIs repeat one pair across all six numbers, which taken at
