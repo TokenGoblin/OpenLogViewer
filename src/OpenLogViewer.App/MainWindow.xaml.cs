@@ -119,10 +119,21 @@ public partial class MainWindow : Window
         App.Report(_vm.IsLive ? $"live: {_vm.Status}" : $"not live: {_vm.Hint}");
     }
 
-    public void ConnectTo(string port)
+    public void ConnectTo(string port, bool asObd2 = false)
     {
         App.Report($"connecting on {port}…");
-        StartLive(port, quiet: true);
+
+        _forceObd2 = asObd2;
+
+        try
+        {
+            StartLive(port, quiet: true);
+        }
+        finally
+        {
+            _forceObd2 = false;
+        }
+
         App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
     }
 
@@ -226,6 +237,8 @@ public partial class MainWindow : Window
         definitions.Click += (_, _) => OpenFolder(_vm.Workspace.EnsureDefinitions());
         PortsMenu.Items.Add(definitions);
 
+        if (ports.Count > 0) PortsMenu.Items.Add(Obd2Menu(ports));
+
         PortsMenu.PlacementTarget = ConnectButton;
         PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         PortsMenu.IsOpen = true;
@@ -260,6 +273,57 @@ public partial class MainWindow : Window
             Header = "25 Hz is past what a wideband can resolve; raise it only for transients",
             IsEnabled = false,
         });
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Set while a connection is being made as an OBD2 adapter deliberately,
+    /// rather than because the port's name gave it away.
+    /// </summary>
+    private bool _forceObd2;
+
+    /// <summary>
+    /// Connecting to a port as an OBD2 adapter whatever it is called.
+    ///
+    /// The common dongles are recognised by name and need nothing from here, but
+    /// a great many are generic USB adapters that Windows describes as a
+    /// "USB-SERIAL CH340" and nothing more. There is no way to tell one of those
+    /// from a tuning cable without talking to it, and the two want opposite
+    /// opening moves — so it is asked for rather than guessed.
+    /// </summary>
+    private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)
+    {
+        var menu = new MenuItem
+        {
+            Header = "Connect as an OBD2 adapter",
+            ToolTip = "For an ELM327 dongle whose name does not say what it is. "
+                      + "Reads any standard OBD2 vehicle — no definition file needed.",
+        };
+
+        foreach (SerialPortInfo port in ports)
+        {
+            var item = new MenuItem
+            {
+                Header = port.Label.Replace("_", "__", StringComparison.Ordinal),
+            };
+
+            item.Click += async (_, _) =>
+            {
+                _forceObd2 = true;
+
+                try
+                {
+                    await StartLiveFromMenu(port);
+                }
+                finally
+                {
+                    _forceObd2 = false;
+                }
+            };
+
+            menu.Items.Add(item);
+        }
 
         return menu;
     }
@@ -348,6 +412,7 @@ public partial class MainWindow : Window
 
         bool bluetooth = described?.IsBluetooth ?? false;
         bool maxxEcu = described?.IsMaxxEcu ?? false;
+        bool obd2 = _forceObd2 || (described?.IsObd2 ?? false);
 
         // Connecting reads the ECU's whole settings memory, which is 50 ms on a
         // rusEFI over USB and three seconds on a MegaSquirt over serial — 20 KB
@@ -357,9 +422,12 @@ public partial class MainWindow : Window
 
         try
         {
-            // A MaxxECU speaks its own protocol; probing it with TunerStudio
-            // commands would find nothing and tell the user the ECU is unknown.
-            if (maxxEcu) _vm.ConnectMaxxEcu(port);
+            // Each of these speaks its own protocol; probing one with
+            // TunerStudio commands would find nothing and tell the user the ECU
+            // is unknown, which is a confusing thing to be told about hardware
+            // that is working perfectly.
+            if (obd2) _vm.ConnectObd2(port);
+            else if (maxxEcu) _vm.ConnectMaxxEcu(port);
             else _vm.Connect(port, bluetooth);
         }
         // Everything, deliberately. Naming the expected types looked careful and

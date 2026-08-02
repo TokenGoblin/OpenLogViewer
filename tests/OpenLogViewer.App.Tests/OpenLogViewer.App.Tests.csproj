@@ -23,4 +23,14 @@
     <ProjectReference Include="..\..\src\OpenLogViewer.App\OpenLogViewer.App.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      The ELM327 in software, shared with the core tests rather than written
+      twice. An OBD2 connection can only be exercised against an adapter and a
+      car, and both test projects need one: the core tests for the decode, these
+      for what reaches the dashboard.
+    -->
+    <Compile Include="..\OpenLogViewer.Tests\FakeElm.cs" Link="FakeElm.cs" />
+  </ItemGroup>
+
 </Project>
