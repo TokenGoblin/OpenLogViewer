@@ -20,6 +20,21 @@ public sealed record TunePage
 
     /// <summary>Template for reading part of it, e.g. <c>R%2o%2c</c>.</summary>
     public required string ReadCommand { get; init; }
+
+    /// <summary>
+    /// Template for writing a run of bytes into it, e.g. <c>C%2o%2c%v</c>.
+    /// Empty when the firmware declares none.
+    /// </summary>
+    public string ChunkWriteCommand { get; init; } = "";
+
+    /// <summary>
+    /// Template for committing the page to flash, e.g. <c>B</c> or <c>b%2i</c>.
+    ///
+    /// Separate from writing on purpose, and on the ECU as well as here: a write
+    /// lands in the controller's working memory and is lost at the next power
+    /// cycle, while a burn is permanent.
+    /// </summary>
+    public string BurnCommand { get; init; } = "";
 }
 
 /// <summary>
@@ -129,6 +144,8 @@ public static class TuneLayoutReader
         List<int> sizes = [];
         List<string> identifiers = [];
         List<string> readCommands = [];
+        List<string> chunkWrites = [];
+        List<string> burns = [];
 
         foreach (string raw in MsqIni.Section(iniText, "Constants", symbols))
         {
@@ -170,6 +187,8 @@ public static class TuneLayoutReader
                 case "pageSize": sizes = [.. List(value).Select(Whole)]; break;
                 case "pageIdentifier": identifiers = [.. List(value).Select(Unquote)]; break;
                 case "pageReadCommand": readCommands = [.. List(value).Select(Unquote)]; break;
+                case "pageChunkWrite": chunkWrites = [.. List(value).Select(Unquote)]; break;
+                case "burnCommand": burns = [.. List(value).Select(Unquote)]; break;
                 case "blockingFactor": blocking = Whole(value); break;
 
                 case "endianness":
@@ -192,6 +211,8 @@ public static class TuneLayoutReader
                 Size = size,
                 Identifier = At(identifiers, i) ?? "",
                 ReadCommand = At(readCommands, i) ?? "",
+                ChunkWriteCommand = At(chunkWrites, i) ?? "",
+                BurnCommand = At(burns, i) ?? "",
             });
         }
 

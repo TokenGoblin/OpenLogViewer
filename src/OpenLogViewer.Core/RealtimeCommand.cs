@@ -30,6 +30,9 @@ public sealed class RealtimeCommand
 
         /// <summary>Two bytes: which page — <c>%2i</c>. Always the realtime one.</summary>
         Page,
+
+        /// <summary>The bytes being written — <c>%v</c>. Only a write command has one.</summary>
+        Payload,
     }
 
     private readonly (Part Kind, byte Value)[] _parts;
@@ -106,12 +109,13 @@ public sealed class RealtimeCommand
     /// its page with a literal instead and needs none.
     /// </summary>
     public byte[] Build(
-        int offset, int count, byte canId = 0, bool littleEndian = false, ReadOnlySpan<byte> page = default)
+        int offset, int count, byte canId = 0, bool littleEndian = false,
+        ReadOnlySpan<byte> page = default, ReadOnlySpan<byte> payload = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
 
-        var request = new List<byte>(_parts.Length + 6);
+        var request = new List<byte>(_parts.Length + 6 + payload.Length);
 
         foreach ((Part kind, byte value) in _parts)
         {
@@ -126,6 +130,8 @@ public sealed class RealtimeCommand
                     if (page.Length > 0) request.AddRange(page);
                     else Write(request, 0, littleEndian);
                     break;
+
+                case Part.Payload: request.AddRange(payload); break;
             }
         }
 
@@ -153,6 +159,16 @@ public sealed class RealtimeCommand
     {
         field = default;
         length = 3;
+
+        if (at + 1 >= text.Length) return false;
+
+        // "%v" is the data itself and has no width.
+        if (text[at + 1] is 'v')
+        {
+            field = Part.Payload;
+            length = 2;
+            return true;
+        }
 
         if (at + 2 >= text.Length || text[at + 1] != '2') return false;
 

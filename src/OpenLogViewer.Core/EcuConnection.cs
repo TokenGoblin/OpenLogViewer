@@ -201,29 +201,114 @@ public sealed class EcuConnection : IDisposable
         ArgumentNullException.ThrowIfNull(page);
         ArgumentOutOfRangeException.ThrowIfLessThan(page.Size, 1);
 
-        RealtimeCommand command = RealtimeCommand.Parse(page.ReadCommand);
-
-        if (!command.TakesRange)
+        if (!RealtimeCommand.Parse(page.ReadCommand).TakesRange)
             throw new EcuProtocolException(
                 $"Page {page.Index} declares \"{page.ReadCommand}\", which cannot ask for part of a page.");
 
+        return ReadTunePageRange(page, blockingFactor, littleEndian, 0, page.Size, progress);
+    }
+
+    /// <summary>
+    /// Writes bytes into a page and reads them back to prove it took.
+    ///
+    /// The read-back is not optional. A write is answered with an acknowledgement
+    /// that says the command was understood, not that the right bytes landed at
+    /// the right offset — and every way of getting that wrong produces an engine
+    /// running on numbers nobody chose. Reading the same range back and comparing
+    /// is the only thing that distinguishes a write that worked from one that
+    /// went somewhere else.
+    ///
+    /// This does not burn. The bytes are in the controller's working memory and
+    /// are gone at the next power cycle until <see cref="BurnPage"/> is called,
+    /// which is a separate decision on the ECU as much as here.
+    /// </summary>
+    public void WriteTunePage(
+        TunePage page, int blockingFactor, bool littleEndian, int offset, ReadOnlySpan<byte> data)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+
+        if (data.Length == 0) return;
+
+        if (offset + data.Length > page.Size)
+            throw new EcuProtocolException(
+                $"That write ends at {offset + data.Length} of a {page.Size} byte page.");
+
+        if (page.ChunkWriteCommand.Length == 0)
+            throw new EcuProtocolException(
+                $"Page {page.Index} declares no write command, so this firmware cannot be written to.");
+
+        RealtimeCommand command = RealtimeCommand.Parse(page.ChunkWriteCommand);
         byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
 
-        int chunk = blockingFactor > 0 ? Math.Min(blockingFactor, page.Size) : page.Size;
-        var image = new byte[page.Size];
+        // The blocking factor bounds a write as it does a read; the payload has
+        // to fit in one message along with its header.
+        int chunk = blockingFactor > 0 ? Math.Min(blockingFactor - 8, data.Length) : data.Length;
+        if (chunk < 1) chunk = data.Length;
 
-        // A larger buffer than a realtime block needs.
+        for (int at = 0; at < data.Length;)
+        {
+            int take = Math.Min(chunk, data.Length - at);
+
+            Request(command.Build(
+                offset + at, take, Settings.CanId, littleEndian, identifier, data.Slice(at, take)));
+
+            at += take;
+        }
+
+        byte[] readBack = ReadTunePageRange(page, blockingFactor, littleEndian, offset, data.Length);
+
+        if (!readBack.AsSpan().SequenceEqual(data))
+            throw new EcuProtocolException(
+                $"The ECU did not take that write: {data.Length} bytes were sent to offset {offset} "
+                + "of page " + page.Index + " and reading the same range back gave something else. "
+                + "Nothing has been burned, so a power cycle restores the ECU.");
+    }
+
+    /// <summary>
+    /// Commits a page to flash, making it survive a power cycle.
+    ///
+    /// Deliberately its own call. Everything up to here can be undone by turning
+    /// the key off.
+    /// </summary>
+    public void BurnPage(TunePage page, bool littleEndian)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+
+        if (page.BurnCommand.Length == 0)
+            throw new EcuProtocolException($"Page {page.Index} declares no burn command.");
+
+        byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
+
+        Request(RealtimeCommand.Parse(page.BurnCommand)
+            .Build(0, 1, Settings.CanId, littleEndian, identifier));
+    }
+
+    /// <summary>Reads part of a page, for verifying a write.</summary>
+    public byte[] ReadTunePageRange(
+        TunePage page, int blockingFactor, bool littleEndian, int offset, int count,
+        Action<int>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
+
+        RealtimeCommand command = RealtimeCommand.Parse(page.ReadCommand);
+        byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
+
+        int chunk = blockingFactor > 0 ? Math.Min(blockingFactor, count) : count;
+        var image = new byte[count];
+
         int wanted = 2 + 1 + chunk + 4;
         if (_buffer.Length < wanted) _buffer = new byte[wanted];
 
-        for (int at = 0; at < page.Size;)
+        for (int at = 0; at < count;)
         {
-            int take = Math.Min(chunk, page.Size - at);
-            byte[] piece = Request(command.Build(at, take, Settings.CanId, littleEndian, identifier));
+            int take = Math.Min(chunk, count - at);
+            byte[] piece = Request(command.Build(offset + at, take, Settings.CanId, littleEndian, identifier));
 
             if (piece.Length < take)
                 throw new EcuProtocolException(
-                    $"The ECU sent {piece.Length} of the {take} bytes asked for at offset {at} of page {page.Index}.");
+                    $"The ECU sent {piece.Length} of the {take} bytes asked for at offset {offset + at}.");
 
             piece.AsSpan(0, take).CopyTo(image.AsSpan(at));
             at += take;
