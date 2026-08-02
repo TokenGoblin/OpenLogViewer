@@ -36,7 +36,7 @@ public partial class App : Application
     /// <summary>Switches that are followed by a value rather than standing alone.</summary>
     private static readonly string[] TakesAValue =
     [
-        "--theme", "--screenshot", "--export", "--connect", "--settle",
+        "--theme", "--screenshot", "--export", "--connect", "--settle", "--menu",
         "--cell", "--select", "--compare", "--tune-axes", "--pointer",
     ];
 
@@ -99,6 +99,14 @@ public partial class App : Application
         if (connect >= 0 && connect + 1 < e.Args.Length) window.ConnectTo(e.Args[connect + 1]);
 
         if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
+
+        int menu = Array.IndexOf(e.Args, "--menu");
+        if (menu >= 0 && menu + 1 < e.Args.Length)
+        {
+            string to = e.Args[menu + 1];
+            RunThenExit(window, () => window.CaptureConnectMenu(to));
+            return;
+        }
 
         int cell = Array.IndexOf(e.Args, "--cell");
         if (cell >= 0 && cell + 1 < e.Args.Length)

@@ -251,17 +251,115 @@
             </Setter>
         </Style>
 
+        <!-- Menus.
+
+             Templated rather than merely recoloured. Windows' own menu template
+             paints a fixed light strip down the left for icons, and no amount of
+             setting Background reaches it — on a dark scheme it shows as a white
+             gutter beside every item, which is the same complaint as a white
+             title bar in a smaller place. -->
         <Style TargetType="ContextMenu">
             <Setter Property="Background" Value="{DynamicResource PanelAlt}"/>
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="4"
+                                SnapsToDevicePixels="True">
+                            <ItemsPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Separator">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="8,4"/>
+            <Setter Property="Background" Value="{DynamicResource Line}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="{TemplateBinding Background}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="MenuItem">
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="row" Background="{TemplateBinding Background}"
+                                    CornerRadius="4" SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock x:Name="tick" Grid.Column="0" Text="✓"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="Collapsed"
+                                               Foreground="{DynamicResource Accent}"/>
+
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      VerticalAlignment="Center"
+                                                      RecognizesAccessKey="True"/>
+
+                                    <TextBlock x:Name="more" Grid.Column="2" Text="›"
+                                               Margin="10,0,10,0" VerticalAlignment="Center"
+                                               Visibility="Collapsed"
+                                               Foreground="{DynamicResource Muted}"/>
+                                </Grid>
+                            </Border>
+
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Right" HorizontalOffset="-3" VerticalOffset="-8">
+                                <Border Background="{DynamicResource PanelAlt}"
+                                        BorderBrush="{DynamicResource Line}"
+                                        BorderThickness="1" CornerRadius="6" Padding="4"
+                                        SnapsToDevicePixels="True">
+                                    <StackPanel IsItemsHost="True"
+                                                KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="True">
+                                <Setter TargetName="more" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="tick" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="row" Property="Background"
+                                        Value="{DynamicResource Hover}"/>
+                            </Trigger>
+
+                            <!-- Disabled items are used as captions here, so they
+                                 have to read as text rather than as something
+                                 broken. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Scrollbars.

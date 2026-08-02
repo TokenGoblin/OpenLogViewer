@@ -103,6 +103,28 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _follow = true;
 
+    /// <summary>
+    /// Opens the connect menu and draws it to a PNG.
+    ///
+    /// A menu lives in its own top-level window, so it is in no render of this
+    /// one; and a screen grab needs the app in front, which a background process
+    /// cannot arrange. Rendering the menu's own visual is the only way to see
+    /// what it looks like without a person at the keyboard.
+    /// </summary>
+    public void CaptureConnectMenu(string path)
+    {
+        OnConnectClick(this, new RoutedEventArgs());
+
+        PortsMenu.UpdateLayout();
+        ImageExport.Save(PortsMenu, path);
+
+        // Closed and the capture released before returning. An open menu holds
+        // the mouse and keeps WPF in menu mode, and a shutdown asked for from
+        // inside that never arrives.
+        PortsMenu.IsOpen = false;
+        Mouse.Capture(null);
+    }
+
     private void OnConnectClick(object sender, RoutedEventArgs e)
     {
         if (_vm.IsLive) { StopLive(); return; }
@@ -124,9 +146,45 @@ public partial class MainWindow : Window
             }
         }
 
+        PortsMenu.Items.Add(new Separator());
+        PortsMenu.Items.Add(RateMenu());
+
         PortsMenu.PlacementTarget = ConnectButton;
         PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         PortsMenu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// The logging rate, offered alongside the ports rather than buried in a
+    /// settings dialog — it is a decision about the session you are about to
+    /// start, and this is where you start one.
+    /// </summary>
+    private MenuItem RateMenu()
+    {
+        var menu = new MenuItem { Header = $"Logging rate: {_vm.LiveRate:N0} Hz" };
+
+        foreach (double rate in MainViewModel.LiveRates)
+        {
+            var item = new MenuItem
+            {
+                Header = rate == SettingsStore.DefaultLiveRate ? $"{rate:N0} Hz  (default)" : $"{rate:N0} Hz",
+                IsCheckable = true,
+                IsChecked = rate == _vm.LiveRate,
+                StaysOpenOnClick = false,
+            };
+
+            item.Click += (_, _) => _vm.LiveRate = rate;
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem
+        {
+            Header = "25 Hz is past what a wideband can resolve; raise it only for transients",
+            IsEnabled = false,
+        });
+
+        return menu;
     }
 
     private void StartLive(string port, bool quiet = false)

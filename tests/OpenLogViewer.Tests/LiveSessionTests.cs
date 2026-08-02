@@ -244,6 +244,80 @@ public class LiveSessionTests : IDisposable
         Assert.True(LogReaderFactory.Load(path).SampleCount >= 10);
     }
 
+    // ----- pacing -----------------------------------------------------------
+
+    [Fact]
+    public void ASessionIsHeldToItsRate()
+    {
+        // The link here answers instantly and would otherwise be polled tens of
+        // thousands of times a second. The bound is what matters, so it is
+        // asserted generously in the direction a loaded machine can miss.
+        var transport = new FakeTransport { Repeating = Block(3000, 1000) };
+        using LiveSession session = Session(transport, new LiveSessionSettings { MaximumRate = 20 });
+
+        session.Start();
+        Thread.Sleep(600);
+        session.Stop();
+
+        int samples = session.Status.Samples;
+
+        Assert.InRange(samples, 2, 20);
+    }
+
+    [Fact]
+    public void AnUncappedSessionIsMuchFaster()
+    {
+        // Proves the cap is doing the work rather than the fake being slow.
+        var transport = new FakeTransport { Repeating = Block(3000, 1000) };
+        using LiveSession session = Session(transport, new LiveSessionSettings { MaximumRate = 0 });
+
+        session.Start();
+        Thread.Sleep(300);
+        session.Stop();
+
+        Assert.True(session.Status.Samples > 100,
+            $"an uncapped session managed only {session.Status.Samples} samples");
+    }
+
+    [Fact]
+    public void StoppingIsNotHeldUpByTheWaitBetweenSamples()
+    {
+        // A session at 1 Hz must not take a second to stop, which is what a
+        // plain sleep between polls would cost.
+        var transport = new FakeTransport { Repeating = Block(3000, 1000) };
+        using LiveSession session = Session(transport, new LiveSessionSettings { MaximumRate = 1 });
+
+        session.Start();
+        Until(session, 1);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        session.Stop();
+        clock.Stop();
+
+        Assert.True(clock.ElapsedMilliseconds < 500,
+            $"stopping took {clock.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public void ARateSlowerThanTheLinkStillRecordsEverySample()
+    {
+        // Pacing must not drop samples, only space them out.
+        string path = TempFile();
+        var transport = new FakeTransport { Repeating = Block(2500, 800) };
+
+        using LiveSession session = Session(transport, new LiveSessionSettings
+        {
+            RecordingPath = path,
+            MaximumRate = 50,
+        });
+
+        session.Start();
+        Until(session, 5);
+        session.Stop();
+
+        Assert.Equal(session.Status.Samples, LogReaderFactory.Load(path).SampleCount);
+    }
+
     private static LiveSessionSettings Recovering(double seconds = 5) => new()
     {
         FailuresBeforeStopping = 2,
