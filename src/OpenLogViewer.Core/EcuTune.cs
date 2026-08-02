@@ -2,6 +2,9 @@ using System.Buffers.Binary;
 
 namespace OpenLogViewer.Core;
 
+/// <summary>Bytes destined for a place in the ECU's memory.</summary>
+public sealed record TuneWrite(int Page, int Offset, byte[] Data);
+
 /// <summary>
 /// The tune as it exists in the ECU right now, read out over the wire.
 ///
@@ -163,6 +166,129 @@ public sealed class EcuTune
                 tables.Add(table);
 
         return tables;
+    }
+
+    /// <summary>
+    /// Turns values back into the bytes an array occupies, ready to be written.
+    ///
+    /// The inverse of reading, and it has to round rather than truncate: a VE
+    /// cell of 84.7 at a scale of 0.1 is 847, and truncating the 846.9999 that
+    /// floating point actually produces would quietly drop a tenth off every
+    /// cell in the table.
+    ///
+    /// Returns null when this firmware has no such array, when the count is
+    /// wrong, or when a value will not fit the type — all of which would
+    /// otherwise write something plausible into the wrong place.
+    /// </summary>
+    public TuneWrite? EncodeArray(string name, IReadOnlyList<double> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        if (!_byName.TryGetValue(name, out TuneConstant? constant)) return null;
+        if (constant.IsBitField) return null;
+        if (values.Count != constant.Columns * constant.Rows) return null;
+
+        var data = new byte[constant.Size];
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            double scaled = (values[i] - constant.Transform) / constant.Scale;
+            if (double.IsNaN(scaled) || double.IsInfinity(scaled)) return null;
+
+            Span<byte> at = data.AsSpan(i * constant.ElementSize);
+
+            if (!TryWrite(at, constant.Type, scaled, _little)) return null;
+        }
+
+        return new TuneWrite(constant.Page, constant.Offset, data);
+    }
+
+    /// <summary>
+    /// A table's cells as bytes, in the row-major order the page holds them.
+    /// </summary>
+    public TuneWrite? EncodeTable(string valuesConstant, double[,] cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+
+        if (!_byName.TryGetValue(valuesConstant, out TuneConstant? constant)) return null;
+
+        int columns = cells.GetLength(0);
+        int rows = cells.GetLength(1);
+
+        if (columns != constant.Columns || rows != constant.Rows) return null;
+
+        var flat = new double[columns * rows];
+        for (int row = 0; row < rows; row++)
+            for (int column = 0; column < columns; column++)
+                flat[row * columns + column] = cells[column, row];
+
+        return EncodeArray(valuesConstant, flat);
+    }
+
+    /// <summary>
+    /// Writes one value, refusing anything the type cannot hold.
+    ///
+    /// A value out of range is a mistake somewhere upstream, and wrapping it
+    /// into whatever it happens to become is the worst of the available
+    /// responses.
+    /// </summary>
+    private static bool TryWrite(Span<byte> at, RealtimeType type, double value, bool little)
+    {
+        double rounded = Math.Round(value, MidpointRounding.AwayFromZero);
+
+        switch (type)
+        {
+            case RealtimeType.U08:
+                if (rounded is < 0 or > byte.MaxValue) return false;
+                at[0] = (byte)rounded;
+                return true;
+
+            case RealtimeType.S08:
+                if (rounded is < sbyte.MinValue or > sbyte.MaxValue) return false;
+                at[0] = (byte)(sbyte)rounded;
+                return true;
+
+            case RealtimeType.U16:
+                if (rounded is < 0 or > ushort.MaxValue) return false;
+                Write16(at, (ushort)rounded, little);
+                return true;
+
+            case RealtimeType.S16:
+                if (rounded is < short.MinValue or > short.MaxValue) return false;
+                Write16(at, unchecked((ushort)(short)rounded), little);
+                return true;
+
+            case RealtimeType.U32:
+                if (rounded is < 0 or > uint.MaxValue) return false;
+                Write32(at, (uint)rounded, little);
+                return true;
+
+            case RealtimeType.S32:
+                if (rounded is < int.MinValue or > int.MaxValue) return false;
+                Write32(at, unchecked((uint)(int)rounded), little);
+                return true;
+
+            case RealtimeType.F32:
+                // A float keeps its fraction; rounding it would be the bug.
+                if (little) BinaryPrimitives.WriteSingleLittleEndian(at, (float)value);
+                else BinaryPrimitives.WriteSingleBigEndian(at, (float)value);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static void Write16(Span<byte> at, ushort value, bool little)
+    {
+        if (little) BinaryPrimitives.WriteUInt16LittleEndian(at, value);
+        else BinaryPrimitives.WriteUInt16BigEndian(at, value);
+    }
+
+    private static void Write32(Span<byte> at, uint value, bool little)
+    {
+        if (little) BinaryPrimitives.WriteUInt32LittleEndian(at, value);
+        else BinaryPrimitives.WriteUInt32BigEndian(at, value);
     }
 
     /// <summary>One element of a constant, scaled; null when it is out of reach.</summary>
