@@ -97,7 +97,16 @@ public sealed class RealtimeCommand
     /// arrives as 8199, which the firmware refuses as out of range, and a count
     /// of 1024 arrives as 4, which it honours.
     /// </summary>
-    public byte[] Build(int offset, int count, byte canId = 0, bool littleEndian = false)
+    /// <summary>
+    /// Builds one request.
+    ///
+    /// <paramref name="page"/> supplies the bytes for a <c>%2i</c>, which is not
+    /// a number but the page's own identifier string — <c>\x00\x00</c> on a
+    /// rusEFI, <c>\$tsCanId\x04</c> on a MegaSquirt. A realtime template names
+    /// its page with a literal instead and needs none.
+    /// </summary>
+    public byte[] Build(
+        int offset, int count, byte canId = 0, bool littleEndian = false, ReadOnlySpan<byte> page = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
@@ -113,9 +122,10 @@ public sealed class RealtimeCommand
                 case Part.Offset: Write(request, offset, littleEndian); break;
                 case Part.Count: Write(request, count, littleEndian); break;
 
-                // The only page ever asked for is the realtime one, and the
-                // template that names it says which by a literal beside it.
-                case Part.Page: Write(request, 0, littleEndian); break;
+                case Part.Page:
+                    if (page.Length > 0) request.AddRange(page);
+                    else Write(request, 0, littleEndian);
+                    break;
             }
         }
 

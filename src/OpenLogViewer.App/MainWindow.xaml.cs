@@ -75,6 +75,17 @@ public partial class MainWindow : Window
     /// <summary>Switches to the gauge dashboard, for a scripted run.</summary>
     public void ShowGauges() => _vm.Mode = WorkspaceMode.Gauges;
 
+    /// <summary>Switches to calibration, optionally on a named table, for a scripted run.</summary>
+    public void ShowCalibration(string? table)
+    {
+        _vm.Mode = WorkspaceMode.Calibration;
+
+        if (table is null) return;
+
+        _vm.SelectedEcuTable = _vm.EcuTables.FirstOrDefault(
+            t => t.Name.Contains(table, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Connects to an ECU on startup, for a scripted run.
     ///

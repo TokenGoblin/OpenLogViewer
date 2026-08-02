@@ -36,7 +36,7 @@ public partial class App : Application
     /// <summary>Switches that are followed by a value rather than standing alone.</summary>
     private static readonly string[] TakesAValue =
     [
-        "--theme", "--screenshot", "--export", "--connect", "--settle", "--menu",
+        "--theme", "--screenshot", "--export", "--connect", "--settle", "--menu", "--calibration",
         "--cell", "--select", "--compare", "--tune-axes", "--pointer",
     ];
 
@@ -101,6 +101,12 @@ public partial class App : Application
         if (e.Args.Contains("--stacked")) window.SetStackedLanes(true);
 
         if (e.Args.Contains("--gauges")) window.ShowGauges();
+
+        int table = Array.IndexOf(e.Args, "--calibration");
+        if (table >= 0)
+            window.ShowCalibration(table + 1 < e.Args.Length && !e.Args[table + 1].StartsWith("--", StringComparison.Ordinal)
+                ? e.Args[table + 1]
+                : null);
 
         int menu = Array.IndexOf(e.Args, "--menu");
         if (menu >= 0 && menu + 1 < e.Args.Length)
