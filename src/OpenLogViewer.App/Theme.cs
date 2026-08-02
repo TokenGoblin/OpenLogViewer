@@ -69,6 +69,17 @@ public sealed record Theme
     /// <summary>Supporting text: a channel's range, a hint under a control.</summary>
     public Color Faint => ColorMath.Blend(Muted, Background, 0.35);
 
+    /// <summary>
+    /// Scrollbar thumb, pulled from the primary ink towards the panel. Not from
+    /// <see cref="Muted"/>: a scheme whose muted ink is already close to its
+    /// panel — a cream ground with warm grey secondary text — would leave the
+    /// thumb barely there, and the thumb is the only part of the bar that is
+    /// drawn at all.
+    /// </summary>
+    public Color Scroll => ColorMath.Blend(Text, Panel, 0.45);
+
+    public Color ScrollHover => ColorMath.Blend(Text, Panel, 0.20);
+
     public Color Selected => ColorMath.Blend(Panel, Accent, 0.22);
 
     /// <summary>

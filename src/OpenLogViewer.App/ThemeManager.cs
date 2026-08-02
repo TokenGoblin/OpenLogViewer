@@ -47,6 +47,8 @@ public static class ThemeManager
         Set(resources, "Text", theme.Text);
         Set(resources, "Muted", theme.Muted);
         Set(resources, "Faint", theme.Faint);
+        Set(resources, "Scroll", theme.Scroll);
+        Set(resources, "ScrollHover", theme.ScrollHover);
         Set(resources, "Accent", theme.Accent);
         Set(resources, "OnAccent", theme.OnAccent);
         Set(resources, "Marker", theme.Marker);

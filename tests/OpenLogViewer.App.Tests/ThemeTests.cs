@@ -103,6 +103,31 @@ public class ThemeTests
 
     [Theory]
     [MemberData(nameof(AllThemes))]
+    public void TheScrollbarThumbIsVisibleOnTheSurfacesItSitsOn(string id)
+    {
+        // The thumb is the only part of the bar that is drawn — the track is
+        // transparent — so if it does not separate from the panel there is no
+        // scrollbar at all.
+        Theme theme = Get(id);
+
+        Assert.True(ColorMath.Contrast(theme.Scroll, theme.Panel) >= 2.5,
+            $"{id}: thumb holds only {ColorMath.Contrast(theme.Scroll, theme.Panel):F2}:1 on the panel");
+        Assert.True(ColorMath.Contrast(theme.Scroll, theme.PanelAlt) >= 2.0,
+            $"{id}: thumb holds only {ColorMath.Contrast(theme.Scroll, theme.PanelAlt):F2}:1 in a popup");
+    }
+
+    [Theory]
+    [MemberData(nameof(AllThemes))]
+    public void TheScrollbarRespondsVisiblyToHover(string id)
+    {
+        // A hover state that looked the same would make the bar feel dead.
+        Theme theme = Get(id);
+        Assert.True(ColorMath.Contrast(theme.ScrollHover, theme.Panel)
+                    > ColorMath.Contrast(theme.Scroll, theme.Panel));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllThemes))]
     public void InkOnTheAccentIsReadable(string id)
     {
         // The jump buttons put text on the accent when hovered; picking the
