@@ -208,6 +208,8 @@ public partial class App : Application
         window.Dispatcher.InvokeAsync(() => Capture(work), DispatcherPriority.ContextIdle);
     }
 
+    private bool Flag(string name) => _args.Contains(name, StringComparer.Ordinal);
+
     private void Capture(Action work)
     {
         try
@@ -245,6 +247,16 @@ public partial class App : Application
                     main.PreviewPointer(fx, fy);
                     window.UpdateLayout();
                 }
+            }
+
+            // After the settle delay, because the axis sources do not exist
+            // until a live session has produced its first samples.
+            if (Flag("--ecu-ve") && window is MainWindow live)
+            {
+                Report(live.UseEcuVeTable() ? "using the ECU's fuel table" : "no ECU fuel table offered");
+                if (Flag("--ve")) live.EnableVeAnalyze(Flag("--ve-values"));
+
+                window.UpdateLayout();
             }
 
             DpiScale dpi = VisualTreeHelper.GetDpi(window);
