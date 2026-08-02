@@ -70,6 +70,16 @@ public partial class App : Application
         base.OnStartup(e);
         _args = e.Args;
 
+        // An exception escaping a background thread terminates the process
+        // outright — no dialog, no log, the window simply vanishes. This cannot
+        // prevent that, but it records what happened, which is the difference
+        // between a reproducible bug and "it crashed".
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            Report($"unhandled on a background thread: {args.ExceptionObject}");
+
+        DispatcherUnhandledException += (_, args) =>
+            Report($"unhandled on the UI thread: {args.Exception}");
+
         // The window is created here rather than via StartupUri so a file passed
         // on the command line (or by a file association) can be loaded before it
         // is shown, instead of flashing an empty viewer first.

@@ -52,6 +52,32 @@ internal sealed class FakeTransport : IEcuTransport
     public void Dispose() => Close();
 }
 
+/// <summary>
+/// A transport whose device has gone: every operation throws, the way a serial
+/// port does once its USB adapter has been unplugged.
+/// </summary>
+internal sealed class ThrowingTransport(Exception thrown) : IEcuTransport
+{
+    public bool IsOpen => true;
+
+    public bool ThrowOnClose { get; init; }
+
+    public void Open() { }
+
+    public void Close()
+    {
+        if (ThrowOnClose) throw thrown;
+    }
+
+    public void Write(ReadOnlySpan<byte> data) => throw thrown;
+
+    public int Read(Span<byte> buffer, TimeSpan timeout) => throw thrown;
+
+    public void DiscardInput() => throw thrown;
+
+    public void Dispose() => Close();
+}
+
 public class EcuProtocolTests
 {
     private static byte[] Reply(params byte[] data)

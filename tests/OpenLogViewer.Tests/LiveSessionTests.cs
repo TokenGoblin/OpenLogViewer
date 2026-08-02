@@ -60,7 +60,7 @@ public class LiveSessionTests : IDisposable
     }
 
     private static LiveSession Session(
-        FakeTransport transport, LiveSessionSettings? settings = null)
+        IEcuTransport transport, LiveSessionSettings? settings = null)
     {
         var connection = new EcuConnection(transport, new EcuConnectionSettings
         {
@@ -241,6 +241,74 @@ public class LiveSessionTests : IDisposable
 
         Assert.Equal(4, session.Snapshot().SampleCount);
         Assert.True(LogReaderFactory.Load(path).SampleCount >= 10);
+    }
+
+    [Fact]
+    public void TheEcuGoingAwayEndsTheSessionRatherThanTheProcess()
+    {
+        // Switching an ECU off takes its USB adapter with it, and a serial port
+        // whose device has gone throws whatever it likes. The poll loop runs on
+        // a background thread, where anything escaping terminates the process —
+        // so this must be caught however unlikely the type looks.
+        var transport = new ThrowingTransport(new ObjectDisposedException("SerialPort"));
+
+        using LiveSession session = Session(transport, new LiveSessionSettings
+        {
+            FailuresBeforeStopping = 50,
+        });
+
+        session.Start();
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (session.IsRunning && DateTime.UtcNow < deadline) Thread.Sleep(20);
+
+        Assert.False(session.IsRunning);
+        Assert.True(session.Status.Faulted);
+
+        // Stopped at once rather than after fifty tries: a handle that no longer
+        // exists will not start existing again.
+        Assert.Contains("stopped responding", session.Status.Error);
+    }
+
+    [Theory]
+    [InlineData(typeof(ArgumentOutOfRangeException))]
+    [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    [InlineData(typeof(NotSupportedException))]
+    public void NoExceptionFromTheTransportEscapesThePollThread(Type kind)
+    {
+        var transport = new ThrowingTransport((Exception)Activator.CreateInstance(kind)!);
+
+        using LiveSession session = Session(transport, new LiveSessionSettings
+        {
+            FailuresBeforeStopping = 3,
+        });
+
+        session.Start();
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (session.IsRunning && DateTime.UtcNow < deadline) Thread.Sleep(20);
+
+        Assert.False(session.IsRunning);
+        Assert.True(session.Status.Faulted);
+    }
+
+    [Fact]
+    public void StoppingWorksAfterTheLinkHasAlreadyFailed()
+    {
+        // The usual way Stop is reached. Closing a port whose device has gone
+        // throws, and a disconnect that throws leaves the app wedged.
+        var transport = new ThrowingTransport(new ObjectDisposedException("SerialPort"))
+        {
+            ThrowOnClose = true,
+        };
+
+        LiveSession session = Session(transport, new LiveSessionSettings { FailuresBeforeStopping = 2 });
+        session.Start();
+        Thread.Sleep(200);
+
+        session.Stop();
+        session.Dispose();
     }
 
     [Fact]

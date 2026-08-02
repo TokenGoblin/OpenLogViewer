@@ -62,10 +62,26 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         _port.DiscardInBuffer();
     }
 
+    /// <summary>
+    /// Closes the port, tolerating one whose device has already gone. Unplugging
+    /// a USB adapter leaves a SerialPort that throws from Close as readily as
+    /// from Read, and failing to shut down is not a useful way to report that
+    /// something is already shut down.
+    /// </summary>
     public void Close()
     {
-        _port?.Close();
-        _port = null;
+        try
+        {
+            _port?.Close();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                      or ObjectDisposedException or InvalidOperationException)
+        {
+        }
+        finally
+        {
+            _port = null;
+        }
     }
 
     public void Write(ReadOnlySpan<byte> data)
@@ -117,9 +133,21 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         return total;
     }
 
+    /// <summary>
+    /// Drops anything buffered. Failing here is not worth reporting: it is done
+    /// before a request as hygiene, and a port that cannot be cleared will say
+    /// so again on the read that follows.
+    /// </summary>
     public void DiscardInput()
     {
-        if (_port is { IsOpen: true }) _port.DiscardInBuffer();
+        try
+        {
+            if (_port is { IsOpen: true }) _port.DiscardInBuffer();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                      or ObjectDisposedException or InvalidOperationException)
+        {
+        }
     }
 
     public void Dispose() => Close();
