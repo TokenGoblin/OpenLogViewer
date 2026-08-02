@@ -779,6 +779,71 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>The tables read off the ECU, empty until a connection provides them.</summary>
     public ObservableCollection<TuneTable> EcuTables { get; } = [];
 
+    /// <summary>
+    /// The tables in the order they are worth looking at.
+    ///
+    /// Biggest first, which is not arbitrary: a firmware's main tables are its
+    /// finest-grained ones, so the 16×16 fuel and ignition maps rise above a
+    /// drawer of 4×4 corrections and 8×8 blends. rusEFI declares seventy-six in
+    /// an order that suits the file rather than the reader, with the fuel table
+    /// fortieth.
+    ///
+    /// Fuel ahead of the rest at the same size, since calibrating it is what
+    /// most of this program is for.
+    /// </summary>
+    private static IEnumerable<TuneTable> Ordered(IEnumerable<TuneTable> tables) =>
+        tables
+            .OrderByDescending(t => t.Columns * t.Rows)
+            .ThenByDescending(t => t.Name.Contains("VE", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase);
+
+    private string _ecuTableSearch = "";
+    private ICollectionView? _ecuTableView;
+
+    /// <summary>The table list, filtered by <see cref="EcuTableSearch"/>.</summary>
+    public ICollectionView EcuTableChoices
+    {
+        get
+        {
+            if (_ecuTableView is not null) return _ecuTableView;
+
+            _ecuTableView = CollectionViewSource.GetDefaultView(EcuTables);
+            _ecuTableView.Filter = o =>
+                o is TuneTable table
+                && (_ecuTableSearch.Length == 0
+                    || table.Name.Contains(_ecuTableSearch, StringComparison.OrdinalIgnoreCase));
+
+            return _ecuTableView;
+        }
+    }
+
+    public string EcuTableSearch
+    {
+        get => _ecuTableSearch;
+        set
+        {
+            if (!Set(ref _ecuTableSearch, value)) return;
+
+            EcuTableChoices.Refresh();
+            Raise(nameof(EcuTableSummary));
+        }
+    }
+
+    /// <summary>How much of the list the search is showing.</summary>
+    public string EcuTableSummary
+    {
+        get
+        {
+            if (EcuTables.Count == 0) return "";
+
+            int shown = EcuTableChoices.Cast<object>().Count();
+
+            return shown == EcuTables.Count
+                ? $"{EcuTables.Count} tables"
+                : $"{shown} of {EcuTables.Count} tables";
+        }
+    }
+
     private TuneTable? _selectedEcuTable;
 
     /// <summary>The table on screen in calibration mode.</summary>
@@ -830,8 +895,10 @@ public sealed class MainViewModel : ObservableObject
             _ecuTune = tune;
             _ecuTableDefinitions = TableEditorReader.Read(iniText);
 
-            foreach (TuneTable table in tune.Tables(_ecuTableDefinitions))
+            foreach (TuneTable table in Ordered(tune.Tables(_ecuTableDefinitions)))
                 EcuTables.Add(table);
+
+            EcuTableChoices.Refresh();
 
             EcuTuneSummary =
                 $"{layout.TotalSize:N0} bytes read from the ECU in {clock.ElapsedMilliseconds:N0} ms · "
@@ -845,6 +912,10 @@ public sealed class MainViewModel : ObservableObject
         {
             Raise(nameof(HasEcuTune));
             Raise(nameof(NoEcuTune));
+            Raise(nameof(EcuTableSummary));
+
+            // The first one is the biggest, which is the one worth opening on.
+            SelectedEcuTable = EcuTables.FirstOrDefault();
         }
     }
 

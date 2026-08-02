@@ -84,6 +84,10 @@ public partial class MainWindow : Window
 
         if (table is null) return;
 
+        // Filters as well as selects, so the argument reads as "show me this"
+        // rather than "scroll to this in a list of seventy-five".
+        _vm.EcuTableSearch = table;
+
         _vm.SelectedEcuTable = _vm.EcuTables.FirstOrDefault(
             t => t.Name.Contains(table, StringComparison.OrdinalIgnoreCase));
     }
