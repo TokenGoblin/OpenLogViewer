@@ -150,6 +150,104 @@ public class WorkspaceTests : IDisposable
         Assert.True(new Workspace(new SettingsStore(path).DataFolder).IsDefault);
     }
 
+    // ----- ECU definitions --------------------------------------------------
+
+    [Fact]
+    public void TheDefinitionsFolderSitsBesideLogsAndExports()
+    {
+        var workspace = new Workspace(TempFolder());
+
+        Assert.Equal(Path.Combine(workspace.Root, "ECU definitions"), workspace.Definitions);
+    }
+
+    [Fact]
+    public void ItIsSearchedBeforeTunerStudiosOwnFolders()
+    {
+        // A file someone went to the trouble of putting there is a more
+        // deliberate answer than one a tool cached at some point in the past.
+        var workspace = new Workspace(TempFolder());
+
+        Assert.Equal(workspace.Definitions, workspace.DefinitionSearchPaths[0]);
+        Assert.True(workspace.DefinitionSearchPaths.Count > 1);
+    }
+
+    [Fact]
+    public void CreatingItLeavesANoteSayingWhatItIsFor()
+    {
+        // An empty folder called "ECU definitions" tells someone almost nothing.
+        var workspace = new Workspace(TempFolder());
+
+        string folder = workspace.EnsureDefinitions();
+        string note = Path.Combine(folder, "PUT ECU DEFINITION FILES HERE.txt");
+
+        Assert.True(File.Exists(note));
+
+        string text = File.ReadAllText(note);
+        Assert.Contains("no names, no", text, StringComparison.Ordinal);
+        Assert.Contains("Speeduino", text, StringComparison.Ordinal);
+        Assert.Contains("never uses the internet", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheNoteNamesEveryThingTheEcuSaidAboutItself()
+    {
+        // No reply says which of them is the signature — a Speeduino answers
+        // both "Speeduino 2024.02.2" and "speeduino 202402", and only the second
+        // is what an INI declares. Naming one would be misleading half the time.
+        var workspace = new Workspace(TempFolder());
+
+        string folder = workspace.EnsureDefinitions(["Speeduino 2024.02.2", "speeduino 202402"]);
+        string text = File.ReadAllText(Path.Combine(folder, "PUT ECU DEFINITION FILES HERE.txt"));
+
+        Assert.Contains("Speeduino 2024.02.2", text, StringComparison.Ordinal);
+        Assert.Contains("speeduino 202402", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheNoteFollowsWhicheverEcuWasPluggedInLast()
+    {
+        var workspace = new Workspace(TempFolder());
+
+        workspace.EnsureDefinitions(["speeduino 202402"]);
+        string folder = workspace.EnsureDefinitions(["MS3 Format 0569.00"]);
+
+        string text = File.ReadAllText(Path.Combine(folder, "PUT ECU DEFINITION FILES HERE.txt"));
+
+        Assert.Contains("MS3 Format 0569.00", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("speeduino", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnIniDroppedInIsFound()
+    {
+        // The whole point: a definition this machine did not already have.
+        var workspace = new Workspace(TempFolder());
+        string folder = workspace.EnsureDefinitions();
+
+        File.WriteAllText(
+            Path.Combine(folder, "speeduino.ini"),
+            "[MegaTune]\nsignature = \"speeduino 202402\"\n");
+
+        IniFile found = Assert.Single(IniCatalog.Scan([folder]));
+
+        Assert.Equal("speeduino 202402", found.Signature);
+    }
+
+    [Fact]
+    public void ASubFolderIsSearchedToo()
+    {
+        // So a whole firmware folder can be dropped in unopened.
+        var workspace = new Workspace(TempFolder());
+        string folder = workspace.EnsureDefinitions();
+        string inner = Directory.CreateDirectory(Path.Combine(folder, "speeduino-202402")).FullName;
+
+        File.WriteAllText(
+            Path.Combine(inner, "speeduino.ini"),
+            "[MegaTune]\nsignature = \"speeduino 202402\"\n");
+
+        Assert.Single(IniCatalog.Scan([folder]));
+    }
+
     // ----- logging rate -----------------------------------------------------
 
     [Fact]

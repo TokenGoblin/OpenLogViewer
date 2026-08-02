@@ -85,7 +85,60 @@ public sealed class EcuConnection : IDisposable
     /// the signature is, operationally, whichever of these matches a definition
     /// file. Commands the ECU refuses are simply absent.
     /// </summary>
-    public IReadOnlyList<string> ReadIdentity()
+    public IReadOnlyList<string> ReadIdentity() => ReadIdentity(Settings.IdentifyWithin);
+
+    /// <summary>
+    /// <paramref name="within"/> is how long to keep asking before concluding
+    /// that nothing is there.
+    ///
+    /// Asking once is not enough, because opening a serial port asserts DTR and
+    /// that resets some boards — a Speeduino on an Arduino Mega reboots into its
+    /// bootloader and answers nothing for about two seconds. Probed immediately,
+    /// it looks like an ECU that will not identify itself; given a moment, it
+    /// says "speeduino 202402" straight away. Costs nothing on a board that was
+    /// already awake, since the first question is answered.
+    /// </summary>
+    public IReadOnlyList<string> ReadIdentity(TimeSpan within)
+    {
+        DateTime deadline = DateTime.UtcNow + within;
+
+        IReadOnlyList<string> said = AskWhatItIs();
+        if (said.Count > 0) return said;
+
+        // Nothing. Which may mean nothing is there, or may mean the board reset
+        // when the port opened and was still in its bootloader when it was
+        // asked.
+        //
+        // A Speeduino on an Arduino Mega does exactly that, and the failure is
+        // not a matter of asking again: an Arduino bootloader listens for an
+        // upload, and bytes arriving while it does leave it stuck there for
+        // good. Measured — probed at 0.15 s, the board was still silent at 8
+        // seconds, while a port opened and left alone for three answered
+        // immediately.
+        //
+        // So the recovery is a fresh port and then silence, not persistence.
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                Reopen();
+            }
+            catch (Exception)
+            {
+                return said;
+            }
+
+            Thread.Sleep(Settings.BootWait);
+
+            said = AskWhatItIs();
+            if (said.Count > 0) return said;
+        }
+
+        return said;
+    }
+
+    /// <summary>Asks each identity command once and collects what comes back.</summary>
+    private List<string> AskWhatItIs()
     {
         var said = new List<string>(3);
 
@@ -94,9 +147,11 @@ public sealed class EcuConnection : IDisposable
             string text;
             try
             {
-                // Probing a rusEFI with MegaSquirt's query command is refused by
-                // design, so that one is taken at its word rather than repeated.
-                text = MsProtocol.ReadSignature(Request([command], retryRefusals: false));
+                // One attempt each, and no repeating a refusal: probing a rusEFI
+                // with MegaSquirt's query command is refused by design, and an
+                // ECU that is not answering yet will not answer harder.
+                text = MsProtocol.ReadSignature(
+                    Request([command], retryRefusals: false, attempts: 1));
             }
             catch (EcuProtocolException)
             {
@@ -354,12 +409,15 @@ public sealed class EcuConnection : IDisposable
     /// answer to this one, at offsets it was never read from. That produces
     /// well-formed nonsense: a stationary car reading 230 km/h.
     /// </summary>
-    private byte[] Request(ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0)
+    private byte[] Request(
+        ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0, int attempts = 0)
     {
         byte[] framed = MsProtocol.Frame(payload);
         EcuProtocolException? last = null;
 
-        for (int attempt = 0; attempt <= Settings.Retries; attempt++)
+        int tries = attempts > 0 ? attempts : Settings.Retries + 1;
+
+        for (int attempt = 0; attempt < tries; attempt++)
         {
             if (attempt > 0) Retries++;
 
@@ -470,6 +528,23 @@ public sealed record EcuConnectionSettings
 
     /// <summary>Silence of this length counts as quiet.</summary>
     public TimeSpan QuietFor { get; init; } = TimeSpan.FromMilliseconds(40);
+
+    /// <summary>
+    /// How long to keep asking an ECU what it is before giving up.
+    ///
+    /// Long enough for a board that reboots when the port opens: an Arduino Mega
+    /// spends about two seconds in its bootloader, and a Speeduino asked during
+    /// that window looks like an ECU that will not identify itself.
+    /// </summary>
+    public TimeSpan IdentifyWithin { get; init; } = TimeSpan.FromSeconds(12);
+
+    /// <summary>
+    /// Silence to leave a freshly opened port before speaking to it again.
+    ///
+    /// Long enough for an Arduino bootloader to give up waiting for an upload
+    /// and start the firmware, which is a shade under two seconds on a Mega.
+    /// </summary>
+    public TimeSpan BootWait { get; init; } = TimeSpan.FromMilliseconds(2500);
 
     /// <summary>
     /// Settings for a link that is slower and less orderly than a cable.

@@ -217,6 +217,15 @@ public partial class MainWindow : Window
         whole.Click += (_, _) => _vm.SingleRequestBlock = whole.IsChecked;
         PortsMenu.Items.Add(whole);
 
+        var definitions = new MenuItem
+        {
+            Header = "ECU definition files…",
+            ToolTip = "Where to put the .ini for an ECU this machine does not already know",
+        };
+
+        definitions.Click += (_, _) => OpenFolder(_vm.Workspace.EnsureDefinitions());
+        PortsMenu.Items.Add(definitions);
+
         PortsMenu.PlacementTarget = ConnectButton;
         PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         PortsMenu.IsOpen = true;
@@ -417,11 +426,13 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
-    private void OnOpenDataFolderClick(object sender, RoutedEventArgs e)
+    private void OnOpenDataFolderClick(object sender, RoutedEventArgs e) =>
+        OpenFolder(Workspace.Ensure(_vm.Workspace.Root));
+
+    private void OpenFolder(string folder)
     {
         try
         {
-            string folder = Workspace.Ensure(_vm.Workspace.Root);
             Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
