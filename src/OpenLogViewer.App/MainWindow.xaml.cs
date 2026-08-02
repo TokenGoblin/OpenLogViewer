@@ -72,6 +72,9 @@ public partial class MainWindow : Window
     /// <summary>Applies a theme for this run without recording it as the preference.</summary>
     public void PreviewTheme(string id) => _vm.PreviewTheme(id);
 
+    /// <summary>Switches to the gauge dashboard, for a scripted run.</summary>
+    public void ShowGauges() => _vm.Mode = WorkspaceMode.Gauges;
+
     /// <summary>
     /// Connects to an ECU on startup, for a scripted run.
     ///

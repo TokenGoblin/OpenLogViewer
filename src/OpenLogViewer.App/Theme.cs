@@ -106,6 +106,27 @@ public sealed record Theme
 
     public Color EmptyCell => ColorMath.Blend(Background, Text, 0.05);
 
+    /// <summary>
+    /// Status colours for gauge bands, at fixed hues rather than from the trace
+    /// palette.
+    ///
+    /// A redline means one thing and has to mean it in every scheme, so these do
+    /// not follow the theme's accent — only its polarity, taking the lightness
+    /// that reads on the surface they sit on. Keeping them out of
+    /// <see cref="Series"/> is deliberate: a trace colour that also means
+    /// "danger" says the wrong thing whenever a channel happens to be handed it.
+    /// </summary>
+    public Color Warning => Status(IsDark ? 0.80 : 0.62, 0.15, 85);
+
+    public Color Danger => Status(IsDark ? 0.68 : 0.55, 0.20, 27);
+
+    /// <summary>The band a reading is in when it is where it should be.</summary>
+    public Color Nominal => Status(IsDark ? 0.76 : 0.58, 0.13, 152);
+
+    /// <summary>Hue in degrees, which is how OKLCH is written down; the maths wants radians.</summary>
+    private static Color Status(double lightness, double chroma, double hueDegrees) =>
+        ColorMath.FromOklch(lightness, chroma, hueDegrees * Math.PI / 180);
+
     public Color[] SequentialRamp => ColorMath.Ramp(RampCool, IsDark);
 
     public Color[] CoolArm => ColorMath.DivergingArm(RampCool, Background, IsDark);

@@ -502,6 +502,48 @@ public sealed class MainViewModel : ObservableObject
         set { if (value) ShowHistogram = false; }
     }
 
+    // ----- top-level mode -----------------------------------------------------
+
+    private WorkspaceMode _mode = WorkspaceMode.Log;
+
+    /// <summary>
+    /// What the window is for right now.
+    ///
+    /// Above the Log/Histogram choice rather than beside it: those are two ways
+    /// of reading the same recording, while gauges and calibration are different
+    /// jobs that happen to use the same connection.
+    /// </summary>
+    public WorkspaceMode Mode
+    {
+        get => _mode;
+        set
+        {
+            if (!Set(ref _mode, value)) return;
+
+            Raise(nameof(InLogMode));
+            Raise(nameof(InGaugeMode));
+            Raise(nameof(InCalibrationMode));
+        }
+    }
+
+    public bool InLogMode
+    {
+        get => _mode == WorkspaceMode.Log;
+        set { if (value) Mode = WorkspaceMode.Log; }
+    }
+
+    public bool InGaugeMode
+    {
+        get => _mode == WorkspaceMode.Gauges;
+        set { if (value) Mode = WorkspaceMode.Gauges; }
+    }
+
+    public bool InCalibrationMode
+    {
+        get => _mode == WorkspaceMode.Calibration;
+        set { if (value) Mode = WorkspaceMode.Calibration; }
+    }
+
     public ChannelItem? XAxis
     {
         get => _xAxis;
@@ -645,6 +687,168 @@ public sealed class MainViewModel : ObservableObject
         ])
         : "Not connected.";
 
+    // ----- gauges -------------------------------------------------------------
+
+    /// <summary>Every gauge this firmware defines, whether shown or not.</summary>
+    public ObservableCollection<GaugeItem> AllGauges { get; } = [];
+
+    /// <summary>The ones on the dashboard, in the order the firmware suggests.</summary>
+    public ObservableCollection<GaugeItem> Dashboard { get; } = [];
+
+    private string _gaugeSearch = "";
+    private ICollectionView? _gaugeView;
+
+    /// <summary>The gauge chooser, filtered by <see cref="GaugeSearch"/>.</summary>
+    public ICollectionView GaugeChoices
+    {
+        get
+        {
+            if (_gaugeView is not null) return _gaugeView;
+
+            _gaugeView = CollectionViewSource.GetDefaultView(AllGauges);
+            _gaugeView.Filter = o =>
+                o is GaugeItem item
+                && (_gaugeSearch.Length == 0
+                    || item.SearchText.Contains(_gaugeSearch, StringComparison.OrdinalIgnoreCase));
+
+            _gaugeView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(GaugeItem.Category)));
+
+            return _gaugeView;
+        }
+    }
+
+    public string GaugeSearch
+    {
+        get => _gaugeSearch;
+        set
+        {
+            if (!Set(ref _gaugeSearch, value)) return;
+
+            GaugeChoices.Refresh();
+            Raise(nameof(GaugeSummary));
+        }
+    }
+
+    public string GaugeSummary => AllGauges.Count == 0
+        ? "Connect to an ECU to see its gauges."
+        : $"{Dashboard.Count} shown · {AllGauges.Count(g => g.IsConnected)} available";
+
+    /// <summary>
+    /// Builds the gauge list for a firmware.
+    ///
+    /// The dashboard starts as the eight the firmware nominates on its front
+    /// page, which is the cluster its authors thought you would want — a better
+    /// default than the first eight of three hundred.
+    /// </summary>
+    private string? _gaugeIni;
+    private IReadOnlyList<DatalogEntry> _gaugeDatalog = [];
+
+    /// <summary>
+    /// Rebuilds the gauges against the tune now in use.
+    ///
+    /// Scales come out of the tune — a rev counter runs to
+    /// <c>{rpmHardLimit + 2000}</c> — so a tune opened after connecting is what
+    /// gives several dials their faces for the first time.
+    /// </summary>
+    private void RescaleGauges()
+    {
+        if (_gaugeIni is { } ini) SeedGauges(ini, _gaugeDatalog);
+    }
+
+    private void SeedGauges(string iniText, IReadOnlyList<DatalogEntry> datalog)
+    {
+        _gaugeIni = iniText;
+        _gaugeDatalog = datalog;
+
+        // Kept across a rebuild, in the order they were arranged in — otherwise
+        // opening a tune both discards a chosen dashboard and shuffles it.
+        List<string> keep = [.. Dashboard.Select(g => g.Spec.Name)];
+
+        foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
+
+        AllGauges.Clear();
+        Dashboard.Clear();
+
+        // Internal channel name to the name the session records it under.
+        var columns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DatalogEntry entry in datalog)
+            columns[entry.Channel] = entry.Label.Length > 0 ? entry.Label : entry.Channel;
+
+        IReadOnlyDictionary<string, double> context = TuningContext.Build(iniText, TuneXml);
+        IReadOnlyList<GaugeSpec> specs = GaugeCatalog.Read(iniText, context);
+        IReadOnlyList<string> front = GaugeCatalog.ReadFrontPage(iniText);
+
+        var byName = new Dictionary<string, GaugeItem>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (GaugeSpec spec in specs)
+        {
+            var item = new GaugeItem(spec, columns.GetValueOrDefault(spec.Channel));
+            item.ShownChanged += OnGaugeShownChanged;
+
+            AllGauges.Add(item);
+            byName.TryAdd(spec.Name, item);
+        }
+
+        // What was on the dashboard before, or failing that the eight the
+        // firmware nominates — which is the cluster its authors thought you
+        // would want, and a better default than the first eight of three hundred.
+        foreach (string name in keep.Count > 0 ? keep : front)
+        {
+            if (!byName.TryGetValue(name, out GaugeItem? item) || !item.IsConnected) continue;
+
+            item.Show(true);
+            Dashboard.Add(item);
+        }
+
+        GaugeChoices.Refresh();
+        Raise(nameof(GaugeSummary));
+        Raise(nameof(HasGauges));
+        Raise(nameof(NoGauges));
+    }
+
+    public bool HasGauges => AllGauges.Count > 0;
+
+    public bool NoGauges => AllGauges.Count == 0;
+
+    /// <summary>
+    /// Keeps the dashboard in step with the tick boxes.
+    ///
+    /// Rebuilt in catalogue order rather than appended to, so a gauge removed
+    /// and put back does not jump to the end of the cluster.
+    /// </summary>
+    private void OnGaugeShownChanged()
+    {
+        var wanted = AllGauges.Where(g => g.IsShown).ToList();
+
+        // In place, because replacing the collection would discard and rebuild
+        // every dial rather than the ones that changed.
+        for (int i = Dashboard.Count - 1; i >= 0; i--)
+            if (!wanted.Contains(Dashboard[i]))
+                Dashboard.RemoveAt(i);
+
+        for (int i = 0; i < wanted.Count; i++)
+        {
+            int at = Dashboard.IndexOf(wanted[i]);
+            if (at < 0) Dashboard.Insert(Math.Min(i, Dashboard.Count), wanted[i]);
+        }
+
+        Raise(nameof(GaugeSummary));
+    }
+
+    /// <summary>Points every shown gauge at the newest sample.</summary>
+    private void RefreshGauges(LogDocument snapshot)
+    {
+        int last = snapshot.SampleCount - 1;
+        if (last < 0) return;
+
+        foreach (GaugeItem item in Dashboard)
+        {
+            item.Value = item.Column is { } column && snapshot.FindChannel(column) is { } channel
+                ? channel.At(last)
+                : double.NaN;
+        }
+    }
+
     /// <summary>COM ports present right now, for the connect menu.</summary>
     public IReadOnlyList<string> SerialPorts => SerialEcuTransport.AvailablePorts();
 
@@ -716,6 +920,8 @@ public sealed class MainViewModel : ObservableObject
         // From here the firmware's own request format is used, which is the only
         // way one program reads both a MegaSquirt page and a rusEFI block.
         connection.Use(layout);
+
+        SeedGauges(iniText, datalog);
 
         // The tune supplies what the wire does not: firmware derives channels
         // from settings such as the cylinder count as well as from live values.
@@ -832,6 +1038,8 @@ public sealed class MainViewModel : ObservableObject
                 RefreshView();
             }
         }
+
+        RefreshGauges(snapshot);
 
         Document = snapshot;
         return true;
@@ -953,6 +1161,8 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private void TuneChanged()
     {
+        RescaleGauges();
+
         if (Document is { } doc)
         {
             SeedHistogramAxes(doc);

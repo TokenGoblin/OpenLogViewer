@@ -63,14 +63,24 @@ public sealed record GaugeSpec
         && !double.IsNaN(HighWarning) && !double.IsNaN(HighDanger)
         && LowDanger <= LowWarning && LowWarning <= HighWarning && HighWarning <= HighDanger;
 
-    /// <summary>Where a reading falls, for colouring.</summary>
+    /// <summary>
+    /// Where a reading falls, for colouring.
+    ///
+    /// A limit sitting on the end of the scale means there is no limit at that
+    /// end, not that everything past it is trouble. A throttle runs 0 to 100
+    /// with its lower limits at 0, and read literally that paints a closed
+    /// throttle as a fault.
+    /// </summary>
     public GaugeBand BandFor(double value)
     {
         if (double.IsNaN(value)) return GaugeBand.Unknown;
         if (!HasBands) return GaugeBand.Normal;
 
-        if (value <= LowDanger || value >= HighDanger) return GaugeBand.Danger;
-        if (value <= LowWarning || value >= HighWarning) return GaugeBand.Warning;
+        if (LowDanger > Low && value <= LowDanger) return GaugeBand.Danger;
+        if (HighDanger < High && value >= HighDanger) return GaugeBand.Danger;
+
+        if (LowWarning > Low && value <= LowWarning) return GaugeBand.Warning;
+        if (HighWarning < High && value >= HighWarning) return GaugeBand.Warning;
 
         return GaugeBand.Normal;
     }
