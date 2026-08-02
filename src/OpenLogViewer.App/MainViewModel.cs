@@ -572,6 +572,151 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>Rebuilds <see cref="Table"/> over the given sample window.</summary>
+    // ----- live connection --------------------------------------------------
+
+    private LiveSession? _live;
+    private string _liveStatus = "";
+
+    /// <summary>True while connected to an ECU.</summary>
+    public bool IsLive => _live is { IsRunning: true };
+
+    /// <summary>Samples, rate and any fault, for the toolbar.</summary>
+    public string LiveStatus
+    {
+        get => _liveStatus;
+        private set => Set(ref _liveStatus, value);
+    }
+
+    /// <summary>COM ports present right now, for the connect menu.</summary>
+    public IReadOnlyList<string> SerialPorts => SerialEcuTransport.AvailablePorts();
+
+    /// <summary>
+    /// Opens a port, works out what the ECU is, and starts recording.
+    ///
+    /// The INI is chosen by the signature the ECU reports and the attempt is
+    /// abandoned when none matches. Decoding with the wrong firmware definition
+    /// does not fail, it reads every channel from the wrong offset — so a
+    /// refusal here is the only thing between a live session and confident
+    /// nonsense.
+    /// </summary>
+    public void Connect(string port)
+    {
+        Disconnect();
+
+        var connection = new EcuConnection(new SerialEcuTransport(port));
+        connection.Open();
+
+        string signature = connection.ReadSignature();
+        IniFile? ini = IniCatalog.Match(signature, IniCatalog.Scan());
+
+        if (ini is null)
+        {
+            connection.Dispose();
+            throw new LogFormatException(
+                $"The ECU reports \"{signature}\", and no INI on this machine matches it.\n\n" +
+                "TunerStudio keeps these under its ecuDef folder and in each project. " +
+                "Without the matching one the realtime data cannot be decoded.");
+        }
+
+        string iniText = File.ReadAllText(ini.Path);
+        RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
+        IReadOnlyList<DatalogEntry> datalog = MsqIni.ReadDatalog(iniText);
+
+        // The tune supplies what the wire does not: firmware derives channels
+        // from settings such as the cylinder count as well as from live values.
+        var decoder = new RealtimeDecoder(layout, MsqTune.ReadScalars(TuneXml));
+
+        string recording = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "OpenLogViewer",
+            $"live-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.csv");
+
+        _live = new LiveSession(connection, decoder, datalog,
+            new LiveSessionSettings { RecordingPath = recording });
+
+        _live.Start();
+
+        Status = $"Live — {signature}   •   {_live.Names.Count} channels   •   {ini.Name}";
+        Title = $"Live: {signature} — OpenLogViewer";
+        Hint = $"Recording to {recording}. The plot follows the newest data until you zoom or pan.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(CanExport));
+    }
+
+    /// <summary>Stops the session and closes the port, leaving the data in place.</summary>
+    public void Disconnect()
+    {
+        if (_live is null) return;
+
+        _live.Stop();
+        _live.Dispose();
+        _live = null;
+
+        LiveStatus = "";
+        Raise(nameof(IsLive));
+
+        if (Document is not null)
+            Hint = "Disconnected. The session is still here, and its recording is on disk.";
+    }
+
+    /// <summary>
+    /// Takes the newest snapshot and points the channel rows at it.
+    ///
+    /// Rows are re-pointed rather than rebuilt: rebuilding would throw away the
+    /// colours and the tick boxes several times a second.
+    /// </summary>
+    public bool RefreshLive()
+    {
+        if (_live is null) return false;
+
+        LiveSessionStatus status = _live.Status;
+        LiveStatus = status.Faulted
+            ? status.Error!
+            : $"{status.Samples:N0} samples   {status.Rate:F1} Hz" +
+              (status.Retries > 0 ? $"   {status.Retries} retries" : "");
+
+        if (status.Faulted)
+        {
+            Disconnect();
+            Hint = status.Error!;
+            return true;
+        }
+
+        LogDocument snapshot = _live.Snapshot();
+        if (snapshot.SampleCount == 0) return false;
+
+        if (Channels.Count == 0) SeedLiveChannels(snapshot);
+        else foreach (ChannelItem item in Channels)
+            if (snapshot.FindChannel(item.Name) is { } channel) item.Rebind(channel);
+
+        Document = snapshot;
+        return true;
+    }
+
+    private void SeedLiveChannels(LogDocument snapshot)
+    {
+        _colorCursor = 0;
+
+        foreach (LogChannel channel in snapshot.Channels.Where(c => !snapshot.IsTimeBase(c)))
+        {
+            var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length]);
+            item.VisibilityChanged += OnVisibilityChanged;
+            Channels.Add(item);
+        }
+
+        foreach (string name in DefaultChannels)
+        {
+            ChannelItem? item = Channels.FirstOrDefault(
+                c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (item is not null) item.IsVisible = true;
+        }
+
+        SeedHistogramAxes(snapshot);
+        SeedFilters(snapshot);
+        RefreshView();
+    }
+
     // ----- the tune ---------------------------------------------------------
 
     private string? _loadedTune;

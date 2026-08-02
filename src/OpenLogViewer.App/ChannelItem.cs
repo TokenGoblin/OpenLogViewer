@@ -17,7 +17,23 @@ public sealed class ChannelItem : ObservableObject
         SetColor(color);
     }
 
-    public LogChannel Channel { get; }
+    public LogChannel Channel { get; private set; }
+
+    /// <summary>
+    /// Points the row at a longer version of the same channel, as a live session
+    /// produces on every poll. Colour and visibility are the user's and survive;
+    /// only the data behind the row changes.
+    /// </summary>
+    public void Rebind(LogChannel channel)
+    {
+        if (ReferenceEquals(Channel, channel)) return;
+
+        Channel = channel;
+        Raise(nameof(Channel));
+        Raise(nameof(Range));
+        Raise(nameof(IsFlat));
+        Raise(nameof(CanJump));
+    }
 
     public string Name => Channel.Name;
 

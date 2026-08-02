@@ -30,6 +30,22 @@
                     </Button.ContextMenu>
                 </Button>
 
+                <!-- Ports are listed when the menu opens, since an adapter can
+                     appear or vanish while the app is running. -->
+                <Button x:Name="ConnectButton" Content="Connect ▾" Click="OnConnectClick"
+                        Margin="6,0,0,0" DockPanel.Dock="Left"
+                        ToolTip="Read live data from a MegaSquirt over serial or Bluetooth">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="PortsMenu"/>
+                    </Button.ContextMenu>
+                </Button>
+
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                           Margin="7,0,0,0" MaxWidth="190" TextTrimming="CharacterEllipsis"
+                           Text="{Binding LiveStatus}"
+                           Foreground="{DynamicResource Accent}"
+                           Visibility="{Binding IsLive, Converter={StaticResource BoolToVis}}"/>
+
                 <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
                         Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
 
