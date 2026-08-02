@@ -664,22 +664,30 @@ public sealed class MainViewModel : ObservableObject
         var connection = new EcuConnection(new SerialEcuTransport(port));
         connection.Open();
 
-        string signature = connection.ReadSignature();
-        string version = connection.ReadVersion();
-        IniFile? ini = IniCatalog.Match(signature, IniCatalog.Scan());
+        IReadOnlyList<string> identity = connection.ReadIdentity();
 
-        if (ini is null)
+        if (IniCatalog.MatchAny(identity, IniCatalog.Scan()) is not var (ini, signature))
         {
             connection.Dispose();
             throw new LogFormatException(
-                $"The ECU reports \"{signature}\", and no INI on this machine matches it.\n\n" +
+                (identity.Count > 0
+                    ? $"The ECU reports \"{string.Join("\", \"", identity)}\", and no INI on this machine matches.\n\n"
+                    : "The ECU did not say what it is.\n\n") +
                 "TunerStudio keeps these under its ecuDef folder and in each project. " +
                 "Without the matching one the realtime data cannot be decoded.");
         }
 
+        // Whatever else it said is the build string — the same reply that is the
+        // signature on one firmware family is the version on the other.
+        string version = identity.FirstOrDefault(t => t != signature) ?? signature;
+
         string iniText = TuningText.Read(ini.Path);
         RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
         IReadOnlyList<DatalogEntry> datalog = MsqIni.ReadDatalog(iniText);
+
+        // From here the firmware's own request format is used, which is the only
+        // way one program reads both a MegaSquirt page and a rusEFI block.
+        connection.Use(layout);
 
         // The tune supplies what the wire does not: firmware derives channels
         // from settings such as the cylinder count as well as from live values.

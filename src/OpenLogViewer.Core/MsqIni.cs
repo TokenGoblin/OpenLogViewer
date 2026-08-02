@@ -12,6 +12,9 @@ public enum RealtimeType
     S16,
     U32,
     S32,
+
+    /// <summary>An IEEE single. rusEFI publishes most of its channels this way.</summary>
+    F32,
 }
 
 /// <summary>
@@ -53,6 +56,13 @@ public sealed record RealtimeField
         RealtimeType.U16 or RealtimeType.S16 => 2,
         _ => 4,
     };
+
+    /// <summary>
+    /// A float carries its own precision, so a scale of 1 says nothing about how
+    /// many decimals to show. Three is what rusEFI's own datalog definition uses
+    /// for most of them.
+    /// </summary>
+    public const int FloatDigits = 3;
 }
 
 /// <summary>A channel the INI derives from others rather than reading directly.</summary>
@@ -77,8 +87,31 @@ public sealed record RealtimeLayout
     /// <summary>Definitions that could not be read, for reporting rather than silence.</summary>
     public required IReadOnlyList<string> Skipped { get; init; }
 
+    /// <summary>
+    /// Byte order of the realtime block, from the INI's <c>endianness</c>.
+    ///
+    /// MegaSquirt runs on a Freescale S12 and is big-endian; rusEFI runs on an
+    /// ARM and is little. It governs the offset and count in the request as much
+    /// as the data in the reply — a firmware reads both the way its processor
+    /// reads everything.
+    /// </summary>
+    public bool LittleEndian { get; init; }
+
+    /// <summary>
+    /// The most the firmware will put in one reply, from <c>blockingFactor</c>.
+    /// Zero means the block is read whole.
+    ///
+    /// Worth honouring rather than treating as advice: asking a rusEFI for 1200
+    /// bytes when it declares 1024 does not merely fail — the board drops off
+    /// the USB bus and has to be replugged.
+    /// </summary>
+    public int BlockingFactor { get; init; }
+
     /// <summary>True when the command is the plain serial "A" rather than a CAN read.</summary>
     public bool UsesSimpleCommand => GetCommand.Trim('"').Equals("A", StringComparison.Ordinal);
+
+    /// <summary>The request builder for this firmware's <see cref="GetCommand"/>.</summary>
+    public RealtimeCommand Command => RealtimeCommand.Parse(GetCommand);
 }
 
 /// <summary>
@@ -216,6 +249,8 @@ public static class MsqIni
         // decides, so a layout still decodes rather than refusing to start.
         int needed = fields.Count == 0 ? 0 : fields.Max(f => f.Offset + f.Size);
 
+        (bool little, int blocking) = ReadConstants(iniText, symbols);
+
         return new RealtimeLayout
         {
             BlockSize = Math.Max(blockSize, needed),
@@ -223,7 +258,44 @@ public static class MsqIni
             Fields = fields,
             Expressions = expressions,
             Skipped = skipped,
+            LittleEndian = little,
+            BlockingFactor = blocking,
         };
+    }
+
+    /// <summary>
+    /// The two things in <c>[Constants]</c> that decide how the realtime block is
+    /// asked for and read: its byte order, and how much of it fits in one reply.
+    ///
+    /// They live in a different section from the channels they govern, which is
+    /// why they are easy to miss — and missing them is not a subtle failure. The
+    /// wrong byte order turns every reading into a different plausible number,
+    /// and the wrong reply size takes a rusEFI off the USB bus altogether.
+    /// </summary>
+    private static (bool LittleEndian, int BlockingFactor) ReadConstants(
+        string iniText, IReadOnlySet<string> symbols)
+    {
+        bool little = false;
+        int blocking = 0;
+
+        foreach (string raw in Section(iniText, "Constants", symbols))
+        {
+            if (Setting.Match(Strip(raw)) is not { Success: true } setting) continue;
+
+            switch (setting.Groups["name"].Value)
+            {
+                case "endianness":
+                    little = setting.Groups["value"].Value.Trim()
+                        .StartsWith("little", StringComparison.OrdinalIgnoreCase);
+                    break;
+
+                case "blockingFactor":
+                    blocking = ParseSize(setting.Groups["value"].Value);
+                    break;
+            }
+        }
+
+        return (little, blocking);
     }
 
     /// <summary>
@@ -336,7 +408,7 @@ public static class MsqIni
             Offset = int.Parse(match.Groups["offset"].Value, CultureInfo.InvariantCulture),
             Scale = scale,
             Transform = transform,
-            Digits = DigitsFor(scale),
+            Digits = type == RealtimeType.F32 ? RealtimeField.FloatDigits : DigitsFor(scale),
         };
     }
 
