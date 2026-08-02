@@ -64,6 +64,8 @@ public partial class App : Application
                 e.Args.Contains("--count-colour"),
                 e.Args.Contains("--count-value"),
                 cmp >= 0 && cmp + 1 < e.Args.Length ? e.Args[cmp + 1] : null);
+
+            if (e.Args.Contains("--ve")) window.EnableVeAnalyze(e.Args.Contains("--ve-values"));
         }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
@@ -80,13 +82,35 @@ public partial class App : Application
     /// for layout first: the image exports render the views, which have no size
     /// until the window has been arranged.
     /// </summary>
-    private void ExportAndExit(MainWindow window, string folder)
-    {
-        window.Dispatcher.InvokeAsync(() =>
+    private void ExportAndExit(MainWindow window, string folder) =>
+        RunThenExit(window, () =>
         {
             window.UpdateLayout();
             window.ExportAll(folder);
-            Shutdown();
+        });
+
+    /// <summary>
+    /// Runs a scripted action once layout has settled, then exits.
+    ///
+    /// The work is wrapped because Dispatcher.InvokeAsync captures an exception
+    /// into the operation it returns rather than raising it. Nothing awaits that
+    /// operation, so a failure here would otherwise leave the app sitting open
+    /// with no error and no exit — which is indistinguishable from a hang.
+    /// </summary>
+    private void RunThenExit(Window window, Action work)
+    {
+        window.Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                work();
+                Shutdown();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+                Shutdown(1);
+            }
         }, DispatcherPriority.ContextIdle);
     }
 
@@ -95,9 +119,8 @@ public partial class App : Application
     /// another process is unreliable under DWM composition, so for documentation
     /// shots the app draws itself.
     /// </summary>
-    private void CaptureAndExit(Window window, string path)
-    {
-        window.Dispatcher.InvokeAsync(() =>
+    private void CaptureAndExit(Window window, string path) =>
+        RunThenExit(window, () =>
         {
             window.UpdateLayout();
 
@@ -126,10 +149,7 @@ public partial class App : Application
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(target));
             using (FileStream file = File.Create(path)) encoder.Save(file);
-
-            Shutdown();
-        }, DispatcherPriority.ContextIdle);
-    }
+        });
 }
 
 

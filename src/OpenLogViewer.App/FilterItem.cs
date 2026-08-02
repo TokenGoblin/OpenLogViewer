@@ -38,9 +38,16 @@ public sealed class FilterItem : ObservableObject
 /// nullable entry, because WPF will not apply an item template to null and the
 /// "from the data" row would render blank.
 /// </summary>
-public sealed record AxisSourceOption(string Label, TuneAxisSet? Axes)
+public sealed record AxisSourceOption(string Label, TuneAxisSet? Axes, TuneTable? Table = null)
 {
     public static AxisSourceOption FromData { get; } = new("From the log data", null);
+
+    /// <summary>
+    /// True when the tune's own numbers came through as well as its breakpoints,
+    /// which is what VE Calibration needs — it can only suggest a change to a value
+    /// it can read.
+    /// </summary>
+    public bool HasValues => Table is not null;
 }
 
 /// <summary>

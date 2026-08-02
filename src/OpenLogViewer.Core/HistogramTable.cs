@@ -65,6 +65,15 @@ public sealed class HistogramTable
     public bool IsDelta => ZCompare is not null;
 
     /// <summary>
+    /// What the cells hold, when it is not the Z channel — "VE change, %". Null
+    /// for an ordinary binned table, where Z names itself.
+    /// </summary>
+    public string? DisplayName { get; private set; }
+
+    /// <summary>Decimal places for a computed table; null to use Z's own.</summary>
+    public int? DisplayDigits { get; private set; }
+
+    /// <summary>
     /// Whether cells hold a signed deviation, which is what makes a diverging
     /// scale the right one. Counting samples is a magnitude even when a
     /// comparison channel is set, and shading counts as if they were deviations
@@ -257,6 +266,48 @@ public sealed class HistogramTable
         return from > to ? table.Finish() : table.Accumulate(x, y, z, from, to, statistic, mask);
     }
 
+    /// <summary>
+    /// A table whose cells are already known — a suggestion derived from a tune
+    /// and a log, rather than an aggregate of samples.
+    ///
+    /// Counts carry over from the table the suggestion came from, so the view can
+    /// still shade by how much data backs each cell and the user can still see
+    /// which suggestions rest on two samples and which on two hundred.
+    /// </summary>
+    public static HistogramTable FromCells(
+        LogChannel x, LogChannel y, LogChannel z,
+        double[] columnCenters, double[] rowCenters,
+        double?[,] values, int[,] counts,
+        int firstSample, int lastSample,
+        string? displayName = null, int? displayDigits = null,
+        LogChannel? zCompare = null, SampleMask? mask = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(columnCenters.Length, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(rowCenters.Length, 1);
+
+        var table = new HistogramTable(columnCenters.Length, rowCenters.Length)
+        {
+            X = x,
+            Y = y,
+            Z = z,
+            Statistic = HistogramStatistic.Mean,
+            FromTune = true,
+            ZCompare = zCompare,
+            FirstSample = firstSample,
+            LastSample = lastSample,
+            DisplayName = displayName,
+            DisplayDigits = displayDigits,
+            _mask = mask,
+        };
+
+        columnCenters.CopyTo(table.ColumnCenters, 0);
+        rowCenters.CopyTo(table.RowCenters, 0);
+        Array.Copy(values, table.Values, values.Length);
+        Array.Copy(counts, table.Counts, counts.Length);
+
+        return table.Finish();
+    }
+
     private HistogramTable Accumulate(
         LogChannel x, LogChannel y, LogChannel z,
         int from, int to,
@@ -408,8 +459,14 @@ public sealed class HistogramTable
     {
         if (Statistic == HistogramStatistic.Count) return ((int)value).ToString("N0");
 
-        string text = Z.Format(value);
+        // A computed table holds something other than Z — a percentage change, a
+        // suggested VE number — so Z's own precision would be the wrong one.
+        string text = DisplayDigits is { } digits
+            ? value.ToString("F" + Math.Clamp(digits, 0, 6))
+            : Z.Format(value);
+
         return IsDelta && value > 0 ? "+" + text : text;
     }
 }
+
 

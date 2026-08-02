@@ -173,6 +173,46 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- VE Calibration. Only offered once the axis source carries the
+                         tune's numbers, since it can only suggest a change to a
+                         value it can read. -->
+                    <TextBlock Text="VE CALIBRATION" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
+
+                    <CheckBox Content="Suggest a new fuel table" IsChecked="{Binding VeAnalyze}"
+                              IsEnabled="{Binding VeAvailable}" FontSize="11" Margin="0,0,0,4"
+                              ToolTip="Compare logged AFR against the target and scale the tune's cells to match"/>
+
+                    <TextBlock Text="{Binding VeSummary}" FontSize="10" TextWrapping="Wrap"
+                               Foreground="{DynamicResource Faint}" Margin="0,0,0,5"
+                               Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"/>
+
+                    <StackPanel Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"
+                                Margin="0,0,0,10">
+                        <CheckBox Content="Show the new numbers" IsChecked="{Binding VeShowSuggested}"
+                                  FontSize="11" Margin="0,0,0,5"
+                                  ToolTip="Off shows how far each cell moves, as a percentage"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Min samples" FontSize="10"
+                                           Foreground="{DynamicResource Faint}"/>
+                                <TextBox Text="{Binding VeMinimumSamples, UpdateSourceTrigger=LostFocus}"
+                                         ToolTip="A cell with fewer samples is left alone"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Max change %" FontSize="10"
+                                           Foreground="{DynamicResource Faint}"/>
+                                <TextBox Text="{Binding VeMaxChange, UpdateSourceTrigger=LostFocus}"
+                                         ToolTip="Largest move suggested for one pass"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
                     <TextBlock Text="DISPLAY" FontSize="10" FontWeight="SemiBold"
                                Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
                     <CheckBox Content="Colour by sample count" IsChecked="{Binding ColorByCount}"
