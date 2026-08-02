@@ -129,6 +129,46 @@ public class RealtimeTests
     [Fact]
     public void NothingIsSilentlySkipped() => Assert.Empty(Layout().Skipped);
 
+    [Fact]
+    public void ADegreeSignSurvivesALatin1Ini()
+    {
+        // Firmware INIs are ISO-8859-1 and say nothing about it. Read as UTF-8
+        // they mostly work, because almost everything in them is ASCII — and
+        // then the one byte that matters in a units string decodes to a
+        // replacement character and every temperature reads "?F".
+        byte[] latin1 =
+        [
+            .. "[OutputChannels]\nochBlockSize = 4\ncoolant = scalar, S16, 0, \""u8.ToArray(),
+            0xB0, (byte)'F',
+            .. "\", 0.1, 0.0\n"u8.ToArray(),
+        ];
+
+        RealtimeLayout layout = MsqIni.ReadOutputChannels(TuningText.Decode(latin1));
+
+        Assert.Equal("°F", Assert.Single(layout.Fields).Units);
+    }
+
+    [Fact]
+    public void AUtf8FileIsStillReadAsUtf8()
+    {
+        // Only a file that is not valid UTF-8 falls back, so a modern INI keeps
+        // whatever it says.
+        byte[] utf8 = System.Text.Encoding.UTF8.GetBytes(
+            "[OutputChannels]\nochBlockSize = 4\ncoolant = scalar, S16, 0, \"°C\", 0.1, 0.0\n");
+
+        RealtimeLayout layout = MsqIni.ReadOutputChannels(TuningText.Decode(utf8));
+
+        Assert.Equal("°C", Assert.Single(layout.Fields).Units);
+    }
+
+    [Fact]
+    public void AByteOrderMarkDoesNotLeadTheFirstLine()
+    {
+        byte[] withBom = [0xEF, 0xBB, 0xBF, .. System.Text.Encoding.UTF8.GetBytes("[OutputChannels]\nochBlockSize = 64\n")];
+
+        Assert.Equal(64, MsqIni.ReadOutputChannels(TuningText.Decode(withBom)).BlockSize);
+    }
+
     // ----- decoding ---------------------------------------------------------
 
     [Fact]

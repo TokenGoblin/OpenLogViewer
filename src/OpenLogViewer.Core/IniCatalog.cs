@@ -1,4 +1,5 @@
-﻿namespace OpenLogViewer.Core;
+﻿using System.Text;
+namespace OpenLogViewer.Core;
 
 /// <summary>An INI on disk and the firmware signature it declares.</summary>
 public sealed record IniFile(string Path, string Signature)
@@ -93,7 +94,7 @@ public static class IniCatalog
     {
         try
         {
-            foreach (string line in File.ReadLines(path).Take(400))
+            foreach (string line in File.ReadLines(path, Encoding.Latin1).Take(400))
             {
                 string trimmed = line.TrimStart();
                 if (!trimmed.StartsWith("signature", StringComparison.OrdinalIgnoreCase)) continue;

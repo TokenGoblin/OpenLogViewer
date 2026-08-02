@@ -677,7 +677,7 @@ public sealed class MainViewModel : ObservableObject
                 "Without the matching one the realtime data cannot be decoded.");
         }
 
-        string iniText = File.ReadAllText(ini.Path);
+        string iniText = TuningText.Read(ini.Path);
         RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
         IReadOnlyList<DatalogEntry> datalog = MsqIni.ReadDatalog(iniText);
 
@@ -877,7 +877,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Reads an MSQ tune file and uses its tables in place of the log's.</summary>
     public void LoadTune(string path)
     {
-        string xml = File.ReadAllText(path);
+        string xml = TuningText.Read(path);
 
         if (MsqTune.ReadAxisSets(xml).Count == 0)
             throw new LogFormatException(
