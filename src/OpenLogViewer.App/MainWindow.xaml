@@ -843,7 +843,16 @@
                     <TextBlock DockPanel.Dock="Top" Text="TABLES IN THE ECU" FontSize="10"
                                FontWeight="SemiBold" Foreground="{DynamicResource Muted}"
                                Margin="0,0,0,6"/>
-                    <ListBox ItemsSource="{Binding EcuTables}" SelectedItem="{Binding SelectedEcuTable}"
+                    <TextBox DockPanel.Dock="Top" Margin="0,0,0,6"
+                             Text="{Binding EcuTableSearch, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                             ToolTip="Filter by name — try VE, ignition, boost"/>
+                    <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" FontSize="11"
+                               Foreground="{DynamicResource Muted}" Text="{Binding EcuTableSummary}"/>
+
+                    <!-- Biggest first: a firmware's main maps are its
+                         finest-grained ones, and rusEFI declares seventy-six in
+                         an order that suits the file rather than the reader. -->
+                    <ListBox ItemsSource="{Binding EcuTableChoices}" SelectedItem="{Binding SelectedEcuTable}"
                              BorderThickness="0" Background="Transparent"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
