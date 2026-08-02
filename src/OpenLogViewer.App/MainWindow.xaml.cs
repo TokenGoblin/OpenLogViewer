@@ -489,8 +489,47 @@ public partial class MainWindow : Window
 
     private void OnDrop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
+
+        // A tune and a log are both things you drag onto a log viewer, and the
+        // extension says which was meant.
+        if (Path.GetExtension(files[0]).Equals(".msq", StringComparison.OrdinalIgnoreCase))
+            LoadTuneFile(files[0]);
+        else
             LoadFile(files[0]);
+    }
+
+    private void OnOpenTuneClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Open tune",
+            Filter = "TunerStudio tune|*.msq|All files|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true) LoadTuneFile(dialog.FileName);
+    }
+
+    private void OnClearTuneClick(object sender, RoutedEventArgs e)
+    {
+        _vm.ClearTune();
+        RebuildHistogram();
+    }
+
+    private void LoadTuneFile(string path)
+    {
+        try
+        {
+            _vm.LoadTune(path);
+            RebuildHistogram();
+        }
+        catch (Exception ex) when (ex is LogFormatException or IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this,
+                $"Could not read {Path.GetFileName(path)}.\n\n{ex.Message}",
+                "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 }
 

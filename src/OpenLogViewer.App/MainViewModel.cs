@@ -572,6 +572,110 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>Rebuilds <see cref="Table"/> over the given sample window.</summary>
+    // ----- the tune ---------------------------------------------------------
+
+    private string? _loadedTune;
+    private string _loadedTuneName = "";
+
+    /// <summary>
+    /// The tune the tables come from: one opened by hand, else the one the log
+    /// carries. TunerStudio embeds the tune in an MLG, and that copy is the one
+    /// that was actually running when the log was recorded.
+    /// </summary>
+    private string? TuneXml => _loadedTune ?? Document?.EmbeddedTune;
+
+    public string TuneSource
+    {
+        get
+        {
+            if (_loadedTune is not null) return _loadedTuneName;
+
+            return Document?.EmbeddedTune is { Length: > 0 }
+                ? "from the log"
+                : "none — this log carries no tune";
+        }
+    }
+
+    /// <summary>
+    /// Set when an opened tune's fuel table differs from the one in the log.
+    ///
+    /// This is the whole reason opening a tune by hand is dangerous rather than
+    /// merely convenient. VE Calibration scales the numbers that produced the logged
+    /// AFR. Feed it a table that has been edited since the drive and it will
+    /// scale numbers the engine never ran, and confidently suggest a table that
+    /// is wrong by however much the tune moved in between.
+    /// </summary>
+    public string TuneWarning { get; private set; } = "";
+
+    public bool HasTuneWarning => TuneWarning.Length > 0;
+
+    /// <summary>True while tables come from a file rather than from the log.</summary>
+    public bool UsingLoadedTune => _loadedTune is not null;
+
+    /// <summary>Reads an MSQ tune file and uses its tables in place of the log's.</summary>
+    public void LoadTune(string path)
+    {
+        string xml = File.ReadAllText(path);
+
+        if (MsqTune.ReadAxisSets(xml).Count == 0)
+            throw new LogFormatException(
+                "No usable tables found in that file. It should be a TunerStudio .msq tune.");
+
+        _loadedTune = xml;
+        _loadedTuneName = Path.GetFileName(path);
+        TuneWarning = CompareWithEmbedded(xml);
+
+        if (Document is { } doc) SeedHistogramAxes(doc);
+
+        Hint = TuneWarning.Length > 0
+            ? TuneWarning
+            : $"Using tables from {_loadedTuneName}.";
+
+        HistogramInvalidated?.Invoke();
+    }
+
+    /// <summary>Goes back to the tune the log carries.</summary>
+    public void ClearTune()
+    {
+        if (_loadedTune is null) return;
+
+        _loadedTune = null;
+        _loadedTuneName = "";
+        TuneWarning = "";
+
+        if (Document is { } doc) SeedHistogramAxes(doc);
+
+        Hint = "Back to the tune stored in the log.";
+        HistogramInvalidated?.Invoke();
+    }
+
+    private string CompareWithEmbedded(string xml)
+    {
+        if (Document?.EmbeddedTune is not { Length: > 0 } embedded) return "";
+
+        TuneTable? opened = MsqTune.ReadTables(xml).FirstOrDefault(t => t.Name == "VE table 1");
+        TuneTable? logged = MsqTune.ReadTables(embedded).FirstOrDefault(t => t.Name == "VE table 1");
+
+        if (opened is null || logged is null) return "";
+        if (SameValues(opened, logged)) return "";
+
+        return "This tune's fuel table differs from the one stored in the log. " +
+               "VE Calibration scales the numbers that produced the logged AFR, so suggestions " +
+               "will be off by however much the tune has changed since the drive.";
+
+        static bool SameValues(TuneTable a, TuneTable b)
+        {
+            if (a.Columns != b.Columns || a.Rows != b.Rows) return false;
+
+            for (int c = 0; c < a.Columns; c++)
+            for (int r = 0; r < a.Rows; r++)
+                if (Math.Abs(a.Values[c, r] - b.Values[c, r]) > 1e-6)
+                    return false;
+
+            return true;
+        }
+    }
+
     // ----- VE Calibration -------------------------------------------------------
 
     private bool _veAnalyze;
@@ -744,21 +848,28 @@ public sealed class MainViewModel : ObservableObject
 
         _zCompare = CompareOption.None;
 
-        // Offer the tune's own table axes when the log carries a tune, carrying
-        // the table's values through where they could be read — VE Calibration needs
-        // the numbers, not just the grid.
+        // Offer the tune's own table axes when a tune is available, carrying the
+        // table's values through where they could be read — VE Calibration needs the
+        // numbers, not just the grid.
         AxisSources.Clear();
         AxisSources.Add(AxisSourceOption.FromData);
 
-        Dictionary<string, TuneTable> withValues = MsqTune.ReadTables(document.EmbeddedTune)
+        string? tune = TuneXml;
+
+        Dictionary<string, TuneTable> withValues = MsqTune.ReadTables(tune)
             .ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
 
-        foreach (TuneAxisSet set in MsqTune.ReadAxisSets(document.EmbeddedTune))
+        foreach (TuneAxisSet set in MsqTune.ReadAxisSets(tune))
             AxisSources.Add(new AxisSourceOption(
                 set.Label, set, withValues.GetValueOrDefault(set.Name)));
 
         _axisSource = AxisSourceOption.FromData;
         _veAnalyze = false;
+
+        Raise(nameof(TuneSource));
+        Raise(nameof(TuneWarning));
+        Raise(nameof(HasTuneWarning));
+        Raise(nameof(UsingLoadedTune));
 
         Raise(nameof(XAxis));
         Raise(nameof(YAxis));
@@ -948,9 +1059,16 @@ public sealed class MainViewModel : ObservableObject
 
         return result.Channels.Count > 0 ? result.Channels[0] : null;
 
-        // A name that cannot collide with a real one, since the name being typed
-        // may well already be taken at this instant.
-        static string PreviewName(LogDocument doc) => " preview";
+        // A name the log cannot already have, since the one being typed may well
+        // be taken at this instant and the builder refuses a duplicate.
+        static string PreviewName(LogDocument doc)
+        {
+            string name = "preview";
+            while (doc.Channels.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                name += "'";
+
+            return name;
+        }
     }
 
     /// <summary>Definitions that could not be applied to the open log.</summary>
@@ -1442,6 +1560,7 @@ public sealed class MainViewModel : ObservableObject
         || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
 }
+
 
 
 
