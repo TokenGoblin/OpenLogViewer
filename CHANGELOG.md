@@ -7,6 +7,27 @@ rather than by commit.
 
 ### Added
 
+**Live connection to a MegaSquirt.** *Connect ▾* lists the serial ports; picking
+one reads the ECU's signature, matches an INI to it, and starts recording. A
+live session is an ordinary log, so the sidebar, filters, calculated channels,
+the heat table and VE Calibration all work on it as they do on a file — and
+channels take the names recorded logs use, so presets and filters transfer.
+
+The INI is matched to the signature the ECU reports and a session is refused
+when none matches. Firmware versions move channels inside the realtime block, so
+the wrong INI does not fail — it reads every channel from the wrong offset and
+returns numbers that look reasonable.
+
+Recording is continuous rather than saved at the end, and losing the link does
+not end the session: key off and key on is normal, so a lost link is waited on
+and the session carries on into the same recording when the ECU returns.
+
+Read-only throughout. The only commands sent ask what the firmware is and read
+the realtime page; nothing can write a value, burn a page, or change a setting.
+
+Verified against a MegaSquirt 3 on a bench: 249 channels at about 16 Hz with no
+retries, surviving repeated unplugs.
+
 **VE Calibration.** Suggests a new fuel table from logged AFR against the AFR the
 tune was asking for. In histogram view, pick one of the tune's own tables under
 *Axis breakpoints*, set *Compare against* to the AFR target, and tick **Suggest

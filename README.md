@@ -6,7 +6,9 @@
 
 <p align="center">
   A native Windows datalog viewer for MegaSquirt, TunerStudio and other ECU logs.<br>
-  Built on .NET 10 and WPF, with no third-party dependencies.
+  Built on .NET 10 and WPF. One dependency, `System.IO.Ports`, for the live ECU
+connection — Microsoft-published and part of .NET, but a package rather than in
+the framework.
 </p>
 
 <p align="center">
@@ -185,8 +187,58 @@ not have is reported and skipped, never applied as "reject everything".
 - **Fourteen colour schemes** — see below
 - **Calculated channels** — see below
 - **VE Calibration** — see below
+- **Live connection to a MegaSquirt** — see below
 - **Export** — see below
-- No third-party dependencies
+- One dependency: `System.IO.Ports`, for the live connection
+
+## Live connection
+
+*Connect ▾* in the toolbar lists the serial ports. Pick one and OpenLogViewer
+asks the ECU what it is, finds the INI that matches, and starts reading and
+recording. The button becomes *Disconnect*.
+
+A live session is an ordinary log. The sidebar, filters, calculated channels,
+the heat table and VE Calibration all work on it exactly as they do on a file,
+and channels take the names your recorded logs use — so a preset or a filter
+saved against a file applies to the ECU too.
+
+```
+● COM9 · MS3 Format 0569.00 · 15.7 Hz
+```
+
+The toolbar says what is connected: port, firmware, and the rate. The dot means
+it is recording. Hover it for the full picture — build string, the INI matched,
+channel count, and the file being written. Retries only appear once there are
+any.
+
+**The INI is matched to the signature the ECU reports, and a session is refused
+when none matches.** This is the one part worth understanding. Firmware versions
+move channels around inside the realtime block, so decoding with the wrong INI
+does not fail — it reads every channel from the wrong offset and returns numbers
+that look entirely reasonable. Even adjacent versions count as no match.
+
+TunerStudio keeps INIs under `.efiAnalytics/TunerStudio/config/ecuDef` and in
+each project folder; both are searched. **Open the tune before connecting** if
+you want the channels the firmware derives from tune settings — duty cycle
+divides by the cylinder count, and that does not come over the wire.
+
+Recording is continuous, to
+`Documents\OpenLogViewer\live-<date>.csv`. A session ends by a pulled cable at
+least as often as by being stopped, so nothing waits until the end to be saved.
+
+**Losing the link does not end the session.** Key off and key on is normal, so a
+lost link is waited on for a minute — the indicator goes hollow and amber — and
+the session carries straight on into the same recording when the ECU comes back.
+
+The plot follows the newest data and stops following as soon as you zoom or pan,
+because from then on you are reading history. *Reset zoom* goes back to
+watching. **Hide unused** is on by default, so on a bench with the engine off
+almost everything is hidden — everything is still being recorded.
+
+Read-only, always: the only commands sent are the two that ask what the firmware
+is and the one that reads the realtime page, which is what TunerStudio reads
+continuously. Nothing here can write a value, burn a page, or change a setting,
+and VE Calibration suggests a table rather than applying one.
 
 ## Calculated channels
 
