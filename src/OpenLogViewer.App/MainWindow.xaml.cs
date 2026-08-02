@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -157,6 +158,42 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    private void OnOpenDataFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string folder = Workspace.Ensure(_vm.Workspace.Root);
+            Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or System.ComponentModel.Win32Exception)
+        {
+            MessageBox.Show(this, $"Could not open the folder.\n\n{ex.Message}",
+                "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void OnChangeDataFolderClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Where should recordings and exports go?",
+            InitialDirectory = Workspace.Ensure(_vm.Workspace.Root),
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            _vm.SetDataFolder(dialog.FolderName);
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show(this, ex.Message, "OpenLogViewer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void OnExportPlottedCsvClick(object sender, RoutedEventArgs e) => ExportCsv(plottedOnly: true);
 
     private void OnExportAllCsvClick(object sender, RoutedEventArgs e) => ExportCsv(plottedOnly: false);
@@ -238,15 +275,14 @@ public partial class MainWindow : Window
             Filter = filter,
             AddExtension = true,
             OverwritePrompt = true,
-            InitialDirectory = Directory(_vm.Document?.FilePath),
+
+            // The workspace, not the folder the log came from. Exports belong
+            // somewhere the user can find again, rather than scattered across
+            // wherever each log happened to live.
+            InitialDirectory = Workspace.Ensure(_vm.Workspace.Exports),
         };
 
         return dialog.ShowDialog(this) == true ? dialog.FileName : null;
-
-        static string Directory(string? logPath) =>
-            logPath is { Length: > 0 } && File.Exists(logPath)
-                ? Path.GetDirectoryName(logPath) ?? ""
-                : "";
     }
 
     /// <summary>

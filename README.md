@@ -191,6 +191,29 @@ not have is reported and skipped, never applied as "reject everything".
 - **Export** — see below
 - One dependency: `System.IO.Ports`, for the live connection
 
+## Where files go
+
+```
+C:\Users\<you>\OpenLogViewer\
+    Logs\      live recordings, named for when they were taken
+    Exports\   where Export starts
+```
+
+One folder, three levels down, named after the app. *Export ▾ → Open the
+folder* takes you there; *Change the folder…* moves it, and the choice is
+remembered.
+
+Deliberately **not** "My Documents". That is redirected into OneDrive on most
+machines, which buries recordings a couple of levels deeper and uploads every
+one of them *while it is still being written* — a long session is tens of
+megabytes of continuous sync over whatever connection the car happens to be
+near. The user profile is not redirected.
+
+Settings are separate, under `%APPDATA%\OpenLogViewer\` — `settings.json`,
+`presets.json`, `filters.json`, `math.json`. Those belong to the app; the
+folder above belongs to you. Nothing is ever written next to the executable, so
+the app is content installed read-only under Program Files.
+
 ## Live connection
 
 *Connect ▾* in the toolbar lists the serial ports. Pick one and OpenLogViewer

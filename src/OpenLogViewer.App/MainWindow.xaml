@@ -84,6 +84,13 @@
                             <MenuItem Header="{Binding ExportScope, StringFormat=CSV covers the {0}}"
                                       IsEnabled="False"
                                       Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+
+                            <Separator/>
+                            <MenuItem Header="Open the folder" Click="OnOpenDataFolderClick"
+                                      ToolTip="{Binding DataFolder}"/>
+                            <MenuItem Header="Change the folder…" Click="OnChangeDataFolderClick"
+                                      ToolTip="Where recordings and exports are kept"/>
+                            <MenuItem Header="{Binding DataFolder}" IsEnabled="False"/>
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>

@@ -66,6 +66,8 @@ public sealed class MainViewModel : ObservableObject
         _settings = settings ?? new SettingsStore();
         _mathStore = math ?? new MathChannelStore();
 
+        Workspace = new Workspace(_settings.DataFolder);
+
         _theme = ThemeCatalog.Find(_settings.ThemeId);
         ThemeManager.Apply(_theme);
 
@@ -74,6 +76,29 @@ public sealed class MainViewModel : ObservableObject
         ApplySort();
         RefreshPresets();
         RefreshMathChannels();
+    }
+
+    /// <summary>Where recordings and exports go.</summary>
+    public Workspace Workspace { get; private set; } = null!;
+
+    /// <summary>The folder itself, for the menu to show and for opening.</summary>
+    public string DataFolder => Workspace.Root;
+
+    /// <summary>
+    /// Moves the workspace. Existing files stay where they are: moving a user's
+    /// recordings without being asked is not a settings change, and the old
+    /// folder is still a folder they can open.
+    /// </summary>
+    public void SetDataFolder(string? folder)
+    {
+        if (folder is not null && !Workspace.IsUsable(folder))
+            throw new IOException($"{folder} cannot be written to.");
+
+        _settings.SetDataFolder(folder);
+        Workspace = new Workspace(_settings.DataFolder);
+
+        Raise(nameof(DataFolder));
+        Hint = $"Recordings and exports now go to {Workspace.Root}.";
     }
 
     public IReadOnlyList<Theme> Themes => ThemeCatalog.Themes;
@@ -660,10 +685,7 @@ public sealed class MainViewModel : ObservableObject
         // from settings such as the cylinder count as well as from live values.
         var decoder = new RealtimeDecoder(layout, MsqTune.ReadScalars(TuneXml));
 
-        string recording = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "OpenLogViewer",
-            $"live-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.csv");
+        string recording = Workspace.NewRecording(DateTime.Now);
 
         _live = new LiveSession(connection, decoder, datalog,
             new LiveSessionSettings { RecordingPath = recording });
