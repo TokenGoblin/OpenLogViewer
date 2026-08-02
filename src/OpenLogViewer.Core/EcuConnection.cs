@@ -33,6 +33,27 @@ public sealed class EcuConnection : IDisposable
     }
 
     /// <summary>
+    /// Closes and reopens the link.
+    ///
+    /// Needed after the device has gone: the handle is dead but still reports
+    /// itself open, so reopening without closing first does nothing and every
+    /// later read fails the same way.
+    /// </summary>
+    public void Reopen()
+    {
+        try
+        {
+            _transport.Close();
+        }
+        catch (Exception)
+        {
+            // Closing something already gone is not a reason not to try again.
+        }
+
+        _transport.Open();
+    }
+
+    /// <summary>
     /// What the ECU says it is — the string an INI must match before anything is
     /// decoded. Firmware versions move channel offsets, so decoding a block with
     /// the wrong INI does not fail, it silently reads every channel from the

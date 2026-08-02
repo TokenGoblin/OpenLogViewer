@@ -189,6 +189,7 @@ public class LiveSessionTests : IDisposable
         using LiveSession session = Session(transport, new LiveSessionSettings
         {
             FailuresBeforeStopping = 3,
+            ReconnectFor = TimeSpan.Zero,
         });
 
         session.Start();
@@ -198,7 +199,7 @@ public class LiveSessionTests : IDisposable
 
         Assert.False(session.IsRunning);
         Assert.True(session.Status.Faulted);
-        Assert.Contains("Lost the ECU", session.Status.Error);
+        Assert.Contains("stopped responding", session.Status.Error);
     }
 
     [Fact]
@@ -243,6 +244,158 @@ public class LiveSessionTests : IDisposable
         Assert.True(LogReaderFactory.Load(path).SampleCount >= 10);
     }
 
+    private static LiveSessionSettings Recovering(double seconds = 5) => new()
+    {
+        FailuresBeforeStopping = 2,
+        ReconnectFor = TimeSpan.FromSeconds(seconds),
+        ReconnectEvery = TimeSpan.FromMilliseconds(30),
+    };
+
+    [Fact]
+    public void ALinkThatComesBackResumesTheSameSession()
+    {
+        // Key off, key on. The session should carry on rather than end, because
+        // an ECU rebooting is not a reason to lose everything after it.
+        var transport = new FlakyTransport(Block(2000, 600));
+        using LiveSession session = Session(transport, Recovering());
+
+        session.Start();
+        Until(session, 3);
+
+        int before = session.Status.Samples;
+        transport.Down = new IOException("device removed");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+        while (!session.Status.Reconnecting && DateTime.UtcNow < deadline) Thread.Sleep(10);
+        Assert.True(session.Status.Reconnecting, "the session never reported that it was waiting");
+
+        transport.Down = null;
+        Until(session, before + 3);
+        session.Stop();
+
+        Assert.False(session.Status.Faulted);
+        Assert.False(session.Status.Reconnecting);
+        Assert.True(session.Status.Samples > before);
+    }
+
+    [Fact]
+    public void ASecondDropRecoversLikeTheFirst()
+    {
+        // The bug this was reported as: the first unplug was survived and the
+        // second was not, because a port that is already shut throws something
+        // different on the way out than one that dies mid-read.
+        var transport = new FlakyTransport(Block(2000, 600));
+        using LiveSession session = Session(transport, Recovering());
+
+        session.Start();
+        Until(session, 2);
+
+        foreach (Exception drop in (Exception[])
+            [new IOException("mid-read"), new InvalidOperationException("port is not open")])
+        {
+            int before = session.Status.Samples;
+
+            transport.Down = drop;
+            DateTime waiting = DateTime.UtcNow.AddSeconds(3);
+            while (!session.Status.Reconnecting && DateTime.UtcNow < waiting) Thread.Sleep(10);
+
+            Assert.True(session.Status.Reconnecting, $"did not wait after {drop.GetType().Name}");
+
+            transport.Down = null;
+            Until(session, before + 2);
+
+            Assert.False(session.Status.Faulted);
+        }
+
+        session.Stop();
+        Assert.True(transport.Opens >= 3);   // the first open plus one per recovery
+    }
+
+    [Fact]
+    public void RecoveryClosesBeforeReopening()
+    {
+        // A handle whose device has gone still reports itself open, so reopening
+        // without closing first does nothing at all.
+        var transport = new FlakyTransport(Block(1000, 400));
+        using LiveSession session = Session(transport, Recovering());
+
+        session.Start();
+        Until(session, 2);
+
+        transport.Down = new ObjectDisposedException("SerialPort");
+        DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+        while (!session.Status.Reconnecting && DateTime.UtcNow < deadline) Thread.Sleep(10);
+
+        transport.Down = null;
+        Until(session, session.Status.Samples + 2);
+        session.Stop();
+
+        Assert.True(transport.Closes >= 1, "the link was reopened without being closed");
+    }
+
+    [Fact]
+    public void ALinkThatNeverComesBackEndsTheSessionWithAReason()
+    {
+        var transport = new FlakyTransport(Block(1000, 400));
+        using LiveSession session = Session(transport, Recovering(seconds: 0.4));
+
+        session.Start();
+        Until(session, 2);
+        transport.Down = new IOException("gone for good");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(6);
+        while (session.IsRunning && DateTime.UtcNow < deadline) Thread.Sleep(20);
+
+        Assert.False(session.IsRunning);
+        Assert.Contains("did not come back", session.Status.Error);
+    }
+
+    [Fact]
+    public void RecoveryCanBeTurnedOff()
+    {
+        var transport = new FlakyTransport(Block(1000, 400));
+        using LiveSession session = Session(transport, new LiveSessionSettings
+        {
+            FailuresBeforeStopping = 2,
+            ReconnectFor = TimeSpan.Zero,
+        });
+
+        session.Start();
+        Until(session, 2);
+        transport.Down = new IOException("gone");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (session.IsRunning && DateTime.UtcNow < deadline) Thread.Sleep(20);
+
+        Assert.False(session.IsRunning);
+        Assert.Contains("stopped responding", session.Status.Error);
+    }
+
+    [Fact]
+    public void StoppingWhileWaitingForTheEcuDoesNotHang()
+    {
+        // Disconnect has to work during a recovery wait, not after it.
+        var transport = new FlakyTransport(Block(1000, 400));
+        LiveSession session = Session(transport, Recovering(seconds: 30));
+
+        session.Start();
+        Until(session, 2);
+        transport.Down = new IOException("gone");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(3);
+        while (!session.Status.Reconnecting && DateTime.UtcNow < deadline) Thread.Sleep(10);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        session.Stop();
+        stopwatch.Stop();
+
+        Assert.False(session.IsRunning);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(3),
+            $"stopping took {stopwatch.Elapsed.TotalSeconds:F1} s");
+
+        session.Dispose();
+    }
+
     [Fact]
     public void TheEcuGoingAwayEndsTheSessionRatherThanTheProcess()
     {
@@ -254,7 +407,8 @@ public class LiveSessionTests : IDisposable
 
         using LiveSession session = Session(transport, new LiveSessionSettings
         {
-            FailuresBeforeStopping = 50,
+            FailuresBeforeStopping = 2,
+            ReconnectFor = TimeSpan.Zero,
         });
 
         session.Start();
@@ -282,6 +436,7 @@ public class LiveSessionTests : IDisposable
         using LiveSession session = Session(transport, new LiveSessionSettings
         {
             FailuresBeforeStopping = 3,
+            ReconnectFor = TimeSpan.Zero,
         });
 
         session.Start();
@@ -303,7 +458,7 @@ public class LiveSessionTests : IDisposable
             ThrowOnClose = true,
         };
 
-        LiveSession session = Session(transport, new LiveSessionSettings { FailuresBeforeStopping = 2 });
+        LiveSession session = Session(transport, new LiveSessionSettings { FailuresBeforeStopping = 2, ReconnectFor = TimeSpan.Zero });
         session.Start();
         Thread.Sleep(200);
 
