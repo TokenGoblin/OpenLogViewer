@@ -183,8 +183,75 @@ not have is reported and skipped, never applied as "reject everything".
   times the log's median sample interval
 - Min/max envelope decimation, so a 37,000-sample log scrubs smoothly
 - **Fourteen colour schemes** — see below
+- **Calculated channels** — see below
+- **VE Calibration** — see below
 - **Export** — see below
 - No third-party dependencies
+
+## Calculated channels
+
+*ƒ Add calculated channel* in the sidebar. Define a channel from the ones the
+log already has:
+
+```
+AFR - AFR Target 1
+RPM * Torque / 5252
+if(Boost psi > 0, Boost psi, 0)
+```
+
+Once built they are ordinary channels: plottable, usable as a histogram axis,
+available to filters, and included in an export. They are marked **ƒ** in the
+list.
+
+Channel names need no quoting even with spaces in them — names are matched
+against the log's own, longest first, so `AFR Target 1` wins over `AFR`. A match
+has to end on a word boundary, so `MAPX` is not read as `MAP` followed by an
+unexplained `X`.
+
+Operators `+ - * / % ^`, comparisons `< <= > >= == !=`, `&& || !`, and the
+functions `abs sqrt min max clamp floor ceil round log log10 exp pow sign if`.
+`pi` and `e` are available as constants.
+
+Missing readings propagate — including through comparisons, where returning
+"false" for a reading that was never taken would let `if` choose a branch on the
+strength of nothing. A result that is not finite becomes a gap rather than an
+infinity, which would otherwise take the channel's range with it.
+
+Definitions live in `%APPDATA%\OpenLogViewer\math.json`, are held by name and
+expression, and so apply to any log carrying those channels. One that does not
+fit the open log is reported in the sidebar rather than dropped.
+
+## VE Calibration
+
+Suggests a new fuel table from logged AFR against the AFR the tune was asking
+for. In histogram view, pick one of the tune's own tables under *Axis
+breakpoints*, set *Compare against* to the AFR target channel, and tick
+**Suggest a new fuel table**.
+
+The reasoning is one line: the engine took in a known amount of air, the ECU
+metered fuel for it using the VE number in the cell, and the wideband says what
+the mixture actually came out as. Richer than target means the ECU thought there
+was more air than there was, so the VE number is too high — scale it by measured
+over target.
+
+What makes it usable is what it refuses to do:
+
+- A cell with fewer than **Min samples** is left alone and counted as thin. Two
+  crossings on the way somewhere else say more about the transient than about
+  the fuelling there.
+- A correction larger than **Max change %** is clamped, not applied whole. A
+  cell read during an accel-enrichment event can imply a change far bigger than
+  the table is actually wrong by.
+- Cells the log never visited are untouched, not zeroed.
+- A zero or negative AFR target is not a target, and those samples are skipped.
+
+Use the data filters to exclude what you do not want counted — up to
+temperature, engine running, off idle. The summary line says how many cells were
+suggested, how many were too thin, and the largest change.
+
+Toggle *Show the new numbers* to switch between how far each cell moves and the
+values themselves, then export the table as CSV to paste into your tuning app.
+Reading the tune needs it embedded in the log, which TunerStudio does by default.
 
 ## Export
 

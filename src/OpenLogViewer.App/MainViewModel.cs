@@ -284,6 +284,7 @@ public sealed class MainViewModel : ObservableObject
 
             Raise(nameof(UsingTuneAxes));
             Raise(nameof(UsingDataAxes));
+            Raise(nameof(VeAvailable));
 
             // The tune's axes are RPM against load, so move the pickers onto
             // matching channels — but only when the current pick does not
@@ -571,6 +572,104 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>Rebuilds <see cref="Table"/> over the given sample window.</summary>
+    // ----- VE Calibration -------------------------------------------------------
+
+    private bool _veAnalyze;
+    private bool _veShowSuggested;
+    private int _veMinimumSamples = 12;
+    private double _veMaxChange = 15;
+
+    /// <summary>The last analysis, for the summary line and the export.</summary>
+    public VeAnalysisResult? VeResult { get; private set; }
+
+    /// <summary>
+    /// Suggest a new fuel table from logged AFR against the AFR the tune was
+    /// asking for. Needs the tune's own numbers, so it is only available once an
+    /// axis source carrying them is picked.
+    /// </summary>
+    public bool VeAnalyze
+    {
+        get => _veAnalyze;
+        set
+        {
+            if (!Set(ref _veAnalyze, value)) return;
+
+            Raise(nameof(VeAvailable));
+            HistogramInvalidated?.Invoke();
+        }
+    }
+
+    /// <summary>Show the new numbers rather than how far each moves.</summary>
+    public bool VeShowSuggested
+    {
+        get => _veShowSuggested;
+        set { if (Set(ref _veShowSuggested, value)) HistogramInvalidated?.Invoke(); }
+    }
+
+    public int VeMinimumSamples
+    {
+        get => _veMinimumSamples;
+        set { if (Set(ref _veMinimumSamples, Math.Max(1, value))) HistogramInvalidated?.Invoke(); }
+    }
+
+    public double VeMaxChange
+    {
+        get => _veMaxChange;
+        set { if (Set(ref _veMaxChange, Math.Clamp(value, 1, 100))) HistogramInvalidated?.Invoke(); }
+    }
+
+    /// <summary>True when the picked axis source brought the tune's values with it.</summary>
+    public bool VeAvailable => _axisSource.HasValues;
+
+    public string VeSummary { get; private set; } = "";
+
+    /// <summary>
+    /// Runs the analysis, or explains why it cannot. Returns false to fall back
+    /// to an ordinary binned table, so switching to VE Calibration without the parts
+    /// it needs still shows something rather than an empty panel.
+    /// </summary>
+    private bool BuildVeAnalysis(int firstSample, int lastSample, SampleMask mask, LogChannel? target)
+    {
+        if (_axisSource.Table is not { } tune)
+        {
+            VeSummary = "Pick one of the tune's own tables above — VE Calibration needs its numbers.";
+            Raise(nameof(VeSummary));
+            return false;
+        }
+
+        if (target is null)
+        {
+            VeSummary = "Set \"Compare against\" to the AFR target channel.";
+            Raise(nameof(VeSummary));
+            return false;
+        }
+
+        VeAnalysisResult result = VeAnalysis.Analyse(
+            tune, XAxis!.Channel, YAxis!.Channel, ZAxis!.Channel, target,
+            firstSample, lastSample, mask,
+            new VeAnalysisSettings { MinimumSamples = _veMinimumSamples, MaxChangePercent = _veMaxChange });
+
+        VeResult = result;
+
+        Table = _veShowSuggested
+            ? result.AsSuggestedTable(XAxis.Channel, YAxis.Channel, ZAxis.Channel, firstSample, lastSample, mask)
+            : result.AsChangeTable(XAxis.Channel, YAxis.Channel, ZAxis.Channel, target, firstSample, lastSample, mask);
+
+        VeSummary = result.IsEmpty
+            ? $"Nothing to suggest — no cell reached {_veMinimumSamples} samples."
+            : $"{result.CellsSuggested} of {tune.Columns * tune.Rows} cells, " +
+              $"{result.CellsThin} too thin, largest change {result.LargestChangePercent:F1}%, " +
+              $"from {result.SamplesUsed:N0} samples";
+
+        Hint = result.IsEmpty
+            ? "No cell has enough samples yet. Lower the sample threshold, or drive the untouched areas."
+            : $"Suggesting {result.CellsSuggested} cells of {tune.Name}. " +
+              "Cells with too little data are left alone. Export the table to paste it into your tuning app.";
+
+        Raise(nameof(VeSummary));
+        return true;
+    }
+
     public void RebuildHistogram(int firstSample, int lastSample)
     {
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
@@ -582,6 +681,10 @@ public sealed class MainViewModel : ObservableObject
         SampleMask mask = SampleFilter.Build(Document, Filters.Select(f => f.Filter));
 
         LogChannel? against = _zCompare.Channel?.Channel;
+
+        if (_veAnalyze && BuildVeAnalysis(firstSample, lastSample, mask, against)) return;
+
+        VeResult = null;
 
         Table = _tuneAxes is { } axes
             ? HistogramTable.Build(
@@ -641,13 +744,21 @@ public sealed class MainViewModel : ObservableObject
 
         _zCompare = CompareOption.None;
 
-        // Offer the tune's own table axes when the log carries a tune.
+        // Offer the tune's own table axes when the log carries a tune, carrying
+        // the table's values through where they could be read — VE Calibration needs
+        // the numbers, not just the grid.
         AxisSources.Clear();
         AxisSources.Add(AxisSourceOption.FromData);
+
+        Dictionary<string, TuneTable> withValues = MsqTune.ReadTables(document.EmbeddedTune)
+            .ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
+
         foreach (TuneAxisSet set in MsqTune.ReadAxisSets(document.EmbeddedTune))
-            AxisSources.Add(new AxisSourceOption(set.Label, set));
+            AxisSources.Add(new AxisSourceOption(
+                set.Label, set, withValues.GetValueOrDefault(set.Name)));
 
         _axisSource = AxisSourceOption.FromData;
+        _veAnalyze = false;
 
         Raise(nameof(XAxis));
         Raise(nameof(YAxis));
@@ -658,6 +769,8 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(UsingTuneAxes));
         Raise(nameof(UsingDataAxes));
         Raise(nameof(HasTuneAxes));
+        Raise(nameof(VeAnalyze));
+        Raise(nameof(VeAvailable));
 
         ChannelItem? Pick(string name) => AxisChannels.FirstOrDefault(
             c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));

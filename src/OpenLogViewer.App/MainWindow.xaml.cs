@@ -191,6 +191,13 @@ public partial class MainWindow : Window
         if (countStatistic) _vm.StatCount = true;
     }
 
+    /// <summary>Turns on VE Calibration, for a scripted run.</summary>
+    public void EnableVeAnalyze(bool showSuggested)
+    {
+        _vm.VeAnalyze = true;
+        _vm.VeShowSuggested = showSuggested;
+    }
+
     /// <summary>
     /// Positions the cursor from fractions of the plot area. Used to capture a
     /// deterministic screenshot with the hover readout showing.

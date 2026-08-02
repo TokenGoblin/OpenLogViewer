@@ -201,6 +201,16 @@ public sealed class HistogramView : FrameworkElement
 
     private void DrawTitle(DrawingContext dc, HistogramTable table)
     {
+        // A computed table names itself: its cells hold a suggestion, not an
+        // aggregate of Z, so "mean AFR" would describe the wrong thing.
+        string what = table.DisplayName ?? Aggregate(table);
+
+        FormattedText title = Label($"{table.X.Name}  ×  {table.Y.Name}   —   {what}", 13, TitleInk);
+        dc.DrawText(title, new Point(LeftGutter, 10));
+    }
+
+    private static string Aggregate(HistogramTable table)
+    {
         string statistic = table.Statistic switch
         {
             HistogramStatistic.Mean => "mean",
@@ -213,8 +223,7 @@ public sealed class HistogramView : FrameworkElement
             ? $"{table.Z.Name} − {table.ZCompare!.Name}"
             : table.Z.Name;
 
-        FormattedText title = Label($"{table.X.Name}  ×  {table.Y.Name}   —   {statistic} {measure}", 13, TitleInk);
-        dc.DrawText(title, new Point(LeftGutter, 10));
+        return $"{statistic} {measure}";
     }
 
     /// <summary>
