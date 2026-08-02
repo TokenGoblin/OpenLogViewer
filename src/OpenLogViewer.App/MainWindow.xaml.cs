@@ -153,17 +153,25 @@ public partial class MainWindow : Window
 
         PortsMenu.Items.Clear();
 
-        IReadOnlyList<string> ports = _vm.SerialPorts;
+        IReadOnlyList<SerialPortInfo> ports = SerialPortNames.Describe();
         if (ports.Count == 0)
         {
             PortsMenu.Items.Add(new MenuItem { Header = "No serial ports found", IsEnabled = false });
         }
         else
         {
-            foreach (string port in ports)
+            foreach (SerialPortInfo port in ports)
             {
-                var item = new MenuItem { Header = port };
-                item.Click += (_, _) => StartLive(port);
+                var item = new MenuItem
+                {
+                    Header = port.Label,
+                    ToolTip = port.IsBluetooth
+                        ? "A Bluetooth link. Slower to answer than a cable, so it is given "
+                          + "longer to reply and more room to settle between attempts."
+                        : null,
+                };
+
+                item.Click += (_, _) => StartLive(port.PortName, bluetooth: port.IsBluetooth);
                 PortsMenu.Items.Add(item);
             }
         }
@@ -222,7 +230,7 @@ public partial class MainWindow : Window
         return menu;
     }
 
-    private void StartLive(string port, bool quiet = false)
+    private void StartLive(string port, bool quiet = false, bool bluetooth = false)
     {
         // Connecting reads the ECU's whole settings memory, which is 50 ms on a
         // rusEFI over USB and three seconds on a MegaSquirt over serial — 20 KB
@@ -232,7 +240,7 @@ public partial class MainWindow : Window
 
         try
         {
-            _vm.Connect(port);
+            _vm.Connect(port, bluetooth);
         }
         // Broad on the scripted path on purpose: this runs during startup, and
         // anything escaping here takes down the app behind a crash dialog with

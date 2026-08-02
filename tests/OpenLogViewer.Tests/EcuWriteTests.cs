@@ -113,6 +113,90 @@ internal sealed class WritableEcu(byte[] page, int blockingFactor = 64) : IEcuTr
     }
 }
 
+/// <summary>
+/// A link that answers late, the way a Bluetooth one does.
+///
+/// The reply to a request that timed out arrives while the next is in flight.
+/// Nothing in the protocol says which request a reply answers — there is no echo
+/// of the offset or count — so a straggler is otherwise decoded as the answer to
+/// whatever was asked next.
+/// </summary>
+internal sealed class LateTransport(byte[] first, byte[] second) : IEcuTransport
+{
+    private readonly Queue<byte[]> _late = new();
+    private byte[] _pending = [];
+    private int _writes;
+
+    public bool IsOpen { get; private set; }
+
+    public int Discards { get; private set; }
+
+    public void Open() => IsOpen = true;
+
+    public void Close() => IsOpen = false;
+
+    public void Write(ReadOnlySpan<byte> data)
+    {
+        _writes++;
+
+        // The first request is answered too late to be read, so its reply is
+        // still queued when the second goes out.
+        if (_writes == 1) _late.Enqueue(first);
+        else _pending = _late.Count > 0 ? _late.Dequeue() : second;
+    }
+
+    public int Read(Span<byte> buffer, TimeSpan timeout)
+    {
+        int take = Math.Min(buffer.Length, _pending.Length);
+        _pending.AsSpan(0, take).CopyTo(buffer);
+        _pending = _pending[take..];
+
+        return take;
+    }
+
+    public void DiscardInput() => Discards++;
+
+    public void Dispose() => Close();
+}
+
+/// <summary>Never answers, and records whether a drain happened between writes.</summary>
+internal sealed class CountingSettle : IEcuTransport
+{
+    private int _writes;
+    private int _readsSinceWrite;
+
+    public bool IsOpen { get; private set; }
+
+    public bool DrainedBeforeSecondWrite { get; private set; }
+
+    public void Open() => IsOpen = true;
+
+    public void Close() => IsOpen = false;
+
+    public void Write(ReadOnlySpan<byte> data)
+    {
+        _writes++;
+
+        // Reads after the first write and before the second are the header read
+        // that timed out plus the drain that followed it.
+        if (_writes == 2 && _readsSinceWrite > 1) DrainedBeforeSecondWrite = true;
+
+        _readsSinceWrite = 0;
+    }
+
+    public int Read(Span<byte> buffer, TimeSpan timeout)
+    {
+        _readsSinceWrite++;
+        return 0;
+    }
+
+    public void DiscardInput()
+    {
+    }
+
+    public void Dispose() => Close();
+}
+
 public class EcuWriteTests
 {
     private const string Ini = """
@@ -330,6 +414,76 @@ public class EcuWriteTests
 
         Assert.Contains("no write command", thrown.Message);
         Assert.Empty(board.Writes);
+    }
+
+    // ----- late replies -----------------------------------------------------
+
+    [Fact]
+    public void AReplyOfTheWrongLengthIsNotTakenAsTheAnswer()
+    {
+        // The failure this guards against was reported from a Bluetooth rig: a
+        // straggler matched to the next request decoded at the wrong offsets and
+        // showed a stationary car doing 230 km/h. Well-formed, checksummed, and
+        // entirely wrong.
+        var transport = new LateTransport(Reply(new byte[200]), Reply(new byte[16]));
+
+        // Three attempts: the first times out, the second collects its late
+        // reply and refuses it, the third is answered properly.
+        using var connection = new EcuConnection(transport, new EcuConnectionSettings
+        {
+            Retries = 2,
+            Timeout = TimeSpan.FromMilliseconds(20),
+            SettleFor = TimeSpan.FromMilliseconds(20),
+            QuietFor = TimeSpan.FromMilliseconds(1),
+        });
+
+        connection.Use(MsqIni.ReadOutputChannels("""
+            [Constants]
+            endianness = little
+
+            [OutputChannels]
+            ochGetCommand = "R%2o%2c"
+            ochBlockSize  = 16
+            """));
+
+        // The 200-byte straggler is refused, and the 16 that follows is right.
+        Assert.Equal(16, connection.ReadRealtime(16).Length);
+        Assert.Equal(2, connection.Retries);
+    }
+
+    [Fact]
+    public void TheLinkIsDrainedBeforeAnythingIsSentAgain()
+    {
+        // rusEFI's command handler has no queue: a request arriving while a reply
+        // is still being written desynchronises it permanently, and only a power
+        // cycle brings the ECU back. Never more than one request outstanding.
+        var transport = new CountingSettle();
+
+        using var connection = new EcuConnection(transport, new EcuConnectionSettings
+        {
+            Retries = 1,
+            Timeout = TimeSpan.FromMilliseconds(5),
+            SettleFor = TimeSpan.FromMilliseconds(60),
+            QuietFor = TimeSpan.FromMilliseconds(5),
+        });
+
+        Assert.Throws<EcuProtocolException>(() => connection.ReadSignature());
+
+        // Drained after the failure, before the retry went out.
+        Assert.True(transport.DrainedBeforeSecondWrite, "the retry was sent without draining first");
+    }
+
+    private static byte[] Reply(byte[] data)
+    {
+        byte[] body = [0x00, .. data];
+        uint crc = MsProtocol.Crc32(body);
+
+        return
+        [
+            (byte)(body.Length >> 8), (byte)body.Length,
+            .. body,
+            (byte)(crc >> 24), (byte)(crc >> 16), (byte)(crc >> 8), (byte)crc,
+        ];
     }
 
     // ----- the command ------------------------------------------------------
