@@ -1361,15 +1361,27 @@ public sealed class MainViewModel : ObservableObject
 
         IReadOnlyList<string> identity = connection.ReadIdentity();
 
-        if (IniCatalog.MatchAny(identity, IniCatalog.Scan()) is not var (ini, signature))
+        if (IniCatalog.MatchAny(identity, IniCatalog.Scan(Workspace.DefinitionSearchPaths))
+            is not var (ini, signature))
         {
             connection.Dispose();
+
+            // The folder is created now rather than at startup, with a note
+            // naming the signature this ECU actually reported — which is the one
+            // thing that makes finding the right file possible.
+            string folder = Workspace.EnsureDefinitions(identity);
+
             throw new LogFormatException(
                 (identity.Count > 0
-                    ? $"The ECU reports \"{string.Join("\", \"", identity)}\", and no INI on this machine matches.\n\n"
-                    : "The ECU did not say what it is.\n\n") +
-                "TunerStudio keeps these under its ecuDef folder and in each project. " +
-                "Without the matching one the realtime data cannot be decoded.");
+                    ? $"The ECU reports \"{string.Join("\", \"", identity)}\", "
+                      + "and no definition file on this machine matches it.\n\n"
+                    : "The ECU did not say what it is.\n\n")
+                + "A live ECU sends raw numbers with no names, units or scaling — all of that "
+                + "is in the .ini for that exact firmware. Without it the data cannot be decoded, "
+                + "and guessing would show readings that look right and are not.\n\n"
+                + $"Put the file here and connect again:\n\n{folder}\n\n"
+                + "There is a note in that folder explaining where to get one. "
+                + "TunerStudio's own copies are searched automatically if it is installed.");
         }
 
         // Whatever else it said is the build string — the same reply that is the
