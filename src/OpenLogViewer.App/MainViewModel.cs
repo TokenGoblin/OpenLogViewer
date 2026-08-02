@@ -1157,6 +1157,32 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     public static IReadOnlyList<double> LiveRates { get; } = [5, 10, 25, 50, 100, 200];
 
+    /// <summary>
+    /// Whether to ask for the whole realtime block in one request.
+    ///
+    /// Worth a third of the poll rate on a MegaSquirt, which serves its 512-byte
+    /// block in one reply despite declaring a 256-byte blocking factor. Fatal on
+    /// a rusEFI, which answers 1024 and, asked for more, leaves the USB bus until
+    /// it is replugged. Nothing in the INI distinguishes the two, so it is off
+    /// until someone who knows their ECU says otherwise.
+    /// </summary>
+    public bool SingleRequestBlock
+    {
+        get => _settings.SingleRequestBlock;
+        set
+        {
+            if (value == _settings.SingleRequestBlock) return;
+
+            _settings.SetSingleRequestBlock(value);
+            Raise(nameof(SingleRequestBlock));
+
+            Hint = value
+                ? "The realtime block will be asked for in one request from the next connection. "
+                  + "If the ECU stops responding, unplug it, switch this back off, and reconnect."
+                : "Back to reading the realtime block in blocking-factor pieces.";
+        }
+    }
+
     /// <summary>Samples a second a live session records. Applied when the next one starts.</summary>
     public double LiveRate
     {
@@ -1214,7 +1240,7 @@ public sealed class MainViewModel : ObservableObject
 
         // From here the firmware's own request format is used, which is the only
         // way one program reads both a MegaSquirt page and a rusEFI block.
-        connection.Use(layout);
+        connection.Use(layout, _settings.SingleRequestBlock);
 
         _projectTune = ReadProjectTune(ini.Path);
 

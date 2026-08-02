@@ -375,6 +375,34 @@ public class RusefiTests
     }
 
     [Fact]
+    public void AskingForTheWholeBlockInOneRequestIsOptIn()
+    {
+        // Measured on two boards: an MS3 declaring 256 serves its whole 512-byte
+        // block, a rusEFI declaring 1024 leaves the USB bus when asked for 1280.
+        // Nothing in either INI tells the two apart, so the safe reading is the
+        // default and this is the way out of it.
+        var transport = new FakeRusefi(new byte[2500], blockingFactor: 4096);
+        using var connection = new EcuConnection(transport, Quick);
+
+        connection.Use(Layout() with { BlockSize = 2500 }, singleRequest: true);
+        connection.ReadRealtime(2500);
+
+        Assert.Equal([(0, 2500)], transport.Reads);
+    }
+
+    [Fact]
+    public void TheBlockingFactorIsStillObeyedByDefault()
+    {
+        var transport = new FakeRusefi(new byte[2500]);
+        using var connection = new EcuConnection(transport, Quick);
+
+        connection.Use(Layout() with { BlockSize = 2500 });
+        connection.ReadRealtime(2500);
+
+        Assert.All(transport.Reads, read => Assert.True(read.Count <= 1024));
+    }
+
+    [Fact]
     public void AFirmwareThatDeclaresNoBlockingFactorIsReadWhole()
     {
         var transport = new FakeRusefi(new byte[2500], blockingFactor: 4096);
