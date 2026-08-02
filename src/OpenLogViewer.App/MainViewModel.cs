@@ -164,6 +164,9 @@ public sealed class MainViewModel : ObservableObject
         private set => Set(ref _hint, value);
     }
 
+    /// <summary>Says what is happening, for a step the window has to stay alive through.</summary>
+    public void SetHint(string text) => Hint = text;
+
     public ICollectionView ChannelView { get; }
 
     public LogDocument? Document
