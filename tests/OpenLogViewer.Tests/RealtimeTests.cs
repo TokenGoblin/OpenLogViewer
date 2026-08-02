@@ -276,6 +276,46 @@ public class RealtimeTests
         Assert.Equal(2, Assert.Single(entries, e => e.Channel == "coolant").Digits);
     }
 
+    // ----- channels that are only another channel renamed --------------------
+
+    /// <summary>
+    /// Speeduino's own idiom, verbatim from 202501.7: the throttle position is
+    /// published as <c>tps</c>, aliased to <c>throttle</c>, and it is
+    /// <c>throttle</c> that the front-page gauge names while the datalog records
+    /// <c>tps</c>. Pairing them by name alone lost the gauge entirely.
+    /// </summary>
+    private const string Aliases = """
+        [OutputChannels]
+        ochBlockSize = 4
+        ochGetCommand = "r\x00\x30%2o%2c"
+        rpm      = scalar, U16,  0, "RPM", 1.000, 0.000
+        tps      = scalar, U08,  2, "%",   0.500, 0.000
+        throttle         = { tps }, "%"
+        engineSpeed      = { rpm }
+        doubleThrottle   = { tps * 2 }
+        revolutionTime   = { rpm ? ( 60000.0 / rpm) : 0 }
+        """;
+
+    [Fact]
+    public void AChannelThatIsAnotherChannelRenamedIsRecognised()
+    {
+        IReadOnlyDictionary<string, string> aliases = MsqIni.ReadAliases(Aliases);
+
+        Assert.Equal("tps", aliases["throttle"]);
+        Assert.Equal("rpm", aliases["engineSpeed"]);
+    }
+
+    [Fact]
+    public void AChannelThatComputesSomethingIsNotAnAlias()
+    {
+        // Following one of these as though it were would put the wrong number on
+        // a dial, which is worse than showing no dial at all.
+        IReadOnlyDictionary<string, string> aliases = MsqIni.ReadAliases(Aliases);
+
+        Assert.DoesNotContain("doubleThrottle", aliases.Keys);
+        Assert.DoesNotContain("revolutionTime", aliases.Keys);
+    }
+
     private static double Value(RealtimeDecoder decoder, double[] values, string name)
     {
         // Backwards, matching the decoder: a later definition of a name wins.

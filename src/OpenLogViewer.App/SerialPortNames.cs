@@ -28,6 +28,24 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// </summary>
     public string DeviceName { get; init; } = "";
 
+    /// <summary>
+    /// Windows' identifier for the device behind this port.
+    ///
+    /// Steadier than the COM number, which Windows hands out and reuses: a USB
+    /// adapter carries its serial in here, so the same board is recognisable
+    /// after a replug even if it lands on a different port.
+    /// </summary>
+    public string DeviceId { get; init; } = "";
+
+    /// <summary>
+    /// What answered here last time, when anything has.
+    ///
+    /// Windows names the chip — "Arduino Mega 2560" — which says nothing about
+    /// which ECU is on it. The ECU's own signature does, and it is only knowable
+    /// by having asked once.
+    /// </summary>
+    public string KnownEcu { get; init; } = "";
+
     /// <summary>True when this port reaches a MaxxECU, which advertises as MaxxECU_&lt;serial&gt;.</summary>
     public bool IsMaxxEcu =>
         DeviceName.StartsWith("MaxxECU", StringComparison.OrdinalIgnoreCase);
@@ -43,6 +61,10 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// </summary>
     public string Label => this switch
     {
+        // What answered here beats what Windows calls the hardware. "Arduino
+        // Mega 2560" names the chip a Speeduino happens to run on, which is not
+        // what anyone is looking for in this list.
+        { KnownEcu.Length: > 0 } => $"{PortName} — {KnownEcu}",
         { DeviceName.Length: > 0 } => $"{PortName} — {DeviceName} (Bluetooth)",
         { Description.Length: > 0 } => $"{PortName} — {Description}",
         _ => PortName,
@@ -63,7 +85,41 @@ public static class SerialPortNames
     private static DateTime _cachedAt = DateTime.MinValue;
 
     private readonly record struct Entry(
-        string Description, bool Bluetooth, bool Incoming, string DeviceName);
+        string Description, bool Bluetooth, bool Incoming, string DeviceName, string DeviceId);
+
+    /// <summary>
+    /// What answered on each device, by hardware id.
+    ///
+    /// Filled in by whoever connects; this class only knows what Windows says,
+    /// and Windows does not know one Arduino from another.
+    /// </summary>
+    private static readonly Dictionary<string, string> Ecus =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Note that this ECU answered on the device behind a port.</summary>
+    public static void Remember(string portName, string signature)
+    {
+        string id = All().FirstOrDefault(p => p.PortName == portName)?.DeviceId ?? "";
+        if (id.Length == 0 || signature.Length == 0) return;
+
+        lock (Gate) Ecus[id] = signature;
+    }
+
+    /// <summary>Everything remembered so far, to be saved and handed back next time.</summary>
+    public static IReadOnlyDictionary<string, string> Remembered()
+    {
+        lock (Gate) return new Dictionary<string, string>(Ecus, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Restore what a previous session learnt.</summary>
+    public static void Recall(IReadOnlyDictionary<string, string>? saved)
+    {
+        if (saved is null) return;
+
+        lock (Gate)
+            foreach ((string id, string signature) in saved)
+                Ecus[id] = signature;
+    }
 
     /// <summary>
     /// How long a lookup is reused. The query costs about 200 ms, which is a
@@ -94,17 +150,21 @@ public static class SerialPortNames
     {
         IReadOnlyList<string> names = SerialEcuTransport.AvailablePorts();
         Dictionary<string, Entry> known = Known();
+        Dictionary<string, string> ecus;
+        lock (Gate) ecus = new Dictionary<string, string>(Ecus, StringComparer.OrdinalIgnoreCase);
 
         return
         [
             .. names.Select(name =>
             {
-                Entry entry = known.GetValueOrDefault(name, new Entry("", false, false, ""));
+                Entry entry = known.GetValueOrDefault(name, new Entry("", false, false, "", ""));
 
                 return new SerialPortInfo(name, entry.Description, entry.Bluetooth)
                 {
                     IsIncoming = entry.Incoming,
                     DeviceName = entry.DeviceName,
+                    DeviceId = entry.DeviceId,
+                    KnownEcu = ecus.GetValueOrDefault(entry.DeviceId, ""),
                 };
             }),
         ];
@@ -167,8 +227,8 @@ public static class SerialPortNames
                     ? bluetoothNames.GetValueOrDefault(AddressIn(id), "")
                     : "";
 
-                found[name[(open + 1)..close]] =
-                    new Entry(name[..open].Trim(), bluetooth, bluetooth && IsIncoming(id), reaches);
+                found[name[(open + 1)..close]] = new Entry(
+                    name[..open].Trim(), bluetooth, bluetooth && IsIncoming(id), reaches, id);
             }
         }
 

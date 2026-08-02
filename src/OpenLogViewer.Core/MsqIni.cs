@@ -192,6 +192,36 @@ public static class MsqIni
         return char.IsAsciiDigit(format[dot + 1]) ? format[dot + 1] - '0' : 0;
     }
 
+    /// <summary>
+    /// Output channels that are nothing but another channel under a second name,
+    /// mapped to what they actually refer to.
+    ///
+    /// A common idiom: Speeduino publishes the throttle position at
+    /// <c>tps</c> and then declares <c>throttle = { tps }</c> so the rest of the
+    /// file can say the readable one. Its front-page throttle gauge names
+    /// <c>throttle</c>, while its datalog records <c>tps</c> — so anything that
+    /// pairs a gauge with a recorded column by name alone loses that gauge, even
+    /// though the value is right there under the other name.
+    ///
+    /// Only a bare identifier counts. <c>{ tps }</c> is the same reading; <c>{
+    /// tps * 2 }</c> is a different one, and following that as though it were an
+    /// alias would put a wrong number on a dial.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> ReadAliases(
+        string iniText, IReadOnlySet<string>? symbols = null)
+    {
+        var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (RealtimeExpression expression in ReadOutputChannels(iniText, symbols).Expressions)
+            if (BareName.IsMatch(expression.Expression))
+                aliases[expression.Name] = expression.Expression;
+
+        return aliases;
+    }
+
+    private static readonly Regex BareName =
+        new(@"^[A-Za-z_]\w*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     public static RealtimeLayout ReadOutputChannels(string iniText, IReadOnlySet<string>? symbols = null)
     {
         ArgumentNullException.ThrowIfNull(iniText);

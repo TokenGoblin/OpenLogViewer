@@ -248,6 +248,35 @@ public class WorkspaceTests : IDisposable
         Assert.Single(IniCatalog.Scan([folder]));
     }
 
+    // ----- what answered on which port --------------------------------------
+
+    [Fact]
+    public void WhatAnsweredOnAPortSurvivesARestart()
+    {
+        // The whole value is in knowing before connecting: Windows calls a
+        // Speeduino "Arduino Mega 2560", and having to connect once to find out
+        // otherwise defeats the point of remembering at all.
+        string path = SettingsPath();
+
+        new SettingsStore(path).SetKnownEcus(new Dictionary<string, string>
+        {
+            [@"USB\VID_2341&PID_0042\95730333837351C01221"] = "Speeduino 2025.01.7",
+        });
+
+        Assert.Equal(
+            "Speeduino 2025.01.7",
+            new SettingsStore(path).KnownEcus[@"USB\VID_2341&PID_0042\95730333837351C01221"]);
+    }
+
+    [Fact]
+    public void ASettingsFileWrittenBeforeThereWasAnyOfThisReadsAsNoneKnown()
+    {
+        string path = SettingsPath();
+        File.WriteAllText(path, """{"Version":1,"ThemeId":"gruvbox"}""");
+
+        Assert.Empty(new SettingsStore(path).KnownEcus);
+    }
+
     // ----- logging rate -----------------------------------------------------
 
     [Fact]

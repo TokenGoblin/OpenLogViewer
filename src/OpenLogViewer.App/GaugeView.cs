@@ -180,6 +180,18 @@ public sealed class GaugeView : FrameworkElement
             : (bounds.Height - ReadingStrip) / 2;
 
         DrawReading(dc, spec, bounds, readingTop);
+
+        // Said outright, because a lone number among dials reads as one that
+        // failed to draw rather than one whose range nobody has stated. The
+        // firmware defines this gauge's limits as tuning-software settings that
+        // live in a project file, and without that file there is no range —
+        // inventing one would put a needle somewhere meaningless.
+        if (!spec.HasScale)
+        {
+            FormattedText note = Text("no range set", 9, _muted);
+            dc.DrawText(note, new Point((bounds.Width - note.Width) / 2, readingTop + 24));
+        }
+
         DrawExtremeReadings(dc, spec, bounds);
     }
 
