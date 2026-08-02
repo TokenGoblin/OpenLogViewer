@@ -162,14 +162,29 @@ public sealed class LiveSession : IDisposable
         _worker.Start();
     }
 
+    /// <summary>
+    /// Ends the session. Safe to call after the link has already failed, which
+    /// is the usual way it is reached: closing a recorder whose disk is full, or
+    /// a port whose device has gone, both throw.
+    /// </summary>
     public void Stop()
     {
-        _cancel?.Cancel();
+        try { _cancel?.Cancel(); } catch (ObjectDisposedException) { }
+
         _worker?.Join(TimeSpan.FromSeconds(2));
         _worker = null;
 
-        _recorder?.Flush();
-        _recorder?.Dispose();
+        try
+        {
+            _recorder?.Flush();
+            _recorder?.Dispose();
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException)
+        {
+            // Whatever reached disk is what the session has; there is nothing
+            // left to save it with.
+        }
+
         _recorder = null;
     }
 
@@ -192,22 +207,54 @@ public sealed class LiveSession : IDisposable
                 for (int i = 0; i < _sourceIndex.Length; i++) row[i + 1] = values[_sourceIndex[i]];
                 if (_recorder is { } recorder) CsvExport.WriteRow(recorder, row);
             }
-            catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
-                                          or UnauthorizedAccessException)
+            catch (Exception e)
             {
-                // One bad block is ordinary on a radio link; a run of them means
-                // the ECU is gone, and pretending otherwise just fills the log
-                // with nothing.
-                if (++_failures < _settings.FailuresBeforeStopping) continue;
+                // Deliberately everything. This runs on a background thread, and
+                // an exception that escapes one of those does not fail the
+                // session — it terminates the process. Switching an ECU off mid
+                // session takes its USB adapter with it, and a serial port whose
+                // device has gone throws whatever it likes: ObjectDisposedException
+                // from the closed handle, ArgumentOutOfRangeException from setting
+                // a timeout on it. Naming the types that seemed likely was how
+                // this crashed.
+                if (++_failures < _settings.FailuresBeforeStopping && !Gone(e)) continue;
 
-                _error = $"Lost the ECU after {_failures} failed reads: {e.Message}";
+                _error = Gone(e)
+                    ? "The ECU stopped responding — switched off, or the cable pulled. " +
+                      "The session so far is still here and its recording is complete."
+                    : $"Lost the ECU after {_failures} failed reads: {e.Message}";
+
                 break;
             }
 
-            Updated?.Invoke(Status);
+            Announce();
         }
 
-        Updated?.Invoke(Status);
+        Announce();
+    }
+
+    /// <summary>
+    /// Whether the link is gone rather than merely unhappy.
+    ///
+    /// A checksum failure is worth retrying; a handle that no longer exists is
+    /// not, and retrying it twenty times only delays telling the user what
+    /// happened.
+    /// </summary>
+    private static bool Gone(Exception e) =>
+        e is ObjectDisposedException or ArgumentOutOfRangeException
+            or InvalidOperationException or UnauthorizedAccessException;
+
+    /// <summary>Reporting a fault must not become one; a handler that throws is not our problem to inherit.</summary>
+    private void Announce()
+    {
+        try
+        {
+            Updated?.Invoke(Status);
+        }
+        catch (Exception)
+        {
+            // Nothing useful to do, and rethrowing here kills the process.
+        }
     }
 
     private void Append(double seconds, double[] values)
@@ -271,6 +318,7 @@ public sealed class LiveSession : IDisposable
     public void Dispose()
     {
         Stop();
-        _connection.Dispose();
+
+        try { _connection.Dispose(); } catch (Exception) { /* the port may already be gone */ }
     }
 }
