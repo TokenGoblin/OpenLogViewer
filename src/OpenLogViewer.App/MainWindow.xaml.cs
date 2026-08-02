@@ -19,6 +19,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
 
+        // Before CenterScreen does its arithmetic, so a window that would not
+        // have fitted is centred at the size it ends up being.
+        FitToWorkArea();
+
         _vm.PlotInvalidated += OnPlotInvalidated;
         _vm.HistogramInvalidated += RebuildHistogram;
         Plot.CursorSampleChanged += _vm.UpdateCursor;
@@ -27,11 +31,42 @@ public partial class MainWindow : Window
         Histogram.CellActivated += OnHistogramCellActivated;
         Plot.ViewChangedByUser += () => _follow = false;
 
+        // The title bar belongs to Windows, so it has to be coloured by hand —
+        // and again on every theme change, or a dark scheme leaves a white strip
+        // above it. Only once the handle exists, which is what SourceInitialized
+        // marks.
+        SourceInitialized += (_, _) => TitleBar.Apply(this, ThemeManager.Current);
+        ThemeManager.Changed += OnThemeChanged;
+
         // A live session holds a port open and a file being written; neither
         // should outlive the window.
-        Closed += (_, _) => StopLive();
+        Closed += (_, _) =>
+        {
+            ThemeManager.Changed -= OnThemeChanged;
+            StopLive();
+        };
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
+    }
+
+    private void OnThemeChanged(Theme theme) => TitleBar.Apply(this, theme);
+
+    /// <summary>
+    /// Shrinks the window to the screen it will open on.
+    ///
+    /// The declared size suits a desktop display. On a smaller one — a laptop
+    /// panel, or a scaled desktop, which is the same thing in the units WPF
+    /// measures in — centring a window taller than the screen puts its title bar
+    /// above the top edge, where it cannot be dragged back down. The margin
+    /// leaves room for the border and caption, whose thickness is not known
+    /// until the window has a handle.
+    /// </summary>
+    private void FitToWorkArea()
+    {
+        Rect work = SystemParameters.WorkArea;
+
+        Width = Math.Max(MinWidth, Math.Min(Width, work.Width - 40));
+        Height = Math.Max(MinHeight, Math.Min(Height, work.Height - 40));
     }
 
     /// <summary>Applies a theme for this run without recording it as the preference.</summary>

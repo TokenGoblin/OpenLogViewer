@@ -6,6 +6,7 @@
         Icon="AppIcon.ico"
         Height="760" Width="1280"
         MinHeight="420" MinWidth="760"
+        WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bg}"
         AllowDrop="True"
         Drop="OnDrop" DragOver="OnDragOver">
