@@ -43,6 +43,19 @@ public sealed record AxisSourceOption(string Label, TuneAxisSet? Axes, TuneTable
     public static AxisSourceOption FromData { get; } = new("From the log data", null);
 
     /// <summary>
+    /// The log channels the ECU indexes this table by, where the firmware says.
+    ///
+    /// Far better than picking axes by their units, which is the only thing
+    /// available for a table out of a file. The firmware states outright that
+    /// its fuel table is looked up by RPM and by a particular load channel — bin
+    /// a log against those two and the result is what the controller actually
+    /// did, not an approximation of it.
+    /// </summary>
+    public string? XChannel { get; init; }
+
+    public string? YChannel { get; init; }
+
+    /// <summary>
     /// True when the tune's own numbers came through as well as its breakpoints,
     /// which is what VE Calibration needs — it can only suggest a change to a value
     /// it can read.

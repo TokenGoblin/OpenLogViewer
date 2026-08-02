@@ -458,6 +458,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Picks the fuel table read off the ECU as the breakpoint source.
+    ///
+    /// Separate from <see cref="ShowHistogram"/> because the axis sources do not
+    /// exist until a session has produced its first samples, which is long after
+    /// the command line has been dealt with.
+    /// </summary>
+    public bool UseEcuVeTable()
+    {
+        AxisSourceOption? source = _vm.AxisSources.FirstOrDefault(
+            s => s.Label.Contains("VE Table", StringComparison.OrdinalIgnoreCase)
+                 && s.Label.Contains("from the ECU", StringComparison.OrdinalIgnoreCase));
+
+        if (source is null) return false;
+
+        _vm.AxisSource = source;
+        return true;
+    }
+
+    /// <summary>
     /// Positions the cursor from fractions of the plot area. Used to capture a
     /// deterministic screenshot with the hover readout showing.
     /// </summary>

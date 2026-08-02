@@ -317,8 +317,11 @@ public sealed class MainViewModel : ObservableObject
             // silently swap a deliberate selection for an equivalent channel.
             if (value.Axes is { } axes)
             {
-                _xAxis = KeepOrMatch(_xAxis, axes.X.Units, "rpm");
-                _yAxis = KeepOrMatch(_yAxis, axes.Y.Units, "kpa");
+                // Where the firmware names the channels it looks the table up
+                // by, take it at its word; units are a guess by comparison, and
+                // on rusEFI the load axis has no units to guess from.
+                _xAxis = Channel(value.XChannel) ?? KeepOrMatch(_xAxis, axes.X.Units, "rpm");
+                _yAxis = Channel(value.YChannel) ?? KeepOrMatch(_yAxis, axes.Y.Units, "kpa");
                 Raise(nameof(XAxis));
                 Raise(nameof(YAxis));
             }
@@ -328,6 +331,73 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private TuneAxisSet? _tuneAxes => _axisSource.Axes;
+
+    /// <summary>
+    /// Offers the tables read off the ECU as breakpoint sources.
+    ///
+    /// Listed after any from a file and marked as coming from the controller,
+    /// because the two can disagree and which one you are calibrating against
+    /// changes the answer. Each carries the channels the firmware indexes it by,
+    /// so picking one also sets the axes correctly.
+    /// </summary>
+    private void AddEcuAxisSources()
+    {
+        var offered = new List<AxisSourceOption>();
+
+        foreach (TuneTable table in EcuTables)
+        {
+            TableDefinition? definition = _ecuTableDefinitions
+                .FirstOrDefault(d => d.Title.Equals(table.Name, StringComparison.OrdinalIgnoreCase));
+
+            string? x = LogName(definition?.XChannel);
+            string? y = LogName(definition?.YChannel);
+
+            // A table whose axes this log does not carry cannot be binned
+            // against, so offering it would only be a way to produce an empty
+            // grid. Seventy-five of them would also bury the handful that work.
+            if (!Logged(x) || !Logged(y)) continue;
+
+            offered.Add(new AxisSourceOption($"{table.Label} — from the ECU", table.Axes, table)
+            {
+                XChannel = x,
+                YChannel = y,
+            });
+        }
+
+        // The fuel table first: it is what VE Calibration is for, and on rusEFI
+        // it is one of a few dozen otherwise indistinguishable entries.
+        foreach (AxisSourceOption option in offered
+                     .OrderByDescending(o => o.Label.Contains("VE ", StringComparison.OrdinalIgnoreCase))
+                     .ThenBy(o => o.Label, StringComparer.OrdinalIgnoreCase))
+            AxisSources.Add(option);
+    }
+
+    private bool Logged(string? channel) =>
+        channel is not null and not ""
+        && Channels.Any(c => c.Name.Equals(channel, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Log channels the ECU indexes one of its tables by.</summary>
+    private HashSet<string> EcuAxisChannels()
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (TableDefinition definition in _ecuTableDefinitions)
+        {
+            if (LogName(definition.XChannel) is { } x) names.Add(x);
+            if (LogName(definition.YChannel) is { } y) names.Add(y);
+        }
+
+        return names;
+    }
+
+    /// <summary>An internal channel name as the log records it.</summary>
+    private string? LogName(string? channel) =>
+        channel is null or "" ? null : _logNames.GetValueOrDefault(channel, channel);
+
+    /// <summary>An axis channel by name, or null when this log has no such thing.</summary>
+    private ChannelItem? Channel(string? name) =>
+        name is null or "" ? null
+        : AxisChannels.FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Keeps the current channel when it already measures the right quantity,
@@ -692,6 +762,20 @@ public sealed class MainViewModel : ObservableObject
     private EcuTune? _ecuTune;
     private string _ecuTuneSummary = "";
 
+    /// <summary>
+    /// Internal channel names to the names a session records them under.
+    ///
+    /// The firmware talks about <c>RPMValue</c> throughout — in gauges, in table
+    /// axes — while a log calls it "RPM", because those are the names a saved
+    /// preset was written against. Everything crossing between the two goes
+    /// through here.
+    /// </summary>
+    private IReadOnlyDictionary<string, string> _logNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Table definitions from the INI, paired with the tables read off the ECU.</summary>
+    private IReadOnlyList<TableDefinition> _ecuTableDefinitions = [];
+
     /// <summary>The tables read off the ECU, empty until a connection provides them.</summary>
     public ObservableCollection<TuneTable> EcuTables { get; } = [];
 
@@ -744,8 +828,9 @@ public sealed class MainViewModel : ObservableObject
             clock.Stop();
 
             _ecuTune = tune;
+            _ecuTableDefinitions = TableEditorReader.Read(iniText);
 
-            foreach (TuneTable table in tune.Tables(TableEditorReader.Read(iniText)))
+            foreach (TuneTable table in tune.Tables(_ecuTableDefinitions))
                 EcuTables.Add(table);
 
             EcuTuneSummary =
@@ -849,6 +934,8 @@ public sealed class MainViewModel : ObservableObject
         var columns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (DatalogEntry entry in datalog)
             columns[entry.Channel] = entry.Label.Length > 0 ? entry.Label : entry.Channel;
+
+        _logNames = columns;
 
         IReadOnlyDictionary<string, double> context =
             TuningContext.Build(iniText, TuneXml, fromEcu: _ecuTune?.Scalars());
@@ -1435,9 +1522,15 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Picks sensible axes for a newly opened log.</summary>
     private void SeedHistogramAxes(LogDocument document)
     {
+        // Flat channels are left out — nothing bins usefully on a constant —
+        // except where the firmware indexes one of its own tables by it. On a
+        // bench the engine is not turning, so RPM is flat and the fuel table's
+        // own axis would be missing from the list of axes.
+        HashSet<string> indexed = EcuAxisChannels();
+
         AxisChannels.Clear();
         foreach (ChannelItem item in Channels
-                     .Where(c => !c.IsFlat)
+                     .Where(c => !c.IsFlat || indexed.Contains(c.Name))
                      .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
             AxisChannels.Add(item);
 
@@ -1470,6 +1563,8 @@ public sealed class MainViewModel : ObservableObject
         foreach (TuneAxisSet set in MsqTune.ReadAxisSets(tune))
             AxisSources.Add(new AxisSourceOption(
                 set.Label, set, withValues.GetValueOrDefault(set.Name)));
+
+        AddEcuAxisSources();
 
         _axisSource = AxisSourceOption.FromData;
         _veAnalyze = false;
