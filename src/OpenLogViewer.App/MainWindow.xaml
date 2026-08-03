@@ -13,36 +13,190 @@
 
     <DockPanel>
 
-        <!-- Toolbar -->
+        <!--
+            The menu.
+
+            Every command lives here, and this is the only part of the window
+            that can grow without pushing something else off the edge — which is
+            what the single toolbar had started doing, trimming its own buttons
+            to "R…" and "T…". Anything added later goes in a menu; the toolbar
+            below is for the few things reached constantly.
+        -->
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="{DynamicResource Panel}" Padding="6,1">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open log…" Click="OnOpenClick" InputGestureText="Ctrl+O"/>
+                <MenuItem Header="Open _tune…" Click="OnOpenTuneClick"
+                          ToolTip="Use tables from a .msq file instead of the one stored in the log"/>
+                <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
+                          IsEnabled="{Binding UsingLoadedTune}"/>
+                <Separator/>
+                <MenuItem Header="_Export" IsEnabled="{Binding CanExport}">
+                    <MenuItem Header="Plotted channels as CSV…" Click="OnExportPlottedCsvClick"
+                              IsEnabled="{Binding CanExportPlotted}"
+                              Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="All channels as CSV…" Click="OnExportAllCsvClick"
+                              Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Plot as PNG…" Click="OnExportPlotPngClick"
+                              Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Table as CSV…" Click="OnExportTableCsvClick"
+                              Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Sample counts as CSV…" Click="OnExportCountsCsvClick"
+                              Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Table as PNG…" Click="OnExportTablePngClick"
+                              Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                    <Separator Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="{Binding ExportScope, StringFormat=CSV covers the {0}}"
+                              IsEnabled="False"
+                              Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+                </MenuItem>
+                <MenuItem Header="_Data folder">
+                    <MenuItem Header="Open the folder" Click="OnOpenDataFolderClick"/>
+                    <MenuItem Header="Change the folder…" Click="OnChangeDataFolderClick"
+                              ToolTip="Where recordings and exports are kept"/>
+                    <Separator/>
+                    <MenuItem Header="{Binding DataFolder}" IsEnabled="False"/>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="OnExitClick"/>
+            </MenuItem>
+
+            <MenuItem Header="_View">
+                <MenuItem Header="_Log" IsCheckable="True" IsChecked="{Binding InLogMode}"
+                          ToolTip="Recordings: the plot and the heat table"/>
+                <MenuItem Header="_Gauges" IsCheckable="True" IsChecked="{Binding InGaugeMode}"
+                          ToolTip="Live dials, as the firmware defines them"/>
+                <MenuItem Header="_Calibration" IsCheckable="True" IsChecked="{Binding InCalibrationMode}"
+                          ToolTip="Work on the tune itself"/>
+                <Separator/>
+                <MenuItem Header="_Plot" IsCheckable="True" IsChecked="{Binding ShowLog}"
+                          IsEnabled="{Binding InLogMode}" ToolTip="Time-series view"/>
+                <MenuItem Header="_Histogram" IsCheckable="True" IsChecked="{Binding ShowHistogram}"
+                          IsEnabled="{Binding InLogMode}"
+                          ToolTip="Bin the log into a table, like a tuning table"/>
+                <Separator/>
+                <MenuItem Header="_Overlaid traces" IsCheckable="True" IsChecked="{Binding OverlaidLanes}"
+                          IsEnabled="{Binding ShowLog}"
+                          ToolTip="All traces share the plot — best for comparing timing between channels"/>
+                <MenuItem Header="_Stacked traces" IsCheckable="True" IsChecked="{Binding StackedLanes}"
+                          IsEnabled="{Binding ShowLog}"
+                          ToolTip="Each channel gets its own strip — best when several are plotted"/>
+                <Separator/>
+                <MenuItem Header="_Reset zoom" Click="OnResetZoomClick" IsEnabled="{Binding ShowLog}"/>
+                <Separator/>
+                <MenuItem x:Name="UnitsMenuItem" Header="_Units" SubmenuOpened="OnUnitsMenuOpened">
+                    <MenuItem Header="…" IsEnabled="False"/>
+                </MenuItem>
+                <MenuItem x:Name="ThemeMenuItem" Header="_Theme" SubmenuOpened="OnThemeMenuOpened">
+                    <MenuItem Header="…" IsEnabled="False"/>
+                </MenuItem>
+            </MenuItem>
+
+            <MenuItem Header="_Tools">
+                <!-- Filled when it opens: an adapter can appear or vanish while
+                     the application is running. -->
+                <MenuItem x:Name="ConnectMenuItem" Header="_Connect" SubmenuOpened="OnConnectMenuOpened">
+                    <MenuItem Header="…" IsEnabled="False"/>
+                </MenuItem>
+                <MenuItem Header="_Disconnect" Click="OnDisconnectClick" IsEnabled="{Binding IsLive}"/>
+                <Separator/>
+                <MenuItem x:Name="RateMenuItem" Header="Logging _rate" SubmenuOpened="OnRateMenuOpened">
+                    <MenuItem Header="…" IsEnabled="False"/>
+                </MenuItem>
+                <MenuItem Header="Read the block in one request" IsCheckable="True"
+                          IsChecked="{Binding SingleRequestBlock}"
+                          ToolTip="Faster where the firmware allows it, fatal where it does not"/>
+                <Separator/>
+                <MenuItem Header="_ECU definition files…" Click="OnDefinitionsClick"
+                          ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
+            </MenuItem>
+
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Documentation" Click="OnDocumentationClick"/>
+                <Separator/>
+                <MenuItem Header="_About OpenLogViewer" Click="OnAboutClick"/>
+            </MenuItem>
+        </Menu>
+
+        <!--
+            The toolbar: only what is reached constantly.
+
+            Everything here is also in a menu. It earns its place by being one
+            click rather than two, not by being the only way to get at it — which
+            is what stops this row growing again.
+        -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
-                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="10,8">
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="10,6">
             <DockPanel>
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
-                <!-- Beside Open log so it is obvious both can be opened. Which
-                     tune is in use is shown on the right of the toolbar. -->
-                <Button Content="Open tune…" Click="OnOpenTuneClick" Margin="6,0,0,0" DockPanel.Dock="Left"
-                        ToolTip="Use tables from a .msq file instead of the one stored in the log">
-                    <Button.ContextMenu>
-                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
-                                                  RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
-                                      IsEnabled="{Binding UsingLoadedTune}"/>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
 
-                <!-- Ports are listed when the menu opens, since an adapter can
-                     appear or vanish while the app is running. -->
                 <Button x:Name="ConnectButton" Content="Connect ▾" Click="OnConnectClick"
                         Margin="6,0,0,0" DockPanel.Dock="Left"
-                        ToolTip="Read live data from a MegaSquirt over serial or Bluetooth">
+                        ToolTip="Read live data from an ECU over serial or Bluetooth">
                     <Button.ContextMenu>
                         <ContextMenu x:Name="PortsMenu"/>
                     </Button.ContextMenu>
                 </Button>
 
+                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
+                           Fill="{DynamicResource Line}"/>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="Mode"
+                                 IsChecked="{Binding InLogMode}" ToolTip="Recordings: the plot and the heat table"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Gauges" GroupName="Mode"
+                                 IsChecked="{Binding InGaugeMode}"
+                                 ToolTip="Live dials, as the firmware defines them"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
+                                 IsChecked="{Binding InCalibrationMode}"
+                                 ToolTip="Work on the tune itself"/>
+                </StackPanel>
+
+                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
+                           Fill="{DynamicResource Line}"
+                           Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}"/>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
+                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="LogView"
+                                 IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
+                                 IsChecked="{Binding ShowHistogram}"
+                                 ToolTip="Bin the log into a table, like a tuning table"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
+                    <RadioButton Style="{StaticResource Chip}" Content="Overlaid"
+                                 IsChecked="{Binding OverlaidLanes}"
+                                 ToolTip="All traces share the plot — best for comparing timing between channels"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Stacked"
+                                 IsChecked="{Binding StackedLanes}"
+                                 ToolTip="Each channel gets its own strip — best when several are plotted"/>
+                </StackPanel>
+
+                <!-- The flexible middle, which gives way to everything else. -->
+                <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                           Margin="16,0" TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Status}"
+                           Foreground="{DynamicResource Muted}"/>
+            </DockPanel>
+        </Border>
+
+        <!--
+            The status bar.
+
+            Where readouts belong, and where they were not: the live indicator,
+            the cursor time and which tune is loaded were all competing for
+            toolbar space with the buttons. None of them is a command, and a
+            toolbar is for commands.
+        -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
+            <DockPanel>
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
-                           Margin="7,0,0,0" MaxWidth="300" TextTrimming="CharacterEllipsis"
+                           Margin="0,0,14,0" MaxWidth="320" TextTrimming="CharacterEllipsis"
                            Text="{Binding LiveStatus}" ToolTip="{Binding LiveDetail}"
                            Visibility="{Binding IsLive, Converter={StaticResource BoolToVis}}">
                     <TextBlock.Style>
@@ -57,95 +211,10 @@
                     </TextBlock.Style>
                 </TextBlock>
 
-                <Button Content="Reset zoom" Click="OnResetZoomClick" Margin="8,0,0,0" DockPanel.Dock="Left"
-                        Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-
-                <Button Content="Export ▾" Click="OnExportClick" Margin="8,0,0,0" DockPanel.Dock="Left"
-                        IsEnabled="{Binding CanExport}"
-                        ToolTip="Save the data or the view to a file">
-                    <Button.ContextMenu>
-                        <!-- A context menu is outside the visual tree, so it has to be
-                             handed the window's data context explicitly. -->
-                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
-                                                  RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="Plotted channels as CSV…" Click="OnExportPlottedCsvClick"
-                                      IsEnabled="{Binding CanExportPlotted}"
-                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="All channels as CSV…" Click="OnExportAllCsvClick"
-                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="Plot as PNG…" Click="OnExportPlotPngClick"
-                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="Table as CSV…" Click="OnExportTableCsvClick"
-                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="Sample counts as CSV…" Click="OnExportCountsCsvClick"
-                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="Table as PNG…" Click="OnExportTablePngClick"
-                                      Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
-                            <Separator Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-                            <MenuItem Header="{Binding ExportScope, StringFormat=CSV covers the {0}}"
-                                      IsEnabled="False"
-                                      Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
-
-                            <Separator/>
-                            <MenuItem Header="Open the folder" Click="OnOpenDataFolderClick"
-                                      ToolTip="{Binding DataFolder}"/>
-                            <MenuItem Header="Change the folder…" Click="OnChangeDataFolderClick"
-                                      ToolTip="Where recordings and exports are kept"/>
-                            <MenuItem Header="{Binding DataFolder}" IsEnabled="False"/>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-                <!-- Above the Log/Histogram choice, which is two ways of reading
-                     one recording; these are different jobs. -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
-                            VerticalAlignment="Center">
-                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="Mode"
-                                 IsChecked="{Binding InLogMode}" ToolTip="Recordings: the plot and the heat table"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Gauges" GroupName="Mode"
-                                 IsChecked="{Binding InGaugeMode}"
-                                 ToolTip="Live dials, as the firmware defines them"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
-                                 IsChecked="{Binding InCalibrationMode}"
-                                 ToolTip="Work on the tune itself"/>
-                </StackPanel>
-
-                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
-                           Fill="{DynamicResource Line}"/>
-
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
-                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="LogView"
-                                 IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
-                                 IsChecked="{Binding ShowHistogram}"
-                                 ToolTip="Bin the log into a table, like a tuning table"/>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="14,0,0,0"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
-                    <RadioButton Style="{StaticResource Chip}" Content="Overlaid"
-                                 IsChecked="{Binding OverlaidLanes}"
-                                 ToolTip="All traces share the plot — best for comparing timing between channels"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Stacked"
-                                 IsChecked="{Binding StackedLanes}"
-                                 ToolTip="Each channel gets its own strip — best when several are plotted"/>
-                </StackPanel>
-                <ComboBox DockPanel.Dock="Right" Width="150" Margin="10,0,0,0"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}"
-                          ItemTemplate="{StaticResource ThemeName}"
-                          ToolTip="Colour scheme — also re-picks the trace colours to suit it"/>
-                <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
-                           VerticalAlignment="Center" FontFamily="Consolas"
-                           Foreground="{DynamicResource Accent}" Margin="12,0,4,0"/>
-
                 <!-- Labelled rather than bare: "from the log" on its own does not
-                     say what it is describing. Docked right, so the log summary
-                     keeps the flexible middle of the toolbar. -->
+                     say what it is describing. -->
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11"
-                           Margin="12,0,0,0" MaxWidth="150" TextTrimming="CharacterEllipsis"
+                           Margin="14,0,0,0" MaxWidth="200" TextTrimming="CharacterEllipsis"
                            Text="{Binding TuneSource, StringFormat=Tune: {0}}"
                            ToolTip="{Binding TuneDetail}">
                     <TextBlock.Style>
@@ -165,20 +234,16 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <!-- The flexible middle: it gives way to everything else, so the
-                     tooltip is how the trimmed tail is recovered. -->
-                <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
-                           Margin="16,0" TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding Status}"
-                           Foreground="{DynamicResource Muted}"/>
-            </DockPanel>
-        </Border>
 
-        <!-- Status strip -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
-                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
-            <TextBlock Foreground="{DynamicResource Muted}" FontSize="11"
-                       Text="{Binding Hint}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
+                           VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                           Foreground="{DynamicResource Accent}" Margin="14,0,0,0"/>
+
+                <TextBlock Foreground="{DynamicResource Muted}" FontSize="11"
+                           VerticalAlignment="Center"
+                           Text="{Binding Hint}" ToolTip="{Binding Hint}"
+                           TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
         </Border>
 
         <Grid>

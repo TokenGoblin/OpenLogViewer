@@ -37,7 +37,7 @@ public partial class App : Application
     private static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--scan-menu", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--top-menu", "--calibration",
         "--cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
     ];
 
@@ -122,6 +122,16 @@ public partial class App : Application
         {
             string to = e.Args[scanned + 1];
             RunThenExit(window, async () => await window.CaptureScannedMenu(to));
+            return;
+        }
+
+        // "--top-menu View out.png" draws one of the menu bar's drop-downs.
+        int top = Array.IndexOf(e.Args, "--top-menu");
+        if (top >= 0 && top + 2 < e.Args.Length)
+        {
+            string header = e.Args[top + 1];
+            string to = e.Args[top + 2];
+            RunThenExit(window, () => window.CaptureMenu(header, to));
             return;
         }
 

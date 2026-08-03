@@ -82,6 +82,94 @@ public partial class MainWindow : Window
 
     private void OnResetGaugePeaksClick(object sender, RoutedEventArgs e) => _vm.ResetGaugePeaks();
 
+    // ----- the menu -----------------------------------------------------------
+
+    private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnDisconnectClick(object sender, RoutedEventArgs e) => StopLive();
+
+    private void OnDefinitionsClick(object sender, RoutedEventArgs e) =>
+        OpenFolder(_vm.Workspace.EnsureDefinitions());
+
+    /// <summary>
+    /// Filled when opened rather than declared, because both of these are lists
+    /// the view model owns and either can change while the window is up.
+    /// </summary>
+    private void OnRateMenuOpened(object sender, RoutedEventArgs e)
+    {
+        RateMenuItem.Items.Clear();
+        foreach (object item in Rates()) RateMenuItem.Items.Add(item);
+    }
+
+    private void OnUnitsMenuOpened(object sender, RoutedEventArgs e)
+    {
+        UnitsMenuItem.Items.Clear();
+        foreach (object item in Units()) UnitsMenuItem.Items.Add(item);
+    }
+
+    private void OnThemeMenuOpened(object sender, RoutedEventArgs e)
+    {
+        ThemeMenuItem.Items.Clear();
+
+        foreach (Theme theme in _vm.Themes)
+        {
+            var item = new MenuItem
+            {
+                Header = theme.Name,
+                IsCheckable = true,
+                IsChecked = theme.Id == _vm.SelectedTheme?.Id,
+                StaysOpenOnClick = false,
+            };
+
+            Theme chosen = theme;
+            item.Click += (_, _) => _vm.SelectedTheme = chosen;
+
+            ThemeMenuItem.Items.Add(item);
+        }
+    }
+
+    private void OnDocumentationClick(object sender, RoutedEventArgs e) =>
+        Launch("https://github.com/TokenGoblin/OpenLogViewer#readme");
+
+    /// <summary>
+    /// What this is and what it was built against.
+    ///
+    /// The hardware list is the useful part: this reads several controllers that
+    /// describe themselves differently, and which ones have actually been run
+    /// against a real engine is the thing someone deciding whether to trust it
+    /// wants to know.
+    /// </summary>
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+
+        MessageBox.Show(
+            this,
+            $"OpenLogViewer {version}\n\n"
+            + "Datalog viewer and live tuning for engine ECUs.\n\n"
+            + "Reads MegaSquirt and TunerStudio logs, MaxxECU logs, and delimited text.\n"
+            + "Connects live to MegaSquirt, MicroSquirt, rusEFI, Speeduino, MaxxECU,\n"
+            + "and any OBD2 vehicle through an ELM327 adapter.\n\n"
+            + "No network code: nothing here is ever sent anywhere.\n\n"
+            + "https://github.com/TokenGoblin/OpenLogViewer",
+            "About OpenLogViewer",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    /// <summary>Opens a link or a folder with whatever Windows uses for it.</summary>
+    private static void Launch(string target)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            App.Report($"Could not open {target}: {e.Message}");
+        }
+    }
+
     // ----- editing a table ----------------------------------------------------
 
     /// <summary>
@@ -244,6 +332,43 @@ public partial class MainWindow : Window
         CaptureConnectMenu(path);
     }
 
+    /// <summary>
+    /// Opens one of the menu bar's menus and draws it, for a scripted run.
+    ///
+    /// A menu's list lives in a popup, which is its own top-level window and so
+    /// appears in no render of this one. Drawing that popup's own content is the
+    /// only way to see what a drop-down looks like without a person at the
+    /// keyboard — and a drop-down nobody has looked at is exactly how a menu
+    /// ships with its arrows and ticks in the wrong places.
+    /// </summary>
+    public void CaptureMenu(string header, string path)
+    {
+        MenuItem? top = MainMenu.Items.OfType<MenuItem>().FirstOrDefault(
+            m => (m.Header as string)?.Replace("_", "", StringComparison.Ordinal)
+                     .Equals(header, StringComparison.OrdinalIgnoreCase) == true);
+
+        if (top is null)
+        {
+            App.Report($"no menu called \"{header}\"");
+            return;
+        }
+
+        top.IsSubmenuOpen = true;
+        UpdateLayout();
+
+        // The popup's child, rather than the popup: a popup has no size of its
+        // own, so rendering it produces an empty image.
+        if (top.Template.FindName("PART_Popup", top) is System.Windows.Controls.Primitives.Popup
+            { Child: FrameworkElement child })
+        {
+            child.UpdateLayout();
+            ImageExport.Save(child, path);
+        }
+
+        top.IsSubmenuOpen = false;
+        Mouse.Capture(null);
+    }
+
     public void CaptureConnectMenu(string path)
     {
         OnConnectClick(this, new RoutedEventArgs());
@@ -262,7 +387,34 @@ public partial class MainWindow : Window
     {
         if (_vm.IsLive) { StopLive(); return; }
 
-        PortsMenu.Items.Clear();
+        PopulateConnectMenu(PortsMenu.Items, includeSettings: true);
+
+        PortsMenu.PlacementTarget = ConnectButton;
+        PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        PortsMenu.IsOpen = true;
+    }
+
+    /// <summary>Fills the Tools menu's Connect submenu from the same code as the toolbar's.</summary>
+    private void OnConnectMenuOpened(object sender, RoutedEventArgs e) =>
+        PopulateConnectMenu(ConnectMenuItem.Items, includeSettings: false);
+
+    /// <summary>
+    /// Lists what can be connected to.
+    ///
+    /// Written once and used from two places — the toolbar button and the Tools
+    /// menu — because two lists of ports would be two lists to keep right, and
+    /// the one that got forgotten would be the one somebody used.
+    ///
+    /// <paramref name="includeSettings"/> carries the session settings along for
+    /// the toolbar, where they are the decisions you make on the way to starting
+    /// a session. The Tools menu has them in its own right and does not want
+    /// them twice.
+    /// </summary>
+    private void PopulateConnectMenu(ItemCollection items, bool includeSettings)
+    {
+        items.Clear();
+
+        void Add(object item) => items.Add(item);
 
         IReadOnlyList<SerialPortInfo> ports = SerialPortNames.Describe();
         IReadOnlyList<BleDevice> adapters = BleDevices.Obd2Adapters();
@@ -272,7 +424,7 @@ public partial class MainWindow : Window
         // presence is already the answer to "is it there".
         SerialPortInfo[] wired = [.. ports.Where(p => !p.IsBluetooth)];
 
-        foreach (SerialPortInfo port in wired) PortsMenu.Items.Add(PortItem(port));
+        foreach (SerialPortInfo port in wired) Add(PortItem(port));
 
         // Everything over a radio is a different matter. Pairing is a fact about
         // this computer rather than about the device, so a paired ECU is listed
@@ -283,15 +435,15 @@ public partial class MainWindow : Window
 
         if (paired.Length + adapters.Count > 0)
         {
-            if (wired.Length > 0) PortsMenu.Items.Add(new Separator());
+            if (wired.Length > 0) Add(new Separator());
 
-            PortsMenu.Items.Add(new MenuItem
+            Add(new MenuItem
             {
                 Header = "Paired — listed whether or not switched on",
                 IsEnabled = false,
             });
 
-            foreach (SerialPortInfo port in paired) PortsMenu.Items.Add(PortItem(port));
+            foreach (SerialPortInfo port in paired) Add(PortItem(port));
 
             foreach (BleDevice adapter in adapters)
             {
@@ -303,7 +455,7 @@ public partial class MainWindow : Window
                 };
 
                 item.Click += (_, _) => StartLiveOverBle(adapter);
-                PortsMenu.Items.Add(item);
+                Add(item);
             }
 
             var scan = new MenuItem
@@ -315,15 +467,23 @@ public partial class MainWindow : Window
             };
 
             scan.Click += async (_, _) => await ScanPaired(paired, adapters);
-            PortsMenu.Items.Add(scan);
+            Add(scan);
         }
 
         if (wired.Length + paired.Length + adapters.Count == 0)
-            PortsMenu.Items.Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
+            Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
 
-        PortsMenu.Items.Add(new Separator());
-        PortsMenu.Items.Add(RateMenu());
-        PortsMenu.Items.Add(UnitsMenu());
+        if (ports.Count > 0)
+        {
+            Add(new Separator());
+            Add(Obd2Menu(ports));
+        }
+
+        if (!includeSettings) return;
+
+        Add(new Separator());
+        Add(RateMenu());
+        Add(UnitsMenu());
 
         var whole = new MenuItem
         {
@@ -336,7 +496,7 @@ public partial class MainWindow : Window
         };
 
         whole.Click += (_, _) => _vm.SingleRequestBlock = whole.IsChecked;
-        PortsMenu.Items.Add(whole);
+        Add(whole);
 
         var definitions = new MenuItem
         {
@@ -345,13 +505,7 @@ public partial class MainWindow : Window
         };
 
         definitions.Click += (_, _) => OpenFolder(_vm.Workspace.EnsureDefinitions());
-        PortsMenu.Items.Add(definitions);
-
-        if (ports.Count > 0) PortsMenu.Items.Add(Obd2Menu(ports));
-
-        PortsMenu.PlacementTarget = ConnectButton;
-        PortsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        PortsMenu.IsOpen = true;
+        Add(definitions);
     }
 
     /// <summary>
@@ -363,6 +517,17 @@ public partial class MainWindow : Window
     {
         var menu = new MenuItem { Header = $"Logging rate: {_vm.LiveRate:N0} Hz" };
 
+        foreach (object item in Rates()) menu.Items.Add(item);
+
+        return menu;
+    }
+
+    /// <summary>
+    /// The choices themselves, so the same list serves the toolbar's connect
+    /// menu and the Tools menu without either being a copy of the other.
+    /// </summary>
+    private IEnumerable<object> Rates()
+    {
         foreach (double rate in MainViewModel.LiveRates)
         {
             var item = new MenuItem
@@ -373,18 +538,18 @@ public partial class MainWindow : Window
                 StaysOpenOnClick = false,
             };
 
-            item.Click += (_, _) => _vm.LiveRate = rate;
-            menu.Items.Add(item);
+            double chosen = rate;
+            item.Click += (_, _) => _vm.LiveRate = chosen;
+
+            yield return item;
         }
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem
+        yield return new Separator();
+        yield return new MenuItem
         {
             Header = "25 Hz is past what a wideband can resolve; raise it only for transients",
             IsEnabled = false,
-        });
-
-        return menu;
+        };
     }
 
     /// <summary>
@@ -398,14 +563,21 @@ public partial class MainWindow : Window
     {
         var menu = new MenuItem { Header = $"Units: {_vm.UnitsLabel}" };
 
+        foreach (object item in Units()) menu.Items.Add(item);
+
+        return menu;
+    }
+
+    private IEnumerable<object> Units()
+    {
         foreach (UnitSystem system in MainViewModel.UnitSystems)
         {
             var item = new MenuItem
             {
                 Header = system switch
                 {
-                    UnitSystem.Metric => "Metric  (°C, km/h)",
-                    UnitSystem.Imperial => "Imperial  (°F, mph)",
+                    UnitSystem.Metric => "Metric  (°C, km/h, kPa)",
+                    UnitSystem.Imperial => "Imperial  (°F, mph, psi)",
                     _ => "As reported  (default)",
                 },
                 IsCheckable = true,
@@ -413,18 +585,18 @@ public partial class MainWindow : Window
                 StaysOpenOnClick = false,
             };
 
-            item.Click += (_, _) => _vm.Units = system;
-            menu.Items.Add(item);
+            UnitSystem chosen = system;
+            item.Click += (_, _) => _vm.Units = chosen;
+
+            yield return item;
         }
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem
+        yield return new Separator();
+        yield return new MenuItem
         {
             Header = "Display only — recordings keep the units the ECU reported",
             IsEnabled = false,
-        });
-
-        return menu;
+        };
     }
 
     /// <summary>
