@@ -17,7 +17,15 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!--
+      The Windows version is named so the Bluetooth LE APIs are available: a
+      great many OBD2 adapters are BLE-only, and those never appear as a COM
+      port. SupportedOSPlatformVersion is left well below it so naming the SDK
+      does not raise the Windows this will run on — everything used from it has
+      been there since 2017.
+    -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>

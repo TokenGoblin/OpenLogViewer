@@ -36,7 +36,7 @@ public partial class App : Application
     /// <summary>Switches that are followed by a value rather than standing alone.</summary>
     private static readonly string[] TakesAValue =
     [
-        "--theme", "--screenshot", "--export", "--connect", "--connect-menu",
+        "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--calibration",
         "--cell", "--select", "--compare", "--tune-axes", "--pointer",
     ];
@@ -99,6 +99,9 @@ public partial class App : Application
         int connect = Array.IndexOf(e.Args, "--connect");
         if (connect >= 0 && connect + 1 < e.Args.Length)
             window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
+
+        int ble = Array.IndexOf(e.Args, "--connect-ble");
+        if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
 
         int viaMenu = Array.IndexOf(e.Args, "--connect-menu");
         if (viaMenu >= 0 && viaMenu + 1 < e.Args.Length)

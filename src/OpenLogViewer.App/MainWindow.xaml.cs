@@ -212,6 +212,23 @@ public partial class MainWindow : Window
             }
         }
 
+        // Bluetooth LE adapters, which are never COM ports and so can never
+        // appear above however hard anyone looks. Listed alongside the ports
+        // rather than tucked away, because from where the user is standing a
+        // dongle is a dongle and which radio it uses is not their problem.
+        foreach (BleDevice adapter in BleDevices.Obd2Adapters())
+        {
+            var item = new MenuItem
+            {
+                Header = adapter.Label.Replace("_", "__", StringComparison.Ordinal),
+                ToolTip = "A Bluetooth LE OBD2 adapter. Reads any standard vehicle — "
+                          + "no definition file needed.",
+            };
+
+            item.Click += (_, _) => StartLiveOverBle(adapter);
+            PortsMenu.Items.Add(item);
+        }
+
         PortsMenu.Items.Add(new Separator());
         PortsMenu.Items.Add(RateMenu());
 
@@ -401,6 +418,64 @@ public partial class MainWindow : Window
         {
             return e;
         }
+    }
+
+    /// <summary>
+    /// Connects to a Bluetooth LE adapter.
+    ///
+    /// Its own path rather than a branch of the port one, because there is no
+    /// port: nothing here has a COM number to open, probe or remember.
+    /// </summary>
+    public void StartLiveOverBle(BleDevice adapter, bool quiet = false)
+    {
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        try
+        {
+            _vm.ConnectObd2Ble(adapter);
+        }
+        // Everything, as with the ports. A radio fails in more ways than a cable
+        // and each type left off a list is an application that disappears
+        // instead of showing a message.
+        catch (Exception ex)
+        {
+            if (quiet) App.Report($"Could not connect to {adapter.Name}: {ex}");
+            else
+                MessageBox.Show(this,
+                    $"Could not connect to {adapter.Name}.\n\n{ex.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        ConnectButton.Content = "Disconnect";
+        _follow = true;
+
+        _liveTimer = new DispatcherTimer { Interval = LiveRefresh };
+        _liveTimer.Tick += OnLiveTick;
+        _liveTimer.Start();
+    }
+
+    /// <summary>Connects to the first paired BLE adapter whose name matches, for a scripted run.</summary>
+    public void ConnectToBle(string name)
+    {
+        App.Report($"connecting over Bluetooth LE to {name}…");
+
+        BleDevice? adapter = BleDevices.All().FirstOrDefault(
+            d => d.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+        if (adapter is null)
+        {
+            App.Report($"no paired Bluetooth LE device matching \"{name}\"");
+            return;
+        }
+
+        StartLiveOverBle(adapter, quiet: true);
+        App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
     }
 
     private void StartLive(string port, bool quiet = false)

@@ -274,22 +274,31 @@ answers to. Plug in a dongle on a vehicle nobody has ever tried this on and you
 get named, scaled channels.
 
 Dongles that advertise as one — `OBDII`, `OBDLink`, `ELM327`, `Vgate` and the
-rest — are recognised in the port list and connected as adapters automatically.
-Generic ones that Windows only describes as a `USB-SERIAL CH340` are
-indistinguishable from a tuning cable until something talks to them, and the two
-want opposite opening moves, so those go through **Connect ▾ → Connect as an
-OBD2 adapter**.
+rest — are recognised and connected as adapters automatically. Generic ones that
+Windows only describes as a `USB-SERIAL CH340` are indistinguishable from a
+tuning cable until something talks to them, and the two want opposite opening
+moves, so those go through **Connect ▾ → Connect as an OBD2 adapter**.
 
-The speed is found rather than assumed. A genuine ELM327 ships at 38,400 and
-clones ship at whatever the batch was built with, so 38,400, 115,200, 9,600 and
-500,000 are tried in that order. A Bluetooth dongle ignores the setting
-entirely. A wrong speed is told apart from a key left out, because the two need
-different things done about them.
+**Bluetooth LE adapters work too, and most cheap ones now are.** BLE has no
+serial port profile, so these never become a COM port however long you wait —
+which is how a perfectly good dongle comes to look broken. They carry the same
+ASCII ELM327 conversation over two GATT characteristics instead, so they are
+listed in the same menu as the ports with `(Bluetooth LE)` after the name. There
+is no standard for which service to use, so the known ones are tried in turn
+(`0xFFF0`, `0xAE00`, `0xFFE0`, Nordic UART) and **each is proved by asking it
+something before being used** — the adapter this was verified against publishes
+two and answers on only one of them.
+
+On a wired adapter the speed is found rather than assumed. A genuine ELM327
+ships at 38,400 and clones ship at whatever the batch was built with, so 38,400,
+115,200, 9,600 and 500,000 are tried in that order; a Bluetooth adapter ignores
+the setting entirely. A wrong speed is told apart from a key left out, because
+the two need different things done about them.
 
 **It is slow, and that is the protocol rather than this.** Every other ECU here
 hands over its whole realtime block in one exchange; OBD2 has no such thing, so
-each parameter is a separate request and a separate wait. Expect around one row
-a second against forty on a tuning cable — fine for watching a car, no use for
+each parameter is a separate request and a separate wait. Measured at 2.2 Hz on
+a live car against forty on a tuning cable — fine for watching a car, no use for
 catching a misfire. The parameters a needle follows (RPM, speed, throttle, load,
 MAP) are asked for every round and the rest take turns, so the headline gauges
 stay live while the fuel level updates when it gets to it.
@@ -302,6 +311,11 @@ way to ask a car for its redline and a dial drawn to the counter's ceiling
 leaves every real reading in the first quarter.
 
 A standard vehicle has no tune to read, so Calibration is not available for it.
+
+Verified on a live vehicle through a Bluetooth LE `ELM327 v1.5`: 24 parameters
+at 2.19 Hz, connected in five seconds. The decode cross-checks — with the engine
+stopped, MAP and barometric pressure read 86 kPa apiece, which they only do if
+both formulas are right.
 
 ## Calculated channels
 
