@@ -2187,8 +2187,17 @@ public sealed class MainViewModel : ObservableObject
         set { if (Set(ref _veMaxChange, Math.Clamp(value, 1, 100))) HistogramInvalidated?.Invoke(); }
     }
 
-    /// <summary>True when the picked axis source brought the tune's values with it.</summary>
-    public bool VeAvailable => _axisSource.HasValues;
+    /// <summary>
+    /// True when the analysis has what it needs, which is an AFR target to
+    /// compare against and nothing more.
+    ///
+    /// It used to require the tune's own values, which meant it could not run on
+    /// a log by itself — every MaxxECU, whose tune cannot be read at all, and
+    /// every log opened away from the car. The tune's grid is still much better
+    /// when there is one, because its cells line up with the cells being tuned;
+    /// it is no longer the difference between working and not.
+    /// </summary>
+    public bool VeAvailable => Document is not null && XAxis is not null && YAxis is not null;
 
     public string VeSummary { get; private set; } = "";
 
@@ -2199,12 +2208,15 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private bool BuildVeAnalysis(int firstSample, int lastSample, SampleMask mask, LogChannel? target)
     {
-        if (_axisSource.Table is not { } tune)
-        {
-            VeSummary = "Pick one of the tune's own tables above — VE Calibration needs its numbers.";
-            Raise(nameof(VeSummary));
-            return false;
-        }
+        // The tune's own grid where there is one, so each cell lines up with a
+        // cell being tuned and the result can be read straight across. Failing
+        // that, a grid off the log — which cannot be pasted anywhere, but still
+        // says where the mixture is out and by how much.
+        TuneTable tune = _axisSource.Table
+            ?? VeAnalysis.GridFrom(
+                XAxis!.Channel, YAxis!.Channel, _columns, _rows, firstSample, lastSample, mask);
+
+        bool fromTune = _axisSource.Table is not null;
 
         if (target is null)
         {
@@ -2218,22 +2230,41 @@ public sealed class MainViewModel : ObservableObject
             firstSample, lastSample, mask,
             new VeAnalysisSettings { MinimumSamples = _veMinimumSamples, MaxChangePercent = _veMaxChange });
 
+        // A mismatch is not a thin result, it is a wrong one, and it must not be
+        // drawn. Falling back to the ordinary binned table shows the data
+        // honestly and says why.
+        if (result.HasProblem)
+        {
+            VeResult = null;
+            VeSummary = result.Problem!;
+            Hint = result.Problem!;
+
+            Raise(nameof(VeSummary));
+            return false;
+        }
+
         VeResult = result;
 
         Table = _veShowSuggested
             ? result.AsSuggestedTable(XAxis.Channel, YAxis.Channel, ZAxis.Channel, firstSample, lastSample, mask)
             : result.AsChangeTable(XAxis.Channel, YAxis.Channel, ZAxis.Channel, target, firstSample, lastSample, mask);
 
+        string grid = fromTune ? tune.Name : $"{tune.Name} — the log's own bins, not the ECU's";
+
         VeSummary = result.IsEmpty
             ? $"Nothing to suggest — no cell reached {_veMinimumSamples} samples."
             : $"{result.CellsSuggested} of {tune.Columns * tune.Rows} cells, " +
               $"{result.CellsThin} too thin, largest change {result.LargestChangePercent:F1}%, " +
-              $"from {result.SamplesUsed:N0} samples";
+              $"from {result.SamplesUsed:N0} samples   ·   {grid}";
 
         Hint = result.IsEmpty
             ? "No cell has enough samples yet. Lower the sample threshold, or drive the untouched areas."
-            : $"Suggesting {result.CellsSuggested} cells of {tune.Name}. " +
-              "Cells with too little data are left alone. Export the table to paste it into your tuning app.";
+            : fromTune
+                ? $"Suggesting {result.CellsSuggested} cells of {tune.Name}. "
+                  + "Cells with too little data are left alone. Export the table to paste it into your tuning app."
+                : $"Showing how far out {result.CellsSuggested} cells are, binned on the log's own range "
+                  + "rather than the ECU's breakpoints — open the tune, or connect, to get a table that "
+                  + "lines up cell for cell with the one you are tuning.";
 
         Raise(nameof(VeSummary));
         return true;
