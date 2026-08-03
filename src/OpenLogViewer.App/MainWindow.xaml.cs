@@ -231,6 +231,7 @@ public partial class MainWindow : Window
 
         PortsMenu.Items.Add(new Separator());
         PortsMenu.Items.Add(RateMenu());
+        PortsMenu.Items.Add(UnitsMenu());
 
         var whole = new MenuItem
         {
@@ -288,6 +289,46 @@ public partial class MainWindow : Window
         menu.Items.Add(new MenuItem
         {
             Header = "25 Hz is past what a wideband can resolve; raise it only for transients",
+            IsEnabled = false,
+        });
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Which units readings are shown in.
+    ///
+    /// Display only, and said so here: the recording keeps whatever the ECU
+    /// reported, so switching mid-session does not put two systems of units in
+    /// one file.
+    /// </summary>
+    private MenuItem UnitsMenu()
+    {
+        var menu = new MenuItem { Header = $"Units: {_vm.UnitsLabel}" };
+
+        foreach (UnitSystem system in MainViewModel.UnitSystems)
+        {
+            var item = new MenuItem
+            {
+                Header = system switch
+                {
+                    UnitSystem.Metric => "Metric  (°C, km/h)",
+                    UnitSystem.Imperial => "Imperial  (°F, mph)",
+                    _ => "As reported  (default)",
+                },
+                IsCheckable = true,
+                IsChecked = system == _vm.Units,
+                StaysOpenOnClick = false,
+            };
+
+            item.Click += (_, _) => _vm.Units = system;
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Display only — recordings keep the units the ECU reported",
             IsEnabled = false,
         });
 

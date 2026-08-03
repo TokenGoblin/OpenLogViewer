@@ -95,6 +95,30 @@ public sealed record GaugeSpec
     private bool Inside(double limit) => limit > Low && limit < High;
 
     /// <summary>
+    /// The same gauge with its face in another system of units.
+    ///
+    /// The scale and every limit move with the reading, or a coolant gauge in
+    /// Fahrenheit would keep a redline set in Celsius and call 100 degrees an
+    /// emergency. Returns itself when nothing would change, so a gauge whose
+    /// units this does not recognise is left exactly as the firmware wrote it.
+    /// </summary>
+    public GaugeSpec In(UnitSystem system)
+    {
+        if (!UnitConvert.Converts(Units, system)) return this;
+
+        return this with
+        {
+            Units = UnitConvert.Label(Units, system),
+            Low = UnitConvert.Value(Low, Units, system),
+            High = UnitConvert.Value(High, Units, system),
+            LowDanger = UnitConvert.Value(LowDanger, Units, system),
+            LowWarning = UnitConvert.Value(LowWarning, Units, system),
+            HighWarning = UnitConvert.Value(HighWarning, Units, system),
+            HighDanger = UnitConvert.Value(HighDanger, Units, system),
+        };
+    }
+
+    /// <summary>
     /// Where the four bands begin and end along the dial, 0 to 1, for painting.
     ///
     /// A limit that says nothing is pushed to the end it sits beyond, which

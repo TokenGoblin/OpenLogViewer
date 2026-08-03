@@ -750,6 +750,44 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The whole picture, for the tooltip: everything the toolbar trims.</summary>
     /// <summary>
+    /// Which units readings are shown in.
+    ///
+    /// Display only. Recordings keep the units the ECU reported, so a log is
+    /// always in its own ECU's units and reopening one later cannot convert it
+    /// twice — and a session started in one system and finished in the other is
+    /// still a single coherent file.
+    /// </summary>
+    public UnitSystem Units
+    {
+        get => _settings.Units;
+        set
+        {
+            if (value == _settings.Units) return;
+
+            _settings.SetUnits(value);
+
+            foreach (GaugeItem gauge in AllGauges) gauge.Show(value);
+
+            Raise(nameof(Units));
+            Raise(nameof(UnitsLabel));
+
+            foreach (ChannelItem channel in Channels) channel.Show(value);
+        }
+    }
+
+    /// <summary>What the units setting is called, for a menu that shows it.</summary>
+    public string UnitsLabel => Units switch
+    {
+        UnitSystem.Metric => "Metric",
+        UnitSystem.Imperial => "Imperial",
+        _ => "As reported",
+    };
+
+    /// <summary>Every system offered, in the order worth listing.</summary>
+    public static IReadOnlyList<UnitSystem> UnitSystems { get; } =
+        [UnitSystem.AsReported, UnitSystem.Metric, UnitSystem.Imperial];
+
+    /// <summary>
     /// The channels the running session is recording, or nothing when there is
     /// no session.
     ///
@@ -1119,6 +1157,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (GaugeSpec spec in specs)
         {
             var item = new GaugeItem(spec, ColumnFor(spec.Channel, columns, aliases));
+            item.Show(Units);
             item.ShownChanged += OnGaugeShownChanged;
 
             AllGauges.Add(item);
@@ -1451,6 +1490,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (GaugeSpec spec in Obd2Gauges.For(source.Parameters))
         {
             var item = new GaugeItem(spec, spec.Channel);
+            item.Show(Units);
             item.ShownChanged += OnGaugeShownChanged;
 
             AllGauges.Add(item);
@@ -1494,6 +1534,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (GaugeSpec spec in specs)
         {
             var item = new GaugeItem(spec, spec.Channel);
+            item.Show(Units);
             item.ShownChanged += OnGaugeShownChanged;
             AllGauges.Add(item);
 
@@ -1711,6 +1752,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (LogChannel channel in snapshot.Channels.Where(c => !snapshot.IsTimeBase(c)))
         {
             var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length]);
+            item.Show(Units);
             item.VisibilityChanged += OnVisibilityChanged;
             Channels.Add(item);
         }
@@ -2110,6 +2152,7 @@ public sealed class MainViewModel : ObservableObject
                 IsCalculated = calculated,
             };
 
+            item.Show(Units);
             item.VisibilityChanged += OnVisibilityChanged;
             Channels.Add(item);
         }
@@ -2405,6 +2448,7 @@ public sealed class MainViewModel : ObservableObject
                     IsCalculated = true,
                 };
 
+                item.Show(Units);
                 item.VisibilityChanged += OnVisibilityChanged;
                 Channels.Add(item);
 

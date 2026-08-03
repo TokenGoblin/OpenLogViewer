@@ -88,11 +88,17 @@ public sealed class LogChannel
     /// <summary>True when every sample is identical, so the channel carries no signal.</summary>
     public bool IsFlat => Max - Min <= 0;
 
-    public string Format(double value) =>
-        double.IsNaN(value) ? "—" : value.ToString("F" + Math.Clamp(Digits, 0, 6));
+    public string Format(double value, UnitSystem system = UnitSystem.AsReported) =>
+        double.IsNaN(value)
+            ? "—"
+            : UnitConvert.Value(value, Units, system).ToString("F" + Math.Clamp(Digits, 0, 6));
 
-    public string FormatWithUnits(double value) =>
-        Units.Length == 0 ? Format(value) : $"{Format(value)} {Units}";
+    public string FormatWithUnits(double value, UnitSystem system = UnitSystem.AsReported)
+    {
+        string shown = UnitConvert.Label(Units, system);
+
+        return shown.Length == 0 ? Format(value, system) : $"{Format(value, system)} {shown}";
+    }
 
     /// <summary>Sample at <paramref name="index"/>, or NaN when out of range.</summary>
     public double At(int index)

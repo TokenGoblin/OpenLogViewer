@@ -458,8 +458,8 @@ public sealed class LogPlot : FrameworkElement
         FormattedText name = Text(channel.Name, 10, item.Brush);
         dc.DrawText(name, new Point(lane.Left + 4, lane.Top + 1));
 
-        FormattedText high = Text(channel.Format(channel.Max), 9, AxisTextBrush);
-        FormattedText low = Text(channel.Format(channel.Min), 9, AxisTextBrush);
+        FormattedText high = Text(channel.Format(channel.Max, item.System), 9, AxisTextBrush);
+        FormattedText low = Text(channel.Format(channel.Min, item.System), 9, AxisTextBrush);
         dc.DrawText(high, new Point(lane.Right - high.Width - 2, lane.Top + 1));
         dc.DrawText(low, new Point(lane.Right - low.Width - 2, lane.Bottom - low.Height - 1));
     }
@@ -538,15 +538,15 @@ public sealed class LogPlot : FrameworkElement
         (string Label, string Value)[] rows = hover.Selection is { HasData: true } s
             ?
             [
-                ("avg", channel.FormatWithUnits(s.Mean)),
-                ("max", channel.FormatWithUnits(s.Max)),
-                ("min", channel.FormatWithUnits(s.Min)),
+                ("avg", channel.FormatWithUnits(s.Mean, hover.System)),
+                ("max", channel.FormatWithUnits(s.Max, hover.System)),
+                ("min", channel.FormatWithUnits(s.Min, hover.System)),
             ]
             :
             [
-                ("now", channel.FormatWithUnits(channel.At(_cursorIndex))),
-                ("max", $"{channel.FormatWithUnits(channel.Max)}  @ {Clock(doc.Time.At(channel.MaxIndex))}"),
-                ("min", $"{channel.FormatWithUnits(channel.Min)}  @ {Clock(doc.Time.At(channel.MinIndex))}"),
+                ("now", channel.FormatWithUnits(channel.At(_cursorIndex), hover.System)),
+                ("max", $"{channel.FormatWithUnits(channel.Max, hover.System)}  @ {Clock(doc.Time.At(channel.MaxIndex))}"),
+                ("min", $"{channel.FormatWithUnits(channel.Min, hover.System)}  @ {Clock(doc.Time.At(channel.MinIndex))}"),
             ];
 
         // The extremes are clickable, so their labels are tinted to say so.
