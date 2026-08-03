@@ -70,7 +70,7 @@ public sealed class Elm327(IEcuTransport transport)
     /// the reply that follows it they decode as a different reading. Keeping the
     /// lines apart is what makes them separable.
     /// </summary>
-    public string Send(string command, TimeSpan timeout)
+    public string Send(string command, TimeSpan timeout, bool settle = false)
     {
         ArgumentNullException.ThrowIfNull(command);
 
@@ -80,10 +80,41 @@ public sealed class Elm327(IEcuTransport transport)
         // altogether, which is worse than a slow one.
         _transport.DiscardInput();
 
+        if (settle) WaitForQuiet();
+
         _transport.Write(Encoding.ASCII.GetBytes(command + "\r"));
 
         return ReadToPrompt(timeout);
     }
+
+    /// <summary>
+    /// Waits until nothing more is arriving, throwing away whatever does.
+    ///
+    /// Discarding what is buffered is not enough on its own, because the tail of
+    /// the previous reply may not have arrived yet to be discarded. The piece
+    /// that matters is the "\r\r&gt;" on the end of it: still in flight when the
+    /// next command goes out, it is read as <em>this</em> reply's prompt and cuts
+    /// the answer off before the rest of it lands.
+    ///
+    /// That truncation is invisible on a single-module reply, which is complete
+    /// by then anyway. It shows up on a car where several modules answer — the
+    /// second one's line is the part that goes missing, and with it every
+    /// parameter only that module supports. The same car reported 3, then 15,
+    /// then 24 parameters on consecutive connections before this was here.
+    ///
+    /// Only worth its cost where the answer is not repeated. A poll that loses a
+    /// sample gets another in half a second.
+    /// </summary>
+    private void WaitForQuiet()
+    {
+        while (_transport.Read(_one, QuietFor) == 1)
+        {
+            // Deliberately dropped: this is the previous exchange finishing.
+        }
+    }
+
+    /// <summary>How long the line must be silent before it counts as settled.</summary>
+    public TimeSpan QuietFor { get; init; } = TimeSpan.FromMilliseconds(80);
 
     private string ReadToPrompt(TimeSpan timeout)
     {
@@ -122,6 +153,36 @@ public sealed class Elm327(IEcuTransport transport)
         string reply = Send($"01{pid:X2}", within ?? Timeout);
 
         return TryParse(reply, pid, dataBytes, into, out count);
+    }
+
+    /// <summary>
+    /// Asks for one parameter and returns every module's answer.
+    ///
+    /// For a reading, the first answer will do — the modules are reporting the
+    /// same number. For a capability mask they are not: each module reports what
+    /// it alone supports, and taking one of them means the rest of the car goes
+    /// unread. Which module answers first is not fixed, so this is also the
+    /// difference between a connection that finds everything and one that finds
+    /// almost nothing, on the same car a minute apart.
+    /// </summary>
+    public IReadOnlyList<byte[]> ReadAll(byte pid, int dataBytes, TimeSpan? within = null) =>
+        ParseAll(Send($"01{pid:X2}", within ?? Timeout, settle: true), pid, dataBytes);
+
+    /// <summary>Every complete answer to one request, one per responding module.</summary>
+    public static IReadOnlyList<byte[]> ParseAll(string reply, byte pid, int dataBytes)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+
+        var answers = new List<byte[]>();
+
+        foreach (string line in reply.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var data = new byte[dataBytes];
+
+            if (TryParse(line, pid, dataBytes, data, out _)) answers.Add(data);
+        }
+
+        return answers;
     }
 
     /// <summary>
