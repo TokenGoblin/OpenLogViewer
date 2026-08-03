@@ -12,7 +12,7 @@
     <!-- Only to name the COM ports in the connect menu, which is the difference
          between picking a Bluetooth module and guessing. Windows-only, which is
          why it is here and not in the core. -->
-    <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
   </ItemGroup>
 
   <PropertyGroup>

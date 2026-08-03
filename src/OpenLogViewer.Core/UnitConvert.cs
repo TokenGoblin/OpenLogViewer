@@ -27,7 +27,13 @@ public enum UnitSystem
 /// </summary>
 public static class UnitConvert
 {
-    private enum Measure { None, Celsius, Fahrenheit, KilometresPerHour, MilesPerHour }
+    private enum Measure
+    {
+        None,
+        Celsius, Fahrenheit,
+        KilometresPerHour, MilesPerHour,
+        Kilopascals, PoundsPerSquareInch,
+    }
 
     /// <summary>A reading converted for display, or unchanged if it does not apply.</summary>
     public static double Value(double value, string units, UnitSystem to)
@@ -40,6 +46,8 @@ public static class UnitConvert
             (Measure.Fahrenheit, UnitSystem.Metric) => (value - 32) * 5 / 9,
             (Measure.KilometresPerHour, UnitSystem.Imperial) => value / MilesToKilometres,
             (Measure.MilesPerHour, UnitSystem.Metric) => value * MilesToKilometres,
+            (Measure.Kilopascals, UnitSystem.Imperial) => value / KilopascalsPerPsi,
+            (Measure.PoundsPerSquareInch, UnitSystem.Metric) => value * KilopascalsPerPsi,
             _ => value,
         };
     }
@@ -55,6 +63,8 @@ public static class UnitConvert
             (Measure.Fahrenheit, UnitSystem.Metric) => "°C",
             (Measure.KilometresPerHour, UnitSystem.Imperial) => "mph",
             (Measure.MilesPerHour, UnitSystem.Metric) => "km/h",
+            (Measure.Kilopascals, UnitSystem.Imperial) => "psi",
+            (Measure.PoundsPerSquareInch, UnitSystem.Metric) => "kPa",
             _ => units,
         };
     }
@@ -65,6 +75,17 @@ public static class UnitConvert
 
     /// <summary>Exact by definition: a mile is 1,609.344 metres.</summary>
     private const double MilesToKilometres = 1.609344;
+
+    /// <summary>
+    /// Also exact by definition, following from the pound-force and the inch.
+    ///
+    /// Absolute against absolute. A MegaSquirt reports manifold pressure as an
+    /// absolute figure and this converts it to an absolute one — 100 kPa becomes
+    /// 14.5 psi, not −0.2 psi of boost. Gauge pressure is a different quantity
+    /// with a different zero, and turning one into the other silently would put
+    /// an atmosphere of error on a boost reading.
+    /// </summary>
+    private const double KilopascalsPerPsi = 6.894757293168361;
 
     /// <summary>
     /// What a unit string is measuring, where that is beyond doubt.
@@ -88,6 +109,8 @@ public static class UnitConvert
             "f" or "degf" or "degreesf" or "fahrenheit" => Measure.Fahrenheit,
             "km/h" or "kmh" or "kph" or "kmph" or "kilometresperhour" => Measure.KilometresPerHour,
             "mph" or "mi/h" or "milesperhour" => Measure.MilesPerHour,
+            "kpa" or "kilopascals" or "kilopascal" => Measure.Kilopascals,
+            "psi" or "lbf/in2" or "poundspersquareinch" => Measure.PoundsPerSquareInch,
             _ => Measure.None,
         };
     }

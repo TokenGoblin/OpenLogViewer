@@ -15,7 +15,7 @@
          part of the .NET libraries, but a package rather than in the framework
          since .NET Core; the alternative is hand-rolled P/Invoke to the Win32
          comms API, which is more code and more ways to be subtly wrong. -->
-    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.10" />
   </ItemGroup>
 
 </Project>
