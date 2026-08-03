@@ -1,0 +1,363 @@
+<Window x:Class="OpenLogViewer.App.CalculatorsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Calculators"
+        Height="600" Width="600"
+        MinHeight="460" MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bg}"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style x:Key="Field" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="90"/>
+            <Setter Property="HorizontalContentAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        </Style>
+
+        <Style x:Key="Unit" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+        </Style>
+
+        <Style x:Key="Answer" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="tab" Background="Transparent" CornerRadius="5"
+                                Margin="0,0,4,0" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="tab" Property="Background" Value="{DynamicResource Panel}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="tab" Property="Background" Value="{DynamicResource Selected}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </Window.Resources>
+
+    <DockPanel Background="{DynamicResource Bg}">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,7">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Close" Width="80" Click="OnCloseClick"/>
+                <TextBlock VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                           Text="Every figure updates as you type."/>
+            </DockPanel>
+        </Border>
+
+        <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0" Margin="8">
+
+            <!-- ===== pressure ===== -->
+            <TabItem Header="Boost">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10"
+                               Text="Type into any box; the others follow."/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Boost (gauge)"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="BoostPsi" Style="{StaticResource Field}"
+                                   TextChanged="OnBoostPsiChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" Text="psi"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Boost (gauge)"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="BoostBar" Style="{StaticResource Field}"
+                                   TextChanged="OnBoostBarChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="bar"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Boost (gauge)"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="BoostKpa" Style="{StaticResource Field}"
+                                   TextChanged="OnBoostKpaChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" Text="kPa"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Manifold pressure"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="MapKpa" Style="{StaticResource Field}"
+                                   TextChanged="OnMapKpaChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="kPa absolute — what an ECU reports"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Manifold pressure"/>
+                        <TextBox   Grid.Row="5" Grid.Column="1" x:Name="MapPsi" Style="{StaticResource Field}"
+                                   TextChanged="OnMapPsiChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="psi absolute"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Pressure ratio"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="PressureRatio"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="× atmospheric"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="A boost gauge reads zero at atmospheric; an ECU reports manifold pressure absolutely, where atmospheric is about 101 kPa. Ten psi of boost is 170 kPa absolute, not 69 — mixing the two up is worth a whole atmosphere."/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ===== injectors ===== -->
+            <TabItem Header="Injectors">
+                <StackPanel Margin="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Target power"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="InjPower" Style="{StaticResource Field}"
+                                   TextChanged="OnInjectorChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" Text="hp at the crank"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Cylinders"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="InjCylinders" Style="{StaticResource Field}"
+                                   TextChanged="OnInjectorChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="one injector each"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="InjFuel" Width="150" Margin="0,2" HorizontalAlignment="Left"
+                                   SelectionChanged="OnInjectorFuelChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="InjFuelNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="BSFC"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="InjBsfc" Style="{StaticResource Field}"
+                                   TextChanged="OnInjectorChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="lb/hp/hr — 0.48 NA, 0.60 boosted"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Maximum duty"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="InjDuty" Style="{StaticResource Field}"
+                                   TextChanged="OnInjectorChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% — above 85 many stop flowing linearly"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Each injector"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="InjCc"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" Text="cc/min"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Each injector"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="InjLbHr"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" Text="lb/hr"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="All injectors"/>
+                        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="InjTotal"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}" Text="cc/min together"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="InjNote"/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ===== fuel pump ===== -->
+            <TabItem Header="Fuel pump">
+                <StackPanel Margin="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Target power"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="PumpPower" Style="{StaticResource Field}"
+                                   TextChanged="OnPumpChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" Text="hp at the crank"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox  Grid.Row="1" Grid.Column="1" x:Name="PumpFuel" Width="150" Margin="0,2" HorizontalAlignment="Left"
+                                   SelectionChanged="OnPumpFuelChanged"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="BSFC"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="PumpBsfc" Style="{StaticResource Field}"
+                                   TextChanged="OnPumpChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="lb per hp per hour"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Headroom"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="PumpHeadroom" Style="{StaticResource Field}"
+                                   TextChanged="OnPumpChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% over what is burned"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Fuel burned"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="PumpBurned"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="litres/hour"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Pump to look for"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="PumpNeeded"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="litres/hour at your rail pressure"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Same in"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="PumpGallons"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" Text="US gallons/hour"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="A pump's headline figure is quoted at some pressure, usually low and often at 13.5 volts. Flow falls as rail pressure rises and as voltage sags, so compare against the maker's curve at your own pressure rather than against the number on the box."/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ===== lambda ===== -->
+            <TabItem Header="Lambda">
+                <StackPanel Margin="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="LambdaFuel" Width="150" Margin="0,2" HorizontalAlignment="Left"
+                                   SelectionChanged="OnLambdaFuelChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="LambdaStoich"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Lambda"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="LambdaValue" Style="{StaticResource Field}"
+                                   TextChanged="OnLambdaChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="1.00 is stoichiometric on any fuel"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Air-fuel ratio"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="AfrValue" Style="{StaticResource Field}"
+                                   TextChanged="OnAfrChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="AfrNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Reads as"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="LambdaVerdict"
+                                   Foreground="{DynamicResource Accent}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Lambda is the same number on every fuel, which is why it is worth using. 12.5:1 is comfortably rich on petrol and lean enough to hurt on E85 — the same mixture is 0.85 on both."/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ===== airflow ===== -->
+            <TabItem Header="Airflow">
+                <StackPanel Margin="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Displacement"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="AirLitres" Style="{StaticResource Field}"
+                                   TextChanged="OnAirflowChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="AirCid"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Engine speed"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="AirRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnAirflowChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="rpm"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="AirVe" Style="{StaticResource Field}"
+                                   TextChanged="OnAirflowChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% — 80 ordinary, 100 good, more at resonance"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Boost"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="AirBoost" Style="{StaticResource Field}"
+                                   TextChanged="OnAirflowChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="AirRatio"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Air demanded"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="AirCfm"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="cfm"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Air demanded"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="AirLbMin"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="lb/min — the units a compressor map uses"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Air demanded"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="AirM3h"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" Text="m³/hour"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Demand, not delivery: this is what the engine would swallow at that speed and filling. What actually goes in is limited by whatever is upstream — the throttle, the intercooler, the filter and the compressor's own map."/>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+</Window>
