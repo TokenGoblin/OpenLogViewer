@@ -48,6 +48,8 @@ public sealed class SettingsStore
 
         SingleRequestBlock = file?.SingleRequestBlock ?? false;
 
+        Units = Enum.TryParse(file?.Units, out UnitSystem units) ? units : UnitSystem.AsReported;
+
         KnownEcus = file?.KnownEcus is { Count: > 0 } known
             ? new Dictionary<string, string>(known, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -64,6 +66,20 @@ public sealed class SettingsStore
     /// </summary>
     public IReadOnlyDictionary<string, string> KnownEcus { get; private set; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Which units to show readings in. Defaults to whatever the ECU reports,
+    /// because that is the only setting that cannot be wrong.
+    /// </summary>
+    public UnitSystem Units { get; private set; } = UnitSystem.AsReported;
+
+    public void SetUnits(UnitSystem units)
+    {
+        if (units == Units) return;
+
+        Units = units;
+        Persist();
+    }
 
     public void SetKnownEcus(IReadOnlyDictionary<string, string> known)
     {
@@ -131,6 +147,7 @@ public sealed class SettingsStore
         LiveRate = LiveRate,
         SingleRequestBlock = SingleRequestBlock,
         KnownEcus = KnownEcus.Count > 0 ? new Dictionary<string, string>(KnownEcus) : null,
+        Units = Units.ToString(),
     });
 
     private sealed class SettingsFile
@@ -141,5 +158,6 @@ public sealed class SettingsStore
         public double? LiveRate { get; set; }
         public bool? SingleRequestBlock { get; set; }
         public Dictionary<string, string>? KnownEcus { get; set; }
+        public string? Units { get; set; }
     }
 }

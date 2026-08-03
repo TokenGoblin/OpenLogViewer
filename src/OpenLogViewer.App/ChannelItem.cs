@@ -37,7 +37,30 @@ public sealed class ChannelItem : ObservableObject
 
     public string Name => Channel.Name;
 
-    public string Units => Channel.Units;
+    public string Units => UnitConvert.Label(Channel.Units, System);
+
+    /// <summary>
+    /// Which units this row reads in. Set by the view model rather than looked
+    /// up, so every row of a list is answering in the same system.
+    /// </summary>
+    public UnitSystem System { get; private set; } = UnitSystem.AsReported;
+
+    /// <summary>Shows this row in another system of units.</summary>
+    public void Show(UnitSystem system)
+    {
+        if (system == System) return;
+
+        System = system;
+
+        Raise(nameof(Units));
+        Raise(nameof(Range));
+
+        // The cursor value is a stored string rather than a computed one, so it
+        // has to be rebuilt rather than merely re-announced.
+        UpdateCursor(_cursorIndex);
+    }
+
+    private int _cursorIndex = -1;
 
     public ChannelCategory Category { get; }
 
@@ -93,11 +116,12 @@ public sealed class ChannelItem : ObservableObject
         get
         {
             if (_selection is { HasData: true } s)
-                return $"{Channel.Format(s.Min)} … {Channel.Format(s.Max)}   avg {Channel.Format(s.Mean)}";
+                return $"{Channel.Format(s.Min, System)} … {Channel.Format(s.Max, System)}"
+                       + $"   avg {Channel.Format(s.Mean, System)}";
 
             return Channel.IsFlat
-                ? $"constant {Channel.Format(Channel.Min)}"
-                : $"{Channel.Format(Channel.Min)} … {Channel.Format(Channel.Max)}";
+                ? $"constant {Channel.Format(Channel.Min, System)}"
+                : $"{Channel.Format(Channel.Min, System)} … {Channel.Format(Channel.Max, System)}";
         }
     }
 
@@ -111,7 +135,7 @@ public sealed class ChannelItem : ObservableObject
         // Recomputed, not just re-announced: dropping a span used to leave the
         // row showing that span's average until the pointer happened to move.
         Value = statistics is { HasData: true } s
-            ? Channel.FormatWithUnits(s.Mean)
+            ? Channel.FormatWithUnits(s.Mean, System)
             : "—";
 
         Raise(nameof(Range));
@@ -154,14 +178,16 @@ public sealed class ChannelItem : ObservableObject
 
     public void UpdateCursor(int index)
     {
+        _cursorIndex = index;
+
         // A marked span outranks the cursor: the average over the span is the
         // number being read, and the cursor is incidental while dragging.
         if (_selection is { HasData: true } s)
         {
-            Value = Channel.FormatWithUnits(s.Mean);
+            Value = Channel.FormatWithUnits(s.Mean, System);
             return;
         }
 
-        Value = index < 0 ? "—" : Channel.FormatWithUnits(Channel.At(index));
+        Value = index < 0 ? "—" : Channel.FormatWithUnits(Channel.At(index), System);
     }
 }

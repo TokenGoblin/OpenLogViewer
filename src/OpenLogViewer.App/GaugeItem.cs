@@ -16,7 +16,44 @@ public sealed class GaugeItem(GaugeSpec spec, string? column) : ObservableObject
     private double _value = double.NaN;
     private bool _shown;
 
+    /// <summary>
+    /// The gauge as the firmware describes it, in the units the ECU reports.
+    ///
+    /// Kept alongside the displayed one because readings are stored as they
+    /// arrive and converted only on the way out. Converting on the way in and
+    /// keeping the result would mean a reading converted again every time the
+    /// preference changed, and a peak recorded in one system would silently
+    /// become a different temperature in the other.
+    /// </summary>
+    private GaugeSpec _source = spec;
+
+    private UnitSystem _system = UnitSystem.AsReported;
+
     public GaugeSpec Spec { get; private set; } = spec;
+
+    /// <summary>
+    /// Shows this gauge in another system of units.
+    ///
+    /// The face and the readings move together — they have to, since a dial
+    /// drawn in Fahrenheit with a needle placed in Celsius is worse than either
+    /// on its own.
+    /// </summary>
+    public void Show(UnitSystem system)
+    {
+        if (system == _system) return;
+
+        _system = system;
+        Spec = _source.In(system);
+
+        Raise(nameof(Spec));
+        Raise(nameof(Title));
+        Raise(nameof(Value));
+        Raise(nameof(Peak));
+        Raise(nameof(Trough));
+    }
+
+    /// <summary>A reading as reported, in the units it is to be shown in.</summary>
+    private double Shown(double value) => UnitConvert.Value(value, _source.Units, _system);
 
     /// <summary>
     /// Replaces the description of this gauge, keeping its readings and its
@@ -26,7 +63,9 @@ public sealed class GaugeItem(GaugeSpec spec, string? column) : ObservableObject
     /// </summary>
     public void Retarget(GaugeSpec spec)
     {
-        Spec = spec;
+        _source = spec;
+        Spec = spec.In(_system);
+
         Raise(nameof(Spec));
         Raise(nameof(Title));
     }
@@ -46,26 +85,18 @@ public sealed class GaugeItem(GaugeSpec spec, string? column) : ObservableObject
 
     public double Value
     {
-        get => _value;
-        set => Set(ref _value, value);
+        get => Shown(_value);
+        set { if (Set(ref _value, value)) Raise(nameof(Value)); }
     }
 
     private double _peak = double.NaN;
     private double _trough = double.NaN;
 
     /// <summary>Highest reading since the peaks were last cleared.</summary>
-    public double Peak
-    {
-        get => _peak;
-        private set => Set(ref _peak, value);
-    }
+    public double Peak => Shown(_peak);
 
     /// <summary>Lowest reading since the peaks were last cleared.</summary>
-    public double Trough
-    {
-        get => _trough;
-        private set => Set(ref _trough, value);
-    }
+    public double Trough => Shown(_trough);
 
     /// <summary>
     /// Takes a reading and remembers the extremes.
@@ -82,15 +113,18 @@ public sealed class GaugeItem(GaugeSpec spec, string? column) : ObservableObject
 
         if (double.IsNaN(reading)) return;
 
-        if (double.IsNaN(_peak) || reading > _peak) Peak = reading;
-        if (double.IsNaN(_trough) || reading < _trough) Trough = reading;
+        if (double.IsNaN(_peak) || reading > _peak) { _peak = reading; Raise(nameof(Peak)); }
+        if (double.IsNaN(_trough) || reading < _trough) { _trough = reading; Raise(nameof(Trough)); }
     }
 
     /// <summary>Forgets the extremes, leaving the current reading alone.</summary>
     public void ResetPeaks()
     {
-        Peak = double.NaN;
-        Trough = double.NaN;
+        _peak = double.NaN;
+        _trough = double.NaN;
+
+        Raise(nameof(Peak));
+        Raise(nameof(Trough));
     }
 
     /// <summary>Whether this one is on the dashboard.</summary>
