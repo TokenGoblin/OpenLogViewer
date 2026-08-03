@@ -37,7 +37,7 @@ public partial class App : Application
     private static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--scan-menu", "--top-menu", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--calibration",
         "--cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
     ];
 
@@ -132,6 +132,16 @@ public partial class App : Application
             string header = e.Args[top + 1];
             string to = e.Args[top + 2];
             RunThenExit(window, () => window.CaptureMenu(header, to));
+            return;
+        }
+
+        // "--calculators Injectors out.png" draws one of the calculator tabs.
+        int calc = Array.IndexOf(e.Args, "--calculators");
+        if (calc >= 0 && calc + 2 < e.Args.Length)
+        {
+            string tab = e.Args[calc + 1];
+            string to = e.Args[calc + 2];
+            RunThenExit(window, () => window.CaptureCalculators(tab, to));
             return;
         }
 

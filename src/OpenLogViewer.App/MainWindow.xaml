@@ -108,6 +108,9 @@
                 <Separator/>
                 <MenuItem Header="_ECU definition files…" Click="OnDefinitionsClick"
                           ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
+                <Separator/>
+                <MenuItem Header="Ca_lculators…" Click="OnCalculatorsClick"
+                          ToolTip="Boost, injectors, fuel pump, lambda and airflow"/>
             </MenuItem>
 
             <MenuItem Header="_Help">

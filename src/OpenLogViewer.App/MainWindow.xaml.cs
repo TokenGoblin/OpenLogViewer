@@ -80,6 +80,28 @@ public partial class MainWindow : Window
     /// <summary>Switches to the gauge dashboard, for a scripted run.</summary>
     public void ShowGauges() => _vm.Mode = WorkspaceMode.Gauges;
 
+    /// <summary>
+    /// Opens the calculators on a named tab and draws them, for a scripted run.
+    ///
+    /// A calculator nobody has looked at is how one ships showing "—" in every
+    /// answer, or with the arithmetic right and the layout unreadable.
+    /// </summary>
+    public void CaptureCalculators(string tab, string path)
+    {
+        OnCalculatorsClick(this, new RoutedEventArgs());
+
+        if (_calculators is null) return;
+
+        foreach (TabItem item in _calculators.Tabs.Items)
+            if ((item.Header as string)?.Equals(tab, StringComparison.OrdinalIgnoreCase) == true)
+                _calculators.Tabs.SelectedItem = item;
+
+        _calculators.UpdateLayout();
+        ImageExport.Save(_calculators.Content as FrameworkElement ?? _calculators, path);
+
+        _calculators.Close();
+    }
+
     private void OnResetGaugePeaksClick(object sender, RoutedEventArgs e) => _vm.ResetGaugePeaks();
 
     // ----- the menu -----------------------------------------------------------
@@ -90,6 +112,32 @@ public partial class MainWindow : Window
 
     private void OnDefinitionsClick(object sender, RoutedEventArgs e) =>
         OpenFolder(_vm.Workspace.EnsureDefinitions());
+
+    private CalculatorsWindow? _calculators;
+
+    /// <summary>
+    /// The tuning calculators, in a window of their own.
+    ///
+    /// Kept alive rather than made fresh each time, so the figures typed in are
+    /// still there when it is reopened — sizing an injector and then checking
+    /// the pump for the same engine should not mean typing the power twice.
+    /// </summary>
+    private void OnCalculatorsClick(object sender, RoutedEventArgs e)
+    {
+        if (_calculators is null)
+        {
+            _calculators = new CalculatorsWindow { Owner = this };
+            _calculators.Closed += (_, _) => _calculators = null;
+            _calculators.Show();
+
+            return;
+        }
+
+        if (_calculators.WindowState == WindowState.Minimized)
+            _calculators.WindowState = WindowState.Normal;
+
+        _calculators.Activate();
+    }
 
     /// <summary>
     /// Filled when opened rather than declared, because both of these are lists
