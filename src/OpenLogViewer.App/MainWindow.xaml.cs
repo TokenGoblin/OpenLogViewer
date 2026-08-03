@@ -29,6 +29,11 @@ public partial class MainWindow : Window
         Plot.HoverChannelChanged += _vm.HighlightChannel;
         Plot.SelectionChanged += _vm.UpdateSelection;
         Histogram.CellActivated += OnHistogramCellActivated;
+
+        // The table view knows which keys were pressed and nothing else; what a
+        // table may become is the view model's business.
+        TuneTable.SelectionChanged += cells => _vm.SelectedCells = cells;
+        TuneTable.EditRequested += _vm.EditTable;
         Plot.ViewChangedByUser += () => _follow = false;
 
         // The title bar belongs to Windows, so it has to be coloured by hand —
@@ -76,6 +81,69 @@ public partial class MainWindow : Window
     public void ShowGauges() => _vm.Mode = WorkspaceMode.Gauges;
 
     private void OnResetGaugePeaksClick(object sender, RoutedEventArgs e) => _vm.ResetGaugePeaks();
+
+    // ----- editing a table ----------------------------------------------------
+
+    /// <summary>
+    /// Sends the changed cells, having said plainly what that means.
+    ///
+    /// Asked for confirmation because this is the one action here that reaches
+    /// out and changes a running engine, and because the number of cells is the
+    /// thing worth checking before it does — a table scaled by five per cent
+    /// when one cell was meant is 256 changes, and it looks identical to one
+    /// change until it is counted.
+    /// </summary>
+    private void OnWriteTableClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.TableEdit is not { } edit) return;
+
+        int cells = edit.ChangedCount;
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Send {cells} changed cell{(cells == 1 ? "" : "s")} of {edit.Name} to the ECU?\n\n"
+            + "This takes effect immediately on a running engine.\n\n"
+            + "It is not permanent: the ECU forgets it at the next power cycle unless you burn it.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.WriteTableToEcu());
+    }
+
+    /// <summary>
+    /// Burns the page. Confirmed separately and more firmly than a write,
+    /// because a write is undone by turning the key off and this is not.
+    /// </summary>
+    private void OnBurnTableClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.TableEdit is not { } edit) return;
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Burn the page holding {edit.Name} to the ECU's flash?\n\n"
+            + "This is permanent. A power cycle will not undo it.\n\n"
+            + "Burn with the engine stopped: the ECU pauses while it writes flash.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.BurnTableToEcu());
+    }
+
+    private void OnRevertTableClick(object sender, RoutedEventArgs e) => _vm.RevertTable();
+
+    private void Report(string outcome)
+    {
+        _vm.SetHint(outcome);
+        App.Report(outcome);
+    }
 
     /// <summary>Switches to calibration, optionally on a named table, for a scripted run.</summary>
     public void ShowCalibration(string? table)

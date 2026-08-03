@@ -62,6 +62,24 @@ public sealed record TuneConstant
 
     public int Digits { get; init; }
 
+    /// <summary>
+    /// The range the firmware says this may hold, in the units it is displayed
+    /// in. NaN where the file does not say.
+    ///
+    /// Worth having because it is much tighter than the datatype's, and it is
+    /// the datatype that would otherwise be the only guard when a value is being
+    /// written back. An ignition table stored as a signed 16-bit number at a
+    /// tenth of a degree accepts −3,276 to 3,276 degrees of advance as far as
+    /// the encoding is concerned; the firmware declares −10 to 60, which is the
+    /// figure that means something.
+    /// </summary>
+    public double Low { get; init; } = double.NaN;
+
+    public double High { get; init; } = double.NaN;
+
+    /// <summary>Whether the firmware stated a usable range.</summary>
+    public bool HasRange => !double.IsNaN(Low) && !double.IsNaN(High) && High > Low;
+
     /// <summary>Columns, or 1 for a scalar and for a one-dimensional array.</summary>
     public int Columns { get; init; } = 1;
 
@@ -257,6 +275,12 @@ public static class TuneLayoutReader
             Units = rest.Length > 0 ? Unquote(rest[0]) : "",
             Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+
+            // Fields four and five are the firmware's own limits, in displayed
+            // units. Read rather than skipped over: they are what an edit should
+            // be held to, and they are stricter than the datatype.
+            Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
+            High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
             Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
         };
     }
@@ -285,6 +309,12 @@ public static class TuneLayoutReader
             Units = rest.Length > 0 ? Unquote(rest[0]) : "",
             Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+
+            // Fields four and five are the firmware's own limits, in displayed
+            // units. Read rather than skipped over: they are what an edit should
+            // be held to, and they are stricter than the datatype.
+            Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
+            High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
             Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
         };
     }
