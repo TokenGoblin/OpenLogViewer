@@ -54,6 +54,19 @@ public sealed record VeAnalysisResult
     public required double LargestChangePercent { get; init; }
 
     public bool IsEmpty => CellsSuggested == 0;
+
+    /// <summary>
+    /// Why the answer should not be believed, where that can be said.
+    ///
+    /// Set when the two channels being compared are not the same quantity —
+    /// measured AFR against a lambda target, most often, since a firmware
+    /// commonly logs both and nothing about their names says they are on
+    /// different scales. The arithmetic is perfectly happy with it and produces
+    /// a full table of confident nonsense.
+    /// </summary>
+    public string? Problem { get; init; }
+
+    public bool HasProblem => Problem is { Length: > 0 };
 }
 
 /// <summary>
@@ -72,6 +85,94 @@ public sealed record VeAnalysisResult
 /// </summary>
 public static class VeAnalysis
 {
+    private static double Total(double[,] values)
+    {
+        double sum = 0;
+        foreach (double value in values) sum += value;
+
+        return sum;
+    }
+
+    /// <summary>The mean of a channel over a window, for saying what scale it is on.</summary>
+    private static double Average(LogChannel channel, int from, int to)
+    {
+        double sum = 0;
+        int count = 0;
+
+        for (int i = from; i <= to; i++)
+        {
+            double value = channel.At(i);
+            if (double.IsNaN(value)) continue;
+
+            sum += value;
+            count++;
+        }
+
+        return count == 0 ? 0 : sum / count;
+    }
+
+    /// <summary>
+    /// A grid taken from the log itself, for when no tune supplies one.
+    ///
+    /// The ECU's own breakpoints are better and are used whenever they can be
+    /// had, because a table binned onto them reads cell-for-cell against the
+    /// table being tuned. But requiring them meant this could not run at all on
+    /// a log by itself — which is every MaxxECU, whose tune cannot be read, and
+    /// every log opened away from the car it came from.
+    ///
+    /// The cells hold nothing. There is no current fuelling to scale, so the
+    /// analysis reports how far out each cell is and leaves suggesting a new
+    /// number to a session that knows the old one.
+    /// </summary>
+    public static TuneTable GridFrom(
+        LogChannel x, LogChannel y, int columns, int rows,
+        int firstSample, int lastSample, SampleMask? mask = null)
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        ArgumentNullException.ThrowIfNull(y);
+        ArgumentOutOfRangeException.ThrowIfLessThan(columns, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
+
+        return new TuneTable(
+            $"{x.Name} × {y.Name}",
+            new TuneAxis(x.Name, x.Units, Breakpoints(x, columns, firstSample, lastSample, mask)),
+            new TuneAxis(y.Name, y.Units, Breakpoints(y, rows, firstSample, lastSample, mask)),
+            new double[columns, rows],
+            "%");
+    }
+
+    /// <summary>
+    /// Bin centres spread over what the channel actually did in the window,
+    /// matching how the heat table lays its axes out — so the two agree about
+    /// which cell a sample belongs to.
+    /// </summary>
+    private static double[] Breakpoints(
+        LogChannel channel, int count, int firstSample, int lastSample, SampleMask? mask)
+    {
+        int from = Math.Max(0, Math.Min(firstSample, lastSample));
+        int to = Math.Min(channel.Length - 1, Math.Max(firstSample, lastSample));
+
+        double low = double.MaxValue, high = double.MinValue;
+
+        for (int i = from; i <= to; i++)
+        {
+            if (mask is not null && !mask[i]) continue;
+
+            double value = channel.At(i);
+            if (double.IsNaN(value)) continue;
+
+            low = Math.Min(low, value);
+            high = Math.Max(high, value);
+        }
+
+        if (low > high) (low, high) = (0, 1);
+        if (high - low < 1e-9) high = low + 1;
+
+        double step = (high - low) / count;
+
+        return [.. Enumerable.Range(0, count).Select(i => low + ((i + 0.5) * step))];
+    }
+
     public static VeAnalysisResult Analyse(
         TuneTable table,
         LogChannel rpm, LogChannel load, LogChannel afr, LogChannel target,
@@ -114,6 +215,39 @@ public static class VeAnalysis
             used++;
         }
 
+        // Before any of it is believed: are these two channels even the same
+        // quantity? A firmware commonly logs both AFR and lambda, and a target
+        // in one against a measurement in the other divides 12.5 by 0.9 and
+        // reports every cell as fifteen per cent lean — a full table of
+        // confident nonsense, which is worse than an empty one because it looks
+        // like an answer.
+        //
+        // A real tune is out by tens of per cent at worst. Anything beyond a
+        // factor of two is not a mistuned engine, it is two different scales.
+        if (used > 0)
+        {
+            double average = Total(sums) / used;
+
+            if (average is < 0.5 or > 2)
+                return new VeAnalysisResult
+                {
+                    Table = table,
+                    Suggested = new double?[columns, rows],
+                    ChangePercent = new double?[columns, rows],
+                    Counts = counts,
+                    CellsSuggested = 0,
+                    CellsThin = 0,
+                    SamplesUsed = used,
+                    LargestChangePercent = 0,
+                    Problem =
+                        $"\"{afr.Name}\" averages {Average(afr, from, to):G4} and \"{target.Name}\" "
+                        + $"averages {Average(target, from, to):G4}, which are not the same kind of "
+                        + "number — one is probably lambda and the other AFR. Comparing them would "
+                        + "suggest a correction of hundreds of per cent. Pick a measured channel and "
+                        + "a target on the same scale.",
+                };
+        }
+
         var suggested = new double?[columns, rows];
         var change = new double?[columns, rows];
         int changed = 0, thin = 0;
@@ -126,20 +260,29 @@ public static class VeAnalysis
 
             if (counts[c, r] < settings.MinimumSamples) { thin++; continue; }
 
-            double current = table.Values[c, r];
-            if (current <= 0) continue;
-
             double ratio = sums[c, r] / counts[c, r];
-            double proposed = current * (1 + (ratio - 1) * settings.Authority);
+            double current = table.Values[c, r];
 
-            // Clamped rather than dropped: a cell that wants more than one pass
-            // allows should still move, just not all the way at once.
-            double limit = current * settings.MaxChangePercent / 100;
-            proposed = Math.Clamp(proposed, current - limit, current + limit);
+            // How far out the fuelling is, which is the whole of the answer and
+            // needs nothing from the table. Mixture came out richer than asked
+            // for means the ECU thought there was more air than there was, so
+            // the number in that cell is too high by this much.
+            double wanted = (ratio - 1) * 100 * settings.Authority;
+            double percent = Math.Clamp(
+                wanted, -settings.MaxChangePercent, settings.MaxChangePercent);
 
-            double percent = (proposed - current) / current * 100;
+            // A new value for the cell only where there is an old one to scale.
+            // A log on its own — from a controller whose tune cannot be read, or
+            // opened with no tune beside it — still says how far out each cell
+            // is, and that is the number a tuner acts on.
+            if (current > 0)
+            {
+                double proposed = current * (1 + percent / 100);
 
-            suggested[c, r] = proposed;
+                suggested[c, r] = proposed;
+                percent = (proposed - current) / current * 100;
+            }
+
             change[c, r] = percent;
             changed++;
             largest = Math.Max(largest, Math.Abs(percent));

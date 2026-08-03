@@ -38,7 +38,7 @@ public partial class App : Application
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--calibration",
-        "--cell", "--select", "--compare", "--tune-axes", "--pointer",
+        "--cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
     ];
 
     /// <summary>
@@ -159,12 +159,14 @@ public partial class App : Application
             bool given = at >= 0 && at + 1 < e.Args.Length && int.TryParse(e.Args[at + 1], out _);
 
             int cmp = Array.IndexOf(e.Args, "--compare");
+            int z = Array.IndexOf(e.Args, "--z");
 
             window.ShowHistogram(
                 given ? int.Parse(e.Args[at + 1]) : 0,
                 e.Args.Contains("--count-colour"),
                 e.Args.Contains("--count-value"),
-                cmp >= 0 && cmp + 1 < e.Args.Length ? e.Args[cmp + 1] : null);
+                cmp >= 0 && cmp + 1 < e.Args.Length ? e.Args[cmp + 1] : null,
+                z >= 0 && z + 1 < e.Args.Length ? e.Args[z + 1] : null);
 
             if (e.Args.Contains("--ve")) window.EnableVeAnalyze(e.Args.Contains("--ve-values"));
         }

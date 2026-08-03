@@ -976,9 +976,21 @@ public partial class MainWindow : Window
     /// breakpoint sources by position (0 is "from the log data").
     /// </summary>
     public void ShowHistogram(
-        int axisSource = 0, bool colourByCount = false, bool countStatistic = false, string? compareTo = null)
+        int axisSource = 0, bool colourByCount = false, bool countStatistic = false,
+        string? compareTo = null, string? zChannel = null)
     {
         _vm.ShowHistogram = true;
+
+        // The measured channel, for a scripted run. Chosen before the comparison
+        // so the two are settled together — a measurement and a target on
+        // different scales is the one pairing this must never quietly accept.
+        if (zChannel is { Length: > 0 })
+        {
+            ChannelItem? pick = _vm.Channels.FirstOrDefault(
+                c => c.Name.Equals(zChannel, StringComparison.OrdinalIgnoreCase));
+
+            if (pick is not null) _vm.ZAxis = pick;
+        }
 
         if (axisSource > 0 && axisSource < _vm.AxisSources.Count)
             _vm.AxisSource = _vm.AxisSources[axisSource];
