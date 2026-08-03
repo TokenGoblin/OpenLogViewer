@@ -1505,7 +1505,11 @@ public sealed class MainViewModel : ObservableObject
             Dashboard.Add(item);
         }
 
-        _projectTuneName = "the OBD2 standard";
+        // Named for what it is. The scales come from the standard; the coloured
+        // limits do not, because the standard has none — they are the figures a
+        // workshop manual would use, and saying so is what stops a red arc being
+        // read as this particular car's opinion of itself.
+        _projectTuneName = "the OBD2 standard, with typical limits";
 
         GaugeChoices.Refresh();
         Raise(nameof(GaugeSummary));

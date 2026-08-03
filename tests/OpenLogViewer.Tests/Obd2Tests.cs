@@ -349,13 +349,84 @@ public class Obd2Tests
     }
 
     [Fact]
-    public void NoGaugeClaimsToKnowWhatASafeReadingIs()
+    public void OnlyTheParametersWithAConventionWorthHavingAreBanded()
     {
-        // The standard describes what a value is and never what a good one would
-        // be — it has no idea what this engine's coolant should read.
+        // The standard supplies no limits, so these are a workshop manual's
+        // figures rather than the car's. Which makes it the more important that
+        // they stop where the convention does: nobody can say what a wrong road
+        // speed or a wrong manifold pressure is, and colouring those would be
+        // asserting something no one has said.
         IReadOnlyList<GaugeSpec> gauges = Obd2Gauges.For(Obd2Pids.All);
 
-        Assert.All(gauges, g => Assert.False(g.HasBands, $"{g.Title} claims a safe range"));
+        Assert.All(
+            (string[])["Speed", "RPM", "MAP", "Engine Load", "Throttle Position",
+                       "Timing Advance", "Run Time", "Barometric Pressure", "Lambda"],
+            name => Assert.False(
+                Assert.Single(gauges, g => g.Title == name).HasBands,
+                $"{name} claims to know what a safe reading is"));
+
+        Assert.All(
+            (string[])["Coolant", "Battery", "Engine Oil Temp", "Fuel Level",
+                       "Long Fuel Trim B1", "MIL"],
+            name => Assert.True(
+                Assert.Single(gauges, g => g.Title == name).HasBands,
+                $"{name} has no limits at all"));
+    }
+
+    [Fact]
+    public void ALitMalfunctionLampIsRed()
+    {
+        // The one limit the standard does state. Its own word for the lamp being
+        // commanded on is "malfunction", so this is the car talking rather than
+        // a convention about what is probably bad.
+        GaugeSpec mil = Assert.Single(Obd2Gauges.For(Obd2Pids.All), g => g.Title == "MIL");
+
+        Assert.Equal(GaugeBand.Normal, mil.BandFor(0));
+        Assert.Equal(GaugeBand.Danger, mil.BandFor(1));
+    }
+
+    [Fact]
+    public void AStoredCodeShowsAsAWarningAndNoneAsNormal()
+    {
+        GaugeSpec codes = Assert.Single(Obd2Gauges.For(Obd2Pids.All), g => g.Title == "DTC Count");
+
+        Assert.Equal(GaugeBand.Normal, codes.BandFor(0));
+        Assert.Equal(GaugeBand.Warning, codes.BandFor(1));
+        Assert.Equal(GaugeBand.Warning, codes.BandFor(6));
+    }
+
+    [Theory]
+    [InlineData("Coolant", 90, GaugeBand.Normal)]
+    [InlineData("Coolant", 108, GaugeBand.Warning)]
+    [InlineData("Coolant", 120, GaugeBand.Danger)]
+    [InlineData("Battery", 14.1, GaugeBand.Normal)]
+    [InlineData("Battery", 12.0, GaugeBand.Warning)]
+    [InlineData("Battery", 11.0, GaugeBand.Danger)]
+    [InlineData("Battery", 15.6, GaugeBand.Danger)]
+    [InlineData("Fuel Level", 50, GaugeBand.Normal)]
+    [InlineData("Fuel Level", 10, GaugeBand.Warning)]
+    [InlineData("Fuel Level", 3, GaugeBand.Danger)]
+    [InlineData("Long Fuel Trim B1", 2, GaugeBand.Normal)]
+    [InlineData("Long Fuel Trim B1", -14, GaugeBand.Warning)]
+    [InlineData("Long Fuel Trim B1", 30, GaugeBand.Danger)]
+    public void AReadingFallsWhereAWorkshopManualWouldPutIt(
+        string title, double reading, GaugeBand expected)
+    {
+        GaugeSpec gauge = Assert.Single(Obd2Gauges.For(Obd2Pids.All), g => g.Title == title);
+
+        Assert.Equal(expected, gauge.BandFor(reading));
+    }
+
+    [Fact]
+    public void TheLimitsSurviveBeingShownInOtherUnits()
+    {
+        // A coolant gauge in Fahrenheit keeping a Celsius redline would call 105
+        // degrees an emergency at 40 °C.
+        GaugeSpec metric = Assert.Single(Obd2Gauges.For(Obd2Pids.All), g => g.Title == "Coolant");
+        GaugeSpec imperial = metric.In(UnitSystem.Imperial);
+
+        Assert.Equal(GaugeBand.Normal, imperial.BandFor(194));    // 90 °C
+        Assert.Equal(GaugeBand.Danger, imperial.BandFor(248));    // 120 °C
     }
 
     [Fact]
