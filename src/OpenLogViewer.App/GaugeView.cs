@@ -218,10 +218,8 @@ public sealed class GaugeView : FrameworkElement
 
         if (spec.HasBands)
         {
-            double lowDanger = spec.Fraction(spec.LowDanger);
-            double lowWarning = spec.Fraction(spec.LowWarning);
-            double highWarning = spec.Fraction(spec.HighWarning);
-            double highDanger = spec.Fraction(spec.HighDanger);
+            (double lowDanger, double lowWarning, double highWarning, double highDanger) =
+                spec.BandEdges();
 
             Band(dc, centre, radius, lowWarning, highWarning, _normalBand);
             Band(dc, centre, radius, lowDanger, lowWarning, _warningBand);

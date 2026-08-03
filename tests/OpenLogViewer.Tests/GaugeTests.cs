@@ -305,4 +305,100 @@ public class GaugeTests
         Assert.Equal(1, tacho.Fraction(99999));
         Assert.Equal(0, tacho.Fraction(double.NaN));
     }
+
+    // ----- bounds that only half resolve ------------------------------------
+
+    /// <summary>
+    /// A MicroSquirt's coolant gauge, verbatim. One end is a plain number and
+    /// the other is a tuning-software variable, so with no tune open only half
+    /// of it resolves.
+    /// </summary>
+    private const string HalfResolved = """
+        [OutputChannels]
+        ochBlockSize = 4
+        coolant = scalar, S16, 0, "F", 0.1, 0.0
+        synccnt = scalar, U08, 2, "", 1.0, 0.0
+
+        [GaugeConfigurations]
+        cltGauge = coolant, "Coolant Temp", "°F", -40, {clthighlim}, {cltlowdang}, {cltlowwarn}, {clthighwarn}, {clthighdang}, 0, 0
+        lostsyncGauge = synccnt, "Lost Sync Counter", "", 0, 255, 255, 255, 255, 255, 0, 0
+        """;
+
+    [Fact]
+    public void AHalfResolvedRangeIsNoRangeAtAll()
+    {
+        // Not -40 to 0, which is what taking the end that did resolve gives: a
+        // dial that looks perfectly valid, with the needle pegged off the end at
+        // a coolant temperature of 90.
+        GaugeSpec clt = Assert.Single(
+            GaugeCatalog.Read(HalfResolved, new Dictionary<string, double>()),
+            g => g.Title == "Coolant Temp");
+
+        Assert.False(clt.HasScale, $"drew a scale of {clt.Low} to {clt.High}");
+    }
+
+    [Fact]
+    public void ALimitBeyondTheFarEndOfTheScaleIsNoLimit()
+    {
+        // These files say "this gauge has no limits" by putting all four of them
+        // on one end. Read literally, a low-danger threshold of 255 puts every
+        // reading on a 0-255 scale below it — the gauge was entirely red while
+        // reporting a perfectly healthy zero.
+        GaugeSpec sync = Assert.Single(
+            GaugeCatalog.Read(HalfResolved, new Dictionary<string, double>()),
+            g => g.Title == "Lost Sync Counter");
+
+        Assert.True(sync.HasScale);
+        Assert.Equal(GaugeBand.Normal, sync.BandFor(0));
+        Assert.Equal(GaugeBand.Normal, sync.BandFor(128));
+        Assert.Equal(GaugeBand.Normal, sync.BandFor(255));
+    }
+
+    [Fact]
+    public void TheFaceAndTheReadingAgreeAboutWhereTheBandsAre()
+    {
+        // They did not: the dial was painted from the raw limits and the reading
+        // coloured from the ones that mean something, so a lost-sync counter
+        // showed a black zero on an entirely red face.
+        GaugeSpec sync = Assert.Single(
+            GaugeCatalog.Read(HalfResolved, new Dictionary<string, double>()),
+            g => g.Title == "Lost Sync Counter");
+
+        (double lowDanger, double lowWarning, double highWarning, double highDanger) = sync.BandEdges();
+
+        Assert.Equal(0, lowDanger);
+        Assert.Equal(0, lowWarning);
+        Assert.Equal(1, highWarning);
+        Assert.Equal(1, highDanger);
+    }
+
+    [Fact]
+    public void AFaceWithRealLimitsStillPaintsThem()
+    {
+        GaugeSpec tacho = Named("tachometer");
+
+        (double lowDanger, double lowWarning, double highWarning, double highDanger) = tacho.BandEdges();
+
+        Assert.True(lowDanger is > 0 and < 1, $"low danger at {lowDanger}");
+        Assert.True(lowDanger <= lowWarning);
+        Assert.True(lowWarning < highWarning);
+        Assert.True(highWarning < highDanger);
+        Assert.True(highDanger < 1, $"high danger at {highDanger}");
+    }
+
+    [Fact]
+    public void ALimitInsideTheScaleStillCounts()
+    {
+        // The fix must not throw away the limits that mean something. Taken from
+        // the gauge's own thresholds rather than from numbers written out here,
+        // which only restate what the fixture happens to say.
+        GaugeSpec tacho = Named("tachometer");
+
+        Assert.True(tacho.HasBands);
+        Assert.True(tacho.HighWarning < tacho.HighDanger, "the fixture has no room between the bands");
+
+        Assert.Equal(GaugeBand.Danger, tacho.BandFor(tacho.HighDanger + 1));
+        Assert.Equal(GaugeBand.Warning, tacho.BandFor((tacho.HighWarning + tacho.HighDanger) / 2));
+        Assert.Equal(GaugeBand.Normal, tacho.BandFor((tacho.LowWarning + tacho.HighWarning) / 2));
+    }
 }

@@ -165,40 +165,86 @@ public sealed class Elm327Source : ILiveSource
     }
 
     /// <summary>
-    /// Every parameter the car says it supports.
+    /// Every parameter the car says it supports, across every module that
+    /// answers.
     ///
     /// Asked in three questions rather than found by trying all ninety-six and
     /// waiting for the ones that never answer. Each reply is a bitmask covering
     /// the thirty-two numbers after it, and the last bit of each says whether
     /// there is another range to ask about — so a car that stops at the first
     /// range is not asked twice.
+    ///
+    /// Every answer is combined rather than the first being taken. More than one
+    /// module replies on most cars, each reporting only what it alone supports,
+    /// and which one gets in first is not fixed. Measured on the test vehicle:
+    /// the engine module answers BE3FA813 and something else answers 80000001,
+    /// so taking whichever arrived first gave twenty-four channels on one
+    /// connection and three on the next.
     /// </summary>
     private static IReadOnlyList<byte> Supported(Elm327 elm)
     {
         var supported = new List<byte>();
-        Span<byte> mask = stackalloc byte[4];
 
         foreach (byte query in Obd2Pids.SupportQueries)
         {
-            // Given the long timeout. This is the first thing the car is ever
-            // asked, and the adapter answers it with "SEARCHING..." while it
-            // works through the nine OBD2 protocols looking for the one this
-            // vehicle speaks — seconds, where a settled link answers in
-            // milliseconds. Timing that out would report a perfectly good car as
-            // supporting nothing.
-            if (!elm.TryRead(query, 4, mask, out _, elm.ResetTimeout)) break;
+            IReadOnlyList<byte[]> masks = AskUntilAnswered(elm, query);
+            if (masks.Count == 0) break;
 
-            IReadOnlyList<byte> range = Obd2Pids.SupportedBy(query, mask);
-            supported.AddRange(range);
+            // "And there is a further range" — from any module, since the ranges
+            // they cover need not be the same. Asking anyway when nobody claims
+            // one costs a round trip and answers NO DATA, which reads like a
+            // fault.
+            bool more = false;
 
-            // The last bit means "and there is a further range". Without it the
-            // next question is answered with NO DATA, which costs a round trip
-            // and reads like a fault.
-            if (!range.Contains((byte)(query + 0x20))) break;
+            foreach (byte[] mask in masks)
+            {
+                IReadOnlyList<byte> range = Obd2Pids.SupportedBy(query, mask);
+                supported.AddRange(range);
+
+                more |= range.Contains((byte)(query + 0x20));
+            }
+
+            if (!more) break;
         }
 
         return supported;
     }
+
+    /// <summary>
+    /// Asks for a capability mask, and keeps asking.
+    ///
+    /// Worth being stubborn about in a way an ordinary reading is not. This runs
+    /// once, and its answer decides every channel the session will ever have — a
+    /// range that goes unanswered on the one attempt it gets silently costs every
+    /// parameter above it for as long as the session lasts. A reading that fails
+    /// costs one sample and comes round again in half a second.
+    ///
+    /// Measured before this was here: the same car and the same dongle, minutes
+    /// apart, reported 12, then 24, then 15 parameters.
+    ///
+    /// The long timeout is for the same reason the retries are. This is the first
+    /// thing the car is ever asked, and the adapter answers it with
+    /// "SEARCHING..." while it works through the nine OBD2 protocols looking for
+    /// the one this vehicle speaks — seconds, where a settled link answers in
+    /// milliseconds.
+    /// </summary>
+    private static IReadOnlyList<byte[]> AskUntilAnswered(Elm327 elm, byte query)
+    {
+        for (int attempt = 1; attempt < DiscoveryAttempts; attempt++)
+        {
+            IReadOnlyList<byte[]> masks = elm.ReadAll(query, 4, elm.ResetTimeout);
+            if (masks.Count > 0) return masks;
+
+            // Long enough for an adapter still settling the protocol to finish.
+            // Asking again immediately tends to get the same silence.
+            Thread.Sleep(400);
+        }
+
+        return elm.ReadAll(query, 4, elm.ResetTimeout);
+    }
+
+    /// <summary>Times a capability mask is asked for before it is believed absent.</summary>
+    private const int DiscoveryAttempts = 4;
 
     /// <summary>
     /// Reopens the adapter if it is not already open.

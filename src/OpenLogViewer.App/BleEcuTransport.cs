@@ -33,8 +33,20 @@ public sealed class BleEcuTransport : IEcuTransport
     private readonly SemaphoreSlim _arrived = new(0);
 
     private BluetoothLEDevice? _device;
+    private GattDeviceService? _service;
     private GattCharacteristic? _write;
     private GattCharacteristic? _notify;
+
+    /// <summary>
+    /// How many times to try opening.
+    ///
+    /// Windows keeps a GATT session alive for a while after the process that
+    /// made it has gone, and while it lingers the services still list but their
+    /// characteristics come back empty — so a second attempt a moment later
+    /// succeeds where the first could not. Reconnecting after a session is the
+    /// ordinary case, not the exception.
+    /// </summary>
+    private const int OpenAttempts = 3;
 
     public BleEcuTransport(ulong address, string name = "")
     {
@@ -77,7 +89,28 @@ public sealed class BleEcuTransport : IEcuTransport
         // thread resumes on that same thread, and this is called from a click
         // handler — waiting on the result there deadlocks the window rather than
         // connecting.
-        Task.Run(OpenAsync).GetAwaiter().GetResult();
+        Task.Run(OpenWithRetriesAsync).GetAwaiter().GetResult();
+    }
+
+    private async Task OpenWithRetriesAsync()
+    {
+        for (int attempt = 1; attempt < OpenAttempts; attempt++)
+        {
+            try
+            {
+                await OpenAsync().ConfigureAwait(false);
+                return;
+            }
+            catch (IOException e)
+            {
+                Debug.WriteLine($"BLE attempt {attempt} failed: {e.Message}");
+
+                Close();
+                await Task.Delay(1500).ConfigureAwait(false);
+            }
+        }
+
+        await OpenAsync().ConfigureAwait(false);
     }
 
     private async Task OpenAsync()
@@ -100,18 +133,44 @@ public sealed class BleEcuTransport : IEcuTransport
                 + "If it is already connected to a phone, disconnect it there first — "
                 + "these adapters accept one connection at a time.");
 
-        foreach (Guid wanted in SerialServices)
+        try
         {
-            GattDeviceService? service = services.Services.FirstOrDefault(s => s.Uuid == wanted);
-            if (service is null) continue;
+            foreach (Guid wanted in SerialServices)
+            {
+                GattDeviceService? service = services.Services.FirstOrDefault(s => s.Uuid == wanted);
+                if (service is null) continue;
 
-            if (await TryUseAsync(service).ConfigureAwait(false)) return;
+                if (await TryUseAsync(service).ConfigureAwait(false))
+                {
+                    _service = service;
+                    return;
+                }
+            }
+
+            throw new IOException(
+                $"{Describe()} is connected, but none of its services answered as an ELM327. "
+                + "If a session was open a moment ago, the previous connection may still be "
+                + "letting go — wait a few seconds and try again. If it is connected to a "
+                + "phone, disconnect it there first; these accept one connection at a time.\n\n"
+                + $"It publishes {services.Services.Count} service(s): "
+                + string.Join(", ", services.Services.Select(s => s.Uuid)));
         }
-
-        throw new IOException(
-            $"{Describe()} is connected, but none of its services answered as an ELM327. "
-            + $"It publishes {services.Services.Count} service(s): "
-            + string.Join(", ", services.Services.Select(s => s.Uuid)));
+        finally
+        {
+            // Every service not being used is let go of here, and the one that
+            // is gets let go of in Close.
+            //
+            // These are handles on the connection, not descriptions of it.
+            // Leaving them undisposed keeps the link open after the process that
+            // opened it has exited — and while it lingers the services still
+            // list but their characteristics come back empty, so the next
+            // connection finds a device that is "connected" and answers nothing.
+            // That is not a hypothetical: it cost two dead sessions and a dongle
+            // that had to be left alone before it would answer again.
+            foreach (GattDeviceService other in services.Services)
+                if (!ReferenceEquals(other, _service))
+                    other.Dispose();
+        }
     }
 
     /// <summary>
@@ -272,8 +331,13 @@ public sealed class BleEcuTransport : IEcuTransport
         _notify = null;
         _write = null;
 
+        // The service before the device, and both of them without fail. Either
+        // one left undisposed holds the connection open past the life of this
+        // object, and the symptom lands on whatever tries to connect next rather
+        // than here.
         try
         {
+            _service?.Dispose();
             _device?.Dispose();
         }
         catch (Exception e)
@@ -282,6 +346,7 @@ public sealed class BleEcuTransport : IEcuTransport
             Debug.WriteLine($"Closing the BLE adapter: {e.Message}");
         }
 
+        _service = null;
         _device = null;
         DiscardInput();
     }

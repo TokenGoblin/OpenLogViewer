@@ -66,24 +66,53 @@ public sealed record GaugeSpec
     /// <summary>
     /// Where a reading falls, for colouring.
     ///
-    /// A limit sitting on the end of the scale means there is no limit at that
-    /// end, not that everything past it is trouble. A throttle runs 0 to 100
-    /// with its lower limits at 0, and read literally that paints a closed
-    /// throttle as a fault.
+    /// A limit has to sit inside the scale to mean anything, and one that does
+    /// not is how these files say "no limit here".
+    ///
+    /// At the near end: a throttle runs 0 to 100 with its lower limits at 0, and
+    /// read literally that paints a closed throttle as a fault.
+    ///
+    /// At the far end: a MicroSquirt's lost-sync counter runs 0 to 255 with all
+    /// four of its limits at 255, meaning it has none. Read literally, a
+    /// low-danger threshold of 255 puts every possible reading below it — the
+    /// gauge was entirely red while reporting a perfectly healthy zero.
     /// </summary>
     public GaugeBand BandFor(double value)
     {
         if (double.IsNaN(value)) return GaugeBand.Unknown;
         if (!HasBands) return GaugeBand.Normal;
 
-        if (LowDanger > Low && value <= LowDanger) return GaugeBand.Danger;
-        if (HighDanger < High && value >= HighDanger) return GaugeBand.Danger;
+        if (Inside(LowDanger) && value <= LowDanger) return GaugeBand.Danger;
+        if (Inside(HighDanger) && value >= HighDanger) return GaugeBand.Danger;
 
-        if (LowWarning > Low && value <= LowWarning) return GaugeBand.Warning;
-        if (HighWarning < High && value >= HighWarning) return GaugeBand.Warning;
+        if (Inside(LowWarning) && value <= LowWarning) return GaugeBand.Warning;
+        if (Inside(HighWarning) && value >= HighWarning) return GaugeBand.Warning;
 
         return GaugeBand.Normal;
     }
+
+    /// <summary>Whether a limit falls within the scale, and so says anything at all.</summary>
+    private bool Inside(double limit) => limit > Low && limit < High;
+
+    /// <summary>
+    /// Where the four bands begin and end along the dial, 0 to 1, for painting.
+    ///
+    /// A limit that says nothing is pushed to the end it sits beyond, which
+    /// makes the band it would have bounded empty. Painting the raw numbers
+    /// instead is how a lost-sync counter with all four limits at the top of its
+    /// scale came to be drawn entirely red while reading zero.
+    ///
+    /// Kept here rather than in the drawing so the face and the reading cannot
+    /// disagree about where the bands are — they did, and the dial was red while
+    /// the number on it was not.
+    /// </summary>
+    public (double LowDanger, double LowWarning, double HighWarning, double HighDanger) BandEdges() =>
+    (
+        Fraction(Inside(LowDanger) ? LowDanger : Low),
+        Fraction(Inside(LowWarning) ? LowWarning : Low),
+        Fraction(Inside(HighWarning) ? HighWarning : High),
+        Fraction(Inside(HighDanger) ? HighDanger : High)
+    );
 
     /// <summary>Where along the dial a reading sits, 0 to 1, clamped to the face.</summary>
     public double Fraction(double value)
@@ -207,9 +236,12 @@ public static class GaugeCatalog
         double high = Number(fields[4], settings);
 
         // A bound that will not resolve leaves the gauge without a face rather
-        // than without an entry — see HasScale.
-        if (double.IsNaN(low)) low = 0;
-        if (double.IsNaN(high)) high = 0;
+        // than without an entry — see HasScale. Both ends go, not just the one
+        // that failed: half a range is not a range, and the half that survives
+        // makes a dial that looks perfectly valid and is not. A MicroSquirt's
+        // coolant gauge reads "-40, {clthighlim}", and with that variable unset
+        // it drew a scale of -40 to 0 with the needle pegged off the end at 90.
+        if (double.IsNaN(low) || double.IsNaN(high)) low = high = 0;
 
         return new GaugeSpec
         {

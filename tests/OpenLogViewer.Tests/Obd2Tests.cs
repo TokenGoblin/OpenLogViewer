@@ -131,6 +131,47 @@ public class Obd2Tests
         Assert.Contains("answered as an OBD2 adapter", e.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verbatim from the test vehicle. Two modules answer 0100, the engine one
+    /// reporting twenty-four usable parameters and the other almost none, and
+    /// which arrives first is not fixed — so taking one of them gave 24 channels
+    /// on one connection and 3 on the next, on the same car a minute apart.
+    /// </summary>
+    private const string TwoModules = "SEARCHING...\r4100BE3FA813\r410080000001\r\r";
+
+    [Fact]
+    public void EveryModulesCapabilitiesAreCombinedRatherThanRaced()
+    {
+        IReadOnlyList<byte[]> masks = Elm327.ParseAll(TwoModules, 0x00, 4);
+
+        Assert.Equal(2, masks.Count);
+
+        byte[] rich = [0xBE, 0x3F, 0xA8, 0x13];
+        byte[] sparse = [0x80, 0x00, 0x00, 0x01];
+
+        Assert.Equal(rich, masks[0]);
+        Assert.Equal(sparse, masks[1]);
+
+        // The sparse module alone would leave the car reporting one parameter.
+        Assert.Single(Obd2Pids.SupportedBy(0x00, sparse).Where(p => p != 0x20));
+        Assert.True(Obd2Pids.SupportedBy(0x00, rich).Count > 10);
+    }
+
+    [Fact]
+    public void ACarWhoseSecondModuleAnswersFirstStillFindsEverything()
+    {
+        // The failure as it actually happened: three channels instead of
+        // twenty-four, because the uninteresting module got a word in first.
+        var car = Car();
+        car.ExtraAnswers[0x00] = [[0x80, 0x00, 0x00, 0x01]];
+
+        Elm327Source source = Elm327Source.Connect(car);
+
+        Assert.Contains("RPM", source.Names);
+        Assert.Contains("Coolant", source.Names);
+        Assert.True(source.Parameters.Count > 5, $"only found {source.Parameters.Count}");
+    }
+
     [Fact]
     public void TheSpeedsTriedStartWithTheOneAGenuineAdapterShipsAt()
     {

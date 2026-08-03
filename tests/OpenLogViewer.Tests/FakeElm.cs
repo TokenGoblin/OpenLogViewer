@@ -21,6 +21,15 @@ internal sealed class FakeElm : IEcuTransport
     /// <summary>Data bytes this car answers with, by PID.</summary>
     public Dictionary<byte, byte[]> Answers { get; } = [];
 
+    /// <summary>
+    /// Further modules answering the same request, sent ahead of the main one.
+    ///
+    /// Real cars have several, each replying on its own line, and the order they
+    /// arrive in is not fixed — which is exactly what broke a connection that had
+    /// worked a minute earlier.
+    /// </summary>
+    public Dictionary<byte, List<byte[]>> ExtraAnswers { get; } = [];
+
     public bool Echo { get; private set; } = true;
 
     public bool Spaces { get; private set; } = true;
@@ -114,9 +123,14 @@ internal sealed class FakeElm : IEcuTransport
             Searching = false;
         }
 
+        // Ahead of the real one, so anything that takes the first answer takes
+        // the wrong one.
+        if (ExtraAnswers.TryGetValue(pid, out List<byte[]>? others))
+            foreach (byte[] other in others) Say(Hex([0x41, pid, .. other]));
+
         if (!Answers.TryGetValue(pid, out byte[]? data))
         {
-            Say("NO DATA");
+            if (others is not { Count: > 0 }) Say("NO DATA");
             return;
         }
 
