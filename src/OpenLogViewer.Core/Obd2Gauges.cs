@@ -7,10 +7,15 @@ namespace OpenLogViewer.Core;
 /// needed: SAE J1979 fixes what each parameter means and the range its encoding
 /// can hold, so the dials come from the same document the decode does.
 ///
-/// No warning or danger bands. The standard says what a value is and never what
-/// a safe one would be — it has no idea what this engine's coolant should read —
-/// and a scale painted green to the last degree would be asserting something
-/// nobody has said.
+/// The scales are the standard's. The warning and danger bands are not, because
+/// the standard has none to give: it says what a value is and never what a safe
+/// one would be, having no idea what this engine's coolant should read. Those
+/// are conventions — the figures a workshop manual would use on an ordinary car
+/// — and the gauge list says so rather than letting a coloured arc pass for the
+/// car's own opinion.
+///
+/// The exception is the malfunction lamp, where the standard's own word for the
+/// state is "malfunction". A lit lamp being red is the car talking, not this.
 /// </summary>
 public static class Obd2Gauges
 {
@@ -36,6 +41,10 @@ public static class Obd2Gauges
                     Category = $"OBD2 · {pid}",
                     Low = channel.Low,
                     High = channel.High,
+                    LowDanger = channel.LowDanger,
+                    LowWarning = channel.LowWarning,
+                    HighWarning = channel.HighWarning,
+                    HighDanger = channel.HighDanger,
                     ValueDigits = channel.Digits,
                     LabelDigits = channel.Digits > 1 ? 1 : channel.Digits,
                 });
