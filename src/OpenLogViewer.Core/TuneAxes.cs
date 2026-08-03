@@ -96,7 +96,7 @@ public static class MsqTune
         XDocument document;
         try
         {
-            document = XDocument.Parse(msqXml);
+            document = SafeXml.Parse(msqXml);
         }
         catch (System.Xml.XmlException)
         {
@@ -177,7 +177,7 @@ public static class MsqTune
         XDocument document;
         try
         {
-            document = XDocument.Parse(msqXml);
+            document = SafeXml.Parse(msqXml);
         }
         catch (System.Xml.XmlException)
         {
@@ -208,7 +208,7 @@ public static class MsqTune
         XDocument document;
         try
         {
-            document = XDocument.Parse(msqXml);
+            document = SafeXml.Parse(msqXml);
         }
         catch (System.Xml.XmlException)
         {

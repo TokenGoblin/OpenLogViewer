@@ -107,7 +107,7 @@ public static class TuningContext
         XDocument document;
         try
         {
-            document = XDocument.Parse(msqXml);
+            document = SafeXml.Parse(msqXml);
         }
         catch (System.Xml.XmlException)
         {

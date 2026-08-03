@@ -108,7 +108,7 @@ public static class MaxxGauges
             // gauge without a scale for no visible reason. Parsing from a string
             // ignores the declaration, and the tolerant decode is the same one
             // firmware INIs get.
-            document = XDocument.Parse(TuningText.Read(path));
+            document = SafeXml.Parse(TuningText.Read(path));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Xml.XmlException)
         {

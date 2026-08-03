@@ -53,6 +53,22 @@ public sealed class MaxxLogReader : ILogReader
             ?? throw new LogFormatException(
                 $"'{Path.GetFileName(path)}' is a zip but holds no MaxxECU log.");
 
+        // A zip says how large its contents are before any of it is read, and
+        // that is worth asking. Compressed data expands by a factor of a
+        // thousand or more, so a file small enough to arrive by email can ask
+        // for more memory than the machine has — and unlike a large log, nothing
+        // about the file on disk warns anyone it is about to happen. A real
+        // 22 MB log declares 22 MB.
+        //
+        // The figure is what the archive claims rather than what it delivers, so
+        // this catches the careless case rather than a determined one. Refusing
+        // to start is still better than failing halfway through.
+        if (log.Length > MaximumUncompressed)
+            throw new LogFormatException(
+                $"'{Path.GetFileName(path)}' expands to {log.Length / (1024 * 1024):N0} MB, "
+                + $"past the {MaximumUncompressed / (1024 * 1024):N0} MB this will open. "
+                + "A zip that small holding a log that large is more often corrupt than real.");
+
         double interval = ReadLogRate(archive);
         (List<string> names, List<int> ids, List<float[]> columns, int rows) = ReadColumns(log);
 
@@ -81,6 +97,13 @@ public sealed class MaxxLogReader : ILogReader
             RecordedAt = File.GetLastWriteTime(path),
         };
     }
+
+    /// <summary>
+    /// The largest log this will expand from an archive. Generous: the sample
+    /// logs are tens of megabytes, and a day's continuous recording is not
+    /// close to this.
+    /// </summary>
+    private const long MaximumUncompressed = 512L * 1024 * 1024;
 
     private static ZipArchiveEntry? FindLog(ZipArchive archive) =>
         archive.Entries.FirstOrDefault(
