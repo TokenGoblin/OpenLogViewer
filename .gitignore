@@ -7,3 +7,8 @@ artifacts/
 
 # WPF build leaves these behind
 *_wpftmp.csproj
+
+# The installer's staging and its output. The .wxs and the build script are the
+# source; a 54 MB package is not.
+installer/obj/
+installer/out/
