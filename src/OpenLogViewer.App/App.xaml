@@ -291,6 +291,20 @@
             </Setter>
         </Style>
 
+        <Style TargetType="Menu">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Menu">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <StackPanel IsItemsHost="True" Orientation="Horizontal"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="MenuItem">
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="Background" Value="Transparent"/>
@@ -303,7 +317,7 @@
                                     CornerRadius="4" SnapsToDevicePixels="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="20"/>
+                                        <ColumnDefinition x:Name="tickColumn" Width="20"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
@@ -341,6 +355,29 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="HasItems" Value="True">
                                 <Setter TargetName="more" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+
+                            <!--
+                                A name on the menu bar is not a row in a menu.
+
+                                After this trigger, deliberately, because it has
+                                to win over the arrow that every item with
+                                children otherwise gets: "File ›" reads as though
+                                File were itself inside something. There is no
+                                room for a tick either, and the list belongs
+                                below the name rather than beside it.
+                            -->
+                            <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter TargetName="tickColumn" Property="Width" Value="0"/>
+                                <Setter TargetName="more" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                                <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="0"/>
+                                <Setter TargetName="PART_Popup" Property="VerticalOffset" Value="2"/>
+                            </Trigger>
+
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="tickColumn" Property="Width" Value="0"/>
+                                <Setter TargetName="more" Property="Visibility" Value="Collapsed"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="tick" Property="Visibility" Value="Visible"/>
