@@ -530,6 +530,44 @@ You can also pass a log directly, or drop one onto the window:
 dotnet run --project src/OpenLogViewer.App -c Release -- path\to\log.mlg
 ```
 
+### Installer
+
+```powershell
+dotnet tool install --global wix --version 5.0.2
+wix extension add --global WixToolset.UI.wixext/5.0.2
+
+installer\build.ps1
+```
+
+Produces `installer\out\OpenLogViewer-<version>-win-x64.msi` — about 54 MB.
+
+**Self-contained**, so nothing has to be installed first. The people this is for
+plug a laptop into a car, often in a garage with no internet, and "download a
+60 MB runtime before you can open your log" is the wrong thing to say at that
+moment. It costs about 130 MB over a framework-dependent build, which is
+unremarkable for a download and decisive in a workshop. Trimming is not
+available — WPF is not trim-safe — so that size is near its floor.
+
+The version comes from the application's own `<Version>` unless you pass
+`-Version`, so the installer and the thing it installs cannot disagree. Use
+three parts: Windows Installer ignores the fourth when deciding whether one
+build supersedes another, and a four-part version means releases that silently
+refuse to upgrade each other.
+
+**WiX 5 rather than 6 or 7**, which are gated behind the Open Source Maintenance
+Fee and refuse to run without accepting its licence.
+
+`.mlg`, `.msl` and `.MaxxECU-Zip-log` are registered under `OpenWithProgids`
+only. OpenLogViewer appears in **Open with** and never takes the double-click —
+anyone running this most likely has TunerStudio installed, and those are its
+files.
+
+Uninstalling removes the program and leaves `%USERPROFILE%\OpenLogViewer` alone,
+because those are your recordings.
+
+**Not signed.** Windows shows a SmartScreen warning on first run until it is,
+which needs a code-signing certificate rather than a code change.
+
 ### Console dump
 
 `OpenLogViewer.Dump` decodes a log and prints a summary. It doubles as the

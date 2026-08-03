@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  The Windows installer for OpenLogViewer.
+
+  Built from a self-contained publish, so nothing has to be installed first.
+  The people this is for plug a laptop into a car, often in a garage with no
+  internet, and "download a 60 MB runtime before you can open your log" is
+  exactly the wrong thing to say at that moment.
+-->
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    The UpgradeCode below must never change. It is the only thing that tells
+    Windows a new version is the same product as the old one; a different value
+    installs the new release alongside the old rather than over it, and there is
+    no fixing that afterwards for anyone who has already installed.
+  -->
+  <Package
+      Name="OpenLogViewer"
+      Manufacturer="OpenLogViewer contributors"
+      Version="$(var.Version)"
+      Language="1033"
+      Compressed="yes"
+      Scope="perMachine"
+      UpgradeCode="50E34EA0-0B8D-47C1-8268-45484FEAE8F9">
+
+    <SummaryInformation Description="Datalog viewer and live tuning for engine ECUs" />
+
+    <!--
+      Downgrades are refused with a readable message rather than the default,
+      which reports a generic failure and leaves people reinstalling.
+    -->
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of OpenLogViewer is already installed. Uninstall it first if you meant to go back."
+        AllowSameVersionUpgrades="yes" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.PublishDir)\..\icon\AppIcon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/TokenGoblin/OpenLogViewer" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <!-- The licence, shown by the installer before anything is written. -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="OpenLogViewer" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="OpenLogViewer" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!--
+      The whole application, in one file.
+
+      Named rather than harvested from the publish folder, for two reasons: the
+      shortcut and the file associations both have to point at something, and a
+      harvested file has no identity to point at; and a list of exactly what
+      ships is a thing that can be checked. The build script refuses to package
+      a publish that contains anything else, so this cannot quietly fall out of
+      step with what the application actually needs.
+    -->
+    <Component Id="MainExecutable" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="OpenLogViewerExe" Source="$(var.PublishDir)\OpenLogViewer.App.exe" KeyPath="yes" />
+
+      <!--
+        How to open a log: described, and deliberately not claimed.
+
+        Anyone running this very likely has TunerStudio installed, and .mlg and
+        .msl are its files. Taking the double-click away from it because someone
+        installed a log viewer would be rude, and worse, silent.
+
+        So these are plain registry values rather than WiX's ProgId and Extension
+        elements — those register the extension as owned by this application,
+        which sets the default and is exactly the thing to avoid. This says only
+        "here is a program that can open one of these".
+
+        Kept in the same component as the executable they describe, so the two
+        are installed and removed as one thing and neither can outlive the other.
+      -->
+      <RegistryValue Root="HKLM" Key="Software\Classes\OpenLogViewer.Log" Type="string" Value="ECU datalog" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\OpenLogViewer.Log\DefaultIcon" Type="string" Value="&quot;[#OpenLogViewerExe]&quot;,0" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\OpenLogViewer.Log\shell\open" Type="string" Value="Open with OpenLogViewer" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\OpenLogViewer.Log\shell\open\command" Type="string" Value="&quot;[#OpenLogViewerExe]&quot; &quot;%1&quot;" />
+
+      <!--
+        Offered in "Open with", and nothing more. The empty value under
+        OpenWithProgids is how Windows is told "this program can open these" as
+        opposed to "this program owns these" — so whatever already holds the
+        double-click, TunerStudio most likely, keeps it.
+      -->
+      <RegistryValue Root="HKLM" Key="Software\Classes\.mlg\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\.msl\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
+      <RegistryValue Root="HKLM" Key="Software\Classes\.MaxxECU-Zip-log\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
+    </Component>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="A75F2CA5-3D3D-4848-96BF-DB80CA9D3F2F">
+      <Shortcut
+          Id="StartMenu"
+          Name="OpenLogViewer"
+          Description="Datalog viewer and live tuning for engine ECUs"
+          Target="[#OpenLogViewerExe]"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="AppIcon" />
+
+      <RemoveFolder Id="RemoveStartMenu" On="uninstall" />
+
+      <!--
+        A per-machine package still needs somewhere per-user to record that its
+        shortcut exists, and HKCU is where an installer is allowed to write it.
+      -->
+      <RegistryValue Root="HKCU" Key="Software\OpenLogViewer" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+  </Package>
+</Wix>
