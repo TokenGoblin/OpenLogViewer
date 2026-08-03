@@ -1069,7 +1069,8 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             connection.WriteTunePage(
-                page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data);
+                page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
+                layout.InterWriteDelay);
 
             // The tune held in memory has to move with the ECU, or the next
             // read-modify-write would be against stale bytes and would undo
@@ -1112,7 +1113,7 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            connection.BurnPage(page, layout.LittleEndian);
+            connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
 
             return $"Burned page {page.Index}. This survives a power cycle.";
         }

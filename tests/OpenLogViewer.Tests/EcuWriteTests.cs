@@ -197,6 +197,97 @@ internal sealed class CountingSettle : IEcuTransport
     public void Dispose() => Close();
 }
 
+/// <summary>
+/// A big-endian board that remembers every request it was asked, so a test can
+/// check the bytes rather than only the effect. Speaks the MegaSquirt commands
+/// the real firmware declares: 'w' to write, 'r' to read, 'b' to burn.
+/// </summary>
+internal sealed class RecordingEcu(byte[] page, bool bigEndian) : IEcuTransport
+{
+    private byte[] _pending = [];
+
+    public bool IsOpen { get; private set; }
+
+    public byte[] Page { get; } = page;
+
+    /// <summary>Each request's payload, without the length and checksum around it.</summary>
+    public List<byte[]> Requests { get; } = [];
+
+    public void Open() => IsOpen = true;
+
+    public void Close() => IsOpen = false;
+
+    public void Dispose() => Close();
+
+    public void DiscardInput() { }
+
+    public void Write(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 7) { _pending = []; return; }
+
+        byte[] payload = data.Slice(2, (data[0] << 8) | data[1]).ToArray();
+        Requests.Add(payload);
+        _pending = Answer(payload);
+    }
+
+    private int Number(byte[] p, int at) => bigEndian ? (p[at] << 8) | p[at + 1] : p[at] | (p[at + 1] << 8);
+
+    private byte[] Answer(byte[] p)
+    {
+        // Every command here carries the CAN id and the page byte before its
+        // arguments, exactly as the firmware's templates write them.
+        switch ((char)p[0])
+        {
+            case 'w':
+            {
+                int offset = Number(p, 3);
+                int count = Number(p, 5);
+
+                if (offset + count <= Page.Length && p.Length >= 7 + count)
+                    p.AsSpan(7, count).CopyTo(Page.AsSpan(offset));
+
+                return Framed([]);
+            }
+
+            case 'r':
+            {
+                int offset = Number(p, 3);
+                int count = Number(p, 5);
+
+                return offset + count <= Page.Length
+                    ? Framed(Page.AsSpan(offset, count).ToArray())
+                    : Framed([], status: 0x84);
+            }
+
+            case 'b': return Framed([]);
+
+            default: return Framed([], status: 0x83);
+        }
+    }
+
+    public int Read(Span<byte> buffer, TimeSpan timeout)
+    {
+        int take = Math.Min(buffer.Length, _pending.Length);
+        _pending.AsSpan(0, take).CopyTo(buffer);
+        _pending = _pending[take..];
+
+        return take;
+    }
+
+    private static byte[] Framed(byte[] data, byte status = 0x00)
+    {
+        byte[] body = [status, .. data];
+        uint crc = MsProtocol.Crc32(body);
+
+        return
+        [
+            (byte)(body.Length >> 8), (byte)body.Length,
+            .. body,
+            (byte)(crc >> 24), (byte)(crc >> 16), (byte)(crc >> 8), (byte)crc,
+        ];
+    }
+}
+
 public class EcuWriteTests
 {
     private const string Ini = """
@@ -540,5 +631,99 @@ public class EcuWriteTests
         double[] read = Assert.IsType<double[]>(after.Array("veTable"));
 
         Assert.Equal([50, 51, 52, 53, 60, 61, 62, 63], read);
+    }
+
+    // ----- the same method TunerStudio uses -----------------------------------
+
+    /// <summary>
+    /// MS2Extra's own declarations, copied from the file the MicroSquirt matched.
+    /// Big-endian, the CAN id and the page byte as literals in every command, and
+    /// the two timings the firmware asks for.
+    /// </summary>
+    private const string MegaSquirt = """
+        [Constants]
+        endianness          = big
+        nPages              = 1
+        pageSize            = 1024
+        pageIdentifier      = "\$tsCanId"
+        pageReadCommand     = "r\$tsCanId%2o%2c"
+        pageChunkWrite      = "w\$tsCanId%2o%2c%v"
+        burnCommand         = "b\$tsCanId"
+        blockingFactor      = 256
+        interWriteDelay     = 1
+        pageActivationDelay = 10
+
+        page = 1
+        veTable = array, U08, 0, [4x4], "%", 1, 0, 0, 255, 0
+        """;
+
+    [Fact]
+    public void TheFirmwaresOwnTimingsAreRead()
+    {
+        // Declared by the file and observed by TunerStudio, so ignoring them is
+        // not "the same method".
+        TuneLayout layout = TuneLayoutReader.Read(MegaSquirt);
+
+        Assert.Equal(1, layout.InterWriteDelay);
+        Assert.Equal(10, layout.AfterBurnDelay);
+    }
+
+    [Fact]
+    public void AWriteIsTheBytesTheFirmwareDeclares()
+    {
+        // The whole of the question "is this the same method": the request on
+        // the wire has to be what the .ini says it is, byte for byte.
+        //
+        //   w  <canId>  0x04  <offset:2 big-endian>  <count:2 big-endian>  <data>
+        TuneLayout layout = TuneLayoutReader.Read(MegaSquirt);
+        var ecu = new RecordingEcu(new byte[1024], bigEndian: true);
+
+        using var connection = new EcuConnection(ecu, Quick);
+        connection.Open();
+
+        connection.WriteTunePage(
+            layout.Pages[0], layout.BlockingFactor, layout.LittleEndian, 0x0102, [0x2A, 0x2B],
+            layout.InterWriteDelay);
+
+        byte[] sent = ecu.Requests[0];
+
+        Assert.Equal(
+            [(byte)'w', 0x00, 0x04, 0x01, 0x02, 0x00, 0x02, 0x2A, 0x2B],
+            sent);
+    }
+
+    [Fact]
+    public void ABurnIsTheBytesTheFirmwareDeclares()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(MegaSquirt);
+        var ecu = new RecordingEcu(new byte[1024], bigEndian: true);
+
+        using var connection = new EcuConnection(ecu, Quick);
+        connection.Open();
+
+        connection.BurnPage(layout.Pages[0], layout.LittleEndian, afterBurnDelay: 0);
+
+        Assert.Equal([(byte)'b', 0x00, 0x04], ecu.Requests[^1]);
+    }
+
+    [Fact]
+    public void AWriteLargerThanTheBlockingFactorIsSplitAndStillLands()
+    {
+        // Never more than the firmware allows in one message — a rusEFI asked
+        // for more leaves the bus until it is replugged.
+        TuneLayout layout = TuneLayoutReader.Read(MegaSquirt);
+        var ecu = new RecordingEcu(new byte[1024], bigEndian: true);
+
+        byte[] data = [.. Enumerable.Range(0, 600).Select(i => (byte)(i & 0xFF))];
+
+        using var connection = new EcuConnection(ecu, Quick);
+        connection.Open();
+        connection.WriteTunePage(layout.Pages[0], layout.BlockingFactor, layout.LittleEndian, 0, data);
+
+        Assert.True(ecu.Requests.Count > 1, "a 600-byte write went out in one message");
+        Assert.All(ecu.Requests.Where(r => r[0] == (byte)'w'),
+            r => Assert.True(r.Length <= layout.BlockingFactor, $"a message was {r.Length} bytes"));
+
+        Assert.Equal(data, ecu.Page.AsSpan(0, data.Length).ToArray());
     }
 }
