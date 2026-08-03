@@ -31,9 +31,27 @@ public sealed class EcuConnection : IDisposable
     /// <summary>Replies thrown away for a bad checksum or a short read, over the session.</summary>
     public int Retries { get; private set; }
 
+    /// <summary>
+    /// One conversation at a time.
+    ///
+    /// A live session polls this from its own thread while the window is free to
+    /// ask for something else — reading the tune, or writing a table back. Both
+    /// are a request followed by its reply on a single serial line, and two of
+    /// them interleaved is not two conversations but one ruined one: the poll
+    /// reads the write's acknowledgement as its block of channels, and the write
+    /// reads a block of channels as its acknowledgement.
+    ///
+    /// Reentrant, which matters: the write path reads its own bytes back through
+    /// this same object to check them.
+    /// </summary>
+    private readonly Lock _gate = new();
+
     public void Open()
     {
+        lock (_gate)
+        {
         if (!_transport.IsOpen) _transport.Open();
+        }
     }
 
     /// <summary>
@@ -45,6 +63,8 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     public void Reopen()
     {
+        lock (_gate)
+        {
         try
         {
             _transport.Close();
@@ -55,6 +75,7 @@ public sealed class EcuConnection : IDisposable
         }
 
         _transport.Open();
+        }
     }
 
     /// <summary>
@@ -100,6 +121,8 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     public IReadOnlyList<string> ReadIdentity(TimeSpan within)
     {
+        lock (_gate)
+        {
         DateTime deadline = DateTime.UtcNow + within;
 
         IReadOnlyList<string> said = AskWhatItIs();
@@ -135,6 +158,7 @@ public sealed class EcuConnection : IDisposable
         }
 
         return said;
+        }
     }
 
     /// <summary>Asks each identity command once and collects what comes back.</summary>
@@ -228,16 +252,21 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     public byte[] ReadRealtimeUnchunked(int size)
     {
+        lock (_gate)
+        {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
         int wanted = 2 + 1 + size + 4;
         if (_buffer.Length < wanted) _buffer = new byte[wanted];
 
         return Request(_command.Build(0, size, Settings.CanId, _littleEndian));
+        }
     }
 
     public byte[] ReadRealtime(int size)
     {
+        lock (_gate)
+        {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
         if (!_command.TakesRange || _chunk <= 0 || size <= _chunk)
@@ -257,6 +286,7 @@ public sealed class EcuConnection : IDisposable
         }
 
         return block;
+        }
     }
 
     /// <summary>
@@ -280,6 +310,8 @@ public sealed class EcuConnection : IDisposable
     public byte[] ReadTunePage(
         TunePage page, int blockingFactor, bool littleEndian, Action<int>? progress = null)
     {
+        lock (_gate)
+        {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentOutOfRangeException.ThrowIfLessThan(page.Size, 1);
 
@@ -288,6 +320,7 @@ public sealed class EcuConnection : IDisposable
                 $"Page {page.Index} declares \"{page.ReadCommand}\", which cannot ask for part of a page.");
 
         return ReadTunePageRange(page, blockingFactor, littleEndian, 0, page.Size, progress);
+        }
     }
 
     /// <summary>
@@ -307,6 +340,8 @@ public sealed class EcuConnection : IDisposable
     public void WriteTunePage(
         TunePage page, int blockingFactor, bool littleEndian, int offset, ReadOnlySpan<byte> data)
     {
+        lock (_gate)
+        {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
 
@@ -345,6 +380,7 @@ public sealed class EcuConnection : IDisposable
                 $"The ECU did not take that write: {data.Length} bytes were sent to offset {offset} "
                 + "of page " + page.Index + " and reading the same range back gave something else. "
                 + "Nothing has been burned, so a power cycle restores the ECU.");
+        }
     }
 
     /// <summary>
@@ -355,6 +391,8 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     public void BurnPage(TunePage page, bool littleEndian)
     {
+        lock (_gate)
+        {
         ArgumentNullException.ThrowIfNull(page);
 
         if (page.BurnCommand.Length == 0)
@@ -364,6 +402,7 @@ public sealed class EcuConnection : IDisposable
 
         Request(RealtimeCommand.Parse(page.BurnCommand)
             .Build(0, 1, Settings.CanId, littleEndian, identifier));
+        }
     }
 
     /// <summary>Reads part of a page, for verifying a write.</summary>
@@ -371,6 +410,8 @@ public sealed class EcuConnection : IDisposable
         TunePage page, int blockingFactor, bool littleEndian, int offset, int count,
         Action<int>? progress = null)
     {
+        lock (_gate)
+        {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
 
@@ -397,6 +438,7 @@ public sealed class EcuConnection : IDisposable
         }
 
         return image;
+        }
     }
 
     /// <summary>

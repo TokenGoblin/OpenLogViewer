@@ -180,6 +180,29 @@ public sealed class EcuTune
     /// wrong, or when a value will not fit the type — all of which would
     /// otherwise write something plausible into the wrong place.
     /// </summary>
+    /// <summary>
+    /// Records a write that the ECU has taken.
+    ///
+    /// Without this the copy held here still says what the controller said when
+    /// it was read, and every table drawn from it would show the old values
+    /// while the engine ran the new ones. Worse, the next edit would be built on
+    /// stale bytes and would quietly undo this one.
+    ///
+    /// Called after the write has been acknowledged and read back, never before:
+    /// this is a record of what happened, not a prediction of it.
+    /// </summary>
+    public void Accept(TuneWrite write)
+    {
+        ArgumentNullException.ThrowIfNull(write);
+
+        if (write.Page < 0 || write.Page >= _pages.Length) return;
+
+        byte[] page = _pages[write.Page];
+        if (write.Offset < 0 || write.Offset + write.Data.Length > page.Length) return;
+
+        write.Data.CopyTo(page.AsSpan(write.Offset));
+    }
+
     public TuneWrite? EncodeArray(string name, IReadOnlyList<double> values)
     {
         ArgumentNullException.ThrowIfNull(values);

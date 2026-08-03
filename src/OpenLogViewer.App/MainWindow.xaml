@@ -873,7 +873,39 @@
                 <TextBlock DockPanel.Dock="Top" Margin="12,10,12,8" FontSize="11"
                            Foreground="{DynamicResource Muted}" TextWrapping="Wrap"
                            Text="{Binding EcuTuneSummary}"/>
-                <local:TuneTableView x:Name="TuneTable" Table="{Binding SelectedEcuTable}"/>
+
+                <!-- Sending and burning are separate acts because they are
+                     separate on the ECU: a write takes effect at once and is
+                     forgotten at the next power cycle, a burn is permanent. -->
+                <DockPanel DockPanel.Dock="Bottom" Margin="12,8,12,10" LastChildFill="False">
+                    <Button DockPanel.Dock="Left" Content="Send to ECU" Margin="0,0,8,0"
+                            Click="OnWriteTableClick"
+                            IsEnabled="{Binding CanWriteTable}"
+                            ToolTip="Writes the changed cells into the ECU's working memory. Takes effect immediately; lost at the next power cycle unless burned."/>
+
+                    <Button DockPanel.Dock="Left" Content="Burn" Margin="0,0,8,0"
+                            Click="OnBurnTableClick"
+                            IsEnabled="{Binding HasEcuTune}"
+                            ToolTip="Commits the page to the ECU's flash. This survives a power cycle."/>
+
+                    <Button DockPanel.Dock="Left" Content="Revert" Margin="0,0,14,0"
+                            Click="OnRevertTableClick"
+                            IsEnabled="{Binding HasTableChanges}"
+                            ToolTip="Puts every cell back to what the ECU said."/>
+
+                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                               Text="{Binding TableEditSummary}"/>
+                </DockPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" Margin="12,0,12,0" FontSize="10"
+                           Foreground="{DynamicResource Muted}"
+                           Text="Click or drag to select · arrows move · shift extends · + − nudge · PgUp/PgDn scale by 1% (shift 5%) · Esc undoes the selection"/>
+
+                <local:TuneTableView x:Name="TuneTable"
+                                     Table="{Binding SelectedEcuTable}"
+                                     Edit="{Binding TableEdit}"
+                                     Selection="{Binding SelectedCells, Mode=TwoWay}"/>
             </DockPanel>
 
             <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center"

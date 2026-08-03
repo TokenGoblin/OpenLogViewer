@@ -813,6 +813,16 @@ public sealed class MainViewModel : ObservableObject
     // ----- the tune in the ECU ------------------------------------------------
 
     private EcuTune? _ecuTune;
+
+    /// <summary>
+    /// The live connection, kept so the tune can be written as well as read.
+    ///
+    /// Held rather than passed around because writing happens long after
+    /// connecting — the user reads a tune, looks at it, changes a corner of one
+    /// table, and sends it. Cleared on disconnect, which is what stops a write
+    /// being attempted down a port that has gone.
+    /// </summary>
+    private EcuConnection? _ecuConnection;
     private string _ecuTuneSummary = "";
 
     /// <summary>
@@ -906,7 +916,224 @@ public sealed class MainViewModel : ObservableObject
     public TuneTable? SelectedEcuTable
     {
         get => _selectedEcuTable;
-        set => Set(ref _selectedEcuTable, value);
+        set
+        {
+            if (!Set(ref _selectedEcuTable, value)) return;
+
+            // A fresh edit per table. Changes are deliberately not carried
+            // between tables: an unsent change to one table left pending while
+            // another is being looked at is a change nobody can see.
+            TableEdit = value is null ? null : new TuneEdit(value, ConstantFor(value));
+            SelectedCells = TuneSelection.Cell(0, 0);
+        }
+    }
+
+    private TuneEdit? _tableEdit;
+
+    /// <summary>The selected table, with whatever has been changed in it.</summary>
+    public TuneEdit? TableEdit
+    {
+        get => _tableEdit;
+        private set
+        {
+            if (!Set(ref _tableEdit, value)) return;
+
+            Raise(nameof(HasTableChanges));
+            Raise(nameof(TableEditSummary));
+            Raise(nameof(CanWriteTable));
+        }
+    }
+
+    private TuneSelection _cells = TuneSelection.Cell(0, 0);
+
+    /// <summary>
+    /// The block of cells being worked on. Named for the table rather than
+    /// simply "selection", which on this view model already means the span
+    /// marked out on the plot.
+    /// </summary>
+    public TuneSelection SelectedCells
+    {
+        get => _cells;
+        set { if (Set(ref _cells, value)) Raise(nameof(TableEditSummary)); }
+    }
+
+    /// <summary>The firmware's description of a table's cells, for its limits and precision.</summary>
+    private TuneConstant? ConstantFor(TuneTable table) =>
+        _ecuTableDefinitions.FirstOrDefault(d => d.Title == table.Name) is { Values.Length: > 0 } definition
+            ? _tuneLayout?.Constants.FirstOrDefault(c => c.Name == definition.Values)
+            : null;
+
+    private TuneLayout? _tuneLayout;
+
+    public bool HasTableChanges => TableEdit?.HasChanges == true;
+
+    /// <summary>
+    /// Whether a table could be sent: something changed, a live connection, and
+    /// a firmware that admits to being writable.
+    /// </summary>
+    public bool CanWriteTable =>
+        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null;
+
+    /// <summary>What is selected and what has been changed, for the calibration header.</summary>
+    public string TableEditSummary
+    {
+        get
+        {
+            if (TableEdit is not { } edit) return "";
+
+            TuneSelection area = SelectedCells.ClampedTo(edit.Columns, edit.Rows);
+
+            string where = area.Count == 1
+                ? $"{edit.Table.X.Breakpoints[area.Left]:G5} × {edit.Table.Y.Breakpoints[area.Top]:G5}"
+                : $"{area.Columns}×{area.Rows} cells";
+
+            string value = area.Count == 1
+                ? $"  =  {edit[area.Left, area.Top].ToString("0." + new string('#', Math.Max(1, edit.Digits)))} {edit.Units}"
+                : "";
+
+            string changed = edit.ChangedCount switch
+            {
+                0 => "no changes",
+                1 => "1 cell changed, not sent",
+                var n => $"{n} cells changed, not sent",
+            };
+
+            return $"{where}{value}   ·   {changed}";
+        }
+    }
+
+    /// <summary>Applies a keyboard edit to whatever is selected.</summary>
+    public void EditTable(TuneTableEdit change)
+    {
+        if (TableEdit is not { } edit) return;
+
+        switch (change.Kind)
+        {
+            case TuneEditKind.Add: edit.Add(SelectedCells, change.Amount); break;
+            case TuneEditKind.Scale: edit.Scale(SelectedCells, change.Amount); break;
+            case TuneEditKind.Revert: edit.Revert(SelectedCells); break;
+        }
+
+        AfterTableEdit();
+    }
+
+    /// <summary>Sets every selected cell to one value.</summary>
+    public void SetTableCells(double value)
+    {
+        TableEdit?.Set(SelectedCells, value);
+        AfterTableEdit();
+    }
+
+    public void RevertTable()
+    {
+        TableEdit?.Revert();
+        AfterTableEdit();
+    }
+
+    private void AfterTableEdit()
+    {
+        Raise(nameof(TableEdit));
+        Raise(nameof(HasTableChanges));
+        Raise(nameof(CanWriteTable));
+        Raise(nameof(TableEditSummary));
+    }
+
+    /// <summary>
+    /// Sends the edited table to the controller's working memory.
+    ///
+    /// This takes effect at once on a running engine, and it is not permanent:
+    /// the ECU forgets it at the next power cycle unless it is burned. That is
+    /// the ECU's own arrangement rather than a safety net added here, but it is
+    /// a real one — a change that turns out to be wrong is undone by turning the
+    /// key off.
+    ///
+    /// The connection checks the write by reading the same bytes back, so a
+    /// write that returns without complaint is a write the ECU has taken.
+    /// </summary>
+    public string WriteTableToEcu()
+    {
+        if (TableEdit is not { } edit) return "No table is open.";
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+        if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
+        if (!edit.HasChanges) return "Nothing has been changed.";
+
+        if (edit.Encode(tune) is not { } write)
+            return "This table cannot be encoded for this firmware, so nothing was sent.";
+
+        TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+        if (page is null) return $"The firmware declares no page {write.Page}.";
+
+        if (page.ChunkWriteCommand.Length == 0)
+            return $"This firmware declares no way to write page {write.Page}.";
+
+        try
+        {
+            connection.WriteTunePage(
+                page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data);
+
+            // The tune held in memory has to move with the ECU, or the next
+            // read-modify-write would be against stale bytes and would undo
+            // this one.
+            tune.Accept(write);
+
+            int cells = edit.ChangedCount;
+            SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
+
+            return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the ECU. "
+                   + "It is running this now, and will forget it at the next power cycle "
+                   + "unless you burn it.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"The write failed: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Commits the page holding this table to the controller's flash.
+    ///
+    /// Separate from writing because it is separate on the ECU, and because the
+    /// difference is the only thing standing between a change that can be undone
+    /// with the ignition key and one that cannot.
+    /// </summary>
+    public string BurnTableToEcu()
+    {
+        if (TableEdit is not { } edit) return "No table is open.";
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+        if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
+
+        if (edit.Encode(tune) is not { } write) return "This table cannot be encoded for this firmware.";
+
+        TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+        if (page is null) return $"The firmware declares no page {write.Page}.";
+
+        if (page.BurnCommand.Length == 0)
+            return $"This firmware declares no way to burn page {write.Page}.";
+
+        try
+        {
+            connection.BurnPage(page, layout.LittleEndian);
+
+            return $"Burned page {page.Index}. This survives a power cycle.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"The burn failed: {e.Message}";
+        }
+    }
+
+    /// <summary>Rebuilds one table from the tune now held, so the view shows what the ECU has.</summary>
+    private TuneTable? RereadTable(string name)
+    {
+        if (_ecuTune is not { } tune) return null;
+
+        TuneTable? fresh = tune.Tables(_ecuTableDefinitions).FirstOrDefault(t => t.Name == name);
+        if (fresh is null) return null;
+
+        for (int i = 0; i < EcuTables.Count; i++)
+            if (EcuTables[i].Name == name) { EcuTables[i] = fresh; break; }
+
+        return fresh;
     }
 
     public bool HasEcuTune => _ecuTune is not null;
@@ -961,6 +1188,7 @@ public sealed class MainViewModel : ObservableObject
     private void ReadTuneFromEcu(EcuConnection connection, string iniText)
     {
         _ecuTune = null;
+        _tuneLayout = null;
         EcuTables.Clear();
         EcuTuneSummary = "";
 
@@ -968,6 +1196,8 @@ public sealed class MainViewModel : ObservableObject
         {
             TuneLayout layout = TuneLayoutReader.Read(iniText);
             if (layout.Pages.Count == 0) return;
+
+            _tuneLayout = layout;
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
             EcuTune tune = EcuTune.Read(connection, layout);
@@ -1621,6 +1851,7 @@ public sealed class MainViewModel : ObservableObject
 
         _projectTune = ReadProjectTune(ini.Path);
 
+        _ecuConnection = connection;
         ReadTuneFromEcu(connection, iniText);
         SeedGauges(iniText, datalog);
 
@@ -1668,6 +1899,7 @@ public sealed class MainViewModel : ObservableObject
         _live.Stop();
         _live.Dispose();
         _live = null;
+        _ecuConnection = null;
 
         LiveStatus = "";
         _livePort = _liveSignature = _liveVersion = _liveIni = _liveRecording = "";
