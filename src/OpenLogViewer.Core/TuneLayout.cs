@@ -116,6 +116,26 @@ public sealed record TuneLayout
 
     public int BlockingFactor { get; init; }
 
+    /// <summary>
+    /// Milliseconds to pause between consecutive writes, as the firmware asks.
+    ///
+    /// MS2Extra declares one millisecond. Small, and declared for a reason: the
+    /// controller is copying bytes into its own memory between messages, and the
+    /// next request arriving underneath that is how a write ends up half
+    /// applied.
+    /// </summary>
+    public int InterWriteDelay { get; init; }
+
+    /// <summary>
+    /// Milliseconds to wait after a burn before speaking again.
+    ///
+    /// Ten on MS2Extra, where the file calls it the delay after the burn
+    /// command. Writing flash stops the controller answering for as long as it
+    /// takes, so a request sent immediately afterwards is a request sent into
+    /// silence — and one that then desynchronises everything after it.
+    /// </summary>
+    public int AfterBurnDelay { get; init; }
+
     /// <summary>Total bytes across every page — what a full read costs.</summary>
     public int TotalSize => Pages.Sum(p => p.Size);
 }
@@ -158,6 +178,8 @@ public static class TuneLayoutReader
         bool little = false;
         int blocking = 0;
         int page = 0;
+        int interWrite = 0;
+        int afterBurn = 0;
 
         List<int> sizes = [];
         List<string> identifiers = [];
@@ -209,6 +231,12 @@ public static class TuneLayoutReader
                 case "burnCommand": burns = [.. List(value).Select(Unquote)]; break;
                 case "blockingFactor": blocking = Whole(value); break;
 
+                // Timings the firmware asks for and TunerStudio observes. Both
+                // are about giving a controller time to finish what it was told
+                // to do before it is told anything else.
+                case "interWriteDelay": interWrite = Whole(value); break;
+                case "pageActivationDelay": afterBurn = Whole(value); break;
+
                 case "endianness":
                     little = value.Trim().StartsWith("little", StringComparison.OrdinalIgnoreCase);
                     break;
@@ -240,6 +268,8 @@ public static class TuneLayoutReader
             Constants = constants,
             LittleEndian = little,
             BlockingFactor = blocking,
+            InterWriteDelay = interWrite,
+            AfterBurnDelay = afterBurn,
         };
     }
 

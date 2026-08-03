@@ -338,7 +338,8 @@ public sealed class EcuConnection : IDisposable
     /// which is a separate decision on the ECU as much as here.
     /// </summary>
     public void WriteTunePage(
-        TunePage page, int blockingFactor, bool littleEndian, int offset, ReadOnlySpan<byte> data)
+        TunePage page, int blockingFactor, bool littleEndian, int offset, ReadOnlySpan<byte> data,
+        int interWriteDelay = 0)
     {
         lock (_gate)
         {
@@ -371,6 +372,12 @@ public sealed class EcuConnection : IDisposable
                 offset + at, take, Settings.CanId, littleEndian, identifier, data.Slice(at, take)));
 
             at += take;
+
+            // The pause the firmware asks for between writes, which TunerStudio
+            // also observes. The controller is copying the last message into its
+            // own memory, and the next one arriving underneath that is how a
+            // write ends up half applied.
+            if (interWriteDelay > 0 && at < data.Length) Thread.Sleep(interWriteDelay);
         }
 
         byte[] readBack = ReadTunePageRange(page, blockingFactor, littleEndian, offset, data.Length);
@@ -389,7 +396,7 @@ public sealed class EcuConnection : IDisposable
     /// Deliberately its own call. Everything up to here can be undone by turning
     /// the key off.
     /// </summary>
-    public void BurnPage(TunePage page, bool littleEndian)
+    public void BurnPage(TunePage page, bool littleEndian, int afterBurnDelay = 0)
     {
         lock (_gate)
         {
@@ -402,6 +409,13 @@ public sealed class EcuConnection : IDisposable
 
         Request(RealtimeCommand.Parse(page.BurnCommand)
             .Build(0, 1, Settings.CanId, littleEndian, identifier));
+
+        // The wait the firmware asks for after a burn, which TunerStudio also
+        // observes. Writing flash stops the controller answering for as long as
+        // it takes, so the next request sent immediately afterwards goes into
+        // silence — and desynchronises everything after it, which on a link
+        // being polled at the same time is every reading until it is noticed.
+        if (afterBurnDelay > 0) Thread.Sleep(afterBurnDelay);
         }
     }
 
