@@ -89,6 +89,44 @@ public sealed class MathExpression
         private readonly string[] _channels;
         private readonly List<string> _references = [];
         private int _at;
+        private int _depth;
+
+        /// <summary>
+        /// How deeply an expression may nest before it is refused.
+        ///
+        /// This parser calls itself once per precedence level, so a bracket
+        /// costs a dozen or so stack frames and a few thousand brackets cost the
+        /// whole stack. What that produces is not an exception: a stack overflow
+        /// takes the process down where nothing can catch it, so there is no
+        /// message, no log line and no chance to say which file did it — the
+        /// application simply vanishes.
+        ///
+        /// It is reachable from a file. Firmware INIs carry expressions in
+        /// [OutputChannels], they are downloaded from the internet, and this
+        /// application asks people to drop them into a folder of their own. A
+        /// depth limit turns that into an ordinary parse error, which callers
+        /// already know how to report.
+        ///
+        /// Sixty-four is far past anything written on purpose. The deepest
+        /// expression in any firmware INI here nests three.
+        /// </summary>
+        private const int MaximumDepth = 64;
+
+        /// <summary>
+        /// Counts one level of nesting in, and out again when the scope ends.
+        /// </summary>
+        private Nesting Deeper()
+        {
+            if (++_depth > MaximumDepth)
+                throw Error($"The expression nests more than {MaximumDepth} levels deep.", _at);
+
+            return new Nesting(this);
+        }
+
+        private readonly struct Nesting(Parser parser) : IDisposable
+        {
+            public void Dispose() => parser._depth--;
+        }
 
         public Parser(string text, IEnumerable<string> channelNames)
         {
@@ -228,12 +266,23 @@ public sealed class MathExpression
 
         private Node ParsePrimary()
         {
+            // Counted here because everything that recurses comes through it —
+            // a bracketed group, a function's arguments, the arms of a ternary.
+            // One place to count is one place to get right.
+            using Nesting nesting = Deeper();
+
             SkipSpace();
             if (_at >= _text.Length) throw Error("The expression ends early.", _at);
 
             if (Take("("))
             {
-                Node inner = ParseOr();
+                // The whole grammar inside, not merely the part above "or".
+                // Starting lower left the conditional operator out, so "rpm ? 1
+                // : 0" parsed on its own and "(rpm ? 1 : 0)" did not — the
+                // bracket stopped at the '?' and reported a missing ')', which
+                // says nothing about what was actually wrong. The same fault
+                // reached every function argument, since those start here too.
+                Node inner = ParseTernary();
                 if (!Take(")")) throw Error("Missing ')'.", _at);
                 return inner;
             }
@@ -326,7 +375,11 @@ public sealed class MathExpression
             var args = new List<Node>();
             if (!Take(")"))
             {
-                do { args.Add(ParseOr()); } while (Take(","));
+                // Each argument is a whole expression, conditionals included:
+                // "min(rpm ? 1 : 2, 3)" is ordinary and used to be refused.
+                // Commas still separate them, because the conditional operator
+                // binds tighter than a comma does.
+                do { args.Add(ParseTernary()); } while (Take(","));
                 if (!Take(")")) throw Error("Missing ')'.", _at);
             }
 

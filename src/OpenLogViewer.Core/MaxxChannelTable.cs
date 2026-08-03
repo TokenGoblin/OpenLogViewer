@@ -36,7 +36,7 @@ public static class MaxxChannelTable
             {
                 // Parsed from a decoded string rather than by path: the file
                 // declares Windows-1252, which .NET does not carry by default.
-                XDocument document = XDocument.Parse(TuningText.Read(path));
+                XDocument document = SafeXml.Parse(TuningText.Read(path));
 
                 foreach (XElement item in document.Descendants()
                              .Where(e => e.Name.LocalName == "ECURealtimeDataItem"))
