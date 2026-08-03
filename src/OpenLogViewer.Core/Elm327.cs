@@ -117,9 +117,9 @@ public sealed class Elm327(IEcuTransport transport)
     /// error, or silence. All of those are ordinary and none is worth an
     /// exception; the caller decides what a run of them means.
     /// </summary>
-    public bool TryRead(byte pid, int dataBytes, Span<byte> into, out int count)
+    public bool TryRead(byte pid, int dataBytes, Span<byte> into, out int count, TimeSpan? within = null)
     {
-        string reply = Send($"01{pid:X2}", Timeout);
+        string reply = Send($"01{pid:X2}", within ?? Timeout);
 
         return TryParse(reply, pid, dataBytes, into, out count);
     }

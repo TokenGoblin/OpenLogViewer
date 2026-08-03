@@ -1366,6 +1366,23 @@ public sealed class MainViewModel : ObservableObject
     public void ConnectObd2(string port) => StartObd2(Elm327Source.ConnectOnPort(port), port);
 
     /// <summary>
+    /// Connects to an OBD2 adapter over Bluetooth Low Energy.
+    ///
+    /// The same ELM327 conversation over a different radio. BLE has no serial
+    /// port profile, so these never become a COM port and cannot be reached
+    /// through the port list at all — which is how a working dongle comes to
+    /// look broken.
+    /// </summary>
+    public void ConnectObd2Ble(BleDevice adapter)
+    {
+        ArgumentNullException.ThrowIfNull(adapter);
+
+        StartObd2(
+            Elm327Source.Connect(new BleEcuTransport(adapter.Address, adapter.Name)),
+            adapter.Label);
+    }
+
+    /// <summary>
     /// The same, over a link that is already decided on.
     ///
     /// Separated so the whole path — discovery, channels, which gauges reach the
@@ -1404,7 +1421,7 @@ public sealed class MainViewModel : ObservableObject
         Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
         Title = $"Live: OBD2 — OpenLogViewer";
         Hint = $"Recording to {recording}. OBD2 asks for one parameter at a time, so this "
-               + "updates about once a second rather than 25 times — the protocol's limit, "
+               + "updates about twice a second rather than 25 times — the protocol's limit, "
                + "not the link's. A standard vehicle has no tune to read, so calibration "
                + "is not available for it.";
 

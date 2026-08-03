@@ -180,7 +180,13 @@ public sealed class Elm327Source : ILiveSource
 
         foreach (byte query in Obd2Pids.SupportQueries)
         {
-            if (!elm.TryRead(query, 4, mask, out _)) break;
+            // Given the long timeout. This is the first thing the car is ever
+            // asked, and the adapter answers it with "SEARCHING..." while it
+            // works through the nine OBD2 protocols looking for the one this
+            // vehicle speaks — seconds, where a settled link answers in
+            // milliseconds. Timing that out would report a perfectly good car as
+            // supporting nothing.
+            if (!elm.TryRead(query, 4, mask, out _, elm.ResetTimeout)) break;
 
             IReadOnlyList<byte> range = Obd2Pids.SupportedBy(query, mask);
             supported.AddRange(range);

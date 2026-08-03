@@ -147,6 +147,8 @@ public class Obd2WorkflowTests : IDisposable
 
         vm.ConnectObd2(Car(), "COM3");
 
-        Assert.Contains("once a second", vm.Hint, StringComparison.OrdinalIgnoreCase);
+        // "Twice a second" is measured, not guessed: 2.19 Hz over 25 seconds on a
+        // live vehicle through a BLE ELM327 v1.5.
+        Assert.Contains("twice a second", vm.Hint, StringComparison.OrdinalIgnoreCase);
     }
 }
