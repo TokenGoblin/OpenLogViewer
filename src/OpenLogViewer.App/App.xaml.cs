@@ -37,7 +37,7 @@ public partial class App : Application
     private static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--calibration",
         "--cell", "--select", "--compare", "--tune-axes", "--pointer",
     ];
 
@@ -117,6 +117,14 @@ public partial class App : Application
                 ? e.Args[table + 1]
                 : null);
 
+        int scanned = Array.IndexOf(e.Args, "--scan-menu");
+        if (scanned >= 0 && scanned + 1 < e.Args.Length)
+        {
+            string to = e.Args[scanned + 1];
+            RunThenExit(window, async () => await window.CaptureScannedMenu(to));
+            return;
+        }
+
         int menu = Array.IndexOf(e.Args, "--menu");
         if (menu >= 0 && menu + 1 < e.Args.Length)
         {
@@ -190,7 +198,16 @@ public partial class App : Application
     /// operation, so a failure here would otherwise leave the app sitting open
     /// with no error and no exit — which is indistinguishable from a hang.
     /// </summary>
-    private void RunThenExit(Window window, Action work)
+    private void RunThenExit(Window window, Action work) => Schedule(window, () => Capture(work));
+
+    /// <summary>
+    /// Waits for the window to be ready, then runs something once.
+    ///
+    /// Separate from the running so that work which has to be awaited can be
+    /// scheduled the same way without being wrapped in the synchronous capture,
+    /// which would shut the application down at the first await.
+    /// </summary>
+    private void Schedule(Window window, Action run)
     {
         // "--settle <ms>" lets a scripted run wait before capturing, which a
         // live connection needs: there is nothing to draw until blocks arrive.
@@ -207,14 +224,14 @@ public partial class App : Application
                 // ContextIdle, so queued work never runs while one is going —
                 // the capture simply never happened. Waiting is what the settle
                 // delay was for, so the layout has long since settled anyway.
-                Capture(work);
+                run();
             };
 
             timer.Start();
             return;
         }
 
-        window.Dispatcher.InvokeAsync(() => Capture(work), DispatcherPriority.ContextIdle);
+        window.Dispatcher.InvokeAsync(run, DispatcherPriority.ContextIdle);
     }
 
     private bool Flag(string name) => _args.Contains(name, StringComparer.Ordinal);
@@ -232,6 +249,30 @@ public partial class App : Application
             Shutdown(1);
         }
     }
+
+    /// <summary>
+    /// The same for work that has to be waited for.
+    ///
+    /// Passing an async lambda to the other one does not do this: it is an
+    /// Action, so the lambda returns at its first await and the shutdown happens
+    /// while the work is still running. A scan that takes three seconds would
+    /// never finish and never be seen.
+    /// </summary>
+    private async void Capture(Func<Task> work)
+    {
+        try
+        {
+            await work();
+            Shutdown();
+        }
+        catch (Exception e)
+        {
+            Report($"scripted run failed: {e}");
+            Shutdown(1);
+        }
+    }
+
+    private void RunThenExit(Window window, Func<Task> work) => Schedule(window, () => Capture(work));
 
     /// <summary>
     /// Renders the window straight from the visual tree and exits. Capturing from

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Management;
+using Windows.Devices.Bluetooth.Advertisement;
 
 namespace OpenLogViewer.App;
 
@@ -69,6 +70,59 @@ public static class BleDevices
 
     /// <summary>The ones worth offering as OBD2 adapters.</summary>
     public static IReadOnlyList<BleDevice> Obd2Adapters() => [.. All().Where(d => d.IsObd2)];
+
+    /// <summary>
+    /// Addresses heard advertising, which is the one honest way to ask a
+    /// Bluetooth LE device whether it is switched on.
+    ///
+    /// A paired device is listed by Windows whether or not it has power — being
+    /// paired is a fact about this computer, not about the device — so the list
+    /// alone says nothing. A powered one announces itself several times a second
+    /// and is heard within a second or two; an unpowered one cannot be, which is
+    /// exactly the distinction wanted.
+    ///
+    /// Nothing is connected to, so an adapter already talking to something else
+    /// is not disturbed by being looked for. Active scanning, which asks each
+    /// device it hears for its scan response — some announce almost nothing
+    /// until asked, and this is about hearing them rather than about being quiet.
+    ///
+    /// Being heard proves a device is on. Not being heard does not prove the
+    /// opposite, and callers must not say that it does: a device already
+    /// connected to something stops advertising, so an adapter paired to a phone
+    /// in the same car goes silent while being perfectly alive. Verified on this
+    /// machine — a connected mouse is not heard.
+    /// </summary>
+    public static async Task<IReadOnlySet<ulong>> AdvertisingAsync(TimeSpan window)
+    {
+        var seen = new HashSet<ulong>();
+        var watcher = new BluetoothLEAdvertisementWatcher
+        {
+            ScanningMode = BluetoothLEScanningMode.Active,
+        };
+
+        watcher.Received += (_, advertisement) =>
+        {
+            lock (seen) seen.Add(advertisement.BluetoothAddress);
+        };
+
+        try
+        {
+            watcher.Start();
+            await Task.Delay(window).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // No radio, or it is switched off. Hearing nothing is the right
+            // answer to that, and it is not worth an error of its own.
+            Debug.WriteLine($"Could not scan for Bluetooth LE devices: {e.Message}");
+        }
+        finally
+        {
+            try { watcher.Stop(); } catch (Exception) { }
+        }
+
+        lock (seen) return new HashSet<ulong>(seen);
+    }
 
     /// <summary>
     /// The radio address in a BLE instance id, or null.

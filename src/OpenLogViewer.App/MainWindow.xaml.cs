@@ -162,6 +162,20 @@ public partial class MainWindow : Window
     /// cannot arrange. Rendering the menu's own visual is the only way to see
     /// what it looks like without a person at the keyboard.
     /// </summary>
+    /// <summary>
+    /// Scans for what is actually switched on, then draws the menu, for a
+    /// scripted run. The scan is the part worth seeing the result of, and it
+    /// cannot be reached without a hand on the mouse.
+    /// </summary>
+    public async Task CaptureScannedMenu(string path)
+    {
+        IReadOnlyList<SerialPortInfo> ports = SerialPortNames.Describe();
+
+        await ScanPaired([.. ports.Where(p => p.IsBluetooth)], BleDevices.Obd2Adapters());
+
+        CaptureConnectMenu(path);
+    }
+
     public void CaptureConnectMenu(string path)
     {
         OnConnectClick(this, new RoutedEventArgs());
@@ -183,51 +197,61 @@ public partial class MainWindow : Window
         PortsMenu.Items.Clear();
 
         IReadOnlyList<SerialPortInfo> ports = SerialPortNames.Describe();
-        if (ports.Count == 0)
-        {
-            PortsMenu.Items.Add(new MenuItem { Header = "No serial ports found", IsEnabled = false });
-        }
-        else
-        {
-            foreach (SerialPortInfo port in ports)
-            {
-                string label = _unreachable.TryGetValue(port.PortName, out DateTime when)
-                    ? $"{port.Label} — no answer at {when:HH:mm}"
-                    : port.Label;
+        IReadOnlyList<BleDevice> adapters = BleDevices.Obd2Adapters();
 
+        // Cabled ports first, and they mean something: a USB adapter appears in
+        // this list when it is plugged in and vanishes when it is not, so its
+        // presence is already the answer to "is it there".
+        SerialPortInfo[] wired = [.. ports.Where(p => !p.IsBluetooth)];
+
+        foreach (SerialPortInfo port in wired) PortsMenu.Items.Add(PortItem(port));
+
+        // Everything over a radio is a different matter. Pairing is a fact about
+        // this computer rather than about the device, so a paired ECU is listed
+        // whether or not it has power — which is how a menu comes to offer three
+        // ECUs when none of them is switched on. Said plainly rather than left
+        // to be discovered by picking one and waiting out a timeout.
+        SerialPortInfo[] paired = [.. ports.Where(p => p.IsBluetooth)];
+
+        if (paired.Length + adapters.Count > 0)
+        {
+            if (wired.Length > 0) PortsMenu.Items.Add(new Separator());
+
+            PortsMenu.Items.Add(new MenuItem
+            {
+                Header = "Paired — listed whether or not switched on",
+                IsEnabled = false,
+            });
+
+            foreach (SerialPortInfo port in paired) PortsMenu.Items.Add(PortItem(port));
+
+            foreach (BleDevice adapter in adapters)
+            {
                 var item = new MenuItem
                 {
-                    // Doubled, because a menu header reads a single underscore
-                    // as an access key and swallows it — which turned a device
-                    // advertising as MaxxECU_28xf7p into MaxxECU28xf7p.
-                    Header = label.Replace("_", "__", StringComparison.Ordinal),
-                    ToolTip = port.IsBluetooth
-                        ? "A Bluetooth link. Slower to answer than a cable, so it is given "
-                          + "longer to reply and more room to settle between attempts."
-                        : null,
+                    Header = Decorate(adapter.Label, Seen(adapter.Name)),
+                    ToolTip = "A Bluetooth LE OBD2 adapter. Reads any standard vehicle — "
+                              + "no definition file needed.",
                 };
 
-                item.Click += async (_, _) => await StartLiveFromMenu(port);
+                item.Click += (_, _) => StartLiveOverBle(adapter);
                 PortsMenu.Items.Add(item);
             }
-        }
 
-        // Bluetooth LE adapters, which are never COM ports and so can never
-        // appear above however hard anyone looks. Listed alongside the ports
-        // rather than tucked away, because from where the user is standing a
-        // dongle is a dongle and which radio it uses is not their problem.
-        foreach (BleDevice adapter in BleDevices.Obd2Adapters())
-        {
-            var item = new MenuItem
+            var scan = new MenuItem
             {
-                Header = adapter.Label.Replace("_", "__", StringComparison.Ordinal),
-                ToolTip = "A Bluetooth LE OBD2 adapter. Reads any standard vehicle — "
-                          + "no definition file needed.",
+                Header = "Check which of these are switched on",
+                ToolTip = "Listens for the LE adapters and tries the others. Takes a few "
+                          + "seconds, because a paired port that answers nothing has to be "
+                          + "waited out before it can be called dead.",
             };
 
-            item.Click += (_, _) => StartLiveOverBle(adapter);
-            PortsMenu.Items.Add(item);
+            scan.Click += async (_, _) => await ScanPaired(paired, adapters);
+            PortsMenu.Items.Add(scan);
         }
+
+        if (wired.Length + paired.Length + adapters.Count == 0)
+            PortsMenu.Items.Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
 
         PortsMenu.Items.Add(new Separator());
         PortsMenu.Items.Add(RateMenu());
@@ -416,7 +440,7 @@ public partial class MainWindow : Window
                 // end — both a live ECU and a switched-off one report Status=OK
                 // and Present=True — so having tried is the only knowledge there
                 // is, and throwing it away means finding out again each time.
-                _unreachable[port.PortName] = DateTime.Now;
+                Record(port.PortName, "no answer");
 
                 MessageBox.Show(this,
                     $"Could not connect on {port.PortName}.\n\n{failure.Message}",
@@ -426,7 +450,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            _unreachable.Remove(port.PortName);
+            Record(port.PortName, "answered");
         }
         finally
         {
@@ -436,8 +460,113 @@ public partial class MainWindow : Window
         StartLive(port.PortName);
     }
 
-    /// <summary>Ports that did not answer this session, and when.</summary>
-    private readonly Dictionary<string, DateTime> _unreachable = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// What was last learnt about each port or adapter, ready to show.
+    ///
+    /// Kept as the words rather than as a flag, because the three things worth
+    /// saying are not two: a port can have answered, or have been asked and said
+    /// nothing, or — for a radio device that was merely listened for — not have
+    /// been heard, which is weaker than silence and must not be reported as it.
+    ///
+    /// Windows lists a paired device whether or not it has power, so without
+    /// this the menu offers several ECUs with no hint that only one is on.
+    /// </summary>
+    private readonly Dictionary<string, string> _seen = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One entry in the port list, labelled with whatever is known about it.</summary>
+    private MenuItem PortItem(SerialPortInfo port)
+    {
+        var item = new MenuItem
+        {
+            Header = Decorate(port.Label, Seen(port.PortName)),
+            ToolTip = port.IsBluetooth
+                ? "A Bluetooth link. Slower to answer than a cable, so it is given "
+                  + "longer to reply and more room to settle between attempts."
+                : null,
+        };
+
+        item.Click += async (_, _) => await StartLiveFromMenu(port);
+
+        return item;
+    }
+
+    /// <summary>
+    /// What is known about whether something is there, or nothing when it has
+    /// not been tried.
+    /// </summary>
+    private string Seen(string key) => _seen.GetValueOrDefault(key, "");
+
+    /// <summary>
+    /// A menu header. The underscore is doubled because a header reads a single
+    /// one as an access key and swallows it, which turned a device advertising
+    /// as MaxxECU_28xf7p into MaxxECU28xf7p.
+    /// </summary>
+    private static string Decorate(string label, string note) =>
+        (note.Length > 0 ? $"{label} — {note}" : label).Replace("_", "__", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Finds out which paired devices are actually switched on.
+    ///
+    /// Two different questions needing two different answers. A Bluetooth LE
+    /// adapter announces itself several times a second, so listening for a
+    /// couple of seconds settles it without connecting to anything. A
+    /// serial-port-profile device announces nothing at all — the only way to
+    /// know is to open the port and see, and a dead one has to be waited out.
+    /// They are tried together so the wait is one wait rather than several.
+    /// </summary>
+    private async Task ScanPaired(
+        IReadOnlyList<SerialPortInfo> paired, IReadOnlyList<BleDevice> adapters)
+    {
+        ConnectButton.IsEnabled = false;
+        ConnectButton.Content = "Scanning…";
+
+        try
+        {
+            Task<IReadOnlySet<ulong>> advertising =
+                BleDevices.AdvertisingAsync(TimeSpan.FromSeconds(3));
+
+            Task<(string Port, bool Answered)>[] probes =
+            [
+                .. paired.Select(p => Task.Run(() => (p.PortName, TryReach(p) is null))),
+            ];
+
+            await Task.WhenAll([advertising, .. probes.Cast<Task>()]);
+
+            // A serial port was actually opened, so silence here is a real
+            // answer about a real attempt.
+            foreach (Task<(string Port, bool Answered)> probe in probes)
+            {
+                (string port, bool answered) = probe.Result;
+
+                Record(port, answered ? "answered" : "no answer");
+            }
+
+            // An LE adapter was only listened for, which is weaker and is worded
+            // as such. Being heard proves it is on; not being heard does not
+            // prove it is off, because a device already connected to something
+            // — a phone in the same car — stops advertising while being alive.
+            IReadOnlySet<ulong> heard = advertising.Result;
+
+            foreach (BleDevice adapter in adapters)
+                Record(adapter.Name, heard.Contains(adapter.Address) ? "switched on" : "not heard");
+        }
+        catch (Exception ex)
+        {
+            // A scan that fails costs the labels, not the menu.
+            App.Report($"Could not scan for devices: {ex}");
+        }
+        finally
+        {
+            ConnectButton.IsEnabled = true;
+            ConnectButton.Content = "Connect ▾";
+        }
+
+        // Reopened so the results are visible, since a menu cannot be rebuilt
+        // while it is showing.
+        OnConnectClick(this, new RoutedEventArgs());
+    }
+
+    private void Record(string key, string note) => _seen[key] = $"{note} at {DateTime.Now:HH:mm}";
 
     /// <summary>Opens the port and closes it again, returning why it could not be reached.</summary>
     private static Exception? TryReach(SerialPortInfo port)
