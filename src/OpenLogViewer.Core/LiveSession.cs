@@ -161,9 +161,18 @@ public sealed class LiveSession : IDisposable
             string? directory = Path.GetDirectoryName(path);
             if (directory is { Length: > 0 }) Directory.CreateDirectory(directory);
 
-            // No BOM, matching the exporter; AutoFlush so a pulled cable costs
-            // at most the row in hand.
-            _recorder = new StreamWriter(path, false, new UTF8Encoding(false)) { AutoFlush = true };
+            // With a byte-order mark, matching the exporter. Excel reads a CSV
+            // without one in the system codepage whatever is actually in it, so
+            // a channel in °C arrives as Â°C — and a recording nobody can open
+            // in the thing they open recordings in is a poor recording. Every
+            // reader this application has copes with the mark, and so does
+            // anything else that reads UTF-8.
+            //
+            // AutoFlush so a pulled cable costs at most the row in hand.
+            _recorder = new StreamWriter(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true))
+            {
+                AutoFlush = true,
+            };
             CsvExport.WriteHeader(_recorder, ["Time", .. _names], ["s", .. _units]);
             RecordingPath = path;
         }

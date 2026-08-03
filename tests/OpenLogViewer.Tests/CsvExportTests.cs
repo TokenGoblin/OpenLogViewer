@@ -331,4 +331,57 @@ public class CsvExportTests : IDisposable
             CultureInfo.CurrentCulture = original;
         }
     }
+
+    [Fact]
+    public void ARecordingCarriesAByteOrderMarkAndStillReadsBack()
+    {
+        // Excel reads a CSV without one in the system codepage whatever is
+        // actually in it, so a channel in °C arrives as Â°C — and OBD2 made
+        // degree signs ordinary. The mark fixes that, and must not cost the
+        // application's own reader, which is the half worth asserting.
+        string path = Path.Combine(Path.GetTempPath(), $"olv-bom-{Guid.NewGuid():N}.csv");
+        _temp.Add(path);
+
+        var session = new LiveSession(
+            new FixedSource(["Coolant"], ["°C"], [0]),
+            new LiveSessionSettings { RecordingPath = path, MaximumRate = 0 });
+
+        session.Start();
+        Thread.Sleep(120);
+        session.Stop();
+        session.Dispose();
+
+        byte[] bytes = File.ReadAllBytes(path);
+
+        Assert.True(bytes.Length > 3);
+        Assert.Equal([0xEF, 0xBB, 0xBF], bytes[..3]);
+
+        LogDocument reopened = LogReaderFactory.Load(path);
+        LogChannel coolant = Assert.Single(reopened.Channels, c => c.Name == "Coolant");
+
+        // The name is the real check: a byte-order mark read as data would make
+        // the first column "﻿Time" and nothing would match by name again.
+        Assert.Equal("°C", coolant.Units);
+        Assert.Contains(reopened.Channels, c => c.Name == "Time");
+    }
+
+    /// <summary>A source that answers instantly with the same row, for a recording test.</summary>
+    private sealed class FixedSource(string[] names, string[] units, double[] row) : ILiveSource
+    {
+        public IReadOnlyList<string> Names => names;
+
+        public IReadOnlyList<string> Units => units;
+
+        public IReadOnlyList<int> Digits => [.. names.Select(_ => 1)];
+
+        public int Retries => 0;
+
+        public void Open() { }
+
+        public double[] Read() => [.. row];
+
+        public void Recover() { }
+
+        public void Dispose() { }
+    }
 }

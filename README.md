@@ -259,10 +259,46 @@ because from then on you are reading history. *Reset zoom* goes back to
 watching. **Hide unused** is on by default, so on a bench with the engine off
 almost everything is hidden — everything is still being recorded.
 
-Read-only, always: the only commands sent are the two that ask what the firmware
-is and the one that reads the realtime page, which is what TunerStudio reads
-continuously. Nothing here can write a value, burn a page, or change a setting,
-and VE Calibration suggests a table rather than applying one.
+**Reading is what a session does; writing takes asking for.** Connecting sends
+only the commands that ask what the firmware is, read the realtime page, and
+read the settings — the same things TunerStudio reads continuously. Nothing is
+written unless you edit a table and press the button, and VE Calibration
+suggests a table rather than applying one. See *Editing a table*, below.
+
+### Editing a table
+
+*Calibration* shows the tables as the ECU holds them, read off the controller
+rather than from a saved file. They can be changed and sent back.
+
+Click or drag to pick a block of cells; arrows move, shift extends. Then:
+
+| | |
+|---|---|
+| `+` `−` | nudge by the firmware's own smallest step (shift: ten of them) |
+| `PgUp` `PgDn` | scale by 1% (shift: 5%) |
+| `Esc` | put the selection back to what the ECU said |
+
+Scaling is there because it is how tuning is actually done — a region reading
+four per cent lean is corrected by adding four per cent to it, not by typing
+sixteen numbers.
+
+**A changed cell is outlined, and the header counts them.** The shading still
+says what the value is; the outline says it is not what the ECU holds. Nothing
+is sent until you press *Send to ECU*, which says how many cells it is about to
+change — a table scaled by 5% when one cell was meant is 256 changes, and it
+looks identical to one change until it is counted.
+
+Values are held to the range the firmware declares, which is far tighter than
+the storage allows: an ignition table kept as a signed 16-bit tenth of a degree
+would accept ±3,276° as far as the encoding cares, while MS2Extra declares −10
+to 90.
+
+**Send and Burn are separate, because they are separate on the ECU.** A write
+lands in working memory and takes effect immediately on a running engine — and
+is forgotten at the next power cycle, so a change that turns out to be wrong is
+undone by turning the key off. A burn commits it to flash and is permanent; do
+it with the engine stopped, since the ECU pauses while it writes. Every write is
+read back and compared before it is called done.
 
 ### OBD2 through an ELM327
 

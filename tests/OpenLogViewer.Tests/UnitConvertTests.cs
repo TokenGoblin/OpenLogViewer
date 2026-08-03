@@ -28,6 +28,29 @@ public class UnitConvertTests
     }
 
     [Fact]
+    public void PressureConvertsAbsoluteToAbsolute()
+    {
+        // A MegaSquirt reports manifold pressure as an absolute figure, so an
+        // atmosphere is 14.5 psi rather than zero boost. Turning absolute into
+        // gauge silently would put a whole atmosphere of error on a boost
+        // reading, which on a turbocharged engine is the difference between
+        // nothing and fifteen pounds.
+        Assert.Equal(14.5038, UnitConvert.Value(100, "kPa", UnitSystem.Imperial), 3);
+        Assert.Equal(100, UnitConvert.Value(14.5038, "psi", UnitSystem.Metric), 3);
+
+        Assert.Equal("psi", UnitConvert.Label("kPa", UnitSystem.Imperial));
+        Assert.Equal("kPa", UnitConvert.Label("psi", UnitSystem.Metric));
+    }
+
+    [Fact]
+    public void TwoBarOfBoostReadsAsThirtyPsiEitherWay()
+    {
+        // 200 kPa absolute is one atmosphere of boost, which a boost gauge shows
+        // as about 14.5 psi and an absolute reading as 29.
+        Assert.Equal(29.0075, UnitConvert.Value(200, "kPa", UnitSystem.Imperial), 3);
+    }
+
+    [Fact]
     public void ConvertingToTheSystemAReadingIsAlreadyInChangesNothing()
     {
         Assert.Equal(90, UnitConvert.Value(90, "°C", UnitSystem.Metric));
@@ -62,8 +85,9 @@ public class UnitConvertTests
     [InlineData("°")]         // OBD2's timing advance
     [InlineData("TEMP")]      // Speeduino's placeholder for "whichever the tune says"
     [InlineData("%")]
-    [InlineData("kPa")]
     [InlineData("rpm")]
+    [InlineData("g/s")]
+    [InlineData("V")]
     [InlineData("")]
     public void AUnitThatIsNotATemperatureOrASpeedIsLeftAlone(string units)
     {

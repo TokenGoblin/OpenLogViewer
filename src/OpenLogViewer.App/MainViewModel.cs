@@ -2780,7 +2780,7 @@ public sealed class MainViewModel : ObservableObject
 
         // No BOM: it is the first thing a spreadsheet or a parser sees, and
         // plenty of them read it as part of the first column name.
-        using (var writer = new StreamWriter(temporary, false, new UTF8Encoding(false)))
+        using (var writer = new StreamWriter(temporary, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)))
             write(writer);
 
         File.Move(temporary, path, overwrite: true);
