@@ -170,10 +170,32 @@ public static class SampleFilter
     /// </summary>
     public static IEnumerable<LogFilter> Suggest(LogDocument document)
     {
-        if (document.FindChannel("CLT") is { } clt && !clt.IsFlat)
+        // Identifying the channel and deciding whether to filter on it are
+        // separate questions. A coolant reading that never moves is still the
+        // coolant, and looking past it would find something that is not — a
+        // MegaSquirt log holds both "AFR" and "AFR Load", and skipping a flat
+        // AFR offered a mixture filter on a load axis.
+        LogChannel? Moving(ChannelRole role) =>
+            ChannelRoles.Find(document, role) is { IsFlat: false } channel ? channel : null;
+
+        if (Moving(ChannelRole.EngineSpeed) is { } rpm)
+            yield return new LogFilter
+            {
+                Name = "Engine running",
+                Channel = rpm.Name,
+                Comparison = FilterComparison.AboveOrEqual,
+                Low = 500,
+                Enabled = false,
+            };
+
+        if (Moving(ChannelRole.Coolant) is { } clt)
         {
-            // Operating temperature, in whatever unit the log uses.
-            bool fahrenheit = clt.Units.Contains('F', StringComparison.OrdinalIgnoreCase) || clt.Max > 130;
+            // Operating temperature, in whatever unit the log uses. Judged by
+            // the readings as well as the label, because plenty of firmware
+            // writes a placeholder rather than a unit.
+            bool fahrenheit =
+                clt.Units.Contains('F', StringComparison.OrdinalIgnoreCase) || clt.Max > 130;
+
             yield return new LogFilter
             {
                 Name = "Up to temperature",
@@ -184,20 +206,17 @@ public static class SampleFilter
             };
         }
 
-        if (document.FindChannel("RPM") is { } rpm && !rpm.IsFlat)
+        if (Moving(ChannelRole.Throttle) is { } tps)
         {
-            yield return new LogFilter
-            {
-                Name = "Engine running",
-                Channel = rpm.Name,
-                Comparison = FilterComparison.AboveOrEqual,
-                Low = 500,
-                Enabled = false,
-            };
-        }
-
-        if (document.FindChannel("TPS") is { } tps && !tps.IsFlat)
-        {
+            // Idle is its own regime — the ECU is holding a speed rather than
+            // metering for a demand — and averaging it into the low-load cells
+            // of a fuel table describes neither.
+            //
+            // Named for what it does and no more. It is tempting to call this
+            // "not on overrun", and it does not earn that: on the MaxxECU log
+            // the samples that look like overrun sit at six to sixteen per cent
+            // throttle and sail straight through. Use the fuel-cut filter for
+            // that, which is the controller saying so rather than a guess.
             yield return new LogFilter
             {
                 Name = "Off idle",
@@ -208,15 +227,40 @@ public static class SampleFilter
             };
         }
 
-        if (document.FindChannel("AFR") is { } afr && !afr.IsFlat)
+        if (Moving(ChannelRole.FuelCut) is { } cut)
         {
+            // While the ECU is cutting fuel there is no fuelling to judge: the
+            // exhaust is full of air the engine pumped through without burning,
+            // and the wideband reports it faithfully. Those samples say nothing
+            // about the table and would drag whichever cells they land in.
+            //
+            // Measured on the MaxxECU log: active in 70 samples of 6,466 — few,
+            // but every one of them meaningless.
             yield return new LogFilter
             {
-                Name = "AFR in range",
-                Channel = afr.Name,
+                Name = "Not cutting fuel",
+                Channel = cut.Name,
+                Comparison = FilterComparison.BelowOrEqual,
+                Low = 0,
+                Enabled = false,
+            };
+        }
+
+        if (Moving(ChannelRole.Mixture) is { } mixture)
+        {
+            // The plausible range depends on which scale it is on, and the
+            // readings say which far more reliably than the label: lambda sits
+            // about 1, an air-fuel ratio about 14. Nine to twenty on a lambda
+            // channel would accept everything and filter nothing.
+            bool lambda = mixture.Max < 3;
+
+            yield return new LogFilter
+            {
+                Name = lambda ? "Lambda in range" : "AFR in range",
+                Channel = mixture.Name,
                 Comparison = FilterComparison.Between,
-                Low = 9,
-                High = 20,
+                Low = lambda ? 0.6 : 9,
+                High = lambda ? 1.4 : 20,
                 Enabled = false,
             };
         }
