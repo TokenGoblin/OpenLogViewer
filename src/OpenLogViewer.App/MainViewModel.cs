@@ -817,10 +817,177 @@ public sealed class MainViewModel : ObservableObject
             $"Firmware  {_liveSignature}",
             $"Build     {_liveVersion}",
             $"INI       {_liveIni}",
-            $"Channels  {_live!.Names.Count}",
-            $"Recording {_liveRecording}",
+            $"Channels  {_live!.Names.Count}"
+                + (_obd2Undecoded.Count > 0 ? $"  (+{_obd2Undecoded.Count} not decoded)" : ""),
+            $"Recording {(_liveRecording.Length > 0 ? _liveRecording : "not recording")}",
         ])
         : "Not connected.";
+
+    // ----- recording ----------------------------------------------------------
+
+    /// <summary>
+    /// How a session's opening line reads, which depends on whether anything is
+    /// being written.
+    ///
+    /// Said either way. A session that is not recording has to say so as plainly
+    /// as one that is — the failure this guards against is somebody driving for
+    /// half an hour believing there will be a file at the end of it.
+    /// </summary>
+    private static string Opening(string? recording) => recording is { Length: > 0 }
+        ? $"Recording to {recording}."
+        : "Watching only — nothing is being written. Press Record when you want a log.";
+
+    /// <summary>Whether a file is being written right now.</summary>
+    public bool IsRecording => _live is { IsRecording: true };
+
+    public bool CanRecord => IsLive;
+
+    /// <summary>The file being written, or the last one written this session.</summary>
+    public string RecordingPath => _live?.RecordingPath ?? _live?.LastRecordingPath ?? "";
+
+    /// <summary>
+    /// The record button's label, which is also its state.
+    ///
+    /// One button rather than two, because recording and not recording are
+    /// exclusive and a pair of buttons means one of them is always dead.
+    /// </summary>
+    public string RecordLabel => IsRecording ? "■ Stop recording" : "● Record…";
+
+    /// <summary>What the recording has caught so far, for the status line.</summary>
+    public string RecordingSummary
+    {
+        get
+        {
+            if (_live is not { } live) return "";
+            if (!live.IsRecording)
+                return live.LastRecordingPath is { Length: > 0 } last
+                    ? $"Saved {Path.GetFileName(last)}"
+                    : "Not recording";
+
+            double seconds = live.RecordedSeconds;
+
+            return $"● Recording {Path.GetFileName(live.RecordingPath ?? "")} · "
+                   + $"{live.RecordedRows:N0} rows · {seconds:F0} s";
+        }
+    }
+
+    /// <summary>
+    /// Whether connecting starts a recording on its own.
+    ///
+    /// Off by default: connecting watches, and recording is asked for. Turning it
+    /// on is for somebody who would rather never think about it.
+    /// </summary>
+    public bool RecordOnConnect
+    {
+        get => _settings.RecordOnConnect;
+        set
+        {
+            if (value == _settings.RecordOnConnect) return;
+
+            _settings.SetRecordOnConnect(value);
+            Raise(nameof(RecordOnConnect));
+        }
+    }
+
+    /// <summary>
+    /// A name and folder to offer for a new recording.
+    ///
+    /// Named for the ECU and the moment rather than left blank. A dialog that
+    /// opens with an empty name in a folder nobody chose is how recordings end up
+    /// called "log", "log2" and "log (final)" — and the one thing a person is
+    /// certain to want to know later is which car and when.
+    /// </summary>
+    public string SuggestedRecordingPath()
+    {
+        string folder = _settings.RecordingFolder is { Length: > 0 } chosen && Directory.Exists(chosen)
+            ? chosen
+            : Workspace.Ensure(Workspace.Logs);
+
+        string ecu = Clean(_liveSignature.Length > 0 ? _liveSignature : "live");
+
+        return Path.Combine(folder, $"{ecu}-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.csv");
+    }
+
+    /// <summary>Trims a signature down to something a file system will take.</summary>
+    private static string Clean(string name)
+    {
+        var kept = new string(
+            [.. name.Select(c => Path.GetInvalidFileNameChars().Contains(c) || c == ' ' ? '-' : c)]);
+
+        return kept.Trim('-') is { Length: > 0 } trimmed ? trimmed : "live";
+    }
+
+    /// <summary>
+    /// Starts writing to a file of the caller's choosing.
+    ///
+    /// Replaces a recording in progress rather than refusing, so "record again
+    /// somewhere else" is one action. The first is closed properly and stays on
+    /// disk complete.
+    /// </summary>
+    public string StartRecording(string path)
+    {
+        if (_live is not { } live) return "Not connected.";
+
+        try
+        {
+            string started = live.StartRecording(path);
+            _liveRecording = started;
+
+            // Where it went, so the next one is offered the same folder. The
+            // workspace default is a fine first answer and a poor second one.
+            if (Path.GetDirectoryName(started) is { Length: > 0 } folder)
+                _settings.SetRecordingFolder(folder);
+
+            RaiseRecording();
+
+            return $"Recording to {started}.";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return $"Could not start recording: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Closes the recording and leaves the session running.
+    ///
+    /// The file is complete at this point rather than at disconnect: every row
+    /// was flushed as it was written.
+    /// </summary>
+    public string StopRecording()
+    {
+        if (_live is not { } live) return "Not connected.";
+        if (live.StopRecording() is not { } path) return "Nothing was being recorded.";
+
+        int rows = live.RecordedRows;
+        RaiseRecording();
+
+        return $"Saved {rows:N0} rows to {path}. The session is still live.";
+    }
+
+    /// <summary>
+    /// The recording half of the status line.
+    ///
+    /// "Not recording" is stated rather than left blank. Blank reads as an
+    /// application that has not got round to saying yet, and the whole risk this
+    /// feature introduces is somebody assuming a file is being written when none
+    /// is — so the quiet case is the one that has to be loud.
+    /// </summary>
+    private string Written()
+    {
+        if (_live is not { IsRecording: true } live) return "not recording";
+
+        return $"REC {live.RecordedRows:N0} rows";
+    }
+
+    private void RaiseRecording()
+    {
+        Raise(nameof(IsRecording));
+        Raise(nameof(RecordingPath));
+        Raise(nameof(RecordLabel));
+        Raise(nameof(RecordingSummary));
+        Raise(nameof(LiveDetail));
+    }
 
     // ----- the tune in the ECU ------------------------------------------------
 
@@ -1329,6 +1496,16 @@ public sealed class MainViewModel : ObservableObject
 
     public bool NoEcuTune => _ecuTune is null;
 
+    /// <summary>
+    /// Whether Calibration should say there is no tune.
+    ///
+    /// Not the same as there being no tune. A standard vehicle has none and never
+    /// will, but it is not waiting to be connected either — it is connected, and
+    /// the tab is showing it its fault codes. Telling that user to "connect to an
+    /// ECU" was the tab describing a state the application was not in.
+    /// </summary>
+    public bool ShowNoTuneNotice => _ecuTune is null && !IsObd2Live;
+
     /// <summary>What was read, for the calibration header.</summary>
     public string EcuTuneSummary
     {
@@ -1412,6 +1589,7 @@ public sealed class MainViewModel : ObservableObject
         {
             Raise(nameof(HasEcuTune));
             Raise(nameof(NoEcuTune));
+            Raise(nameof(ShowNoTuneNotice));
             Raise(nameof(EcuTableSummary));
 
             // The first one is the biggest, which is the one worth opening on.
@@ -1778,7 +1956,7 @@ public sealed class MainViewModel : ObservableObject
         Disconnect();
 
         var source = new MaxxEcuSource(new SerialEcuTransport(port) { OpenAttempts = 3 });
-        string recording = Workspace.NewRecording(DateTime.Now);
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
         _live = new LiveSession(source, new LiveSessionSettings
         {
@@ -1792,18 +1970,20 @@ public sealed class MainViewModel : ObservableObject
         _liveSignature = "MaxxECU";
         _liveVersion = "";
         _liveIni = "";
-        _liveRecording = recording;
+        _liveRecording = recording ?? "";
 
         SeedMaxxGauges();
 
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
         Title = "Live: MaxxECU — OpenLogViewer";
-        Hint = $"Recording to {recording}. A MaxxECU sends a fixed set of channels, "
+        Hint = $"{Opening(recording)} A MaxxECU sends a fixed set of channels, "
                + "and its tune cannot be read, so calibration is not available for it.";
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        RaiseRecording();
     }
 
     /// <summary>
@@ -1851,11 +2031,56 @@ public sealed class MainViewModel : ObservableObject
     public void ConnectObd2(IEcuTransport transport, string port) =>
         StartObd2(Elm327Source.Connect(transport), port);
 
+    /// <summary>
+    /// The OBD2 link, where the live session is one.
+    ///
+    /// Kept apart from <c>_live</c> because fault scanning is the one thing here
+    /// that is not a reading: it belongs to the adapter rather than to the session
+    /// polling through it, and every other live source in this application has no
+    /// such thing to offer.
+    /// </summary>
+    private Elm327Source? _obd2;
+
+    /// <summary>Whether faults can be scanned for — which needs a standard vehicle.</summary>
+    public bool IsObd2Live => _obd2 is not null && IsLive;
+
+    private IReadOnlyList<byte> _obd2Undecoded = [];
+
+    /// <summary>
+    /// Parameters this car offers that this application cannot yet read.
+    ///
+    /// Worth naming in the interface rather than leaving in a log nobody opens.
+    /// Every one is a channel the vehicle is willing to send, and the difference
+    /// between "your car does not report that" and "this does not decode it yet"
+    /// is the difference between a dead end and a morning's work.
+    /// </summary>
+    public string Obd2Gaps => _obd2Undecoded.Count == 0
+        ? ""
+        : $"{_obd2Undecoded.Count} more parameter{(_obd2Undecoded.Count == 1 ? "" : "s")} "
+          + $"this vehicle supports but this cannot decode yet: "
+          + string.Join(", ", _obd2Undecoded.Select(p => $"0x{p:X2}"));
+
+    /// <summary>
+    /// Asks the car what it is complaining about.
+    ///
+    /// Runs where it is called from, which is the user interface thread, and takes
+    /// a second or two on a car with codes to report. Left synchronous on purpose:
+    /// it holds the adapter for that time and the gauges visibly stop, which is
+    /// honest about what is happening to the link.
+    /// </summary>
+    public FaultScan? ScanFaults() => _obd2?.ReadFaults();
+
+    /// <summary>
+    /// Asks the car to erase them. See <see cref="Obd2Faults.Clear"/> for what
+    /// that costs beyond the codes themselves.
+    /// </summary>
+    public FaultClear? ClearFaults() => _obd2?.ClearFaults();
+
     private void StartObd2(Elm327Source source, string port)
     {
         Disconnect();
 
-        string recording = Workspace.NewRecording(DateTime.Now);
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
         _live = new LiveSession(source, new LiveSessionSettings
         {
@@ -1865,11 +2090,17 @@ public sealed class MainViewModel : ObservableObject
 
         _live.Start();
 
+        _obd2 = source;
         _livePort = port;
         _liveSignature = source.Adapter.Length > 0 ? source.Adapter : "OBD2";
         _liveVersion = "";
         _liveIni = "";
-        _liveRecording = recording;
+        _liveRecording = recording ?? "";
+
+        // What the car offers that this cannot read yet. Reported rather than
+        // discarded silently: it is the only way anyone finds out that a vehicle
+        // was willing to send something this application threw away.
+        _obd2Undecoded = source.Undecoded;
 
         SeedObd2Gauges(source);
 
@@ -1878,14 +2109,19 @@ public sealed class MainViewModel : ObservableObject
 
         Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
         Title = $"Live: OBD2 — OpenLogViewer";
-        Hint = $"Recording to {recording}. OBD2 asks for one parameter at a time, so this "
+        Hint = $"{Opening(recording)} OBD2 asks for one parameter at a time, so this "
                + "updates about twice a second rather than 25 times — the protocol's limit, "
                + "not the link's. A standard vehicle has no tune to read, so calibration "
-               + "is not available for it.";
+               + "shows its fault codes instead."
+               + (Obd2Gaps.Length > 0 ? $"  {Obd2Gaps}." : "");
 
         Raise(nameof(IsLive));
+        Raise(nameof(IsObd2Live));
+        Raise(nameof(ShowNoTuneNotice));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        RaiseRecording();
     }
 
     /// <summary>
@@ -2048,7 +2284,7 @@ public sealed class MainViewModel : ObservableObject
         // from settings such as the cylinder count as well as from live values.
         var decoder = new RealtimeDecoder(layout, MsqTune.ReadScalars(TuneXml));
 
-        string recording = Workspace.NewRecording(DateTime.Now);
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
         _live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
         {
@@ -2062,7 +2298,7 @@ public sealed class MainViewModel : ObservableObject
         _liveSignature = signature;
         _liveVersion = version;
         _liveIni = ini.Path;
-        _liveRecording = recording;
+        _liveRecording = recording ?? "";
 
         Status = $"Live — {signature}   •   {_live.Names.Count} channels   •   {ini.Name}";
 
@@ -2073,11 +2309,13 @@ public sealed class MainViewModel : ObservableObject
             ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
             : "";
         Title = $"Live: {signature} — OpenLogViewer";
-        Hint = $"Recording to {recording}. The plot follows the newest data until you zoom or pan." + quiet;
+        Hint = $"{Opening(recording)} The plot follows the newest data until you zoom or pan." + quiet;
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        RaiseRecording();
     }
 
     /// <summary>Stops the session and closes the port, leaving the data in place.</summary>
@@ -2089,12 +2327,18 @@ public sealed class MainViewModel : ObservableObject
         _live.Dispose();
         _live = null;
         _ecuConnection = null;
+        _obd2 = null;
+        _obd2Undecoded = [];
 
         LiveStatus = "";
         _livePort = _liveSignature = _liveVersion = _liveIni = _liveRecording = "";
 
         Raise(nameof(IsLive));
+        Raise(nameof(IsObd2Live));
+        Raise(nameof(ShowNoTuneNotice));
         Raise(nameof(LiveDetail));
+        Raise(nameof(CanRecord));
+        RaiseRecording();
 
         if (Document is not null)
             Hint = "Disconnected. The session is still here, and its recording is on disk.";
@@ -2112,15 +2356,23 @@ public sealed class MainViewModel : ObservableObject
 
         LiveSessionStatus status = _live.Status;
 
-        // The dot is the recording indicator; retries only appear once there are
-        // any, so a healthy link stays quiet.
+        // The dot is the link; whether anything is being written is said
+        // separately, because the two are now independent and a filled dot on a
+        // session recording nothing would be the misreading that matters.
+        // Retries only appear once there are any, so a healthy link stays quiet.
         LiveStatus = status switch
         {
             { Faulted: true } => status.Error!,
             { Reconnecting: true } => $"○ {_livePort} · waiting for the ECU to come back…",
             _ => $"● {_livePort} · {_liveSignature} · {status.Rate:F1} Hz" +
-                 (status.Retries > 0 ? $" · {status.Retries} retries" : ""),
+                 (status.Retries > 0 ? $" · {status.Retries} retries" : "") +
+                 $" · {Written()}",
         };
+
+        // Cheap, and this is the only thing that ticks while a session runs — so
+        // it is what makes a growing recording visibly grow.
+        Raise(nameof(RecordLabel));
+        Raise(nameof(RecordingSummary));
 
         // Hollow dot and a warning colour while the link is down, so a session
         // that has quietly stopped receiving is not mistaken for a healthy one

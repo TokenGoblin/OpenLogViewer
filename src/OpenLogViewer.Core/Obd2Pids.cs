@@ -173,8 +173,16 @@ public static class Obd2Pids
     /// it, most significant bit first. Asking is far better than the alternative
     /// of trying every parameter and waiting for "NO DATA" — a round trip apiece,
     /// on the slowest link in this application.
+    ///
+    /// The chain runs the whole way rather than stopping at 0x40. Each answer's
+    /// last bit says whether a further range exists and the walk stops the moment
+    /// a car says no, so on a vehicle that ends at 0x40 this costs nothing — but
+    /// stopping the list there meant everything above 0x60 was invisible by
+    /// construction, including the torque group at 0x61 and, on a hybrid, the
+    /// battery block at 0x9A. A car cannot report what it is never asked about.
     /// </summary>
-    public static IReadOnlyList<byte> SupportQueries { get; } = [0x00, 0x20, 0x40];
+    public static IReadOnlyList<byte> SupportQueries { get; } =
+        [0x00, 0x20, 0x40, 0x60, 0x80, 0xA0, 0xC0];
 
     /// <summary>
     /// Reads a support bitmask into the PID numbers it stands for.

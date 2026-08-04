@@ -8,8 +8,8 @@ rather than by commit.
 ### Added
 
 **Live connection to a MegaSquirt.** *Connect ▾* lists the serial ports; picking
-one reads the ECU's signature, matches an INI to it, and starts recording. A
-live session is an ordinary log, so the sidebar, filters, calculated channels,
+one reads the ECU's signature, matches an INI to it, and starts a live session.
+A live session is an ordinary log, so the sidebar, filters, calculated channels,
 the heat table and VE Calibration all work on it as they do on a file — and
 channels take the names recorded logs use, so presets and filters transfer.
 
@@ -18,9 +18,9 @@ when none matches. Firmware versions move channels inside the realtime block, so
 the wrong INI does not fail — it reads every channel from the wrong offset and
 returns numbers that look reasonable.
 
-Recording is continuous rather than saved at the end, and losing the link does
-not end the session: key off and key on is normal, so a lost link is waited on
-and the session carries on into the same recording when the ECU returns.
+Losing the link does not end the session: key off and key on is normal, so a
+lost link is waited on, and a recording in progress carries straight on into the
+same file when the ECU returns.
 
 Read-only throughout. The only commands sent ask what the firmware is and read
 the realtime page; nothing can write a value, burn a page, or change a setting.
@@ -54,6 +54,62 @@ version as before.
 Verified on a live vehicle with two dongles: a BLE `OBDII` clone, and an OBDLink
 r2.6 over Bluetooth Classic — 24 channels, connected in eight seconds, the car
 settling on ISO 15765-4 with two modules answering.
+
+**Recording is yours to start and stop.** A **Record** button appears next to
+*Connect* whenever a session is live, and there is a matching pair in *Tools*.
+Recording and watching used to be the same act — a session wrote from connect to
+disconnect under a name nobody chose — which is the wrong unit of work. The
+interesting part of a session is a pull, or a lap, or the two minutes after a
+change, and none of those begin when the cable goes in.
+
+You choose the moment, the name and the folder. The next recording is offered
+the folder the last one went to, and the suggested name carries the ECU and the
+time, so a session can produce several files without any of them being called
+"log (final)". Each one is a log in its own right: its clock starts where the
+recording started, not where the session did, so it opens without seven minutes
+of nothing in front of it.
+
+**Connecting no longer records on its own.** A session is opened to check a
+link, read a gauge or watch a change far more often than to capture anything, and
+every one of those used to leave a file behind — so the recordings folder filled
+with runs nobody wanted and the one that mattered had to be found among them.
+*Tools ▸ Record as soon as I connect* puts the old behaviour back and is
+remembered.
+
+This changes what an existing install does, deliberately. What it costs is a run
+somebody meant to capture and did not, so the state is stated wherever a session
+is rather than left to be inferred from silence: the toolbar button, the status
+bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
+which of the two is happening.
+
+**Fault codes, read and cleared.** *Tools ▸ Fault codes…* on an OBD2 connection.
+All three of the standard's lists, because they mean different things: confirmed
+codes are what lit the lamp, pending ones were seen once and are not yet believed,
+and permanent ones cannot be erased by anybody but the controller. Each code
+carries the standard's own definition where it has one.
+
+Where a code belongs to the vehicle manufacturer it gets no description, and says
+so. Those ranges are the maker's to assign, so the same five characters mean
+unrelated things on two cars in the same street — a plausible guess is how
+somebody buys a part they did not need.
+
+Erasing is behind a confirmation that says what it actually costs. Mode 04 does
+not clear the fault, it clears the evidence: the freeze frame — the only record
+of what the engine was doing at the moment the fault occurred — goes with the
+code and cannot be recovered, and so do the readiness monitors, which the car has
+to re-earn over a full drive cycle before it can pass an emissions test. Anything
+permanent is read back afterwards and reported, because it survives.
+
+**Calibration becomes the diagnostics tab on an OBD2 car.** A standard vehicle
+has no tune and never will, so that tab used to tell somebody who was plainly
+connected to "connect to an ECU" — describing a state the application was not in.
+It now shows the same fault list, full width, and scans the first time you switch
+to it. *Tools ▸ Fault codes…* still opens it in a window; both are the same panel,
+because two copies of a diagnostic view drift and only one of them gets the fix.
+
+A scan can be run with the session polling. The adapter takes one command at a
+time and the gauges stop for a second or two while it does, which is honest about
+what OBD2 is.
 
 **VE Calibration.** Suggests a new fuel table from logged AFR against the AFR the
 tune was asking for. In histogram view, pick one of the tune's own tables under

@@ -246,9 +246,28 @@ each project folder; both are searched. **Open the tune before connecting** if
 you want the channels the firmware derives from tune settings — duty cycle
 divides by the cylinder count, and that does not come over the wire.
 
-Recording is continuous, to
-`Documents\OpenLogViewer\live-<date>.csv`. A session ends by a pulled cable at
-least as often as by being stopped, so nothing waits until the end to be saved.
+**Recording is yours to start and stop.** A **Record** button sits next to
+*Connect* whenever a session is live. You choose the moment, the name and the
+folder; the next recording is offered wherever the last one went, and the
+suggested name carries the ECU and the time. Each recording is a log in its own
+right — its clock starts where you pressed record, not where the session began,
+so it opens without twenty minutes of nothing in front of it. One session can
+produce as many files as you like.
+
+**Connecting does not record on its own.** A session is opened to check a link,
+read a gauge or watch a change far more often than to capture anything, and
+recording every one of those buries the run that mattered among the ones that did
+not. *Tools ▸ Record as soon as I connect* puts it back to recording from the
+moment you connect, and is remembered.
+
+The state is stated rather than left to be inferred, because what this default
+costs is a run somebody meant to capture: the toolbar button reads `● Record…` or
+`■ Stop recording`, the status bar reads `REC 1,204 rows` or `not recording`, and
+connecting says which of the two it is doing.
+
+Within a recording, writing is continuous rather than saved at the end. A session
+ends by a pulled cable at least as often as by being stopped, so every row is
+flushed as it arrives and the file is complete the moment you stop.
 
 **Losing the link does not end the session.** Key off and key on is normal, so a
 lost link is waited on for a minute — the indicator goes hollow and amber — and
@@ -348,10 +367,51 @@ leaves every real reading in the first quarter.
 
 A standard vehicle has no tune to read, so Calibration is not available for it.
 
+**Fault codes.** *Tools ▸ Fault codes…*, once connected. All three of the
+standard's lists are read, because they are three different statements about the
+car: **confirmed** codes are what lit the lamp, **pending** ones were seen once
+and the car does not yet believe them — most monitors want the same fault on two
+consecutive drive cycles — and **permanent** ones cannot be erased by anything
+but the controller, which is what they are for.
+
+Each code carries the SAE definition where it has one. Where it does not, the
+window says why rather than guessing: the manufacturer-specific ranges are the
+maker's to assign, so P1131 means one thing on a Ford and something unrelated on
+a Toyota, and a plausible description of the wrong one is how somebody ends up
+buying a sensor they did not need.
+
+**Erasing does not fix anything, and costs more than the codes.** Mode 04 clears
+the freeze frame — the one record of what the engine was doing at the moment the
+fault occurred, and the most useful thing there is for an intermittent — along
+with the oxygen sensor results and the readiness monitors. A car cleared this
+morning cannot pass an emissions test this afternoon whatever its condition,
+because it no longer has evidence that its monitors ever ran. The confirmation
+says all of that, permanent codes are read back afterwards and reported, and most
+cars refuse the request with the engine running.
+
+On an OBD2 connection the **Calibration** tab shows this too, and scans the first
+time you switch to it. There is no tune on a standard vehicle to put there
+instead, and diagnostics is the thing OBD2 offers that is about the car rather
+than about this moment.
+
+A scan can be run while the session is polling. The adapter takes one command at
+a time, so the gauges stop for a second or two while the car is being asked.
+
 Verified on a live vehicle through a Bluetooth LE `ELM327 v1.5`: 24 parameters
 at 2.19 Hz, connected in five seconds. The decode cross-checks — with the engine
 stopped, MAP and barometric pressure read 86 kPa apiece, which they only do if
 both formulas are right.
+
+Verified again with the engine running, which tests things a parked car cannot:
+25 parameters at 2.7 Hz over an OBDLink r2.6, none of them falling silent. MAP
+read 20 kPa at idle and 87 kPa on a throttle blip against a barometric 86 — an
+unloaded blip brings manifold pressure up to atmospheric and no further, so that
+is the whole range checked rather than the single point the stopped-engine test
+covers. Every fuel trim reading landed on an exact raw byte, which fixes the
+scale, and long-term trim sat at +1.56% — two counts off the 128 that means "no
+correction" — which fixes the offset, since a wrong one would leave a healthy
+engine showing a large standing correction. Lambda oscillated 0.97 to 1.22 about
+1.00, which is closed loop doing what closed loop does.
 
 ## Calculated channels
 

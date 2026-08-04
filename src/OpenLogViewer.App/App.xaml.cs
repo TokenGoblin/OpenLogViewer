@@ -40,6 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
+        "--faults",
     ];
 
     /// <summary>
@@ -152,6 +153,16 @@ public partial class App : Application
         {
             string to = e.Args[power + 1];
             RunThenExit(window, () => window.CapturePower(to));
+            return;
+        }
+
+        // "--faults out.png" draws the vehicle's fault codes over whatever OBD2
+        // connection was made, which needs a --connect ahead of it to show any.
+        int faults = Array.IndexOf(e.Args, "--faults");
+        if (faults >= 0 && faults + 1 < e.Args.Length)
+        {
+            string to = e.Args[faults + 1];
+            RunThenExit(window, () => window.CaptureFaults(to));
             return;
         }
 

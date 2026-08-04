@@ -52,6 +52,13 @@ public partial class MainWindow : Window
             StopLive();
         };
 
+        // The calibration tab's fault panel. Pointed at the view model now and
+        // told to ask the car the first time somebody actually switches to it —
+        // scanning at startup would take the adapter for a view nobody has looked
+        // at, and on this link that is the gauges stopping for no reason.
+        CalibrationFaults.Attach(_vm);
+        CalibrationFaults.ScanOnFirstSight();
+
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
     }
 
@@ -139,6 +146,89 @@ public partial class MainWindow : Window
             _calculators.WindowState = WindowState.Normal;
 
         _calculators.Activate();
+    }
+
+    /// <summary>
+    /// Starts or stops writing the live session to a file.
+    ///
+    /// One handler for both, because they are one control. Starting asks where
+    /// to put it — the whole point of the feature is that the name and the place
+    /// are chosen rather than assigned — and stopping just stops, since a
+    /// question at that moment would be a question about something already
+    /// decided.
+    /// </summary>
+    private void OnRecordClick(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanRecord) return;
+
+        if (_vm.IsRecording)
+        {
+            Report(_vm.StopRecording());
+            return;
+        }
+
+        string suggested = _vm.SuggestedRecordingPath();
+
+        var dialog = new SaveFileDialog
+        {
+            FileName = Path.GetFileName(suggested),
+            Filter = "CSV log|*.csv|All files|*.*",
+            AddExtension = true,
+            DefaultExt = ".csv",
+            OverwritePrompt = true,
+            Title = "Record the live session to",
+
+            // Where the last one went, which is almost always where this one
+            // should go. Falls back to the workspace on the first recording.
+            InitialDirectory = Path.GetDirectoryName(suggested) ?? "",
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        Report(_vm.StartRecording(dialog.FileName));
+    }
+
+    private void OnOpenRecordingsClick(object sender, RoutedEventArgs e) =>
+        OpenFolder(Workspace.Ensure(_vm.Workspace.Logs));
+
+    private FaultsWindow? _faults;
+
+    /// <summary>
+    /// The vehicle's fault codes.
+    ///
+    /// Not kept alive between openings, unlike the calculators and the power
+    /// estimate. Those hold figures somebody typed and would be tedious to retype;
+    /// this holds what the car said a moment ago, and a stale list of faults is
+    /// the one thing a diagnostic window must never show. It scans as it opens.
+    /// </summary>
+    private void OnFaultsClick(object sender, RoutedEventArgs e)
+    {
+        if (_faults is not null)
+        {
+            if (_faults.WindowState == WindowState.Minimized)
+                _faults.WindowState = WindowState.Normal;
+
+            _faults.Activate();
+            _faults.Scan();
+
+            return;
+        }
+
+        _faults = new FaultsWindow(_vm) { Owner = this };
+        _faults.Closed += (_, _) => _faults = null;
+    }
+
+    /// <summary>Opens the fault list and draws it, for a scripted run.</summary>
+    public void CaptureFaults(string path)
+    {
+        OnFaultsClick(this, new RoutedEventArgs());
+
+        if (_faults is null) return;
+
+        _faults.UpdateLayout();
+        ImageExport.Save(_faults.Content as FrameworkElement ?? _faults, path);
+
+        _faults.Close();
     }
 
     private PowerWindow? _power;
