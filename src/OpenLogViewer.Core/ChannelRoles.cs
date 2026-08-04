@@ -12,6 +12,30 @@ public enum ChannelRole
 
     /// <summary>Whether the ECU is cutting fuel, however it says so.</summary>
     FuelCut,
+
+    /// <summary>Charge temperature, which sets how much a given manifold pressure weighs.</summary>
+    IntakeAir,
+
+    /// <summary>Ambient pressure, where the ECU records it.</summary>
+    Barometric,
+
+    /// <summary>How long an injector is held open, before dead time is taken off.</summary>
+    InjectorPulseWidth,
+
+    /// <summary>The same as a proportion of the time available, where the ECU works it out.</summary>
+    InjectorDuty,
+
+    /// <summary>Rail pressure, which decides what an injector actually flows.</summary>
+    FuelPressure,
+
+    /// <summary>Measured air mass, on a car that has a meter for it.</summary>
+    MassAirFlow,
+
+    /// <summary>How completely each stroke fills, where the ECU reports it.</summary>
+    VolumetricEfficiency,
+
+    /// <summary>Road speed.</summary>
+    VehicleSpeed,
 }
 
 /// <summary>
@@ -104,6 +128,24 @@ public static class ChannelRoles
             ChannelRole.Mixture or ChannelRole.MixtureTarget =>
                 units is "afr" or "lambda" or ":1" or "ratio",
 
+            ChannelRole.IntakeAir => units is "c" or "f" or "degc" or "degf" or "temp" or "k",
+
+            ChannelRole.Barometric or ChannelRole.FuelPressure =>
+                units is "kpa" or "psi" or "psig" or "bar" or "mbar" or "inhg" or "hpa",
+
+            // Guarded tightly, because a pulse width in milliseconds and an
+            // injector's duty in per cent are both "how much fuel" and reading
+            // one as the other is out by two orders of magnitude.
+            ChannelRole.InjectorPulseWidth => units is "ms" or "msec" or "s" or "sec" or "us",
+            ChannelRole.InjectorDuty => units is "%" or "percent" or "pct",
+
+            ChannelRole.MassAirFlow =>
+                units is "g/s" or "gs" or "kg/h" or "kgh" or "lb/min" or "lbmin" or "g/min" or "kg/min",
+
+            ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct",
+
+            ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s",
+
             _ => true,
         };
     }
@@ -132,6 +174,31 @@ public static class ChannelRoles
         // code on another. Either way zero means it is not cutting, which is
         // all this needs to know.
         ChannelRole.FuelCut => ["fuelcut", "fuelcutreason", "fuelcutcode", "dfco", "decelfuelcut"],
+
+        ChannelRole.IntakeAir =>
+            ["iat", "mat", "intakeairtemperature", "intakeair", "intaketemp", "chargetemp",
+             "airtemp", "manifoldairtemp", "act", "inlettemp"],
+
+        ChannelRole.Barometric => ["baro", "barometricpressure", "barometer", "ambientpressure"],
+
+        // "pw" alone is what a MegaSquirt calls it; the rest spell it out. Bank
+        // one is taken where a controller logs each bank separately, the two
+        // being the same on any engine this could describe.
+        ChannelRole.InjectorPulseWidth =>
+            ["pw", "pulsewidth", "injpw", "injectorpulsewidth", "injectorpw", "injpulsewidth",
+             "fuelpw", "pulsewidth1"],
+
+        ChannelRole.InjectorDuty =>
+            ["dutycycle", "injectorduty", "injduty", "duty", "idc", "injectordutycycle"],
+
+        ChannelRole.FuelPressure =>
+            ["fuelpressure", "fuelpress", "fuelrailpressure", "railpressure", "fp", "fuelp"],
+
+        ChannelRole.MassAirFlow => ["maf", "massairflow", "airflow", "airmassflow", "mafflow"],
+
+        ChannelRole.VolumetricEfficiency => ["ve", "volumetricefficiency", "vecurrent", "vetable"],
+
+        ChannelRole.VehicleSpeed => ["vss", "vehiclespeed", "speed", "roadspeed", "gpsspeed"],
 
         _ => [],
     };

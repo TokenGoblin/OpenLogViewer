@@ -2618,6 +2618,39 @@ public sealed class MainViewModel : ObservableObject
         Hint = $"Added the calculated channel \"{name}\".";
     }
 
+    /// <summary>What the open log could estimate power from, and with what.</summary>
+    public PowerEstimateResult? EstimatePower(EngineSpec spec) =>
+        Document is { } doc ? PowerEstimate.For(doc, spec) : null;
+
+    /// <summary>
+    /// Adds the power estimate's channels, replacing any left from a previous go.
+    ///
+    /// Replacing rather than adding: the whole point is to try a figure, look at
+    /// the plot and try another, and a store that grew a second "Power (speed
+    /// density)" each time would fail on the name and silently keep showing the
+    /// first attempt's answer.
+    /// </summary>
+    public int AddPowerChannels(EngineSpec spec)
+    {
+        if (EstimatePower(spec) is not { } estimate || estimate.Channels.Count == 0) return 0;
+
+        foreach (MathChannel channel in estimate.Channels)
+            foreach (MathChannel existing in _mathStore.Channels
+                         .Where(c => c.Name.Equals(channel.Name, StringComparison.OrdinalIgnoreCase))
+                         .ToList())
+                _mathStore.Remove(existing);
+
+        foreach (MathChannel channel in estimate.Channels) _mathStore.Add(channel);
+
+        RefreshMathChannels();
+        Reapply();
+
+        Hint = $"Added {estimate.Channels.Count} channels from "
+             + $"{string.Join(" and ", estimate.Methods.Select(m => m.Name.ToLowerInvariant()))}.";
+
+        return estimate.Channels.Count;
+    }
+
     public void RemoveMathChannel(MathChannel channel)
     {
         if (!_mathStore.Remove(channel)) return;

@@ -37,7 +37,7 @@ public partial class App : Application
     private static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
     ];
 
@@ -142,6 +142,15 @@ public partial class App : Application
             string tab = e.Args[calc + 1];
             string to = e.Args[calc + 2];
             RunThenExit(window, () => window.CaptureCalculators(tab, to));
+            return;
+        }
+
+        // "--power out.png" draws the power estimate over whatever log was opened.
+        int power = Array.IndexOf(e.Args, "--power");
+        if (power >= 0 && power + 1 < e.Args.Length)
+        {
+            string to = e.Args[power + 1];
+            RunThenExit(window, () => window.CapturePower(to));
             return;
         }
 

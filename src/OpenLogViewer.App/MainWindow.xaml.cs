@@ -92,9 +92,10 @@ public partial class MainWindow : Window
 
         if (_calculators is null) return;
 
-        foreach (TabItem item in _calculators.Tabs.Items)
-            if ((item.Header as string)?.Equals(tab, StringComparison.OrdinalIgnoreCase) == true)
-                _calculators.Tabs.SelectedItem = item;
+        // Reported rather than ignored: a misspelt name used to draw whichever
+        // calculator happened to be open and look like a successful run.
+        if (!_calculators.Show(tab))
+            App.Report($"no calculator called '{tab}'");
 
         _calculators.UpdateLayout();
         ImageExport.Save(_calculators.Content as FrameworkElement ?? _calculators, path);
@@ -137,6 +138,43 @@ public partial class MainWindow : Window
             _calculators.WindowState = WindowState.Normal;
 
         _calculators.Activate();
+    }
+
+    private PowerWindow? _power;
+
+    /// <summary>
+    /// The power estimate, kept alive the same way the calculators are.
+    ///
+    /// The whole use of it is to try a figure, look at the plot and try another,
+    /// so a window that forgot the engine every time it was closed would make
+    /// that a retyping exercise.
+    /// </summary>
+    private void OnEstimatePowerClick(object sender, RoutedEventArgs e)
+    {
+        if (_power is null)
+        {
+            _power = new PowerWindow(_vm) { Owner = this };
+            _power.Closed += (_, _) => _power = null;
+
+            return;
+        }
+
+        if (_power.WindowState == WindowState.Minimized) _power.WindowState = WindowState.Normal;
+
+        _power.Activate();
+    }
+
+    /// <summary>Opens the power estimate and draws it, for a scripted run.</summary>
+    public void CapturePower(string path)
+    {
+        OnEstimatePowerClick(this, new RoutedEventArgs());
+
+        if (_power is null) return;
+
+        _power.UpdateLayout();
+        ImageExport.Save(_power.Content as FrameworkElement ?? _power, path);
+
+        _power.Close();
     }
 
     /// <summary>

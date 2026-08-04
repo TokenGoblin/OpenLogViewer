@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
@@ -27,6 +28,83 @@ public partial class CalculatorsWindow : Window
     /// </summary>
     private bool _updating;
 
+    /// <summary>
+    /// The air the engine is breathing, set once on the Pressure ratio tab and
+    /// used by every tab that needs it.
+    ///
+    /// One value rather than one per tab, because two tabs disagreeing about
+    /// what an atmosphere is would be worse than either of them being wrong on
+    /// its own — the window would give two absolute pressures for one boost
+    /// reading and no way to tell which was meant.
+    /// </summary>
+    private double _barometricKpa = TuningMath.AtmosphericKpa;
+
+    /// <summary>One calculator, and where it lives in the list.</summary>
+    /// <param name="Category">The heading it sits under.</param>
+    /// <param name="Name">What the list calls it, and what a screenshot asks for by.</param>
+    /// <param name="Content">The panel to show when it is picked.</param>
+    private sealed record Calculator(string Category, string Name, FrameworkElement Content);
+
+    private Calculator[] _calculators = [];
+
+    /// <summary>
+    /// The calculators, grouped.
+    ///
+    /// Order matters twice over: the categories appear in the order their first
+    /// member does, and within a category so do the calculators. Grouped rather
+    /// than listed flat because the list is going to keep growing, and nine
+    /// unsorted entries is already more than anyone wants to read through.
+    /// </summary>
+    private void BuildNavigation()
+    {
+        _calculators =
+        [
+            new("Air & boost", "Boost", PageBoost),
+            new("Air & boost", "Pressure ratio", PagePressureRatio),
+            new("Air & boost", "Airflow", PageAirflow),
+
+            new("Fuel", "Injectors", PageInjectors),
+            new("Fuel", "Fuel pump", PageFuelPump),
+            new("Fuel", "Lambda", PageLambda),
+            new("Fuel", "Octane", PageOctane),
+
+            new("Engine", "Engine", PageEngine),
+
+            new("Drivetrain", "Gearing", PageGearing),
+        ];
+
+        CollectionViewSource grouped = new() { Source = _calculators };
+        grouped.GroupDescriptions.Add(new PropertyGroupDescription(nameof(Calculator.Category)));
+
+        Nav.ItemsSource = grouped.View;
+        Nav.SelectedIndex = 0;
+    }
+
+    private void OnNavChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (Nav.SelectedItem is not Calculator chosen) return;
+
+        foreach (Calculator calculator in _calculators)
+            calculator.Content.Visibility = calculator == chosen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Shows a calculator by the name the list gives it, for scripted runs.
+    /// </summary>
+    public bool Show(string name)
+    {
+        Calculator? match = _calculators.FirstOrDefault(
+            c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null) return false;
+
+        Nav.SelectedItem = match;
+
+        return true;
+    }
+
     public CalculatorsWindow()
     {
         InitializeComponent();
@@ -39,7 +117,23 @@ public partial class CalculatorsWindow : Window
             box.SelectedIndex = 0;
         }
 
+        foreach (Blendstock stock in Enum.GetValues<Blendstock>())
+            OctStock.Items.Add(OctaneBlend.Name(stock));
+
+        OctStock.SelectedIndex = 0;
+
         _updating = true;
+
+        GearTyre.Text = "245/40R18";
+        GearDeflection.Text = Gearing.RollingDeflectionPercent.ToString(CultureInfo.CurrentCulture);
+        GearFinal.Text = "3.90";
+        GearRedline.Text = "7000";
+        GearCruise.Text = "70";
+        GearRatios.Text = "3.545, 2.048, 1.416, 1.059, 0.848, 0.756";
+
+        OctBase.Text = "91";
+        OctSensitivity.Text = OctaneBlend.TypicalSensitivity.ToString(CultureInfo.CurrentCulture);
+        OctPercent.Text = "30";
 
         BoostPsi.Text = "10";
         BoostBar.Text = Round(10 * TuningMath.KpaPerPsi / TuningMath.KpaPerBar, 3);
@@ -55,6 +149,8 @@ public partial class CalculatorsWindow : Window
         PumpPower.Text = "400";
         PumpBsfc.Text = TuningMath.BoostedBsfc.ToString(CultureInfo.CurrentCulture);
         PumpHeadroom.Text = "20";
+        PumpRailPsi.Text = "43.5";
+        PumpBoost.Text = "0";
 
         LambdaValue.Text = "0.85";
         AfrValue.Text = Round(TuningMath.AfrFromLambda(0.85, Fuel.Petrol), 2);
@@ -63,9 +159,29 @@ public partial class CalculatorsWindow : Window
         AirRpm.Text = "7000";
         AirVe.Text = "95";
         AirBoost.Text = "10";
+        AirLambda.Text = "0.85";
+        AirBsfc.Text = TuningMath.FullThrottleBsfc.ToString(CultureInfo.CurrentCulture);
+
+        // Sea level, which is what the rest of the window assumed before this
+        // was an input at all.
+        PrBoost.Text = "12";
+        PrAltitude.Text = "0";
+        PrBarometric.Text = Round(TuningMath.AtmosphericKpa, 1);
+        PrInletLoss.Text = Round(TuningMath.TypicalInletLossKpa / TuningMath.KpaPerPsi, 1);
+        PrChargeLoss.Text = Round(TuningMath.TypicalChargeLossKpa / TuningMath.KpaPerPsi, 1);
+
+        EngBore.Text = "86";
+        EngStroke.Text = "86";
+        EngCylinders.Text = "4";
+        EngRpm.Text = "7000";
+        EngChamber.Text = "42";
+        EngGasket.Text = "1.0";
+        EngDeck.Text = "0.5";
+        EngPiston.Text = "5";
 
         _updating = false;
 
+        BuildNavigation();
         Recalculate();
     }
 
@@ -75,9 +191,13 @@ public partial class CalculatorsWindow : Window
     private void Recalculate()
     {
         ShowPressure();
+        ShowCompressor();
         ShowInjectors();
         ShowPump();
         ShowLambda();
+        ShowEngine();
+        ShowGearing();
+        ShowOctane();
         ShowAirflow();
     }
 
@@ -154,7 +274,7 @@ public partial class CalculatorsWindow : Window
         double absolute = Value(MapKpa);
 
         Set(MapPsi, Round(absolute / TuningMath.KpaPerPsi, 2));
-        SetGauge(TuningMath.GaugeFromAbsolute(absolute));
+        SetGauge(TuningMath.GaugeFromAbsolute(absolute, _barometricKpa));
         ShowPressure();
     }
 
@@ -165,13 +285,90 @@ public partial class CalculatorsWindow : Window
         double absolute = Value(MapPsi) * TuningMath.KpaPerPsi;
 
         Set(MapKpa, Round(absolute, 1));
-        SetGauge(TuningMath.GaugeFromAbsolute(absolute));
+        SetGauge(TuningMath.GaugeFromAbsolute(absolute, _barometricKpa));
         ShowPressure();
+    }
+
+    // ----- compressor ----------------------------------------------------------
+
+    private void OnCompressorChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowCompressor();
+    }
+
+    private void OnAltitudeChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        double kpa = TuningMath.BarometricKpa(Value(PrAltitude) * TuningMath.MetresPerFoot);
+
+        Set(PrBarometric, Round(kpa, 1));
+        ApplyBarometric(kpa);
+    }
+
+    private void OnBarometricChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        double kpa = Value(PrBarometric);
+
+        Set(PrAltitude, Round(TuningMath.AltitudeMetres(kpa) / TuningMath.MetresPerFoot, 0));
+        ApplyBarometric(kpa);
+    }
+
+    /// <summary>
+    /// Takes a new barometric pressure through the whole window.
+    ///
+    /// The boost tab's absolute pressure has to be re-derived rather than left
+    /// alone: a gauge reads against the air outside, so the same reading on it
+    /// is a different absolute pressure once the air has changed.
+    /// </summary>
+    private void ApplyBarometric(double kpa)
+    {
+        _barometricKpa = double.IsNaN(kpa) || kpa <= 0 ? TuningMath.AtmosphericKpa : kpa;
+
+        SetAbsolute(Value(BoostKpa));
+        Recalculate();
+    }
+
+    private void ShowCompressor()
+    {
+        if (PrRatio is null) return;
+
+        double boost = Value(PrBoost) * TuningMath.KpaPerPsi;
+        double inletLoss = Value(PrInletLoss) * TuningMath.KpaPerPsi;
+        double chargeLoss = Value(PrChargeLoss) * TuningMath.KpaPerPsi;
+
+        TuningMath.Compressor c = TuningMath.CompressorPressures(
+            boost, _barometricKpa, inletLoss, chargeLoss);
+
+        PrInlet.Text = Show(c.InletKpa / TuningMath.KpaPerPsi, 2);
+        PrOutlet.Text = Show(c.OutletKpa / TuningMath.KpaPerPsi, 2);
+        PrRatio.Text = Show(c.Ratio, 2);
+
+        double metres = TuningMath.AltitudeMetres(_barometricKpa);
+
+        PrAltitudeNote.Text = double.IsNaN(metres)
+            ? "feet above sea level"
+            : $"feet — {metres:N0} m, {_barometricKpa:N1} kPa";
+
+        // What the losses and the altitude are actually costing, which is the
+        // question the tab exists to answer. A ratio quoted without them is the
+        // one people compare a compressor map against.
+        double bare = TuningMath.CompressorPressures(boost).Ratio;
+
+        PrNote.Text = double.IsNaN(c.Ratio) || double.IsNaN(bare) || bare <= 0
+            ? "—"
+            : $"Boost over a sea-level atmosphere alone would read {bare:N2}. The filter, the "
+            + $"intercooler and the air you are actually in put {(c.Ratio / bare) - 1:P0} on top of "
+            + "that, and it is the larger figure the compressor has to make.";
     }
 
     private void SetAbsolute(double gaugeKpa)
     {
-        double absolute = TuningMath.AbsoluteFromGauge(gaugeKpa);
+        double absolute = TuningMath.AbsoluteFromGauge(gaugeKpa, _barometricKpa);
 
         Set(MapKpa, Round(absolute, 1));
         Set(MapPsi, Round(absolute / TuningMath.KpaPerPsi, 2));
@@ -186,10 +383,31 @@ public partial class CalculatorsWindow : Window
 
     private void ShowPressure()
     {
-        double absolute = Value(MapKpa);
-        double ratio = TuningMath.PressureRatio(absolute);
+        if (BoostBaroNote is null) return;
+
+        // Against sea level rather than against the local air, deliberately: it
+        // is how much denser the charge is than the standard atmosphere, which
+        // is what airflow scales with. The compressor's own ratio is the other
+        // one, is taken against what it is breathing, and lives on its own tab.
+        double ratio = TuningMath.ChargeDensityRatio(Value(MapKpa));
 
         PressureRatio.Text = double.IsNaN(ratio) ? "—" : ratio.ToString("N2", CultureInfo.CurrentCulture);
+
+        BoostBaroNote.Text = BarometricSummary()
+            + " Absolute pressure is gauge plus that, so the same boost is less absolute pressure — "
+            + "and less air — the higher you are.";
+    }
+
+    /// <summary>What the window is currently taking an atmosphere to be, said on every tab that uses it.</summary>
+    private string BarometricSummary()
+    {
+        double feet = TuningMath.AltitudeMetres(_barometricKpa) / TuningMath.MetresPerFoot;
+
+        string where = Math.Abs(feet) < 50
+            ? "sea level"
+            : $"{feet:N0} ft";
+
+        return $"Barometric pressure is set to {_barometricKpa:N1} kPa ({where}) on the Pressure ratio tab.";
     }
 
     // ----- injectors -----------------------------------------------------------
@@ -223,16 +441,11 @@ public partial class CalculatorsWindow : Window
 
         InjFuelNote.Text = $"stoichiometric {TuningMath.Stoichiometric(fuel):N2}:1";
 
-        // Said rather than assumed: ethanol needs about a third more fuel by
-        // mass for the same power, so a BSFC left at the petrol figure sizes the
-        // injector short on E85 — which is the mistake this calculator exists to
-        // avoid rather than to make quietly.
-        InjNote.Text = fuel is Fuel.Petrol or Fuel.Diesel
-            ? "BSFC is a convention rather than a measurement. If you know yours from a "
-              + "previous tune, use it — it is the figure everything here rests on."
-            : $"{TuningMath.Name(fuel)} needs more fuel by mass than petrol for the same power. "
-              + "Raise the BSFC accordingly — around 0.75 to 0.85 on E85 where petrol would be 0.60 "
-              + "— or this will size the injector short.";
+        // Both live in the core alongside the arithmetic they describe. The
+        // advice is as much this window's output as the numbers are, and the
+        // sentence that was here before was wrong for four of the ten fuels.
+        InjBsfcHint.Text = TuningMath.BsfcHint(fuel);
+        InjNote.Text = TuningMath.BsfcGuidance(fuel);
     }
 
     // ----- fuel pump -----------------------------------------------------------
@@ -244,13 +457,56 @@ public partial class CalculatorsWindow : Window
         ShowPump();
     }
 
-    private void OnPumpFuelChanged(object sender, SelectionChangedEventArgs e) => ShowPump();
+    /// <summary>
+    /// Which fuel the BSFC in the box currently belongs to, so that changing the
+    /// fuel can carry the figure across rather than replace it.
+    /// </summary>
+    private Fuel _pumpFuel = Fuel.Petrol;
+
+    /// <summary>
+    /// Moves the BSFC with the fuel, which is the whole reason the two sit on
+    /// the same tab.
+    ///
+    /// Scaled rather than replaced. Someone who typed 0.48 because the engine is
+    /// naturally aspirated, or 0.52 because they measured it on the last tune,
+    /// means something by that number; dropping a boosted convention on top of
+    /// it throws that away. Scaling by energy content keeps what they meant and
+    /// still lands on the right figure for the new fuel.
+    /// </summary>
+    private void OnPumpFuelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PumpBsfc is null) return;
+
+        Fuel chosen = FuelOf(PumpFuel);
+
+        double petrol = TuningMath.PetrolEquivalentBsfc(_pumpFuel, Value(PumpBsfc));
+
+        // Diesel has no petrol equivalent to carry across, so leaving it falls
+        // back to the convention rather than to whatever the diesel figure was.
+        if (double.IsNaN(petrol)) petrol = TuningMath.BoostedBsfc;
+
+        double moved = TuningMath.SuggestedBsfc(chosen, petrol);
+
+        if (!double.IsNaN(moved)) Set(PumpBsfc, Round(moved, 2));
+
+        _pumpFuel = chosen;
+
+        ShowPump();
+    }
 
     private void ShowPump()
     {
         if (PumpBurned is null) return;
 
         Fuel fuel = FuelOf(PumpFuel);
+
+        PumpBsfcHint.Text = TuningMath.BsfcHint(fuel);
+        PumpLegend.Text = TuningMath.BsfcLegend(fuel);
+
+        PumpLegendNote.Text =
+            "The BSFC follows the fuel, scaled by how much energy it carries per kilogram — so a "
+            + "figure you measured or chose for an aspirated engine survives the change rather than "
+            + "being replaced. Type over it whenever you know better.";
 
         double burned = TuningMath.FuelLitresPerHour(Value(PumpPower), Value(PumpBsfc), fuel);
         double needed = TuningMath.PumpLitresPerHour(
@@ -259,7 +515,84 @@ public partial class CalculatorsWindow : Window
         PumpBurned.Text = Show(burned, 0);
         PumpNeeded.Text = Show(needed, 0);
         PumpGallons.Text = Show(needed * 0.264172, 1);
+
+        ShowPumpPicks(fuel, needed);
     }
+
+    /// <summary>
+    /// Which pumps would actually do it, in the part numbers they are sold under.
+    ///
+    /// Compared at the pressure the pump will really see rather than at the one
+    /// its headline figure was measured at. A rail at 43 psi with 20 psi of
+    /// boost on it is 63, and every pump on the list makes appreciably less
+    /// there than the number on its box — which is the mistake this is here to
+    /// stop, since the box is what people compare.
+    /// </summary>
+    private void ShowPumpPicks(Fuel fuel, double needed)
+    {
+        double rail = Value(PumpRailPsi) + Value(PumpBoost);
+
+        // Without trailing zeros, so a base of 43.5 is not echoed back as 44 in
+        // the line explaining what the answer was worked out at.
+        string atPsi = rail.ToString("0.#", CultureInfo.CurrentCulture);
+
+        PumpRailNote.Text = double.IsNaN(rail) || rail <= 0
+            ? "psi — rail pressure rises with boost"
+            : $"psi — the pump works against {atPsi} psi";
+
+        bool alcohol = TuningMath.NeedsAlcoholSafePump(fuel);
+
+        IReadOnlyList<TuningMath.PumpChoice> picks =
+            TuningMath.SuggestPumps(needed, rail, alcohol);
+
+        PumpPicksTitle.Text = double.IsNaN(rail) || rail <= 0 || !(needed > 0)
+            ? "Suggested pumps"
+            : $"Suggested pumps — {needed:N0} L/h at {atPsi} psi"
+              + (alcohol ? ", alcohol-rated only" : string.Empty);
+
+        if (picks.Count == 0)
+        {
+            PumpPicks.Text = needed > 0 && rail > 0
+                ? "  nothing in the list gets there"
+                : "  —";
+
+            PumpPicksNote.Text = needed > 0 && rail > 0
+                ? $"Past about {TuningMath.MostPumpsWorthWiring} in-tank pumps the plumbing is doing "
+                + "more work than the pumps are: the shared line, filter and regulator become the "
+                + "restriction, and a surge tank stops being optional. This is where a belt-driven "
+                + "mechanical pump, or a brushless pump and controller, is the answer instead of "
+                + "another Walbro. Widening the search: a lower base rail pressure, or larger "
+                + "injectors so the rail is not asked for the flow at pressure, both move this."
+                : "Enter a power, a fuel and a rail pressure.";
+
+            return;
+        }
+
+        PumpPicks.Text = string.Join(Environment.NewLine, picks.Take(5).Select(Describe));
+
+        int fewest = picks[0].Count;
+
+        PumpPicksNote.Text =
+            (fewest > 1
+                ? $"Nothing on the list does it alone, so the smallest answer is {fewest} in "
+                + "parallel. Each pump after the first is counted at "
+                + $"{TuningMath.ParallelPumpEfficiency:P0} of its own flow, because they share a "
+                + "line, a filter and a regulator. Two pumps want a surge tank and a check valve "
+                + "on each, or the idle one becomes a leak path for the working one. "
+                : "")
+            + "Flow shown is what the pump still makes at your pressure, estimated from its rating "
+            + $"— roughly {TuningMath.PumpPressureFalloff:P0} lost for a doubling of pressure. Check "
+            + "the maker's own curve at your pressure and at the voltage your car actually holds, "
+            + "since these are quoted at 13.5 V and a sagging system is a slower pump. "
+            + "Part numbers and ratings are transcribed from published data and get superseded — "
+            + "verify before buying.";
+    }
+
+    private static string Describe(TuningMath.PumpChoice choice) =>
+        $"  {choice.Pump.Name,-20} {choice.Pump.Nickname,-11} "
+        + $"{(choice.Count == 1 ? "1 pump " : $"{choice.Count} pumps"),-8} "
+        + $"{choice.DeliveredLitresPerHour,5:N0} L/h"
+        + (choice.Pump.AlcoholSafe ? "  E85" : string.Empty);
 
     // ----- lambda --------------------------------------------------------------
 
@@ -300,15 +633,295 @@ public partial class CalculatorsWindow : Window
         LambdaStoich.Text = $"stoichiometric at {stoich:N2}:1";
         AfrNote.Text = $"on {TuningMath.Name(fuel)}";
 
+        // Nothing at or below zero is a mixture, and the old bands answered a
+        // typed minus sign with "safe" — every relational arm below is false for
+        // a NaN, so anything unguarded falls through to the last one.
         LambdaVerdict.Text = lambda switch
         {
-            double.NaN => "—",
-            < 0.75 => "very rich — safe, and down on power",
-            < 0.95 => "rich of stoichiometric — where a boosted engine is run",
+            double.NaN or <= 0 => "—",
+            < 0.70 => "richer than an engine will take — bore wash and misfire, not power",
+            < 0.80 => "very rich — safe under load, and down on power",
+            < 0.95 => "rich of stoichiometric — where an engine is run under load",
             <= 1.02 => "about stoichiometric — cruise and idle",
             <= 1.10 => "lean of stoichiometric — economy, not power",
             _ => "very lean — fine on light throttle, dangerous under load",
         };
+    }
+
+    // ----- engine --------------------------------------------------------------
+
+    private void OnEngineChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowEngine();
+    }
+
+    private void ShowEngine()
+    {
+        if (EngRatio is null) return;
+
+        double bore = Value(EngBore);
+        double stroke = Value(EngStroke);
+        int cylinders = (int)Value(EngCylinders);
+        double rpm = Value(EngRpm);
+
+        // ----- how big it is ---------------------------------------------------
+
+        double cylinderCc = EngineGeometry.SweptVolumeCc(bore, stroke);
+        double totalCc = EngineGeometry.DisplacementCc(bore, stroke, cylinders);
+
+        EngCylinderCc.Text = Show(cylinderCc, 1);
+        EngLitres.Text = totalCc > 0 ? (totalCc / 1_000).ToString("N2", CultureInfo.CurrentCulture) : "—";
+
+        EngLitresNote.Text = totalCc > 0
+            ? $"litres — {totalCc:N0} cc, {EngineGeometry.CubicInches(totalCc):N0} cubic inches"
+            : "litres";
+
+        EngBoreNote.Text = bore > 0 ? $"mm — {bore / 25.4:N3} in" : "mm";
+        EngStrokeNote.Text = stroke > 0 ? $"mm — {stroke / 25.4:N3} in" : "mm";
+
+        double shape = EngineGeometry.BoreToStroke(bore, stroke);
+
+        EngShapeNote.Text = double.IsNaN(shape)
+            ? "one piston each"
+            : $"bore/stroke {shape:N2} — {(shape > 1.02 ? "oversquare" : shape < 0.98 ? "undersquare" : "square")}";
+
+        // ----- how fast the piston is going ------------------------------------
+
+        double mps = EngineGeometry.MeanPistonSpeed(stroke, rpm);
+
+        EngPistonSpeed.Text = Show(mps, 1);
+        EngPistonNote.Text = double.IsNaN(mps)
+            ? "m/s"
+            : $"m/s — {EngineGeometry.MeanPistonSpeedFeetPerMinute(stroke, rpm):N0} ft/min, "
+              + EngineGeometry.PistonSpeedVerdict(mps);
+
+        // ----- how hard it squeezes --------------------------------------------
+
+        // The gasket's bore is taken as the block's plus a millimetre, which is
+        // the usual overlap and saves asking for a figure nobody has to hand.
+        double gasketThickness = Value(EngGasket);
+        double gasketBore = bore > 0 ? bore + 1 : double.NaN;
+
+        double clearance = EngineGeometry.ClearanceVolumeCc(
+            bore, Value(EngChamber), gasketBore, gasketThickness, Value(EngDeck), Value(EngPiston));
+
+        double ratio = EngineGeometry.CompressionRatio(cylinderCc, clearance);
+
+        EngGasketNote.Text = gasketThickness > 0 && bore > 0
+            ? $"mm thick, compressed — {gasketBore:N0} mm bore, "
+              + $"{EngineGeometry.CylinderVolumeCc(gasketBore, gasketThickness):N1} cc"
+            : "mm thick, compressed";
+
+        EngRatio.Text = double.IsNaN(ratio) ? "—" : $"{ratio:N2}:1";
+        EngRatioNote.Text = double.IsNaN(ratio)
+            ? "static"
+            : $"static — {clearance:N1} cc left above the piston";
+
+        double map = Value(MapKpa);
+        double boosted = EngineGeometry.BoostedCompressionIndex(ratio, map, _barometricKpa);
+
+        EngBoosted.Text = double.IsNaN(boosted) ? "—" : $"{boosted:N1}:1";
+        EngBoostedNote.Text = double.IsNaN(boosted)
+            ? "an index, not a ratio"
+            : $"an index at {map:N0} kPa from the Boost tab — not a real ratio";
+
+        EngNote.Text =
+            "The boosted figure is the static ratio multiplied by the manifold pressure over the "
+            + "atmosphere the engine is breathing, and it is an index for comparing one combination "
+            + "against another rather than a compression ratio. It ignores the charge temperature "
+            + "boost brings with it, which moves the knock limit the wrong way, and the cam timing "
+            + "the static ratio ignores too. Its use is the trade it makes visible: less compression "
+            + "buys boost, and it says roughly how much.";
+    }
+
+    // ----- gearing -------------------------------------------------------------
+
+    private void OnGearingChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowGearing();
+    }
+
+    /// <summary>
+    /// Gear ratios as typed: one line, separated by whatever came to hand.
+    ///
+    /// A box per gear would fix the number of gears, and gearboxes come with
+    /// four, five, six, seven and more. Anything that is not a number is skipped
+    /// rather than treated as a zero, since a trailing comma should not invent a
+    /// gear with an infinite ratio in it.
+    /// </summary>
+    private static IReadOnlyList<double> RatiosIn(string text) =>
+        [.. text
+            .Split([',', ' ', '\t', ';', '/'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => double.TryParse(t, NumberStyles.Float, CultureInfo.CurrentCulture, out double v)
+                ? v
+                : double.NaN)
+            .Where(v => v > 0)];
+
+    private void ShowGearing()
+    {
+        if (GearChart is null) return;
+
+        double diameterMm = double.NaN;
+        string tyreName = string.Empty;
+
+        if (Gearing.TryParseTyre(GearTyre.Text, out Tyre tyre))
+        {
+            diameterMm = tyre.DiameterMm;
+            tyreName = tyre.ToString();
+        }
+
+        GearTyreNote.Text = double.IsNaN(diameterMm)
+            ? "as written on the sidewall — 245/40R18"
+            : $"{tyreName} — {diameterMm:N0} mm, {tyre.DiameterInches:N1} in across";
+
+        double deflection = Value(GearDeflection);
+        double circumference = Gearing.RollingCircumferenceMm(diameterMm, deflection);
+
+        GearRollNote.Text = double.IsNaN(circumference)
+            ? "% the loaded tyre squats"
+            : $"% squat — {circumference:N0} mm of road per turn, "
+              + $"{Gearing.MmPerMile / circumference:N0} turns per mile";
+
+        IReadOnlyList<double> ratios = RatiosIn(GearRatios.Text);
+
+        double redline = Value(GearRedline);
+        double cruise = Value(GearCruise);
+
+        IReadOnlyList<Gearing.GearStep> table =
+            Gearing.Table(ratios, Value(GearFinal), redline, circumference, cruise);
+
+        GearChartTitle.Text = table.Count > 0
+            ? $"{table.Count} gears at {redline:N0} rpm"
+            : "Gears";
+
+        GearChart.Text = table.Count > 0
+            ? Gearing.Chart(table, cruise > 0)
+            : "  a tyre, a final drive, a redline and some ratios";
+
+        if (table.Count == 0)
+        {
+            GearTopMph.Text = "—";
+            GearCruiseRpm.Text = "—";
+            GearTopNote.Text = "mph";
+            GearCruiseNote.Text = "rpm";
+            GearNote.Text = string.Empty;
+
+            return;
+        }
+
+        Gearing.GearStep top = table[^1];
+
+        GearTopMph.Text = Show(top.Mph, 0);
+        GearTopNote.Text = $"mph — {top.Kph:N0} km/h, {redline:N0} rpm in {Ordinal(top.Gear)}";
+
+        GearCruiseRpm.Text = double.IsNaN(top.RpmAtCruise) ? "—" : Show(top.RpmAtCruise, 0);
+        GearCruiseNote.Text = double.IsNaN(top.RpmAtCruise)
+            ? "rpm"
+            : $"rpm at {cruise:N0} mph in {Ordinal(top.Gear)}";
+
+        // Said rather than implied, because "top speed" from a gearing
+        // calculator is the one figure people quote at each other as though it
+        // were a measurement.
+        GearNote.Text =
+            "This is the geared top speed: the tallest gear at the redline, and nothing else. It "
+            + "assumes the engine can still pull that gear against the air, which past about a "
+            + "hundred and fifty miles an hour is a large assumption. A car geared taller than its "
+            + "power can push never reaches the redline in top at all, and what it actually does is "
+            + "set by drag — so treat this as the ceiling the gearbox imposes rather than as a "
+            + "speed the car will see.";
+    }
+
+    private static string Ordinal(int gear) => gear switch
+    {
+        1 => "1st",
+        2 => "2nd",
+        3 => "3rd",
+        _ => $"{gear}th",
+    };
+
+    // ----- octane --------------------------------------------------------------
+
+    private void OnOctaneChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowOctane();
+    }
+
+    private void OnOctaneStockChanged(object sender, SelectionChangedEventArgs e) => ShowOctane();
+
+    private Blendstock StockOf() =>
+        OctStock.SelectedIndex >= 0
+            ? Enum.GetValues<Blendstock>()[OctStock.SelectedIndex]
+            : Blendstock.Ethanol;
+
+    private void ShowOctane()
+    {
+        if (OctChart is null) return;
+
+        Blendstock stock = StockOf();
+
+        double sensitivity = Value(OctSensitivity);
+        double fraction = Value(OctPercent) / 100;
+
+        OctaneResult blend = OctaneBlend.Blend(Value(OctBase), sensitivity, stock, fraction);
+
+        OctAki.Text = Show(blend.AntiKnockIndex, 1);
+        OctRonMon.Text = blend.Ron > 0
+            ? $"{blend.Ron:N1} / {blend.Mon:N1}"
+            : "—";
+
+        OctHov.Text = Show(blend.HeatOfVaporisationKjPerKg, 0);
+        OctCooling.Text = Show(blend.CoolingKjPerKgAir, 0);
+
+        double petrolCooling = OctaneBlend.PetrolCoolingKjPerKgAir;
+
+        OctSensNote.Text = blend.Ron > 0
+            ? $"sensitivity {blend.Ron - blend.Mon:N1}, against the base's {sensitivity:N1}"
+            : "research and motor octane";
+
+        OctHovNote.Text = blend.HeatOfVaporisationKjPerKg > 0
+            ? $"kJ/kg — {blend.HeatOfVaporisationKjPerKg / OctaneBlend.PetrolHov:N2}× neat petrol"
+            : "kJ/kg";
+
+        OctCoolingNote.Text = blend.CoolingKjPerKgAir > 0
+            ? $"kJ per kg of air — {blend.CoolingKjPerKgAir / petrolCooling:N2}× petrol"
+            : "kJ per kg of air";
+
+        // What is in the finished mixture, which is not what is on the jug when
+        // the jug held E85 — half a tank of it leaves 42.5 per cent ethanol.
+        OctMixNote.Text = blend.AntiKnockIndex > 0
+            ? $"% — {blend.EthanolByVolume:P0} alcohol, {blend.AlcoholMoleFraction:P0} by molecule"
+            : "% by volume";
+
+        OctStockNote.Text = stock switch
+        {
+            Blendstock.E85 => "itself 85% ethanol, so it dilutes as it blends",
+            Blendstock.Methanol => "more octane per litre than ethanol, and far colder",
+            _ => "RON 109, MON 90 neat",
+        };
+
+        OctChartTitle.Text = $"Anti-knock index with {OctaneBlend.Name(stock)} by volume";
+        OctChart.Text = OctaneBlend.Chart(stock);
+
+        OctCoolingTitle.Text = "Heat of vaporisation, and what it is worth per kg of air";
+        OctCoolingChart.Text = OctaneBlend.CoolingChart(stock);
+
+        // Said once, plainly: the chart above does not depend on the sensitivity
+        // box, and it is worth knowing which figures an answer actually rests on.
+        OctNote.Text =
+            "The chart is unaffected by the sensitivity above. Splitting a pump number into RON and "
+            + "MON adds half the sensitivity to one and takes it off the other, and averaging them "
+            + "back cancels it exactly — so the index a blend lands on does not depend on that "
+            + "assumption at all. It only changes the RON and MON shown separately. "
+            + $"Petrol's own heat of vaporisation is a range rather than a figure — {OctaneBlend.PetrolHov:N0} "
+            + "kJ/kg is used here and published values run from about 305 to 350 — so the cooling "
+            + "figures are worth a tenth either way. The alcohols are compounds and are pinned much "
+            + "better than that.";
     }
 
     // ----- airflow -------------------------------------------------------------
@@ -326,7 +939,15 @@ public partial class CalculatorsWindow : Window
 
         double litres = Value(AirLitres);
         double boostKpa = Value(AirBoost) * TuningMath.KpaPerPsi;
-        double ratio = TuningMath.PressureRatio(TuningMath.AbsoluteFromGauge(boostKpa));
+
+        // Local barometric on the top and sea level underneath, which looks like
+        // a mistake and is the point. The manifold is at gauge plus whatever the
+        // engine is breathing, but the density this scales is the standard one
+        // the lb/ft³ constant is quoted at. Dividing by local barometric too
+        // would cancel the altitude out and overstate the air by a fifth up
+        // high — and it would do it while showing a perfectly plausible number.
+        double absolute = TuningMath.AbsoluteFromGauge(boostKpa, _barometricKpa);
+        double ratio = TuningMath.ChargeDensityRatio(absolute);
 
         double cfm = TuningMath.CubicFeetPerMinute(litres, Value(AirRpm), Value(AirVe), ratio);
 
@@ -336,10 +957,74 @@ public partial class CalculatorsWindow : Window
 
         AirRatio.Text = double.IsNaN(ratio)
             ? "psi"
-            : $"psi — a pressure ratio of {ratio:N2}";
+            : $"psi — {absolute:N0} kPa absolute, {ratio:N2}× sea-level air";
+
+        AirBaroNote.Text = BarometricSummary()
+            + " The compressor's own pressure ratio moves the other way with altitude, and is on "
+            + "that tab too.";
+
+        double lbMin = TuningMath.AirPoundsPerMinute(cfm);
 
         AirCfm.Text = Show(cfm, 0);
-        AirLbMin.Text = Show(TuningMath.AirPoundsPerMinute(cfm), 1);
+        AirLbMin.Text = Show(lbMin, 1);
         AirM3h.Text = Show(TuningMath.CubicMetresPerHour(cfm), 0);
+
+        ShowPower(lbMin);
+    }
+
+    /// <summary>
+    /// What that air is worth in power, on the three fuels worth comparing.
+    ///
+    /// The comparison is like for like: one lambda and one efficiency, with each
+    /// fuel's own BSFC scaled from the petrol figure by its energy content. Give
+    /// the alcohols their real BSFC against petrol's and they would look worse
+    /// than petrol, which is the wrong answer arrived at by comparing a fuel
+    /// against itself.
+    /// </summary>
+    private void ShowPower(double airPoundsPerMinute)
+    {
+        double lambda = Value(AirLambda);
+        double bsfc = Value(AirBsfc);
+
+        double petrol = TuningMath.HorsepowerFromAir(airPoundsPerMinute, Fuel.Petrol, lambda, bsfc);
+        double ethanol = TuningMath.HorsepowerFromAir(airPoundsPerMinute, Fuel.Ethanol, lambda, bsfc);
+        double methanol = TuningMath.HorsepowerFromAir(airPoundsPerMinute, Fuel.Methanol, lambda, bsfc);
+
+        AirHpPetrol.Text = Show(petrol, 0);
+        AirHpEthanol.Text = Show(ethanol, 0);
+        AirHpMethanol.Text = Show(methanol, 0);
+
+        AirHpPetrolNote.Text = FuelPowerNote(Fuel.Petrol, lambda, bsfc, petrol, petrol);
+        AirHpEthanolNote.Text = FuelPowerNote(Fuel.Ethanol, lambda, bsfc, ethanol, petrol);
+        AirHpMethanolNote.Text = FuelPowerNote(Fuel.Methanol, lambda, bsfc, methanol, petrol);
+
+        AirLambdaNote.Text = double.IsNaN(lambda) || lambda <= 0
+            ? "at full throttle, not at cruise"
+            : $"at full throttle — {TuningMath.AfrFromLambda(lambda, Fuel.Petrol):N1}:1 on petrol";
+
+        // The point most of a workshop would argue with, so it is said plainly
+        // and the arithmetic above it is there to be checked.
+        AirPowerNote.Text = petrol > 0
+            ? "The same air is very nearly the same power on any fuel: a pound of air carries about "
+            + "as much energy whichever fuel comes with it, so at the same lambda the alcohols are "
+            + "worth a few per cent and no more. What makes them worth having is that they resist "
+            + "knock and cool the charge, which buys boost and timing — and that arrives as more "
+            + "air, further up this tab, rather than as more power per pound of it."
+            : "Power needs a lambda and a BSFC above.";
+    }
+
+    /// <summary>The AFR and BSFC behind one of the power figures, and what it is worth against petrol.</summary>
+    private static string FuelPowerNote(Fuel fuel, double lambda, double bsfc, double hp, double petrolHp)
+    {
+        double afr = TuningMath.AfrFromLambda(lambda, fuel);
+        double own = TuningMath.SuggestedBsfc(fuel, bsfc);
+
+        if (double.IsNaN(afr) || double.IsNaN(own) || hp <= 0) return "hp at the crank";
+
+        string against = fuel == Fuel.Petrol
+            ? string.Empty
+            : $", {(hp / petrolHp) - 1:+0.0%;-0.0%} on petrol";
+
+        return $"hp — {afr:N1}:1, BSFC {own:N2}{against}";
     }
 }
