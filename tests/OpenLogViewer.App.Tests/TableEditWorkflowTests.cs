@@ -1,4 +1,4 @@
-using OpenLogViewer.Core;
+﻿using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App.Tests;
 
@@ -165,5 +165,186 @@ public class TableEditWorkflowTests
         MainViewModel vm = WithTable(out _);
 
         Assert.Contains("Not connected", vm.BurnTableToEcu(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ----- the tools on the page --------------------------------------------
+
+    [Fact]
+    public void TheButtonsRaiseTheSameRequestsTheKeyboardDoes()
+    {
+        // The buttons exist because the keys are not discoverable, not because
+        // they do anything different. Anything else and the two drift apart.
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(1, 1);
+
+        double before = vm.TableEdit![1, 1];
+
+        vm.EditTable(TuneTableEdit.Add(vm.TableNudge));
+        Assert.Equal(before + vm.TableNudge, vm.TableEdit[1, 1], 6);
+
+        vm.EditTable(TuneTableEdit.Add(-vm.TableNudge));
+        Assert.Equal(before, vm.TableEdit[1, 1], 6);
+        Assert.False(vm.HasTableChanges);
+    }
+
+    [Fact]
+    public void SettingACellPutsExactlyThatValueInIt()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = new TuneSelection(0, 0, 1, 1);
+
+        vm.EditTable(TuneTableEdit.Set(77.5));
+
+        Assert.Equal(77.5, vm.TableEdit![0, 0], 6);
+        Assert.Equal(77.5, vm.TableEdit[1, 1], 6);
+        Assert.NotEqual(77.5, vm.TableEdit[3, 2]);
+    }
+
+    [Fact]
+    public void InterpolatingStraightensTheMiddleOfASelection()
+    {
+        MainViewModel vm = WithTable(out _);
+
+        // The top row runs 60, 61, 62, 63. Pull the middle two about.
+        vm.SelectedCells = TuneSelection.Cell(1, 0);
+        vm.EditTable(TuneTableEdit.Set(20));
+        vm.SelectedCells = TuneSelection.Cell(2, 0);
+        vm.EditTable(TuneTableEdit.Set(90));
+
+        vm.SelectedCells = new TuneSelection(0, 0, 3, 0);
+        vm.EditTable(TuneTableEdit.Interpolate());
+
+        Assert.Equal(61, vm.TableEdit![1, 0], 6);
+        Assert.Equal(62, vm.TableEdit[2, 0], 6);
+        Assert.False(vm.TableEdit.IsChanged(1, 0));
+        Assert.False(vm.TableEdit.IsChanged(2, 0));
+    }
+
+    [Fact]
+    public void InterpolatingASelectionWithNoMiddleSaysSoRatherThanDoingNothingQuietly()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(1, 1);
+
+        vm.EditTable(TuneTableEdit.Interpolate());
+
+        Assert.False(vm.HasTableChanges);
+        Assert.Contains("three cells", vm.Hint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheNudgeFollowsTheTablesOwnStorageStep()
+    {
+        // Anything finer than the firmware's resolution is rounded away by the
+        // ECU, which reads as the write having been ignored.
+        var vm = new MainViewModel();
+
+        vm.SelectedEcuTable = Fuel();
+
+        Assert.Equal(vm.TableEdit!.Step, vm.TableNudge, 6);
+    }
+
+    // ----- what it would become ---------------------------------------------
+
+    [Fact]
+    public void TheReadoutShowsWhatTheCellWouldBecome()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(1, 1);
+
+        Assert.False(vm.HasTableChangePreview);
+
+        vm.EditTable(TuneTableEdit.Add(4));
+
+        Assert.True(vm.HasTableChangePreview);
+        Assert.Equal("62", vm.TableChangeFrom);
+        Assert.Equal("66", vm.TableChangeTo);
+        Assert.Contains("+4", vm.TableChangeDelta);
+        Assert.Contains("not sent", vm.TableChangeState);
+    }
+
+    [Fact]
+    public void AnUntouchedCellShowsItsValueAndNoArrow()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(2, 1);
+
+        Assert.False(vm.HasTableChangePreview);
+        Assert.Equal(vm.TableChangeFrom, vm.TableChangeTo);
+        Assert.Equal("", vm.TableChangeDelta);
+        Assert.Equal("unchanged", vm.TableChangeState);
+    }
+
+    [Fact]
+    public void ASelectionShowsTheRangeItWouldBecome()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = new TuneSelection(0, 0, 3, 0);
+
+        vm.EditTable(TuneTableEdit.Add(2));
+
+        // The top row is 60..63, so it becomes 62..65 with every cell moving
+        // by the same amount.
+        Assert.Equal("60–63", vm.TableChangeFrom);
+        Assert.Equal("62–65", vm.TableChangeTo);
+        Assert.Contains("every cell", vm.TableChangeDelta);
+    }
+
+    [Fact]
+    public void ScalingASelectionShowsThatTheCellsMovedByDifferentAmounts()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = new TuneSelection(0, 0, 3, 0);
+
+        vm.EditTable(TuneTableEdit.Scale(10));
+
+        Assert.DoesNotContain("every cell", vm.TableChangeDelta);
+        Assert.Contains("to", vm.TableChangeDelta);
+    }
+
+    [Fact]
+    public void TheReadoutFollowsTheSelectionWithoutAnythingBeingEdited()
+    {
+        // Moving the cursor has to update the readout, or it describes the cell
+        // that was selected two clicks ago.
+        MainViewModel vm = WithTable(out _);
+
+        vm.SelectedCells = TuneSelection.Cell(0, 0);
+        string first = vm.TableChangeFrom;
+        string firstWhere = vm.TableChangeWhere;
+
+        vm.SelectedCells = TuneSelection.Cell(3, 2);
+
+        Assert.NotEqual(first, vm.TableChangeFrom);
+        Assert.NotEqual(firstWhere, vm.TableChangeWhere);
+    }
+
+    [Fact]
+    public void TheReadoutNamesWhereTheCellIs()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(1, 1);
+
+        Assert.Contains("2000", vm.TableChangeWhere);
+        Assert.Contains("60", vm.TableChangeWhere);
+
+        vm.SelectedCells = new TuneSelection(0, 0, 1, 1);
+
+        Assert.Contains("2×2", vm.TableChangeWhere);
+    }
+
+    [Fact]
+    public void RevertingTheSelectionLeavesTheReadoutSayingUnchanged()
+    {
+        MainViewModel vm = WithTable(out _);
+        vm.SelectedCells = TuneSelection.Cell(1, 1);
+
+        vm.EditTable(TuneTableEdit.Add(4));
+        Assert.True(vm.HasTableChangePreview);
+
+        vm.EditTable(TuneTableEdit.RevertSelection());
+
+        Assert.False(vm.HasTableChangePreview);
+        Assert.Equal("unchanged", vm.TableChangeState);
     }
 }

@@ -9,10 +9,20 @@
         ShowInTaskbar="False">
 
     <Window.Resources>
+        <!--
+            Every numeric field selects itself when it takes focus, so typing
+            replaces the number rather than joining onto it. These boxes hold
+            working values rather than placeholders — the window computes as you
+            type — so emptying them on focus would leave a page of dashes, and
+            ghost text would mean nothing to read until eight boxes were filled.
+            A second click still places the caret for editing one digit.
+        -->
         <Style x:Key="Field" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="90"/>
             <Setter Property="HorizontalContentAlignment" Value="Right"/>
             <Setter Property="Margin" Value="0,2"/>
+            <EventSetter Event="GotKeyboardFocus" Handler="OnFieldFocused"/>
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OnFieldClicked"/>
         </Style>
 
         <Style x:Key="Label" TargetType="TextBlock">
