@@ -784,6 +784,7 @@ public partial class MainWindow : Window
         {
             Add(new Separator());
             Add(Obd2Menu(ports));
+            Add(SsmMenu(ports));
         }
 
         if (!includeSettings) return;
@@ -921,6 +922,73 @@ public partial class MainWindow : Window
     /// from a tuning cable without talking to it, and the two want opposite
     /// opening moves — so it is asked for rather than guessed.
     /// </summary>
+    /// <summary>
+    /// Connecting over Subaru's own protocol rather than the standard.
+    ///
+    /// Its own entry rather than something guessed at from the adapter's name,
+    /// because SSM is a deliberate choice with a real cost: it reads what the ECU
+    /// has learnt -- knock correction, the learnt timing, fuelling trims -- and
+    /// none of that is in OBD2, but it manages about one round a second against
+    /// OBD2's three. Nobody should land on it by accident.
+    /// </summary>
+    private MenuItem SsmMenu(IReadOnlyList<SerialPortInfo> ports)
+    {
+        var menu = new MenuItem
+        {
+            Header = "Connect over SSM (Subaru)",
+            ToolTip = "Subaru's own protocol. Reads knock correction, learnt timing and "
+                      + "fuelling trims, which OBD2 does not carry at any speed — about one "
+                      + "round a second. Addresses come from ssm-parameters.json in the "
+                      + "definitions folder.",
+        };
+
+        foreach (SerialPortInfo port in ports)
+        {
+            var item = new MenuItem
+            {
+                Header = port.Label.Replace("_", "__", StringComparison.Ordinal),
+            };
+
+            item.Click += (_, _) => StartLiveOverSsm(port.PortName);
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+
+        var edit = new MenuItem
+        {
+            Header = "Edit the parameter list…",
+            ToolTip = "Which addresses are read, and what they mean",
+        };
+
+        edit.Click += (_, _) => OpenFolder(_vm.Workspace.EnsureDefinitions());
+        menu.Items.Add(edit);
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Starts an SSM session, reporting the ways it can refuse.
+    ///
+    /// It refuses more readily than an OBD2 connection does, and deliberately: the
+    /// addresses are the user's own and every one of them may be wrong, so a
+    /// session that started happily and showed a screen of dashes would be a worse
+    /// outcome than one that will not start and says which address was refused.
+    /// </summary>
+    private void StartLiveOverSsm(string port)
+    {
+        try
+        {
+            _vm.ConnectSsm(port);
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException
+                                      or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show(this, e.Message, "OpenLogViewer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)
     {
         var menu = new MenuItem

@@ -2033,6 +2033,138 @@ public sealed class MainViewModel : ObservableObject
     public void ConnectObd2(IEcuTransport transport, string port) =>
         StartObd2(Elm327Source.Connect(transport), port);
 
+    // ----- Subaru's own protocol ---------------------------------------------
+
+    /// <summary>
+    /// Connects to a Subaru over SSM, reading the addresses from the definitions
+    /// folder.
+    ///
+    /// A separate act from connecting over OBD2, because it is a different
+    /// conversation with a different set of channels — and because the addresses
+    /// are the user's to supply, so this can fail in a way a standard OBD2
+    /// connection never does.
+    /// </summary>
+    public void ConnectSsm(string port) =>
+        ConnectSsm(new SerialEcuTransport(port) { OpenAttempts = 3 }, port);
+
+    /// <summary>The same, over a link already decided on, so the path can be tested.</summary>
+    public void ConnectSsm(IEcuTransport transport, string port)
+    {
+        IReadOnlyList<SsmParameter> parameters =
+            SsmParameterFile.ReadFrom(Workspace.EnsureDefinitions());
+
+        StartSsm(SsmSource.Connect(transport, parameters), port);
+    }
+
+    /// <summary>Where the addresses are read from, for pointing somebody at it.</summary>
+    public string SsmParameterPath =>
+        SsmParameterFile.PathIn(Workspace.Ensure(Workspace.Definitions));
+
+    private void StartSsm(SsmSource source, string port)
+    {
+        Disconnect();
+
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
+
+        _live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+
+            // No point pacing above what the link can do. One address per request
+            // at about 146 ms means a handful of parameters is under 1 Hz, and a
+            // faster cap would only spin the loop.
+            MaximumRate = Math.Min(LiveRate, 5),
+        });
+
+        _live.Start();
+
+        _livePort = port;
+        _liveSignature = source.Adapter.Length > 0 ? $"SSM · {source.Adapter}" : "SSM";
+        _liveVersion = "";
+        _liveIni = SsmParameterPath;
+        _liveRecording = recording ?? "";
+
+        SeedSsmGauges(source);
+
+        SerialPortNames.Remember(port, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+        Raise(nameof(CanReconnect));
+
+        Status = $"Live — SSM   •   {_live.Names.Count} parameters   •   {source.Adapter}";
+        Title = "Live: SSM — OpenLogViewer";
+
+        Hint = $"{Opening(recording)} Reading {source.Parameters.Count} parameter"
+               + $"{(source.Parameters.Count == 1 ? "" : "s")} over Subaru's own protocol — one "
+               + "address per request, so this updates about once a second. That suits what SSM "
+               + $"is for: values the ECU has learnt, which move over minutes. Edit {SsmParameterFile.Name} "
+               + "in the definitions folder to change what is read.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        RaiseRecording();
+    }
+
+    /// <summary>
+    /// Builds gauges from the parameters the file declares.
+    ///
+    /// Every one of them reaches the dashboard, unlike OBD2 where a car reporting
+    /// thirty parameters would open as thirty dials. A list somebody wrote by hand
+    /// is already the short list.
+    /// </summary>
+    private void SeedSsmGauges(SsmSource source)
+    {
+        foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
+
+        AllGauges.Clear();
+        Dashboard.Clear();
+        _gaugeIni = null;
+        _revCounterScaled = false;
+
+        foreach (SsmParameter parameter in source.Parameters)
+        {
+            var spec = new GaugeSpec
+            {
+                Name = parameter.Name,
+                Channel = parameter.Name,
+                Title = parameter.Name,
+                Units = parameter.Units,
+
+                // Named for the address as well as the parameter, because the
+                // address is what a forum post or a definition file quotes and
+                // the name is whatever the person typed.
+                Category = $"SSM · 0x{parameter.Address:X6}",
+                Low = parameter.Low,
+                High = parameter.High,
+                ValueDigits = parameter.Digits,
+                LabelDigits = parameter.Digits > 1 ? 1 : parameter.Digits,
+
+                // No warning or danger bands. The file says what an address is
+                // and never what a safe value would be, and inventing a red arc
+                // for a number nobody here understands would be worse than a
+                // plain dial.
+            };
+
+            var item = new GaugeItem(spec, parameter.Name);
+            item.Show(Units);
+            item.Show(true);
+            item.ShownChanged += OnGaugeShownChanged;
+
+            AllGauges.Add(item);
+            Dashboard.Add(item);
+        }
+
+        _projectTuneName = $"the addresses in {SsmParameterFile.Name}";
+
+        GaugeChoices.Refresh();
+        Raise(nameof(GaugeSummary));
+        Raise(nameof(HasGauges));
+        Raise(nameof(NoGauges));
+    }
+
     /// <summary>
     /// The OBD2 link, where the live session is one.
     ///

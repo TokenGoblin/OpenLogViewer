@@ -172,6 +172,32 @@
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
 
                 <!--
+                    Beside Open log, so it is obvious that both can be opened.
+
+                    It was moved out of here when the toolbar had thirteen
+                    controls in it and was trimming its own buttons to "R…", and
+                    it went to the histogram sidebar next to Axis breakpoints —
+                    which is where it is wanted once you are already binning a log
+                    against a tune, and invisible from the Log view you actually
+                    land in. Somebody went looking for it and could not find it,
+                    which is the only test of discoverability that counts.
+
+                    Docked left and early so it keeps its width; what gives way at
+                    a narrow window is the status text, which is last.
+                -->
+                <Button Content="Open tune…" Click="OnOpenTuneClick" Margin="6,0,0,0"
+                        DockPanel.Dock="Left"
+                        ToolTip="Use tables from a .msq file instead of the one stored in the log">
+                    <Button.ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                  RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
+                                      IsEnabled="{Binding UsingLoadedTune}"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+
+                <!--
                     The ECU you were on last, as one click.
 
                     Named after the ECU rather than the port: the COM number is
