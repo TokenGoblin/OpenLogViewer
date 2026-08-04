@@ -30,6 +30,18 @@ internal sealed class FakeElm : IEcuTransport
     /// </summary>
     public Dictionary<byte, List<byte[]>> ExtraAnswers { get; } = [];
 
+    /// <summary>What ATZ and ATI report, which every adapter answers with.</summary>
+    public string Elm327Name { get; init; } = "ELM327 v1.5";
+
+    /// <summary>
+    /// What STDI reports, where the adapter has an STN chip in it — "OBDLink
+    /// r2.6". Empty for the clones, which refuse the command.
+    /// </summary>
+    public string Product { get; init; } = "";
+
+    /// <summary>What STI reports on the same devices — "STN1100 v2.2.2".</summary>
+    public string Firmware { get; init; } = "";
+
     public bool Echo { get; private set; } = true;
 
     public bool Spaces { get; private set; } = true;
@@ -97,9 +109,19 @@ internal sealed class FakeElm : IEcuTransport
 
         switch (command.ToUpperInvariant())
         {
-            case "ATZ": Echo = true; Spaces = true; Say("ELM327 v1.5"); break;
+            case "ATZ": Echo = true; Spaces = true; Say(Elm327Name); break;
+            case "ATI": Say(Elm327Name); break;
             case "ATE0": Echo = false; Say("OK"); break;
             case "ATS0": Spaces = false; Say("OK"); break;
+
+            // The ST commands, which only the STN chips behind an OBDLink have.
+            // A plain ELM327 and every clone answer "?" — which is the thing that
+            // tells one from the other, so the fake has to refuse them properly
+            // rather than not recognise them at all.
+            case "STDI": Say(Product.Length > 0 ? Product : "?"); break;
+            case "STI": Say(Firmware.Length > 0 ? Firmware : "?"); break;
+            case var st when st.StartsWith("ST", StringComparison.Ordinal): Say("?"); break;
+
             case var at when at.StartsWith("AT", StringComparison.Ordinal): Say("OK"); break;
             default: Mode01(command); break;
         }

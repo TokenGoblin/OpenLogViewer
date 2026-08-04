@@ -57,15 +57,13 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// alternative is a wrong guess in the other direction: probing an adapter
     /// with TunerStudio commands finds nothing and reports an unknown ECU, which
     /// is a confusing thing to be told about a dongle that is working perfectly.
-    /// The names are what the common ones advertise as. A dongle calling itself
-    /// something else still connects from the menu's OBD2 entry.
+    /// A dongle calling itself something else still connects from the menu's
+    /// OBD2 entry.
+    ///
+    /// The names live in the core, shared with the Bluetooth LE list, because
+    /// this used to keep its own copy and the two had already drifted apart.
     /// </summary>
-    public bool IsObd2 => Obd2Names.Any(
-        n => DeviceName.Contains(n, StringComparison.OrdinalIgnoreCase)
-             || Description.Contains(n, StringComparison.OrdinalIgnoreCase));
-
-    private static readonly string[] Obd2Names =
-        ["OBDII", "OBD2", "OBDLink", "ELM327", "Vgate", "V-LINK", "VEEPEAK", "Konnwei"];
+    public bool IsObd2 => Obd2Adapters.LooksLikeOne(DeviceName, Description);
 
     /// <summary>
     /// What to show in the connect menu.

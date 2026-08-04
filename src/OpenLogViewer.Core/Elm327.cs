@@ -62,6 +62,68 @@ public sealed class Elm327(IEcuTransport transport)
     private static readonly string[] Setup = ["ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"];
 
     /// <summary>
+    /// What the adapter actually is, which is not what it says it is.
+    ///
+    /// Every OBD2 adapter answers <c>ATI</c> with an ELM327 version, genuine or
+    /// otherwise, because everything ever written for these expects one — an
+    /// OBDLink r2.6 reports "ELM327 v1.3a", and the real ELM327 v1.3a it is
+    /// claiming to be was superseded a decade before this device was built.
+    ///
+    /// The STN chips that OBDLink and a few others are built on answer two more
+    /// questions that a clone does not: <c>STDI</c> with the product — "OBDLink
+    /// r2.6" — and <c>STI</c> with the firmware, "STN1100 v2.2.2". So this both
+    /// names the hardware properly and, by getting an answer at all, distinguishes
+    /// a real one from a copy.
+    ///
+    /// Falls back to the ELM327 name, which is what an adapter without the
+    /// extended command set has to offer. An unsupported command is answered with
+    /// "?" rather than an error, so that is the thing to recognise.
+    /// </summary>
+    public string Identify()
+    {
+        string elm = Clean(Send("ATI", Timeout));
+
+        string product = Extended("STDI");
+        string firmware = Extended("STI");
+
+        return (product.Length, firmware.Length, elm.Length) switch
+        {
+            ( > 0, > 0, _) => $"{product} ({firmware})",
+            ( > 0, 0, _) => product,
+            (0, > 0, > 0) => $"{elm} ({firmware})",
+            (0, > 0, 0) => firmware,
+            _ => elm,
+        };
+    }
+
+    /// <summary>
+    /// One of the ST commands, or empty where the adapter has no such thing.
+    ///
+    /// An ELM327 answers an unknown command with "?", and a clone that never
+    /// heard of these answers that or nothing at all. Either way there is no
+    /// product name to be had, which is itself worth knowing.
+    /// </summary>
+    private string Extended(string command)
+    {
+        string reply = Send(command, Timeout);
+
+        foreach (string line in reply.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            string text = line.Trim();
+
+            // The echo of the command comes back when echo is still on, and "?"
+            // is how anything unrecognised is refused.
+            if (text.Length == 0 || text == "?") continue;
+            if (text.Equals(command, StringComparison.OrdinalIgnoreCase)) continue;
+            if (text.Equals("OK", StringComparison.OrdinalIgnoreCase)) continue;
+
+            return text;
+        }
+
+        return "";
+    }
+
+    /// <summary>
     /// Sends one command and returns everything up to the prompt.
     ///
     /// Line breaks are kept. An adapter puts each response on its own line and

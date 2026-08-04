@@ -102,7 +102,14 @@ public sealed class Elm327Source : ILiveSource
         transport.Open();
 
         var elm = new Elm327(transport);
-        string adapter = elm.Reset();
+        string reset = elm.Reset();
+
+        // Asked after the reset, so the answers arrive with the echo already off.
+        // The name from the reset is kept as the fallback: it is what proves an
+        // adapter answered at all, and Identify can come back empty on a device
+        // that is being sent noise.
+        string adapter = reset.Length > 0 ? elm.Identify() : "";
+        if (adapter.Length == 0) adapter = reset;
 
         IReadOnlyList<Obd2Pid> pids = Obd2Pids.Known(Supported(elm));
 

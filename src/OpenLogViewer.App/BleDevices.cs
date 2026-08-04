@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Management;
 using Windows.Devices.Bluetooth.Advertisement;
+using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
 
@@ -11,15 +12,12 @@ public sealed record BleDevice(string Name, ulong Address)
     /// <summary>
     /// Whether this looks like an OBD2 adapter.
     ///
-    /// The same guess made for the Classic ones, for the same reason: there is
-    /// nothing else to go on. A BLE device publishes no profile that says "I am
-    /// an ELM327" — the serial services these use are vendor numbers that mean
-    /// whatever the maker decided.
+    /// The same guess made for the Classic ones, from the same shared list, for
+    /// the same reason: there is nothing else to go on. A BLE device publishes no
+    /// profile that says "I am an ELM327" — the serial services these use are
+    /// vendor numbers that mean whatever the maker decided.
     /// </summary>
-    public bool IsObd2 => Names.Any(n => Name.Contains(n, StringComparison.OrdinalIgnoreCase));
-
-    private static readonly string[] Names =
-        ["OBDII", "OBD2", "OBDLink", "ELM327", "Vgate", "V-LINK", "VEEPEAK", "Konnwei", "vLinker"];
+    public bool IsObd2 => Obd2Adapters.LooksLikeOne(Name);
 
     public string Label => $"{Name} (Bluetooth LE)";
 }
