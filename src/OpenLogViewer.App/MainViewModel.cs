@@ -2979,6 +2979,8 @@ public sealed class MainViewModel : ObservableObject
         if (mask.UnknownChannels.Count > 0)
             parts.Add($"not in this log: {string.Join(", ", mask.UnknownChannels.Distinct())}");
 
+        if (ApplyComparison()) parts.Insert(0, $"difference against {CompareName}");
+
         Hint = string.Join("   •   ", parts);
     }
 
@@ -3761,8 +3763,187 @@ public sealed class MainViewModel : ObservableObject
         item.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.Units.Contains(_search, StringComparison.OrdinalIgnoreCase)
         || item.CategoryName.Contains(_search, StringComparison.OrdinalIgnoreCase);
+
+    // ----- a second log, read against the first ---------------------------------
+
+    private LogDocument? _compare;
+    private bool _showDifference = true;
+
+    /// <summary>The log being compared against, where one is open.</summary>
+    public LogDocument? CompareDocument => _compare;
+
+    public bool HasComparison => _compare is not null;
+
+    public bool NoComparison => _compare is null;
+
+    /// <summary>What the two logs have in common, worked out when the second was opened.</summary>
+    public ChannelOverlap? Overlap { get; private set; }
+
+    /// <summary>The comparison log's name, for the toolbar.</summary>
+    public string CompareName =>
+        _compare is null ? "" : Path.GetFileName(_compare.FilePath);
+
+    /// <summary>
+    /// Whether the table shows the difference or just the first log.
+    ///
+    /// A toggle rather than a separate view, because the thing somebody actually
+    /// does is look at one, look at the change, and look back.
+    /// </summary>
+    public bool ShowDifference
+    {
+        get => _showDifference;
+        set { if (Set(ref _showDifference, value)) HistogramInvalidated?.Invoke(); }
+    }
+
+    /// <summary>What the comparison amounts to, for the sidebar.</summary>
+    public string CompareSummary { get; private set; } = "";
+
+    /// <summary>
+    /// Opens a second log to read the first against.
+    ///
+    /// Reported rather than thrown: a file that will not load is an ordinary thing
+    /// to pick by mistake, and it should cost the comparison rather than the
+    /// session.
+    /// </summary>
+    public string LoadComparison(string path)
+    {
+        if (Document is null) return "Open a log first, then a second one to compare it against.";
+
+        try
+        {
+            LogDocument second = LogReaderFactory.Load(path);
+
+            Overlap = LogComparison.Compare(Document, second);
+
+            if (!Overlap.AnythingShared)
+            {
+                Overlap = null;
+                return Overlap?.Summary
+                       ?? "That log shares no channel names with this one, so there is nothing "
+                          + "to compare. They are probably from different firmware.";
+            }
+
+            _compare = second;
+
+            RaiseComparison();
+            HistogramInvalidated?.Invoke();
+
+            return $"Comparing against {Path.GetFileName(path)}. {Overlap.Summary}";
+        }
+        catch (Exception e) when (e is LogFormatException or IOException
+                                      or UnauthorizedAccessException or NotSupportedException)
+        {
+            return $"Could not open that log: {e.Message}";
+        }
+    }
+
+    public void ClearComparison()
+    {
+        if (_compare is null) return;
+
+        _compare = null;
+        Overlap = null;
+        CompareSummary = "";
+
+        RaiseComparison();
+        HistogramInvalidated?.Invoke();
+    }
+
+    private void RaiseComparison()
+    {
+        Raise(nameof(CompareDocument));
+        Raise(nameof(HasComparison));
+        Raise(nameof(NoComparison));
+        Raise(nameof(CompareName));
+        Raise(nameof(CompareSummary));
+    }
+
+    /// <summary>
+    /// The same table built from the comparison log, on the first one's axes.
+    ///
+    /// On <em>the first one's</em> axes, and that is the whole trick. Two logs
+    /// binned independently choose their own ranges from their own data, so their
+    /// cells would not line up and subtracting them would compare 2,400 rpm
+    /// against 2,650. Passing the first table's own centres as the second's
+    /// breakpoints forces them onto one grid.
+    ///
+    /// The second log is read whole rather than over the zoomed range: a sample
+    /// index means nothing between two files, and silently applying the first
+    /// log's zoom to the second would compare a pull against whatever happened to
+    /// be at the same offset in a different drive.
+    /// </summary>
+    private HistogramTable? CompareTable(HistogramTable against)
+    {
+        if (_compare is not { } second || XAxis is null || YAxis is null || ZAxis is null) return null;
+
+        LogChannel? x = second.FindChannel(XAxis.Channel.Name);
+        LogChannel? y = second.FindChannel(YAxis.Channel.Name);
+        LogChannel? z = second.FindChannel(ZAxis.Channel.Name);
+
+        if (x is null || y is null || z is null) return null;
+
+        LogChannel? compareTo = _zCompare.Channel is { } option
+            ? second.FindChannel(option.Channel.Name)
+            : null;
+
+        SampleMask mask = SampleFilter.Build(second, Filters.Select(f => f.Filter));
+
+        return HistogramTable.Build(
+            x, y, z,
+            against.ColumnCenters, against.RowCenters,
+            0, second.SampleCount - 1, _statistic, mask, compareTo);
+    }
+
+    /// <summary>
+    /// Turns the table into a difference, where a comparison is open and wanted.
+    ///
+    /// Returns false when there is nothing to compare — a missing channel, or two
+    /// runs that never visited the same cell — and says why, rather than leaving a
+    /// table that looks empty for no stated reason.
+    /// </summary>
+    private bool ApplyComparison()
+    {
+        if (Table is null || _compare is null || !_showDifference) return false;
+
+        HistogramTable? other = CompareTable(Table);
+
+        if (other is null)
+        {
+            CompareSummary =
+                $"{CompareName} does not carry all three of these channels, so the difference "
+                + "cannot be worked out. Pick axes both logs have.";
+
+            Raise(nameof(CompareSummary));
+            return false;
+        }
+
+        (int both, int onlyFirst, int onlySecond) = LogComparison.Coverage(Table, other);
+
+        if (both == 0)
+        {
+            CompareSummary =
+                "The two runs never visited the same cell, so there is nothing to subtract. "
+                + "They may have been driven in different gears or over a different range.";
+
+            Raise(nameof(CompareSummary));
+            return false;
+        }
+
+        Table = LogComparison.Difference(Table, other);
+
+        ComparisonSummary summary = LogComparison.Summarise(Table);
+
+        CompareSummary = summary.Any
+            ? $"{both} cells in both runs · average change {summary.Mean:+0.##;-0.##;0}"
+              + $" · largest {summary.Largest:+0.##;-0.##;0}"
+              + $" at {summary.AtColumn:N0} × {summary.AtRow:N0}"
+              + (onlyFirst + onlySecond > 0
+                  ? $" · {onlyFirst} cells only this log, {onlySecond} only {CompareName}"
+                  : "")
+            : $"{both} cells overlap but none has enough samples to be worth reporting.";
+
+        Raise(nameof(CompareSummary));
+
+        return true;
+    }
 }
-
-
-
-

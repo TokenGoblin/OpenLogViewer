@@ -194,6 +194,33 @@ public partial class MainWindow : Window
         Report(_vm.StartRecording(dialog.FileName));
     }
 
+    /// <summary>
+    /// Opens a second log to read the first against.
+    ///
+    /// Not a second window. Two logs side by side in two windows is what people do
+    /// now and it is precisely the thing that credits a change with an improvement
+    /// that was really a warmer engine — the point is to subtract them, which means
+    /// one view holding both.
+    /// </summary>
+    private void OnCompareClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Compare against",
+            Filter = "Datalogs|*.mlg;*.msl;*.csv;*.tsv;*.txt|All files|*.*",
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        Report(_vm.LoadComparison(dialog.FileName));
+    }
+
+    private void OnStopCompareClick(object sender, RoutedEventArgs e)
+    {
+        _vm.ClearComparison();
+        Report("Stopped comparing.");
+    }
+
     private void OnOpenRecordingsClick(object sender, RoutedEventArgs e) =>
         OpenFolder(Workspace.Ensure(_vm.Workspace.Logs));
 

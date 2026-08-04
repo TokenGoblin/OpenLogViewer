@@ -27,6 +27,16 @@
                 <MenuItem Header="_Open log…" Click="OnOpenClick" InputGestureText="Ctrl+O"/>
                 <MenuItem Header="Open _tune…" Click="OnOpenTuneClick"
                           ToolTip="Use tables from a .msq file instead of the one stored in the log"/>
+                <MenuItem Header="Compare against another log…" Click="OnCompareClick"
+                          IsEnabled="{Binding HasDocument}"
+                          ToolTip="Open a second log and show what changed between them"/>
+                <MenuItem Header="Stop comparing" Click="OnStopCompareClick"
+                          IsEnabled="{Binding HasComparison}"/>
+                <MenuItem Header="Show the difference" IsCheckable="True"
+                          IsChecked="{Binding ShowDifference}"
+                          IsEnabled="{Binding HasComparison}"
+                          ToolTip="Subtract the second log's table from this one, cell by cell"/>
+                <Separator/>
                 <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
                           IsEnabled="{Binding UsingLoadedTune}"/>
                 <Separator/>
