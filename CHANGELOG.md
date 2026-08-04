@@ -111,6 +111,29 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**Fuel economy: three vehicles side by side.** *Calculators ▸ Running costs ▸
+Fuel economy*. Petrol, hybrid, E85, diesel, CNG or electric in each column, with
+what each costs by the week, the month and the year, per mile, and how many
+gallons or kilowatt-hours it gets through.
+
+Two things it does that a spreadsheet usually does not. **A gallon is a volume,
+not an amount of energy** — E85 holds about three-quarters of what petrol does
+and diesel about an eighth more, so the same miles per gallon on two fuels is not
+the same efficiency. Every column therefore also shows MPGe, which is the only
+figure on the page that compares three fuels honestly, and entering an E85
+economy copied across from the petrol column is called out rather than quietly
+costed. **And an electric car is billed at the meter, not at the battery**: about
+a tenth of what you pay for never reaches it, which is included in the cost and
+excluded from the efficiency, since charging should not be charged for twice.
+
+Starting prices are US national averages captured 4 August 2026 — petrol, diesel
+and E85 from AAA, electricity the residential average, CNG from the Alternative
+Fuels Data Center, whose national figure is the oldest of the set and says so.
+They are a starting point, not an answer: prices move weekly and differ by
+dollars between states, so every one is editable and the page says where each
+came from and when. It counts fuel only — not tyres, servicing, insurance or
+depreciation, any of which can dwarf the difference shown.
+
 **Subaru's own protocol, over an ordinary dongle.** *Connect ▾ → Connect over SSM
 (Subaru)*. SSM reaches what the ECU has **learnt** rather than what it is
 measuring — knock correction, learnt ignition timing, the fuelling trims — none
