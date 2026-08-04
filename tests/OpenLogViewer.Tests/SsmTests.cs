@@ -209,6 +209,37 @@ public class SsmTests
         Assert.Single(SsmParameterFile.Read(json));
     }
 
+    /// <summary>
+    /// A file may list everything a car offers while reading a few.
+    ///
+    /// One address per request makes the enabled list a budget rather than a
+    /// preference — the base set is a hundred and sixty parameters and reading
+    /// all of them would be twenty-four seconds a round. So the file holds the
+    /// lot and a dozen are switched on, which makes changing what you watch a
+    /// matter of moving a flag rather than finding an address and its scaling
+    /// again.
+    /// </summary>
+    [Fact]
+    public void OnlyTheEnabledParametersAreRead()
+    {
+        const string json = """
+            {
+              "parameters": [
+                { "name": "On by default",  "address": "0x000008" },
+                { "name": "Explicitly on",  "address": "0x000009", "enabled": true },
+                { "name": "Switched off",   "address": "0x00000A", "enabled": false }
+              ]
+            }
+            """;
+
+        // Everything is still in the file, so it can be switched back on.
+        Assert.Equal(3, SsmParameterFile.Read(json).Count);
+
+        Assert.Equal(
+            ["On by default", "Explicitly on"],
+            SsmParameterFile.Enabled(json).Select(p => p.Name));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not json at all")]

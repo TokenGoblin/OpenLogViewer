@@ -72,7 +72,8 @@ public static class SsmParameterFile
                 entry.Offset ?? 0,
                 entry.Digits ?? 0,
                 entry.Low ?? 0,
-                entry.High ?? 255);
+                entry.High ?? 255,
+                entry.Enabled ?? true);
 
             // A duplicate name would give two channels the same column, and every
             // preset and filter matching on it would find whichever came first.
@@ -83,6 +84,18 @@ public static class SsmParameterFile
 
         return parameters;
     }
+
+    /// <summary>
+    /// Only the ones switched on, which is what a session actually reads.
+    ///
+    /// The distinction earns its keep because one address per request makes the
+    /// list a budget. A file can hold every parameter a car offers -- a hundred
+    /// and sixty of them on this protocol -- while a dozen are switched on, and
+    /// changing what you are watching is then a matter of moving a flag rather
+    /// than finding an address and its scaling again.
+    /// </summary>
+    public static IReadOnlyList<SsmParameter> Enabled(string? json) =>
+        [.. Read(json).Where(p => p.Enabled)];
 
     /// <summary>
     /// An address written the way people write them.
@@ -195,7 +208,7 @@ public static class SsmParameterFile
                 File.WriteAllText(path, Template);
             }
 
-            return Read(File.ReadAllText(path));
+            return Enabled(File.ReadAllText(path));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -240,5 +253,7 @@ public static class SsmParameterFile
         public double? Low { get; set; }
 
         public double? High { get; set; }
+
+        public bool? Enabled { get; set; }
     }
 }

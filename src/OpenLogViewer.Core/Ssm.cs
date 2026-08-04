@@ -14,6 +14,12 @@ namespace OpenLogViewer.Core;
 /// <param name="Digits">Decimals worth showing.</param>
 /// <param name="Low">Bottom of the gauge, where one is wanted.</param>
 /// <param name="High">Top of the gauge.</param>
+/// <param name="Enabled">
+/// Whether to actually read it. The whole point of the flag: one address per
+/// request means the list you read is a budget, so the file is allowed to hold
+/// every parameter a car offers while only a handful are switched on. Choosing
+/// from a list beats remembering an address.
+/// </param>
 public sealed record SsmParameter(
     string Name,
     int Address,
@@ -23,7 +29,8 @@ public sealed record SsmParameter(
     double Offset = 0,
     int Digits = 0,
     double Low = 0,
-    double High = 255)
+    double High = 255,
+    bool Enabled = true)
 {
     /// <summary>Every address this parameter occupies, in order.</summary>
     public IEnumerable<int> Addresses => Enumerable.Range(Address, Math.Max(1, Bytes));

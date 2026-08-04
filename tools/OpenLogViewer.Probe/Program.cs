@@ -219,6 +219,7 @@ try
             Setup(elm, Log, "ATFCSH7E0", "flow control header");
             Setup(elm, Log, "ATFCSD300000", "flow control data");
             Setup(elm, Log, "ATFCSM1", "use it");
+            Setup(elm, Log, "ATAL", "allow long messages — the 7-byte cap may be this");
             Log("");
         }
 
