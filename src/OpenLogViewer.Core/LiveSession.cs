@@ -91,6 +91,19 @@ public sealed class LiveSession : IDisposable
     private Thread? _worker;
     private CancellationTokenSource? _cancel;
 
+    /// <summary>
+    /// Guards the recorder alone.
+    ///
+    /// Separate from <c>_gate</c> deliberately. That one is held by every repaint
+    /// — the plot asks for a snapshot continuously — and putting a file write
+    /// behind it would make drawing wait on the disk. This one is only ever
+    /// contended when somebody presses record, which is rare and brief.
+    /// </summary>
+    private readonly Lock _recorderGate = new();
+
+    private double _recordingFrom;
+    private int _recordedRows;
+
     private int _failures;
     private volatile bool _reconnecting;
     private string? _error;
@@ -127,7 +140,32 @@ public sealed class LiveSession : IDisposable
 
     public bool IsRunning => _worker is { IsAlive: true };
 
+    /// <summary>The file being written now, or null when only watching.</summary>
     public string? RecordingPath { get; private set; }
+
+    /// <summary>
+    /// The last file written, whether or not it is still open.
+    ///
+    /// Kept so that stopping a recording does not make the session forget where
+    /// it went — the thing somebody wants immediately after pressing stop is to
+    /// know what the file was called.
+    /// </summary>
+    public string? LastRecordingPath { get; private set; }
+
+    public bool IsRecording => _recorder is not null;
+
+    /// <summary>Rows written to the current recording.</summary>
+    public int RecordedRows => Volatile.Read(ref _recordedRows);
+
+    /// <summary>Seconds covered by the current recording.</summary>
+    public double RecordedSeconds
+    {
+        get
+        {
+            lock (_recorderGate)
+                return _recorder is null ? 0 : Math.Max(0, _clock.Elapsed.TotalSeconds - _recordingFrom);
+        }
+    }
 
     /// <summary>Raised after each block, on the polling thread.</summary>
     public event Action<LiveSessionStatus>? Updated;
@@ -156,28 +194,12 @@ public sealed class LiveSession : IDisposable
         _failures = 0;
         _source.Open();
 
-        if (_settings.RecordingPath is { Length: > 0 } path)
-        {
-            string? directory = Path.GetDirectoryName(path);
-            if (directory is { Length: > 0 }) Directory.CreateDirectory(directory);
-
-            // With a byte-order mark, matching the exporter. Excel reads a CSV
-            // without one in the system codepage whatever is actually in it, so
-            // a channel in °C arrives as Â°C — and a recording nobody can open
-            // in the thing they open recordings in is a poor recording. Every
-            // reader this application has copes with the mark, and so does
-            // anything else that reads UTF-8.
-            //
-            // AutoFlush so a pulled cable costs at most the row in hand.
-            _recorder = new StreamWriter(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true))
-            {
-                AutoFlush = true,
-            };
-            CsvExport.WriteHeader(_recorder, ["Time", .. _names], ["s", .. _units]);
-            RecordingPath = path;
-        }
-
         _clock.Restart();
+
+        // Before the poll thread, so the first row is recorded rather than being
+        // a race against the writer being ready.
+        if (_settings.RecordingPath is { Length: > 0 } path) StartRecording(path);
+
         _cancel = new CancellationTokenSource();
         _worker = new Thread(() => Poll(_cancel.Token))
         {
@@ -186,6 +208,95 @@ public sealed class LiveSession : IDisposable
         };
 
         _worker.Start();
+    }
+
+    /// <summary>
+    /// Begins writing to a file, whether or not the session is already running.
+    ///
+    /// Recording is separable from watching on purpose. Somebody connects to see
+    /// whether the link works at all, warms the engine, finds the road, and only
+    /// then wants a file — and everything before that is noise they would have to
+    /// trim out of the front of the log afterwards. Deciding when a run starts is
+    /// the difference between a log and a session.
+    ///
+    /// Replaces a recording already in progress, closing it properly first, so
+    /// this cannot silently leave two writers on one session.
+    /// </summary>
+    /// <returns>The path being written to.</returns>
+    public string StartRecording(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        StopRecording();
+
+        string? directory = Path.GetDirectoryName(path);
+        if (directory is { Length: > 0 }) Directory.CreateDirectory(directory);
+
+        // With a byte-order mark, matching the exporter. Excel reads a CSV
+        // without one in the system codepage whatever is actually in it, so a
+        // channel in °C arrives as Â°C — and a recording nobody can open in the
+        // thing they open recordings in is a poor recording. Every reader this
+        // application has copes with the mark, and so does anything else that
+        // reads UTF-8.
+        //
+        // AutoFlush so a pulled cable costs at most the row in hand.
+        var writer = new StreamWriter(path, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true))
+        {
+            AutoFlush = true,
+        };
+
+        CsvExport.WriteHeader(writer, ["Time", .. _names], ["s", .. _units]);
+
+        lock (_recorderGate)
+        {
+            _recorder = writer;
+
+            // The recording's clock starts where the recording does, not where
+            // the session did. A file that opens at t=418 s because that is when
+            // somebody pressed record is not a log of a run — every tool that
+            // reads it, this one included, would draw four hundred seconds of
+            // nothing before the first sample.
+            _recordingFrom = _clock.Elapsed.TotalSeconds;
+            _recordedRows = 0;
+
+            RecordingPath = path;
+            LastRecordingPath = path;
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// Closes the recording, leaving the session running.
+    ///
+    /// The file is complete at this point rather than at disposal: every row was
+    /// flushed as it was written, so what is on disk is already the whole of it.
+    /// </summary>
+    /// <returns>What was written, or null if nothing was being recorded.</returns>
+    public string? StopRecording()
+    {
+        lock (_recorderGate)
+        {
+            if (_recorder is not { } writer) return null;
+
+            _recorder = null;
+
+            try
+            {
+                writer.Flush();
+                writer.Dispose();
+            }
+            catch (Exception e) when (e is IOException or ObjectDisposedException)
+            {
+                // Whatever reached disk is what the recording has; there is
+                // nothing left to save it with.
+            }
+
+            string? path = RecordingPath;
+            RecordingPath = null;
+
+            return path;
+        }
     }
 
     /// <summary>
@@ -200,18 +311,7 @@ public sealed class LiveSession : IDisposable
         _worker?.Join(TimeSpan.FromSeconds(2));
         _worker = null;
 
-        try
-        {
-            _recorder?.Flush();
-            _recorder?.Dispose();
-        }
-        catch (Exception e) when (e is IOException or ObjectDisposedException)
-        {
-            // Whatever reached disk is what the session has; there is nothing
-            // left to save it with.
-        }
-
-        _recorder = null;
+        StopRecording();
     }
 
     private void Poll(CancellationToken token)
@@ -229,9 +329,7 @@ public sealed class LiveSession : IDisposable
                 Append(at, values);
                 _failures = 0;
 
-                row[0] = at;
-                values.AsSpan(0, _names.Length).CopyTo(row.AsSpan(1));
-                if (_recorder is { } recorder) CsvExport.WriteRow(recorder, row);
+                Record(at, values, row);
             }
             catch (Exception e)
             {
@@ -367,6 +465,31 @@ public sealed class LiveSession : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes one row, if anything is recording.
+    ///
+    /// Held under the recorder's own lock for the whole write. Recording can be
+    /// stopped from another thread at any moment, and a writer disposed between
+    /// the null check and the write would throw on a background thread — which
+    /// does not fail the row, it terminates the process.
+    ///
+    /// Times are relative to where the recording began, so the file reads as a
+    /// log of its own run rather than of the session that happened to contain it.
+    /// </summary>
+    private void Record(double at, double[] values, double[] row)
+    {
+        lock (_recorderGate)
+        {
+            if (_recorder is not { } recorder) return;
+
+            row[0] = at - _recordingFrom;
+            values.AsSpan(0, _names.Length).CopyTo(row.AsSpan(1));
+
+            CsvExport.WriteRow(recorder, row);
+            _recordedRows++;
+        }
+    }
+
     private void Append(double seconds, double[] values)
     {
         lock (_gate)
@@ -404,7 +527,9 @@ public sealed class LiveSession : IDisposable
             _snapshotAt = _time.Count;
             _snapshot = new LogDocument
             {
-                FilePath = RecordingPath ?? "",
+                // The last recording rather than the current one, so stopping a
+                // recording does not rename the document out from under the view.
+                FilePath = RecordingPath ?? LastRecordingPath ?? "",
                 Channels = channels,
                 Time = new LogChannel("Time", "s", 3, [.. _time], preservePrecision: true),
                 FormatName = "Live",
