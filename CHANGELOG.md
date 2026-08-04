@@ -82,6 +82,34 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**Subaru's own protocol, over an ordinary dongle.** *Connect ▾ → Connect over SSM
+(Subaru)*. SSM reaches what the ECU has **learnt** rather than what it is
+measuring — knock correction, learnt ignition timing, the fuelling trims — none
+of which OBD2 carries at any speed.
+
+The received wisdom is that ELM327-compatible adapters cannot speak SSM, and over
+the older K-line cars that is true. Over CAN it is not: a 2014 Crosstrek answered
+an OBDLink r2.6 directly, confirmed by reading values over SSM that could also be
+read over OBD2 — engine speed landed between two OBD2 readings taken either side
+of it, and coolant returned the identical raw byte to PID 05.
+
+One address per request, about 146 ms each, so a dozen parameters is roughly a
+round a second. That is slow and it suits the job: these are learnt values that
+move over minutes. It is useless for catching a misfire and the hint says so. The
+reason it cannot be faster is written down rather than assumed — the ECU refuses
+the block read, a two-address request needs eight bytes where the adapter caps at
+seven, and the extended send command that exists to solve exactly this is absent
+from that firmware.
+
+**The addresses are yours to supply**, in `ssm-parameters.json` in the definitions
+folder, which is written with a worked example the first time it is wanted. They
+are not shipped, and that is deliberate: what lives at which address cannot be
+worked out from the car alone — the confirmation method only covers values OBD2
+already has, which are the ones not worth reaching SSM for — and the published
+maps belong to projects under licences an MIT release cannot take from. Supply
+them from a source you judge right for your own vehicle. It also means this works
+on any Subaru rather than one.
+
 **Getting back to the ECU you were on.** The toolbar carries a **Connect: _your
 ECU_** button for the last device you used, **Ctrl+K** repeats it, and the connect
 menu now groups devices that have answered before above the rest, most recently
