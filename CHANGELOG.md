@@ -111,6 +111,32 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**Compare two logs.** *File ▸ Compare against another log…*. The loop tuning
+actually is — change something, drive it again, find out what moved — and until
+now the application could only hold one log at a time.
+
+The table becomes a **difference**: the same cells of the same table, one run
+subtracted from the other, so "at 3,000 rpm and 150 kPa it is 0.4 richer than it
+was" is a statement about the change. Nothing is interpolated onto a shared
+timebase, deliberately: comparing two runs at the same clock time assumes they
+were the same run, which is the thing being tested. Binning both onto one grid
+does not care that one drive was longer or started in a different gear.
+
+Three things it refuses to do quietly. Channels are matched **by name**, never by
+column position — a firmware update that inserts one channel shifts everything
+after it, and matching by index would compare coolant against oil pressure
+without a word. A cell only one run visited is left **empty** rather than treated
+as zero, which would otherwise invent a difference the size of the whole reading
+everywhere the second drive did not go, and those would be the biggest numbers on
+the table. And each cell carries the **smaller** of the two sample counts, because
+a difference is only as well evidenced as its thinner side.
+
+The second log is binned onto the first one's axes rather than its own, which is
+the part that would have been wrong invisibly: two logs binned independently pick
+their own ranges from their own data, so their cells would not line up and the
+subtraction would compare 2,400 rpm against 2,650 while looking entirely
+reasonable.
+
 **Intercooling, and chemical intercooling.** *Calculators ▸ Air & boost ▸
 Intercooling*. What the compressor does to the air, how much heat there is to
 take back out, what a core will actually remove, and what spraying something into
