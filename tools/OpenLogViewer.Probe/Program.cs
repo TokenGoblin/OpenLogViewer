@@ -57,7 +57,7 @@ string? port = PortIn(args);
 /// </summary>
 static string? PortIn(string[] args)
 {
-    string[] takesAValue = ["--baud", "--out"];
+    string[] takesAValue = ["--baud", "--out", "--raw"];
 
     for (int i = 0; i < args.Length; i++)
     {
@@ -144,19 +144,92 @@ try
 
     Log($"reset      : {elm.Reset()}");
     Log($"identity   : {elm.Identify()}");
-    Log($"protocol   : {elm.ProtocolName()}");
-    Log($"is CAN     : {elm.IsCan()}");
 
-    // ----- prove the ordinary path works ------------------------------------
+    // ----- wait for the protocol to be found --------------------------------
 
-    // Everything after this is speculative, so it is worth establishing first
-    // that the car is awake and answering. A probe that reports "SSM did not
-    // reply" on a vehicle with the key out has reported nothing at all.
+    // The first request after a reset is not like the others. The adapter has
+    // been told to find the protocol itself and works through nine of them,
+    // answering "SEARCHING..." meanwhile — seconds, where a settled link answers
+    // in milliseconds. Give up on it too early and the next request aborts the
+    // search that was still running, which is reported as "STOPPED"; ask a third
+    // time and the whole run is SEARCHING and STOPPED alternating, with nothing
+    // learnt about the car and every appearance of a vehicle that is switched
+    // off. That is exactly what the first run of this tool did on a car that was
+    // running perfectly.
+    //
+    // So the protocol is settled first and patiently, and nothing else is asked
+    // until it has been -- including which protocol it is, since that question
+    // has no answer until the search finishes.
 
     Section(Log, "ORDINARY OBD2 — DOES ANYTHING ANSWER");
 
-    Ask(elm, Log, "0100", "supported PIDs 01-20");
+    // Far longer than a reading is given, because this is not a reading: the
+    // adapter is working through nine protocols and only the last one answers.
+    TimeSpan searchTimeout = TimeSpan.FromSeconds(12);
+    const int searchAttempts = 4;
+
+    bool settled = false;
+
+    for (int attempt = 1; attempt <= searchAttempts && !settled; attempt++)
+    {
+        var clock = Stopwatch.StartNew();
+        string reply = elm.Send("0100", searchTimeout, settle: true);
+        clock.Stop();
+
+        settled = reply.Contains("41", StringComparison.OrdinalIgnoreCase)
+                  && !reply.Contains("SEARCHING", StringComparison.OrdinalIgnoreCase);
+
+        Log($"-> 0100         supported PIDs 01-20, attempt {attempt} of {searchAttempts}");
+        Log($"<- {Readable(reply)}   [{clock.ElapsedMilliseconds} ms]");
+        Log("");
+    }
+
+    if (!settled)
+    {
+        Log("The vehicle never answered a standard request, so nothing below would");
+        Log("mean anything. Check the ignition is on and the adapter is seated in");
+        Log("the socket -- most cars stop answering OBD2 entirely with the key out.");
+
+        return 5;
+    }
+
+    // Only now, because until the search finished the adapter would have said
+    // "AUTO" and protocol zero, which is not a protocol.
+    Log($"protocol   : {elm.ProtocolName()}");
+    Log($"is CAN     : {elm.IsCan()}");
+    Log("");
+
     Ask(elm, Log, "010C", "engine speed");
+
+    // ----- whatever was asked for on the command line ------------------------
+
+    // For following a thread the moment it appears. The probe's fixed questions
+    // are the opening move; the interesting ones are always the follow-ups, and
+    // a car is rarely connected for long enough to rebuild a tool between them.
+    if (Value(args, "--raw") is { Length: > 0 } raw)
+    {
+        Section(Log, "AS ASKED");
+
+        // SSM lives behind a directed header rather than the broadcast one, so
+        // anything beginning A8 needs the engine module addressed first.
+        if (raw.Contains("A8", StringComparison.OrdinalIgnoreCase))
+        {
+            Setup(elm, Log, "ATSH7E0", "send to the engine module");
+            Setup(elm, Log, "ATCRA7E8", "listen only to its replies");
+            Setup(elm, Log, "ATFCSH7E0", "flow control header");
+            Setup(elm, Log, "ATFCSD300000", "flow control data");
+            Setup(elm, Log, "ATFCSM1", "use it");
+            Log("");
+        }
+
+        foreach (string command in raw.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            Ask(elm, Log, command.Trim(), "asked for");
+
+        Setup(elm, Log, "ATSH7DF", "back to the broadcast header");
+        Setup(elm, Log, "ATCRA", "clear the filter");
+
+        return 0;
+    }
 
     // ----- mode 22, ReadDataByIdentifier ------------------------------------
 
@@ -219,7 +292,7 @@ try
         string command = $"21{id:X2}";
         Guard(command);
 
-        string reply = elm.Send(command, TimeSpan.FromSeconds(3), settle: !sweep);
+        string reply = elm.Send(command, TimeSpan.FromSeconds(5), settle: !sweep);
         string text = Readable(reply);
 
         // On a sweep only the answers are worth printing: 250 lines of "NO DATA"
@@ -336,7 +409,7 @@ static void Ask(Elm327 elm, Action<string> log, string command, string what)
     Guard(command);
 
     var clock = Stopwatch.StartNew();
-    string reply = elm.Send(command, TimeSpan.FromSeconds(4), settle: true);
+    string reply = elm.Send(command, TimeSpan.FromSeconds(6), settle: true);
     clock.Stop();
 
     log($"-> {command,-12} {what}");
@@ -368,6 +441,22 @@ static void Guard(string command)
     string text = command.ToUpperInvariant();
 
     if (text.StartsWith("AT", StringComparison.Ordinal)) return;
+
+    // The STN chips' own commands. STPX carries a vehicle request inside it --
+    // "STPX H:7E0, D:A8 00 ..." -- so the payload is pulled out and held to the
+    // same rule as anything else. An adapter command that can smuggle an
+    // arbitrary write past the guard would defeat the point of having one.
+    if (text.StartsWith("ST", StringComparison.Ordinal))
+    {
+        int data = text.IndexOf("D:", StringComparison.Ordinal);
+        if (data < 0) return;
+
+        string payload = new([.. text[(data + 2)..].Where(Uri.IsHexDigit)]);
+
+        Guard(payload);
+
+        return;
+    }
 
     // OBD2 service 01 and 09 read; 22 reads by identifier. KWP2000 service 21 is
     // readDataByLocalIdentifier, which is what Toyota puts its extra parameters

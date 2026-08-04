@@ -96,6 +96,40 @@ public class Obd2FaultTests
     }
 
     /// <summary>
+    /// Protocol zero is "still searching", not a protocol.
+    ///
+    /// An adapter that has been told to find the protocol itself answers ATDPN
+    /// with "A0" until it succeeds. Caching that as an answer would leave a car
+    /// that settles on ISO 9141 a moment later being read as CAN for the rest of
+    /// the session — which puts a count byte where a fault code's first half is
+    /// and produces codes that are not on the vehicle.
+    ///
+    /// Found on a live car: the first probe of a running Subaru reported
+    /// "is CAN: True" while the search had not finished, and the same link came
+    /// back ISO 15765-4 once it had.
+    /// </summary>
+    [Fact]
+    public void AProtocolStillBeingSearchedForIsNotRemembered()
+    {
+        var fake = new FakeElm { ProtocolNumber = 0 };
+        var elm = new Elm327(fake);
+        elm.Reset();
+
+        elm.IsCan();
+        int asked = fake.Received.Count(c => c.Equals("ATDPN", StringComparison.OrdinalIgnoreCase));
+
+        elm.IsCan();
+        int askedAgain = fake.Received.Count(c => c.Equals("ATDPN", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(askedAgain > asked, "an undecided protocol must be asked about again");
+
+        // And once it settles, the real answer is taken and kept.
+        fake.ProtocolNumber = 3;
+
+        Assert.False(elm.IsCan());
+    }
+
+    /// <summary>
     /// The adapter prefixes the protocol with how it found it, which is not part
     /// of what it found.
     /// </summary>

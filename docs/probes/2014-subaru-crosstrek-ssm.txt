@@ -1,0 +1,154 @@
+# OpenLogViewer probe — 2026-08-04 11:52:38
+# port COM10 (speed found automatically)
+
+opened at 38400
+
+--------------------------------------------------------------------
+## THE ADAPTER AND THE LINK
+--------------------------------------------------------------------
+
+reset      : ELM327 v1.3a
+identity   : OBDLink r2.6 (STN1100 v2.2.2)
+
+--------------------------------------------------------------------
+## ORDINARY OBD2 — DOES ANYTHING ANSWER
+--------------------------------------------------------------------
+
+-> 0100         supported PIDs 01-20, attempt 1 of 4
+<- SEARCHING... | 410080000001 | 4100BE3FA813   [5036 ms]
+
+-> 0100         supported PIDs 01-20, attempt 2 of 4
+<- 4100BE3FA813 | 410080000001   [147 ms]
+
+protocol   : ISO 15765-4 (CAN 11/500)
+is CAN     : True
+
+-> 010C         engine speed
+<- 410C0CA8   [146 ms]
+
+
+--------------------------------------------------------------------
+## MODE 22 — ReadDataByIdentifier
+--------------------------------------------------------------------
+
+# A positive answer echoes 0x62. 0x7F means the service or the
+# identifier was refused, which is itself worth knowing: 7F 22 11 is
+# 'no such service', 7F 22 31 is 'service fine, wrong identifier'.
+
+-> 22F190       VIN, a standard identifier
+<- NO DATA   [317 ms]
+
+-> 22F18C       ECU serial number
+<- NO DATA   [321 ms]
+
+-> 22F194       ECU software number
+<- NO DATA   [321 ms]
+
+-> 22F1A0       maker-defined, often a calibration id
+<- NO DATA   [349 ms]
+
+
+--------------------------------------------------------------------
+## MODE 21 — readDataByLocalIdentifier (Toyota's enhanced data)
+--------------------------------------------------------------------
+
+# A positive answer echoes 0x61 then the identifier. 0x7F 21 11 means the
+# service does not exist here at all — on that reply the rest is pointless.
+# 0x7F 21 12 means the service is there and that identifier is not.
+
+-> ATAL         allow replies longer than seven bytes  ->  OK
+
+-> 2100        
+<- NO DATA
+
+-> 2101        
+<- NO DATA
+
+-> 2102        
+<- NO DATA
+
+-> 2103        
+<- NO DATA
+
+-> 2104        
+<- NO DATA
+
+-> 2105        
+<- NO DATA
+
+# only the first six were asked. Add --sweep to try all 256.
+
+--------------------------------------------------------------------
+## SSM OVER CAN
+--------------------------------------------------------------------
+
+# Header set to 7E0, replies filtered to 7E8. A positive answer to the
+# init command echoes 0xFF and carries the ECU identifier followed by a
+# capability bitmap; a read echoes 0xE8. Anything else — NO DATA, ?,
+# silence — means this framing was not understood.
+
+-> ATSH7E0      send to the engine module  ->  OK
+-> ATCRA7E8     listen only to its replies  ->  OK
+-> ATFCSH7E0    flow control header  ->  OK
+-> ATFCSD300000 flow control data — send all, no delay  ->  OK
+-> ATFCSM1      use the flow control set above  ->  OK
+
+-> BF           SSM init, bare command
+<- NO DATA   [327 ms]
+
+-> BF40         SSM init with the padding byte the K-line form uses
+<- NO DATA   [315 ms]
+
+-> A8000000     read one address, the continuous-response form
+<- 7FA813   [144 ms]
+
+-> A80000000E   read address 0x00000E — engine speed on many
+<- E80C   [148 ms]
+
+-> A80100000E   the same, single-response form
+<- 7FA812   [163 ms]
+
+
+--------------------------------------------------------------------
+## RESTORING
+--------------------------------------------------------------------
+
+-> ATCRA        clear the receive filter  ->  ?
+-> ATFCSM0      flow control back to automatic  ->  OK
+-> ATSH7DF      back to the broadcast header OBD2 uses  ->  OK
+reset      : ELM327 v1.3a
+
+====================================================================
+FOLLOW-UP: SSM READS CORRELATED AGAINST OBD2
+====================================================================
+
+Single-address reads, engine idling, same session.
+
+  010C        -> 41 0C 0E 2B     906.75 rpm  (0x0E2B / 4)
+  A8 00 00000E -> E8 0E          high byte
+  A8 00 00000F -> E8 36          low byte     = 0x0E36 / 4 = 909.5 rpm
+  010C        -> 41 0C 0E 41     912.25 rpm
+
+  The SSM figure falls between two OBD2 readings taken either side of it,
+  as a drifting idle should.
+
+  0105        -> 41 05 86        coolant, 0x86 = 134 -> 94 C
+  A8 00 000008 -> E8 86          the identical raw byte
+
+Confirmed:
+  0x000008          coolant temperature, raw - 40 C, same encoding as PID 05
+  0x00000E/0x00000F engine speed, 16 bit, / 4
+
+Not identified:
+  0x000007 -> 0x49    (MAP read 0x22 = 34 kPa at the same moment, so not that)
+  0x000046 -> 0x7F
+
+Format:   A8 <pad> <3-byte address>  ->  E8 <one byte per address>
+Rate:     ~130 ms per request
+
+Open problem: batching. Two addresses is an 8-byte send and a plain ELM327
+send caps at 7, which comes back "?" from the adapter rather than the car.
+STPX was refused by this firmware (STN1100 v2.2.2). Until that is solved a
+round is one byte per request, which is slower per parameter than OBD2.
+
+Mode 21 and mode 22: NO DATA throughout. Subaru uses neither.
