@@ -83,6 +83,13 @@ public sealed class SettingsStore
 
         Units = Enum.TryParse(file?.Units, out UnitSystem units) ? units : UnitSystem.AsReported;
 
+        EcuLastUsed = file?.EcuLastUsed is { Count: > 0 } used
+            ? new Dictionary<string, DateTimeOffset>(
+                used.Where(e => DateTimeOffset.TryParse(e.Value, out _))
+                    .ToDictionary(e => e.Key, e => DateTimeOffset.Parse(e.Value)),
+                StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+
         KnownEcus = file?.KnownEcus is { Count: > 0 } known
             ? new Dictionary<string, string>(known, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -111,6 +118,44 @@ public sealed class SettingsStore
         if (units == Units) return;
 
         Units = units;
+        Persist();
+    }
+
+    /// <summary>
+    /// When each remembered device was last connected to, by the same hardware
+    /// id.
+    ///
+    /// Kept beside the signatures rather than folded into them, so a settings
+    /// file written before this existed still loads: a device with no entry here
+    /// is one that was remembered before anyone was counting, which sorts below
+    /// the ones that have a time but still above a port nobody has ever used.
+    /// </summary>
+    public IReadOnlyDictionary<string, DateTimeOffset> EcuLastUsed { get; private set; } =
+        new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+
+    public void SetEcuLastUsed(IReadOnlyDictionary<string, DateTimeOffset> used)
+    {
+        ArgumentNullException.ThrowIfNull(used);
+
+        EcuLastUsed = new Dictionary<string, DateTimeOffset>(used, StringComparer.OrdinalIgnoreCase);
+        Persist();
+    }
+
+    /// <summary>
+    /// Forgets every device this has connected to.
+    ///
+    /// Both maps together, because a signature without a time and a time without
+    /// a signature are each half a memory. Presets, filters and calculated
+    /// channels are deliberately untouched — those are somebody's work, and this
+    /// is for when a dongle has been sold or an adapter replaced and its name
+    /// keeps turning up in a list.
+    /// </summary>
+    public void ForgetKnownEcus()
+    {
+        if (KnownEcus.Count == 0 && EcuLastUsed.Count == 0) return;
+
+        KnownEcus = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        EcuLastUsed = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
         Persist();
     }
 
@@ -199,6 +244,9 @@ public sealed class SettingsStore
         RecordOnConnect = RecordOnConnect,
         RecordingFolder = RecordingFolder,
         KnownEcus = KnownEcus.Count > 0 ? new Dictionary<string, string>(KnownEcus) : null,
+        EcuLastUsed = EcuLastUsed.Count > 0
+            ? EcuLastUsed.ToDictionary(e => e.Key, e => e.Value.ToString("O"))
+            : null,
         Units = Units.ToString(),
     });
 
@@ -212,6 +260,10 @@ public sealed class SettingsStore
         public bool? RecordOnConnect { get; set; }
         public string? RecordingFolder { get; set; }
         public Dictionary<string, string>? KnownEcus { get; set; }
+
+        // Stored as round-trip strings rather than as dates, so a hand-edited or
+        // differently-cultured file cannot turn a timestamp into a wrong one.
+        public Dictionary<string, string>? EcuLastUsed { get; set; }
         public string? Units { get; set; }
     }
 }

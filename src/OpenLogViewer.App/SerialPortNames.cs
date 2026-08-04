@@ -46,6 +46,19 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// </summary>
     public string KnownEcu { get; init; } = "";
 
+    /// <summary>
+    /// When this device was last connected to, or null if never.
+    ///
+    /// What puts the port you actually use at the top of the list. A workshop
+    /// machine accumulates ports — two ECUs, a dongle, a printer, whatever else
+    /// claims a COM number — and alphabetical order is no help at all in finding
+    /// the one you reach for every day.
+    /// </summary>
+    public DateTimeOffset? LastUsed { get; init; }
+
+    /// <summary>Whether anything has ever answered here.</summary>
+    public bool IsKnown => KnownEcu.Length > 0;
+
     /// <summary>True when this port reaches a MaxxECU, which advertises as MaxxECU_&lt;serial&gt;.</summary>
     public bool IsMaxxEcu =>
         DeviceName.StartsWith("MaxxECU", StringComparison.OrdinalIgnoreCase);
@@ -111,13 +124,46 @@ public static class SerialPortNames
     private static readonly Dictionary<string, string> Ecus =
         new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Note that this ECU answered on the device behind a port.</summary>
+    /// <summary>When each device was last connected to, by the same hardware id.</summary>
+    private static readonly Dictionary<string, DateTimeOffset> Used =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Note that this ECU answered on the device behind a port, and when.</summary>
     public static void Remember(string portName, string signature)
     {
         string id = All().FirstOrDefault(p => p.PortName == portName)?.DeviceId ?? "";
         if (id.Length == 0 || signature.Length == 0) return;
 
-        lock (Gate) Ecus[id] = signature;
+        lock (Gate)
+        {
+            Ecus[id] = signature;
+            Used[id] = DateTimeOffset.Now;
+        }
+    }
+
+    /// <summary>Every device's last use, to be saved alongside the signatures.</summary>
+    public static IReadOnlyDictionary<string, DateTimeOffset> LastUsed()
+    {
+        lock (Gate) return new Dictionary<string, DateTimeOffset>(Used, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Restore when each was last used.</summary>
+    public static void RecallLastUsed(IReadOnlyDictionary<string, DateTimeOffset>? saved)
+    {
+        if (saved is null) return;
+
+        lock (Gate)
+            foreach ((string id, DateTimeOffset when) in saved) Used[id] = when;
+    }
+
+    /// <summary>Drops everything learnt about devices, for a clean slate.</summary>
+    public static void Forget()
+    {
+        lock (Gate)
+        {
+            Ecus.Clear();
+            Used.Clear();
+        }
     }
 
     /// <summary>Everything remembered so far, to be saved and handed back next time.</summary>
@@ -166,7 +212,13 @@ public static class SerialPortNames
         IReadOnlyList<string> names = SerialEcuTransport.AvailablePorts();
         Dictionary<string, Entry> known = Known();
         Dictionary<string, string> ecus;
-        lock (Gate) ecus = new Dictionary<string, string>(Ecus, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, DateTimeOffset> used;
+
+        lock (Gate)
+        {
+            ecus = new Dictionary<string, string>(Ecus, StringComparer.OrdinalIgnoreCase);
+            used = new Dictionary<string, DateTimeOffset>(Used, StringComparer.OrdinalIgnoreCase);
+        }
 
         return
         [
@@ -180,6 +232,9 @@ public static class SerialPortNames
                     DeviceName = entry.DeviceName,
                     DeviceId = entry.DeviceId,
                     KnownEcu = ecus.GetValueOrDefault(entry.DeviceId, ""),
+                    LastUsed = used.TryGetValue(entry.DeviceId, out DateTimeOffset when)
+                        ? when
+                        : null,
                 };
             }),
         ];

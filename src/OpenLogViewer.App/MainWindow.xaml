@@ -97,7 +97,12 @@
                 <MenuItem x:Name="ConnectMenuItem" Header="_Connect" SubmenuOpened="OnConnectMenuOpened">
                     <MenuItem Header="…" IsEnabled="False"/>
                 </MenuItem>
+                <MenuItem Header="{Binding ReconnectLabel}" Click="OnReconnectClick"
+                          IsEnabled="{Binding CanReconnect}" InputGestureText="Ctrl+K"
+                          ToolTip="Reconnect to the ECU you used last"/>
                 <MenuItem Header="_Disconnect" Click="OnDisconnectClick" IsEnabled="{Binding IsLive}"/>
+                <MenuItem Header="_Forget remembered ECUs" Click="OnForgetEcusClick"
+                          ToolTip="Clears the list of devices this has connected to. Presets, filters and calculated channels are untouched"/>
                 <MenuItem Header="_Fault codes…" Click="OnFaultsClick"
                           IsEnabled="{Binding IsObd2Live}"
                           ToolTip="Read and clear the vehicle's trouble codes — OBD2 only"/>
@@ -165,6 +170,27 @@
                         ToolTip="Plan a build, size a turbo, injectors, fuel pump, octane, gearing — none of it needs a log open"/>
 
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
+
+                <!--
+                    The ECU you were on last, as one click.
+
+                    Named after the ECU rather than the port: the COM number is
+                    Windows' business and moves with the order things were plugged
+                    in, while what somebody remembers is that they were on the
+                    Speeduino. Hidden entirely when nothing has been connected to
+                    yet, so a new install shows the plain Connect button and no
+                    dead shortcut.
+
+                    Deliberately not automatic. Launching the application must not
+                    take a serial port on its own — a laptop opened in a car with
+                    TunerStudio already talking to the ECU would fight it for the
+                    port, and somebody who only wanted to look at a saved log would
+                    have started a session they never asked for.
+                -->
+                <Button x:Name="ReconnectButton" Content="{Binding ReconnectLabel}"
+                        Click="OnReconnectClick" Margin="6,0,0,0" DockPanel.Dock="Left"
+                        Visibility="{Binding CanReconnect, Converter={StaticResource BoolToVis}}"
+                        ToolTip="Reconnect to the ECU you used last  (Ctrl+K)"/>
 
                 <Button x:Name="ConnectButton" Content="Connect ▾" Click="OnConnectClick"
                         Margin="6,0,0,0" DockPanel.Dock="Left"

@@ -82,6 +82,25 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**Getting back to the ECU you were on.** The toolbar carries a **Connect: _your
+ECU_** button for the last device you used, **Ctrl+K** repeats it, and the connect
+menu now groups devices that have answered before above the rest, most recently
+used first. Devices are keyed by hardware id rather than COM port, so a replug
+that lands on a different number is still recognised, and the button names the
+ECU rather than the port because the port number is Windows' business.
+
+Never automatic. Launching the application does not take a serial port on its own
+— that would fight TunerStudio for it, and would start a session that somebody
+opening a saved log never asked for.
+
+*Tools ▸ Forget remembered ECUs* clears the device list and nothing else. Presets,
+filters and calculated channels are your work and are not swept up in it.
+
+None of your profile ships with the software: presets, filters, calculated
+channels and remembered devices all live in `%APPDATA%\OpenLogViewer` and a new
+install starts empty. The filters offered on opening a log are generated from
+that log's own channels and arrive switched off.
+
 **Fault codes, read and cleared.** *Tools ▸ Fault codes…* on an OBD2 connection.
 All three of the standard's lists, because they mean different things: confirmed
 codes are what lit the lamp, pending ones were seen once and are not yet believed,

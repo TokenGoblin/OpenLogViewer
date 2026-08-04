@@ -215,6 +215,32 @@ Settings are separate, under `%APPDATA%\OpenLogViewer\` — `settings.json`,
 folder above belongs to you. Nothing is ever written next to the executable, so
 the app is content installed read-only under Program Files.
 
+### What is yours, and what ships
+
+Everything the application remembers about *you* is in those four files and none
+of it travels with the software. **A new install is a blank slate**: no presets,
+no filters, no calculated channels. The filters offered when you open a log are
+generated from the channels *that log* has and arrive switched off, so opening a
+file never silently changes what a table counts.
+
+**Devices are remembered by hardware id rather than by COM port**, because
+Windows hands port numbers out and reuses them — the same Speeduino is COM7 today
+and COM12 tomorrow depending what was plugged in first. What answered on each is
+remembered too, since Windows calls a Speeduino "Arduino Mega 2560", naming the
+chip rather than the ECU.
+
+That makes reconnecting one click. The toolbar carries a **Connect: _your ECU_**
+button for the last one you used, **Ctrl+K** repeats it, and in the connect menu
+devices that have answered before are grouped above the rest, most recently used
+first. It is never automatic: launching the application does not take a serial
+port on its own, which would fight TunerStudio for it and start a session that
+somebody opening a saved log never asked for.
+
+*Tools ▸ Forget remembered ECUs* clears the device list and nothing else —
+presets, filters and calculated channels are your work and are not swept up in
+it. Useful when a dongle is sold or an adapter replaced and its name keeps
+appearing in a list of things that are no longer there.
+
 ## Live connection
 
 *Connect ▾* in the toolbar lists the serial ports. Pick one and OpenLogViewer
