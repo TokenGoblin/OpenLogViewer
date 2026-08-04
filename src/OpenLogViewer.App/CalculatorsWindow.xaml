@@ -836,6 +836,190 @@
                 between is not one. Every row is the same field for all three
                 cars, so the eye runs across it.
             -->
+            <ScrollViewer x:Name="PageIntercooler" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="How much heat there is to move, what a core will actually take out of it, and what spraying something into the charge does instead."/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="THE CHARGE"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Airflow"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="IcAir" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcAirNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Boost"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="IcBoost" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcBoostNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Ambient air"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="IcAmbient" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" Text="°F drawn into the compressor"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Compressor efficiency"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="IcCompEff" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" Text="% — 70 is ordinary, 78 is a good match"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Out of the compressor"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="IcHotSide"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcHotSideNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Heat to move"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="IcHeat"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcHeatNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="THE CORE"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Effectiveness"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="IcEffect" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" Text="% of the available drop the core takes — about 70 for a good air-to-air"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Core, W × H × thick"/>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                            <TextBox x:Name="IcW" Width="42" Margin="0,2,3,2" HorizontalContentAlignment="Right"
+                                     TextChanged="OnIcChanged" GotKeyboardFocus="OnFieldFocused"
+                                     PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                            <TextBox x:Name="IcH" Width="42" Margin="0,2,3,2" HorizontalContentAlignment="Right"
+                                     TextChanged="OnIcChanged" GotKeyboardFocus="OnFieldFocused"
+                                     PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                            <TextBox x:Name="IcT" Width="42" Margin="0,2" HorizontalContentAlignment="Right"
+                                     TextChanged="OnIcChanged" GotKeyboardFocus="OnFieldFocused"
+                                     PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcCoreNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Material"/>
+                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="IcMaterial" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnIcMaterialChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcMaterialNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Charge after the core"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="IcOut"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcOutNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Density gained"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="IcDensity"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcDensityNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Core loading"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="IcLoading"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcLoadingNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="IcCoreAdvice"/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="CHEMICAL INTERCOOLING — SPRAYING INTO THE CHARGE"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Fluid"/>
+                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="IcFluid" Width="180" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnIcFluidChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcFluidNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Drop wanted"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="IcDrop" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcDropNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Evaporates in the charge"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="IcEvap" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" Text="% — the rest wets the pipe or evaporates in the cylinder"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Fuel flow at this airflow"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="IcFuel" Style="{StaticResource Field}"
+                                   TextChanged="OnIcChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" Text="lb/min, so the spray can be given as a share of it"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Nozzle needed"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="IcNozzle"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcNozzleNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="As a mass flow"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="IcSprayLb"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcSprayLbNote"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Consumption"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="IcConsumption"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcConsumptionNote"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="Petrol it displaces"/>
+                        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="IcDisplaced"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcDisplacedNote"/>
+
+                        <TextBlock Grid.Row="9" Style="{StaticResource Label}" Text="Charge after the spray"/>
+                        <TextBlock Grid.Row="9" Grid.Column="1" x:Name="IcAfterSpray"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcAfterSprayNote"/>
+                    </Grid>
+
+                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="5"
+                            Background="{DynamicResource Panel}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        <TextBlock x:Name="IcSafety" TextWrapping="Wrap" FontSize="11"
+                                   Foreground="{DynamicResource Marker}"
+                                   Text="An engine tuned to lean on a spray finds its detonation limit within seconds of the pump failing, and a nozzle that has quietly blocked gives no warning at all. Every system doing real work needs a flow sensor and a fallback that pulls boost or timing when the flow stops — sizing the nozzle is the easy half."/>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="ALL THE FLUIDS, SIDE BY SIDE"/>
+                    <TextBlock x:Name="IcFluidTable" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Text}"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Cooling figures assume the spray evaporates in the charge, where it buys density. Whatever evaporates later, in the cylinder, still works against detonation but does nothing for the number on this page. A spray is a way of going further than a core, not a way of making a small core behave like a large one — it stops the moment the tank is empty."/>
+                </StackPanel>
+            </ScrollViewer>
+
             <ScrollViewer x:Name="PageRunningCosts" VerticalScrollBarVisibility="Auto"
                           Visibility="Collapsed">
                 <StackPanel Margin="14">
