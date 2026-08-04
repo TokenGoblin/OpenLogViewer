@@ -931,6 +931,9 @@ public partial class MainWindow : Window
     /// none of that is in OBD2, but it manages about one round a second against
     /// OBD2's three. Nobody should land on it by accident.
     /// </summary>
+    /// <summary>Opens a Subaru over SSM, for a scripted run.</summary>
+    public void ConnectOverSsm(string port) => StartLiveOverSsm(port);
+
     private MenuItem SsmMenu(IReadOnlyList<SerialPortInfo> ports)
     {
         var menu = new MenuItem
