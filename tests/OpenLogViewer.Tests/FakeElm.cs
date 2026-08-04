@@ -47,7 +47,7 @@ internal sealed class FakeElm : IEcuTransport
     /// and carry no count byte. The difference is not cosmetic — the same bytes
     /// decode to different codes — so the fake has to be able to be either.
     /// </summary>
-    public int ProtocolNumber { get; init; } = 6;
+    public int ProtocolNumber { get; set; } = 6;
 
     private bool Can => ProtocolNumber >= 6;
 

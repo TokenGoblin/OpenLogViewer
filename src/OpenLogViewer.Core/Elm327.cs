@@ -167,7 +167,12 @@ public sealed class Elm327(IEcuTransport transport)
             _ => true,
         };
 
-        _isCan = can;
+        // Protocol zero is "automatic, nothing decided yet" — the adapter has
+        // been told to search and has not yet succeeded. That is not an answer
+        // and must not be cached as one: a link that settles on ISO 9141 a moment
+        // later would spend the rest of the session being read as CAN, which puts
+        // a count byte where a fault code's first half is.
+        if (number != '0') _isCan = can;
 
         return can;
     }
