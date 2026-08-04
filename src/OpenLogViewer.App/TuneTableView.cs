@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -60,10 +60,12 @@ public sealed class TuneTableView : FrameworkElement
     private Brush _axisInk = null!;
     private Brush _darkInk = null!;
     private Brush _lightInk = null!;
+    private Brush _changedInk = null!;
     private Pen _grid = null!;
     private Pen _selected = null!;
     private Pen _changed = null!;
     private Typeface _typeface = null!;
+    private Typeface _boldTypeface = null!;
 
     public TuneTableView()
     {
@@ -210,13 +212,25 @@ public sealed class TuneTableView : FrameworkElement
 
         _grid = Frozen(new Pen(Fill(theme.Line), 1));
 
-        // The selection has to be findable on a 16x16 grid of coloured cells, so
-        // it is the accent at full weight; a changed cell is the same colour
-        // thinner, which reads as "these are the same kind of thing" without the
-        // two competing.
+        // The selection has to be findable on a 16×16 grid of coloured cells, so
+        // it is the accent at full weight.
         _selected = Frozen(new Pen(Fill(theme.Accent), 2));
-        _changed = Frozen(new Pen(Fill(theme.Accent), 1));
+
+        // A changed cell is the marker colour rather than the accent, and thick.
+        // It used to be the accent a pixel thin, which was nearly invisible: the
+        // heat ramp is blue, the accent is a blue-cyan, and a one-pixel line of
+        // one on the other is not a difference anybody spots while working. The
+        // marker is warm in every theme — that is what it is for — so it reads
+        // against the ramp instead of sitting in it, and it no longer looks like
+        // a weaker version of the selection.
+        _changed = Frozen(new Pen(Fill(theme.Marker), 2.5));
+
+        // Drawn under the value as well, so a changed cell is legible as changed
+        // even where the cells are too small for an outline to be obvious.
+        _changedInk = Fill(theme.Marker);
+
         _typeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        _boldTypeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
         InvalidateVisual();
     }
@@ -284,15 +298,17 @@ public sealed class TuneTableView : FrameworkElement
                 // shading still says what the value is while the outline says
                 // it is not what the ECU holds. Recolouring would cost the one
                 // and answer the other badly.
-                if (edit?.IsChanged(column, row) == true)
-                    dc.DrawRectangle(null, _changed, Deflate(cell, 1.5));
+                bool changed = edit?.IsChanged(column, row) == true;
+
+                if (changed) dc.DrawRectangle(null, _changed, Deflate(cell, 1.5));
 
                 if (cellWidth < 26 || cellHeight < 12) continue;
 
                 FormattedText text = Text(
                     value.ToString(format, CultureInfo.CurrentCulture),
                     Math.Min(11, cellHeight * 0.62),
-                    ColorMath.Luminance(fill) > 0.5 ? _darkInk : _lightInk);
+                    changed ? _changedInk : ColorMath.Luminance(fill) > 0.5 ? _darkInk : _lightInk,
+                    changed);
 
                 dc.DrawText(text, new Point(
                     x + (cellWidth - text.Width) / 2,
@@ -373,7 +389,8 @@ public sealed class TuneTableView : FrameworkElement
             : ColorMath.Blend(_ramp[index], _ramp[index + 1], at - index);
     }
 
-    private FormattedText Text(string text, double size, Brush ink) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _typeface, size, ink,
+    private FormattedText Text(string text, double size, Brush ink, bool bold = false) =>
+        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            bold ? _boldTypeface : _typeface, size, ink,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 }

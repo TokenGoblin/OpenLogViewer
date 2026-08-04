@@ -249,4 +249,39 @@ public class TuneAxesTests : IDisposable
 
         Assert.Null(LogReaderFactory.Load(path).EmbeddedTune);
     }
+
+    // ----- units an INI left as an expression --------------------------------
+
+    [Theory]
+    [InlineData("kPa", "kPa")]
+    [InlineData("RPM", "RPM")]
+    [InlineData("%", "%")]
+    [InlineData("  deg  ", "deg")]
+    public void APlainUnitIsShownAsItIs(string declared, string expected) =>
+        Assert.Equal(expected, new TuneAxis("c", declared, [1]).PlainUnits);
+
+    [Theory]
+    // What MS2Extra actually declares for its load axis, because the axis is
+    // kilopascals on speed density and per cent on alpha-N and the ECU decides
+    // at runtime. Nothing here evaluates it, and printing it verbatim put a line
+    // of INI source where a tuner expected "kPa".
+    [InlineData("{ bitStringValue( algorithmUnits , algorithm ) }")]
+    [InlineData("{ someExpression }")]
+    [InlineData("bitStringValue(a, b)")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AnythingToBeEvaluatedIsShownAsNothing(string declared) =>
+        Assert.Equal("", new TuneAxis("c", declared, [1]).PlainUnits);
+
+    [Fact]
+    public void NoUnitBeatsAWrongOne()
+    {
+        // The breakpoints are still shown either way. A number with no unit
+        // reads as an unlabelled axis; a number with an INI expression after it
+        // reads as a bug, which is what it was.
+        var axis = new TuneAxis("mapBins", "{ bitStringValue( algorithmUnits , algorithm ) }", [30, 100]);
+
+        Assert.Empty(axis.PlainUnits);
+        Assert.Equal(2, axis.Breakpoints.Length);
+    }
 }

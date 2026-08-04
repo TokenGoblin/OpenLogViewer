@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -312,6 +313,80 @@ public partial class MainWindow : Window
     }
 
     private void OnRevertTableClick(object sender, RoutedEventArgs e) => _vm.RevertTable();
+
+    // ----- the table tools ------------------------------------------------------
+    //
+    // Each of these is the same request the keyboard already raises, so the two
+    // ways in cannot drift apart: the buttons exist because the keys are not
+    // discoverable, not because they do anything different.
+
+    private void OnNudgeUpClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.Add(_vm.TableNudge));
+
+    private void OnNudgeDownClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.Add(-_vm.TableNudge));
+
+    private void OnScaleUpClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.Scale(_vm.TableScaleStep));
+
+    private void OnScaleDownClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.Scale(-_vm.TableScaleStep));
+
+    private void OnInterpolateClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.Interpolate());
+
+    private void OnRevertCellsClick(object sender, RoutedEventArgs e) =>
+        _vm.EditTable(TuneTableEdit.RevertSelection());
+
+    private void OnSetValueClick(object sender, RoutedEventArgs e) => ApplySetValue();
+
+    /// <summary>
+    /// Selects a numeric field's contents on focus, so typing replaces the value.
+    ///
+    /// The same treatment the calculators get, for the same reason: these hold a
+    /// working number rather than a placeholder, and typing into one used to
+    /// append to it.
+    /// </summary>
+    private void OnFieldFocused(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox box) box.SelectAll();
+    }
+
+    /// <summary>Focuses a field on the first click instead of placing a caret in it.</summary>
+    private void OnFieldClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox box || box.IsKeyboardFocusWithin) return;
+
+        box.Focus();
+        e.Handled = true;
+    }
+
+    private void OnSetValueKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+
+        ApplySetValue();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Sets the selected cells to a typed value.
+    ///
+    /// Nothing typed and nothing that parses are both left alone rather than
+    /// treated as zero — setting a fuel table's cells to nothing because a box
+    /// was empty is not a mistake worth making on a running engine.
+    /// </summary>
+    private void ApplySetValue()
+    {
+        if (!double.TryParse(
+                SetValue.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double value))
+        {
+            _vm.SetHint("Type a number to set the selected cells to.");
+            return;
+        }
+
+        _vm.EditTable(TuneTableEdit.Set(value));
+    }
 
     private void Report(string outcome)
     {
@@ -1305,6 +1380,20 @@ public partial class MainWindow : Window
     {
         RebuildHistogram();
         OnHistogramCellActivated((column, row));
+    }
+
+    /// <summary>
+    /// Selects a cell of the tune table and optionally nudges it, for a scripted
+    /// run.
+    ///
+    /// Local only. This is the same edit the buttons make and it goes no further
+    /// than the copy on screen — a scripted run cannot send or burn anything.
+    /// </summary>
+    public void ActivateTuneCell(int column, int row, double nudge)
+    {
+        _vm.SelectedCells = TuneSelection.Cell(column, row);
+
+        if (nudge != 0) _vm.EditTable(TuneTableEdit.Add(nudge));
     }
 
     /// <summary>Gives each plotted channel its own strip.</summary>

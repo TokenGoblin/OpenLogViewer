@@ -34,6 +34,52 @@ public readonly record struct TuneSelection(int FromColumn, int FromRow, int ToC
 }
 
 /// <summary>
+/// What a selection was and what it has become.
+/// </summary>
+/// <param name="Cells">How many are selected.</param>
+/// <param name="Changed">How many of those differ from the ECU's own values.</param>
+/// <param name="FromLow">Lowest value the ECU had here.</param>
+/// <param name="FromHigh">Highest it had.</param>
+/// <param name="ToLow">Lowest it would become.</param>
+/// <param name="ToHigh">Highest it would become.</param>
+/// <param name="DeltaLow">Smallest change across the selection, signed.</param>
+/// <param name="DeltaHigh">Largest change, signed.</param>
+public readonly record struct TuneChange(
+    int Cells,
+    int Changed,
+    double FromLow,
+    double FromHigh,
+    double ToLow,
+    double ToHigh,
+    double DeltaLow,
+    double DeltaHigh)
+{
+    public bool IsSingle => Cells == 1;
+
+    public bool Any => Changed > 0;
+
+    /// <summary>The value, where exactly one cell is selected.</summary>
+    public double From => FromLow;
+
+    public double To => ToLow;
+
+    public double Delta => DeltaLow;
+
+    /// <summary>
+    /// The change as a proportion of what was there, where that means anything.
+    ///
+    /// NaN from a cell that held zero, which a spark table's cells legitimately
+    /// do — a percentage of nothing is not a number, and showing it as an
+    /// infinite increase would be worse than showing nothing.
+    /// </summary>
+    public double Percent =>
+        IsSingle && Math.Abs(From) > 1e-9 ? (To - From) / From * 100 : double.NaN;
+
+    /// <summary>Whether every changed cell moved by the same amount.</summary>
+    public bool Uniform => Math.Abs(DeltaHigh - DeltaLow) < 1e-9;
+}
+
+/// <summary>
 /// A tuning table being changed, and what it was before.
 ///
 /// Editing a table is not editing a grid of numbers. What is on screen has to
@@ -149,6 +195,91 @@ public sealed class TuneEdit
     /// </summary>
     public void Scale(TuneSelection selection, double percent) =>
         Apply(selection, current => current * (1 + (percent / 100)));
+
+    /// <summary>
+    /// Fills the inside of a selection from its edges.
+    ///
+    /// The operation for smoothing a table after a few cells have been pulled
+    /// about: pick a region whose ends are right, and let everything between
+    /// them be a straight line rather than a staircase. The corners are left
+    /// exactly as they are, so interpolating twice changes nothing the second
+    /// time.
+    ///
+    /// One formula covers all three shapes. A selection one row tall has nothing
+    /// to vary down it, so the vertical term falls out and it is a straight line
+    /// along the row; one column wide is the same the other way; anything larger
+    /// is bilinear between the four corners.
+    /// </summary>
+    /// <returns>
+    /// False where there was nothing between the ends to fill — a selection two
+    /// cells across is all corners, and reporting that as done would leave the
+    /// user believing something happened.
+    /// </returns>
+    public bool Interpolate(TuneSelection selection)
+    {
+        TuneSelection area = selection.ClampedTo(Columns, Rows);
+
+        if (area.Columns < 3 && area.Rows < 3) return false;
+
+        double topLeft = _values[area.Left, area.Top];
+        double topRight = _values[area.Right, area.Top];
+        double bottomLeft = _values[area.Left, area.Bottom];
+        double bottomRight = _values[area.Right, area.Bottom];
+
+        for (int column = area.Left; column <= area.Right; column++)
+        {
+            double across = area.Columns > 1 ? (double)(column - area.Left) / (area.Columns - 1) : 0;
+
+            double top = topLeft + ((topRight - topLeft) * across);
+            double bottom = bottomLeft + ((bottomRight - bottomLeft) * across);
+
+            for (int row = area.Top; row <= area.Bottom; row++)
+            {
+                double down = area.Rows > 1 ? (double)(row - area.Top) / (area.Rows - 1) : 0;
+
+                _values[column, row] = Hold(top + ((bottom - top) * down));
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// What the selected cells were and what they have become.
+    ///
+    /// The question a tuner is actually asking before sending anything: not "how
+    /// much did I change it by" but "what is it going to be". Those are the same
+    /// question only if you can remember what it said before, and by the fourth
+    /// nudge nobody can.
+    /// </summary>
+    public TuneChange Preview(TuneSelection selection)
+    {
+        TuneSelection area = selection.ClampedTo(Columns, Rows);
+
+        double fromLow = double.PositiveInfinity, fromHigh = double.NegativeInfinity;
+        double toLow = double.PositiveInfinity, toHigh = double.NegativeInfinity;
+        double deltaLow = double.PositiveInfinity, deltaHigh = double.NegativeInfinity;
+        int changed = 0;
+
+        for (int column = area.Left; column <= area.Right; column++)
+            for (int row = area.Top; row <= area.Bottom; row++)
+            {
+                double was = _original[column, row];
+                double now = _values[column, row];
+
+                fromLow = Math.Min(fromLow, was);
+                fromHigh = Math.Max(fromHigh, was);
+                toLow = Math.Min(toLow, now);
+                toHigh = Math.Max(toHigh, now);
+                deltaLow = Math.Min(deltaLow, now - was);
+                deltaHigh = Math.Max(deltaHigh, now - was);
+
+                if (IsChanged(column, row)) changed++;
+            }
+
+        return new TuneChange(
+            area.Count, changed, fromLow, fromHigh, toLow, toHigh, deltaLow, deltaHigh);
+    }
 
     /// <summary>Puts every cell back to what the ECU said.</summary>
     public void Revert() =>

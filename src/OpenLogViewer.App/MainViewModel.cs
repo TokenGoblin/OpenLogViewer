@@ -179,8 +179,20 @@ public sealed class MainViewModel : ObservableObject
 
             Raise(nameof(CanExport));
             Raise(nameof(CanExportPlotted));
+            Raise(nameof(HasDocument));
         }
     }
+
+    /// <summary>
+    /// Whether a log is open, for commands that need one.
+    ///
+    /// Worth having as its own property rather than binding to
+    /// <see cref="Document"/> and converting: a menu item bound to a name the
+    /// view model does not have fails silently and leaves the item at its
+    /// default, which for IsEnabled is enabled — so the command stays available
+    /// and nothing anywhere reports the mistake.
+    /// </summary>
+    public bool HasDocument => _document is not null;
 
     public string Search
     {
@@ -924,6 +936,13 @@ public sealed class MainViewModel : ObservableObject
             // between tables: an unsent change to one table left pending while
             // another is being looked at is a change nobody can see.
             TableEdit = value is null ? null : new TuneEdit(value, ConstantFor(value));
+
+            // The nudge follows the table. A spark table stored in quarter
+            // degrees and a fuel table stored in whole per cent want different
+            // steps, and anything finer than the firmware's own storage is a
+            // change the ECU rounds away.
+            if (TableEdit is { } edit) TableNudge = edit.Step;
+
             SelectedCells = TuneSelection.Cell(0, 0);
         }
     }
@@ -941,6 +960,13 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(HasTableChanges));
             Raise(nameof(TableEditSummary));
             Raise(nameof(CanWriteTable));
+
+            // Raised here as well as on selection, because opening a table does
+            // not necessarily move the selection: it is already the first cell,
+            // so the assignment that follows changes nothing and notifies
+            // nobody. Without this the readout stays blank until the user
+            // happens to click a different cell.
+            RaiseTablePreview();
         }
     }
 
@@ -954,7 +980,13 @@ public sealed class MainViewModel : ObservableObject
     public TuneSelection SelectedCells
     {
         get => _cells;
-        set { if (Set(ref _cells, value)) Raise(nameof(TableEditSummary)); }
+        set
+        {
+            if (!Set(ref _cells, value)) return;
+
+            Raise(nameof(TableEditSummary));
+            RaiseTablePreview();
+        }
     }
 
     /// <summary>The firmware's description of a table's cells, for its limits and precision.</summary>
@@ -1012,10 +1044,151 @@ public sealed class MainViewModel : ObservableObject
             case TuneEditKind.Add: edit.Add(SelectedCells, change.Amount); break;
             case TuneEditKind.Scale: edit.Scale(SelectedCells, change.Amount); break;
             case TuneEditKind.Revert: edit.Revert(SelectedCells); break;
+            case TuneEditKind.Set: edit.Set(SelectedCells, change.Amount); break;
+
+            case TuneEditKind.Interpolate:
+                // Said rather than swallowed: a selection with no middle has
+                // nothing to fill, and a button that silently did nothing would
+                // read as the table refusing to be edited.
+                if (!edit.Interpolate(SelectedCells))
+                    Hint = "Select at least three cells across or down — "
+                         + "interpolation fills what is between the ends.";
+                break;
         }
 
         AfterTableEdit();
     }
+
+    /// <summary>
+    /// How much one press of the nudge is worth.
+    ///
+    /// The firmware's own storage step by default, because anything finer is a
+    /// change the ECU rounds away — which reads as the write having been ignored.
+    /// </summary>
+    private double _nudge = 1;
+
+    public double TableNudge
+    {
+        get => _nudge;
+        set
+        {
+            if (!Set(ref _nudge, value)) return;
+
+            Raise(nameof(TableNudgeUpLabel));
+            Raise(nameof(TableNudgeDownLabel));
+        }
+    }
+
+    /// <summary>
+    /// What the buttons themselves say they will do.
+    ///
+    /// Written onto the buttons rather than left to a label, because "Nudge"
+    /// beside a box reading "1" and a "%" — the table's own unit, VE being
+    /// measured in per cent — read as "nudge by one per cent", which is what the
+    /// scale buttons do and this does not. A button that says "+ 1" cannot be
+    /// misread as a percentage.
+    /// </summary>
+    public string TableNudgeUpLabel => $"+ {TableNudge:0.###}";
+
+    public string TableNudgeDownLabel => $"− {TableNudge:0.###}";
+
+    public string TableScaleUpLabel => $"+ {TableScaleStep:0.###}%";
+
+    public string TableScaleDownLabel => $"− {TableScaleStep:0.###}%";
+
+    /// <summary>The unit an absolute step is in, which is the table's own.</summary>
+    public string TableStepUnits => TableEdit?.Units ?? "";
+
+    private double _scaleStep = 1;
+
+    public double TableScaleStep
+    {
+        get => _scaleStep;
+        set
+        {
+            if (!Set(ref _scaleStep, value)) return;
+
+            Raise(nameof(TableScaleUpLabel));
+            Raise(nameof(TableScaleDownLabel));
+        }
+    }
+
+    /// <summary>
+    /// What the selected cells would become, spelled out before anything is sent.
+    ///
+    /// The question this exists to answer is not "by how much" but "to what".
+    /// Those are only the same question if you can remember what the cell said
+    /// four nudges ago, and nobody can.
+    /// </summary>
+    public TuneChange? TableChange =>
+        TableEdit is { } edit ? edit.Preview(SelectedCells) : null;
+
+    /// <summary>Which cell or region the readout is describing.</summary>
+    public string TableChangeWhere
+    {
+        get
+        {
+            if (TableEdit is not { } edit) return "";
+
+            TuneSelection area = SelectedCells.ClampedTo(edit.Columns, edit.Rows);
+
+            if (area.Count != 1) return $"{area.Columns}×{area.Rows} cells";
+
+            return $"{edit.Table.X.Breakpoints[area.Left]:G5} {edit.Table.X.PlainUnits}".TrimEnd()
+                 + " × "
+                 + $"{edit.Table.Y.Breakpoints[area.Top]:G5} {edit.Table.Y.PlainUnits}".TrimEnd();
+        }
+    }
+
+    private string Format(double value) =>
+        TableEdit is { } edit
+            ? value.ToString("0." + new string('#', Math.Max(1, edit.Digits)))
+            : value.ToString("0.##");
+
+    /// <summary>What the ECU has now.</summary>
+    public string TableChangeFrom => TableChange is not { } c
+        ? ""
+        : c.IsSingle ? Format(c.From) : $"{Format(c.FromLow)}–{Format(c.FromHigh)}";
+
+    /// <summary>What it would become.</summary>
+    public string TableChangeTo => TableChange is not { } c
+        ? ""
+        : c.IsSingle ? Format(c.To) : $"{Format(c.ToLow)}–{Format(c.ToHigh)}";
+
+    /// <summary>The move itself, which is the part that used to be all there was.</summary>
+    public string TableChangeDelta
+    {
+        get
+        {
+            if (TableChange is not { Any: true } c) return "";
+
+            string units = TableEdit?.Units ?? "";
+
+            // "More" and "less" rather than a second signed percentage. On a VE
+            // table the cells are themselves per cent, so "+2 % (+2%)" reads as
+            // the same figure twice when the two are quite different things —
+            // two points of VE, and two per cent of what was there.
+            if (c.IsSingle)
+                return double.IsNaN(c.Percent)
+                    ? $"{c.Delta:+0.###;−0.###} {units}".Trim()
+                    : $"{c.Delta:+0.###;−0.###} {units}".Trim()
+                      + $"   ({Math.Abs(c.Percent):0.0}% {(c.Percent >= 0 ? "more" : "less")})";
+
+            return c.Uniform
+                ? $"{c.DeltaLow:+0.###;−0.###} {units} on every cell".Trim()
+                : $"{c.DeltaLow:+0.###;−0.###} to {c.DeltaHigh:+0.###;−0.###} {units}".Trim();
+        }
+    }
+
+    /// <summary>Whether there is a change worth drawing an arrow for.</summary>
+    public bool HasTableChangePreview => TableChange is { Any: true };
+
+    /// <summary>Where the change stands: edited, sent, or neither.</summary>
+    public string TableChangeState => TableChange is not { } c
+        ? ""
+        : c.Any
+            ? $"not sent · {TableEdit?.ChangedCount ?? 0} changed in this table"
+            : "unchanged";
 
     /// <summary>Sets every selected cell to one value.</summary>
     public void SetTableCells(double value)
@@ -1036,6 +1209,21 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(HasTableChanges));
         Raise(nameof(CanWriteTable));
         Raise(nameof(TableEditSummary));
+        RaiseTablePreview();
+    }
+
+    private void RaiseTablePreview()
+    {
+        Raise(nameof(TableChange));
+        Raise(nameof(TableChangeWhere));
+        Raise(nameof(TableChangeFrom));
+        Raise(nameof(TableChangeTo));
+        Raise(nameof(TableChangeDelta));
+        Raise(nameof(HasTableChangePreview));
+        Raise(nameof(TableChangeState));
+        Raise(nameof(TableNudgeUpLabel));
+        Raise(nameof(TableNudgeDownLabel));
+        Raise(nameof(TableStepUnits));
     }
 
     /// <summary>

@@ -31,4 +31,21 @@ public class SmokeTests
         Assert.NotEmpty(vm.Channels);
         Assert.Contains(vm.Channels, c => c.Name == "RPM");
     }
+
+    [Fact]
+    public void WhetherALogIsOpenIsSomethingTheViewModelWillSay()
+    {
+        // A menu item bound to a name the view model does not have fails
+        // silently and leaves itself enabled, so a command that needs a log
+        // stays clickable with none open and nothing reports it. This is the
+        // property those bindings need to exist.
+        using var harness = new ViewModelHarness();
+        var vm = new MainViewModel();
+
+        Assert.False(vm.HasDocument);
+
+        vm.Load(harness.WriteTypicalLog());
+
+        Assert.True(vm.HasDocument);
+    }
 }

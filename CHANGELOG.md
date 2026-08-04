@@ -82,6 +82,53 @@ and warns when the opened tune's fuel table differs from the log's: VE Calibrati
 scales the numbers that produced the logged AFR, and a table edited since the
 drive scales numbers the engine never ran.
 
+**Four more calculators, and one that ties them together.** *Engine recipe* takes
+a displacement, a power target and the two engine speeds and hands back a parts
+list: the air it takes, the boost that needs, a turbocharger, injectors and a
+pump. Every part of it is sized on one mixture and one fuel consumption, so the
+pieces match each other — a turbo sized at one assumption and injectors at
+another gives a car short of one of them and neither calculation would say
+which. The margins stay separate and named: duty on the injectors, headroom on
+the pump, flow to spare on the compressor.
+
+The peak torque speed is an input because it decides as much as the power figure
+does. Airflow at the power peak says whether a compressor is large enough;
+airflow at the torque peak says whether it is too large — one with plenty left at
+7,000 rpm can be sitting off the left of its map at 3,500 and never spool.
+
+*Turbo sizing* is the same sum on its own, using the turbocharger maker's own
+equations so it can be checked against the tool everyone already uses: their
+published worked example comes out at their 57.3 lb/min and their pressure ratio
+of 2.0. The catalogue carries inducer size and the maker's horsepower rating —
+which on the G series is the model number — and derives flow from that rather
+than transcribing it off a compressor map, since the same map gives a different
+maximum depending which island you read it at.
+
+*Drag strip* gives quarter and eighth mile from power and weight, and reads a
+timeslip the other way. Trap speed and elapsed time are not equally trustworthy:
+by the far end a car has had a quarter of a mile to forget a bad launch, so its
+speed is very nearly a measure of power against weight, where the time never
+forgets. So the trap is read for power and the time for the start line — a slip
+that trapped like 400 hp and ran half a second slower than that trap deserved
+lost the time in the first sixty feet, and nothing done to the engine will show
+up until it is found.
+
+Volumetric efficiency is chosen as a kind of engine rather than typed as a
+number, since that is what somebody planning a build actually knows: an older
+two-valve breathes 75 per cent where a race engine on tuned inlet lengths passes
+100. Charge temperature takes Celsius or Fahrenheit, fuel selection moves the
+mixture and the fuel consumption together — moving one without the other asks
+for half again the air on E85 and buys two sizes too much turbocharger — and the
+calculators are grouped down the side rather than tabbed, with the whole set one
+click away on the toolbar.
+
+**Editing a tune table by hand.** Nudge, scale, set and interpolate from buttons
+rather than only from keys, and a readout above the table saying what the
+selected cell would become — *2600 rpm × 100  98 → 100  +2 % (2.0% more)* —
+before any of it is sent. Interpolation fills the middle of a selection from its
+ends, in a row, a column or a rectangle, and leaves the ends exactly as they
+were.
+
 **Estimated horsepower, two ways.** *Tools ▸ Estimate power…* adds calculated
 channels that work out what the engine was making, from a log a logger already
 recorded.

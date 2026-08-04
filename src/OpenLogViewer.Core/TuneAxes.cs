@@ -4,7 +4,33 @@ using System.Xml.Linq;
 namespace OpenLogViewer.Core;
 
 /// <summary>One axis of an ECU table: the breakpoints the ECU interpolates between.</summary>
-public sealed record TuneAxis(string Constant, string Units, double[] Breakpoints);
+public sealed record TuneAxis(string Constant, string Units, double[] Breakpoints)
+{
+    /// <summary>
+    /// Units fit to put in front of a person, or nothing.
+    ///
+    /// An INI may declare units as an expression rather than a word, because on
+    /// some firmware the axis is not always the same quantity: MS2Extra writes
+    /// the load axis as
+    /// <c>{ bitStringValue( algorithmUnits , algorithm ) }</c>, since it is
+    /// kilopascals on speed density and per cent on alpha-N and the ECU decides
+    /// at runtime. Nothing here evaluates those, so showing one verbatim puts a
+    /// line of INI source in a readout where a tuner expected "kPa".
+    ///
+    /// Empty is the right answer rather than a guess: the breakpoints are still
+    /// shown, and a number with no unit reads as an unlabelled axis instead of a
+    /// mislabelled one.
+    /// </summary>
+    public string PlainUnits => Plain(Units);
+
+    /// <summary>Whether a declared unit is a word rather than something to evaluate.</summary>
+    internal static string Plain(string units)
+    {
+        if (string.IsNullOrWhiteSpace(units)) return "";
+
+        return units.AsSpan().ContainsAny("{}()") || units.Length > 12 ? "" : units.Trim();
+    }
+}
 
 /// <summary>
 /// The breakpoints of one table in the tune, so a log can be binned onto the

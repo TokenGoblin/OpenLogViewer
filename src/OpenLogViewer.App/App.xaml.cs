@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -38,7 +39,7 @@ public partial class App : Application
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
-        "--cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
+        "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
     ];
 
     /// <summary>
@@ -168,6 +169,27 @@ public partial class App : Application
             string[] rc = e.Args[cell + 1].Split(',');
             if (rc.Length == 2 && int.TryParse(rc[0], out int col) && int.TryParse(rc[1], out int row))
                 window.ActivateCell(col, row);
+        }
+
+        // "--tune-cell 4,4,1" selects a cell of the tune table and nudges it by
+        // one, so a scripted run can draw what an edit actually looks like.
+        // Local to the copy on screen; nothing is sent or burned.
+        int tuneCell = Array.IndexOf(e.Args, "--tune-cell");
+        if (tuneCell >= 0 && tuneCell + 1 < e.Args.Length)
+        {
+            string[] parts = e.Args[tuneCell + 1].Split(',');
+
+            if (parts.Length >= 2
+                && int.TryParse(parts[0], out int tc)
+                && int.TryParse(parts[1], out int tr))
+            {
+                double nudge = parts.Length > 2
+                    && double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double n)
+                        ? n
+                        : 0;
+
+                window.ActivateTuneCell(tc, tr, nudge);
+            }
         }
 
         int sel = Array.IndexOf(e.Args, "--select");

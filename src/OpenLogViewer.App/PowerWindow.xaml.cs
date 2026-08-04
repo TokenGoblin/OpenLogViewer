@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
@@ -49,6 +50,42 @@ public partial class PowerWindow : Window
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    // ----- typing into a field --------------------------------------------------
+
+    /// <summary>
+    /// Selects a field's contents when it takes focus, so typing replaces the
+    /// number rather than joining onto the end of it.
+    ///
+    /// The alternative — clearing the box, or leaving it empty behind ghost text
+    /// — was considered and is wrong here. These are working values, not
+    /// placeholders: the window computes as it is typed into, so a page that
+    /// emptied itself on focus would show dashes until every box had been filled
+    /// in, and there would be nothing to read on opening it.
+    /// </summary>
+    private void OnFieldFocused(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox box) box.SelectAll();
+    }
+
+    /// <summary>
+    /// Gives a field the focus on the first click rather than placing a caret in
+    /// it.
+    ///
+    /// Without this the selection above is undone before it can be seen: the
+    /// click focuses the box, the contents are selected, and then the same click
+    /// puts the caret where the pointer was and deselects everything. Handling
+    /// the first click and letting every later one through leaves the ordinary
+    /// behaviour intact — click again to place the caret and change one digit.
+    /// </summary>
+    private void OnFieldClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox box || box.IsKeyboardFocusWithin) return;
+
+        box.Focus();
+        e.Handled = true;
+    }
+
 
     private void OnChanged(object sender, TextChangedEventArgs e) => Refresh();
 
