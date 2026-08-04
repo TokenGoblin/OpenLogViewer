@@ -1,0 +1,56 @@
+# Builds and tests on every push and pull request.
+#
+# There are 1,440 tests and, until this existed, nothing that ran them except
+# somebody remembering to. A suite nobody is obliged to run is a suite that goes
+# red quietly — and this one carries the arithmetic a person points at an engine,
+# so a silent regression in it is not a cosmetic problem.
+#
+# Windows only, and not an oversight: the application is WPF and the core targets
+# a Windows SDK for the Bluetooth LE APIs, so there is nothing to gain from a
+# Linux runner that would not simply fail to build.
+name: build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # Restore separately so a dependency problem is reported as one, rather
+      # than as a build failure with the real cause somewhere up the log.
+      - name: Restore
+        run: dotnet restore OpenLogViewer.slnx
+
+      # Warnings as errors here and not in the project file: locally a warning
+      # should be something you can see and keep working past, and on the way to
+      # a merge it should not be something anyone can keep working past.
+      - name: Build
+        run: dotnet build OpenLogViewer.slnx --configuration Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test OpenLogViewer.slnx --configuration Release --no-build --verbosity normal
+
+      # Fails on a package with a known advisory. Worth its own step so that a
+      # security problem in a dependency reads as a security problem rather than
+      # as a mysterious build failure.
+      - name: Check dependencies for known vulnerabilities
+        run: |
+          dotnet list OpenLogViewer.slnx package --vulnerable --include-transitive 2>&1 | Tee-Object -Variable audit
+          if ($audit -match "has the following vulnerable packages") {
+            Write-Error "A dependency has a known vulnerability."
+            exit 1
+          }

@@ -102,6 +102,17 @@
       <RegistryValue Root="HKLM" Key="Software\Classes\.mlg\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
       <RegistryValue Root="HKLM" Key="Software\Classes\.msl\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
       <RegistryValue Root="HKLM" Key="Software\Classes\.MaxxECU-Zip-log\OpenWithProgids" Name="OpenLogViewer.Log" Type="string" Value="" />
+
+      <!--
+        Installed beside the application, not merely shown during setup.
+
+        The published executable is self-contained: the .NET runtime and WPF are
+        inside it, all MIT, and MIT asks that its notice travels with copies of
+        the software. A pane somebody clicked past on the way to Finish does not
+        travel with anything.
+      -->
+      <File Id="LicenseText" Source="$(var.NoticesDir)\LICENSE.txt" />
+      <File Id="ThirdPartyNotices" Source="$(var.NoticesDir)\THIRD-PARTY-NOTICES.txt" />
     </Component>
 
     <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="A75F2CA5-3D3D-4848-96BF-DB80CA9D3F2F">

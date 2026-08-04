@@ -114,7 +114,7 @@ public class AnalysisWorkflowTests : IDisposable
         MainViewModel reopened = NewViewModel();
         reopened.Load(_harness.WriteTypicalLog());
 
-        Assert.Single(reopened.Filters.Where(f => f.Filter.Channel == "CLT"));
+        Assert.Single(reopened.Filters, f => f.Filter.Channel == "CLT");
     }
 
     [Fact]

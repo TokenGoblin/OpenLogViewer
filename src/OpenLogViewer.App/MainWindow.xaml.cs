@@ -475,7 +475,7 @@ public partial class MainWindow : Window
     private void ApplySetValue()
     {
         if (!double.TryParse(
-                SetValue.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double value))
+                SetValueBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double value))
         {
             _vm.SetHint("Type a number to set the selected cells to.");
             return;

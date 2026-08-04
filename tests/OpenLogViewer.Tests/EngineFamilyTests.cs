@@ -61,7 +61,7 @@ public class EngineFamilyTests
 
         Assert.True(custom.IsCustom);
         Assert.Contains(EngineFamilies.All, f => f.IsCustom);
-        Assert.Single(EngineFamilies.All.Where(f => f.IsCustom));
+        Assert.Single(EngineFamilies.All, f => f.IsCustom);
     }
 
     [Theory]

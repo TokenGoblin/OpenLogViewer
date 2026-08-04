@@ -153,7 +153,7 @@ public class Obd2Tests
         Assert.Equal(sparse, masks[1]);
 
         // The sparse module alone would leave the car reporting one parameter.
-        Assert.Single(Obd2Pids.SupportedBy(0x00, sparse).Where(p => p != 0x20));
+        Assert.Single(Obd2Pids.SupportedBy(0x00, sparse), p => p != 0x20);
         Assert.True(Obd2Pids.SupportedBy(0x00, rich).Count > 10);
     }
 

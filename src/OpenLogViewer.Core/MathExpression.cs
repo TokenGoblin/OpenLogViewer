@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OpenLogViewer.Core;
 
@@ -65,7 +66,8 @@ public sealed class MathExpression
 
     public static bool TryParse(
         string text, IEnumerable<string> channelNames,
-        out MathExpression? expression, out string? error)
+        [NotNullWhen(true)] out MathExpression? expression,
+        [NotNullWhen(false)] out string? error)
     {
         try
         {

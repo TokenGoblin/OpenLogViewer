@@ -620,7 +620,7 @@ public class Obd2FaultTests
     /// reliably reach two without it.
     /// </summary>
     [Fact]
-    public void SendsOneCommandAtATime()
+    public async Task SendsOneCommandAtATimeAsync()
     {
         var transport = new BlockingTransport();
         var elm = new Elm327(transport);
@@ -637,7 +637,7 @@ public class Obd2FaultTests
         Assert.Equal(1, transport.Deepest);
 
         transport.Release.Set();
-        Assert.True(Task.WhenAll(polling, scanning).Wait(TimeSpan.FromSeconds(5)));
+        await Task.WhenAll(polling, scanning).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(1, transport.Deepest);
     }
 

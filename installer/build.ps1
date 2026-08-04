@@ -113,6 +113,15 @@ $licenseText = ($licenseText -split "`r?`n") -join '\par' + '\par'
 \f0\fs18 $licenseText}
 "@ | Set-Content $licenseRtf -Encoding ascii
 
+# The licence texts, installed beside the application rather than only shown
+# during setup. The published exe is self-contained: it carries the .NET runtime
+# and WPF inside it, all MIT, and MIT asks that its notice travels with copies of
+# the software. A licence pane somebody clicks past during setup is not that.
+$notices = Join-Path $staging 'notices'
+New-Item -ItemType Directory -Path $notices -Force | Out-Null
+Copy-Item (Join-Path $root 'LICENSE') (Join-Path $notices 'LICENSE.txt')
+Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') (Join-Path $notices 'THIRD-PARTY-NOTICES.txt')
+
 Write-Host "building the msi…" -ForegroundColor DarkGray
 
 $msi = Join-Path $OutputDirectory "OpenLogViewer-$Version-$Runtime.msi"
@@ -121,6 +130,7 @@ $msi = Join-Path $OutputDirectory "OpenLogViewer-$Version-$Runtime.msi"
     -define "Version=$Version" `
     -define "PublishDir=$publish" `
     -define "LicenseRtf=$licenseRtf" `
+    -define "NoticesDir=$notices" `
     -ext WixToolset.UI.wixext `
     -arch x64 `
     -out $msi
