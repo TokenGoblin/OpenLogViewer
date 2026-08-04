@@ -1,0 +1,106 @@
+<UserControl x:Class="OpenLogViewer.App.FaultsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+            <Setter Property="Margin" Value="0,16,0,6"/>
+        </Style>
+
+        <!--
+            One fault. The code is set in a monospaced face at the size a person
+            reads a number back from — it is what gets typed into a search or read
+            down a phone, and every other thing on the row is there to help decide
+            whether it matters.
+        -->
+        <DataTemplate x:Key="Fault">
+            <Border Padding="10,8" Margin="0,0,0,4" CornerRadius="4"
+                    Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding Code}"
+                               FontFamily="Consolas" FontSize="15" FontWeight="SemiBold"
+                               Width="76" VerticalAlignment="Top"
+                               Foreground="{DynamicResource Accent}"/>
+
+                    <StackPanel>
+                        <TextBlock Text="{Binding Detail}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Text}"/>
+                        <TextBlock Text="{Binding Where}" Style="{StaticResource Note}"
+                                   Margin="0,3,0,0"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel Background="{DynamicResource Bg}">
+        <!--
+            Declared before the left-docked text, so the buttons keep their width
+            at any window size. A DockPanel gives space in declaration order, and
+            a toolbar that puts its label first squeezes its own buttons down to
+            an ellipsis.
+        -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,7">
+            <DockPanel>
+                <!-- Hidden unless a host asks for it: a window needs a way out,
+                     a tab in the main window does not. -->
+                <Button DockPanel.Dock="Right" x:Name="CloseButton" Content="Close" Width="80"
+                        Visibility="Collapsed" Click="OnCloseClick"/>
+                <Button DockPanel.Dock="Right" x:Name="ClearButton" Content="Erase codes…"
+                        Width="110" Margin="0,0,8,0" Click="OnClearClick"/>
+                <Button DockPanel.Dock="Right" x:Name="ScanButton" Content="Scan"
+                        Width="90" Margin="0,0,8,0" Click="OnScanClick"/>
+                <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16">
+                <!-- The headline: lamp, count and what the link is. -->
+                <Border Padding="14,11" CornerRadius="5"
+                        Background="{DynamicResource Panel}"
+                        BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock x:Name="Headline" FontSize="15" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource Text}"/>
+                        <TextBlock x:Name="Link" Style="{StaticResource Note}" Margin="0,5,0,0"/>
+                        <TextBlock x:Name="Warning" TextWrapping="Wrap" FontSize="11"
+                                   Margin="0,8,0,0" Visibility="Collapsed"
+                                   Foreground="{DynamicResource Marker}"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="StoredHeading" Style="{StaticResource Heading}"
+                           Text="CONFIRMED — THESE ARE WHAT LIT THE LAMP"/>
+                <ItemsControl x:Name="StoredList" ItemTemplate="{StaticResource Fault}"/>
+
+                <TextBlock x:Name="PendingHeading" Style="{StaticResource Heading}"
+                           Text="PENDING — SEEN ONCE, NOT YET CONFIRMED"/>
+                <TextBlock x:Name="PendingNote" Style="{StaticResource Note}" Margin="0,0,0,6"
+                           Text="Most monitors want the same fault on two consecutive drive cycles before they will store it. A pending code is either the beginning of a real fault or a one-off that will clear itself."/>
+                <ItemsControl x:Name="PendingList" ItemTemplate="{StaticResource Fault}"/>
+
+                <TextBlock x:Name="PermanentHeading" Style="{StaticResource Heading}"
+                           Text="PERMANENT — THESE CANNOT BE ERASED"/>
+                <TextBlock x:Name="PermanentNote" Style="{StaticResource Note}" Margin="0,0,0,6"
+                           Text="Only the controller may clear these, and it will not do so until it has watched the monitor pass on its own. They exist so that a car cannot be presented for an emissions test with its faults wiped minutes earlier."/>
+                <ItemsControl x:Name="PermanentList" ItemTemplate="{StaticResource Fault}"/>
+
+                <TextBlock Style="{StaticResource Note}" Margin="0,18,0,0"
+                           Text="A code is an observation and not a diagnosis. &quot;System too lean, bank 1&quot; is what the car measured; the cause is anything from a split hose to a tired pump, and the number cannot tell you which. Where a description is missing the code belongs to the vehicle manufacturer, who assigns those ranges freely — the same five characters mean unrelated things on two different marques, so guessing at one would be worse than saying nothing."/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -78,6 +78,40 @@ public sealed class Elm327Source : ILiveSource
     /// <summary>The parameters this car reported and this knows how to decode.</summary>
     public IReadOnlyList<Obd2Pid> Parameters => _pids;
 
+    /// <summary>
+    /// Every parameter the car said it supports, decodable or not.
+    ///
+    /// Kept because the two lists are not the same and the difference used to
+    /// vanish without trace: the car enumerates what it will answer, this keeps
+    /// the ones it has a decoder for, and the rest were dropped on the floor with
+    /// nothing said. On a vehicle offering a channel this cannot read, that is a
+    /// missing gauge that looks exactly like a car that never had it.
+    /// </summary>
+    public IReadOnlyList<byte> Supports { get; private init; } = [];
+
+    /// <summary>
+    /// What the car offers that this cannot yet read, in order.
+    ///
+    /// The list worth acting on: every one of these is a channel the vehicle is
+    /// willing to report and that only wants a decoder writing. Anything above
+    /// 0x60 also proves the discovery walk reached that far, which it did not
+    /// before.
+    /// </summary>
+    public IReadOnlyList<byte> Undecoded
+    {
+        get
+        {
+            var known = new HashSet<byte>(Obd2Pids.All.Select(p => p.Pid));
+
+            // The support queries themselves are not readings; a car listing
+            // 0x20 is saying "ask me about the next range", which has already
+            // happened by the time anyone reads this.
+            var asked = new HashSet<byte>(Obd2Pids.SupportQueries);
+
+            return [.. Supports.Where(p => !known.Contains(p) && !asked.Contains(p)).Distinct().Order()];
+        }
+    }
+
     public IReadOnlyList<string> Names { get; }
 
     public IReadOnlyList<string> Units { get; }
@@ -111,7 +145,8 @@ public sealed class Elm327Source : ILiveSource
         string adapter = reset.Length > 0 ? elm.Identify() : "";
         if (adapter.Length == 0) adapter = reset;
 
-        IReadOnlyList<Obd2Pid> pids = Obd2Pids.Known(Supported(elm));
+        IReadOnlyList<byte> supported = Supported(elm);
+        IReadOnlyList<Obd2Pid> pids = Obd2Pids.Known(supported);
 
         // Told apart deliberately. An adapter that named itself and a car that
         // listed nothing is a key turned off, which the user can fix in a second;
@@ -124,7 +159,7 @@ public sealed class Elm327Source : ILiveSource
                       + "Check the ignition is on — most cars report nothing with the key out."
                     : "Nothing here answered as an OBD2 adapter.");
 
-        return new Elm327Source(transport, elm, pids, adapter);
+        return new Elm327Source(transport, elm, pids, adapter) { Supports = supported };
     }
 
     /// <summary>
@@ -338,6 +373,25 @@ public sealed class Elm327Source : ILiveSource
 
         return true;
     }
+
+    /// <summary>
+    /// Asks the car what it is complaining about.
+    ///
+    /// Safe to call while the session is polling. Every command goes through the
+    /// adapter's own gate, so a scan and a round of readings take turns rather
+    /// than interleaving — the poll pauses for as long as this takes, which on a
+    /// car with codes to report is a second or two.
+    /// </summary>
+    public FaultScan ReadFaults() => Obd2Faults.Scan(_elm);
+
+    /// <summary>
+    /// Asks the car to erase them.
+    ///
+    /// Separated from the scan by more than convenience: this is the one thing
+    /// this application can ask a standard vehicle to do that changes it, and what
+    /// it erases goes well beyond the codes — see <see cref="Obd2Faults.Clear"/>.
+    /// </summary>
+    public FaultClear ClearFaults() => Obd2Faults.Clear(_elm);
 
     /// <summary>
     /// Puts the link back together.
