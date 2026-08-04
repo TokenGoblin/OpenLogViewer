@@ -1,7 +1,9 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Data;
+using System.Windows.Media;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
@@ -59,8 +61,11 @@ public partial class CalculatorsWindow : Window
     {
         _calculators =
         [
+            new("Plan a build", "Engine recipe", PageRecipe),
+
             new("Air & boost", "Boost", PageBoost),
             new("Air & boost", "Pressure ratio", PagePressureRatio),
+            new("Air & boost", "Turbo sizing", PageTurbo),
             new("Air & boost", "Airflow", PageAirflow),
 
             new("Fuel", "Injectors", PageInjectors),
@@ -71,6 +76,7 @@ public partial class CalculatorsWindow : Window
             new("Engine", "Engine", PageEngine),
 
             new("Drivetrain", "Gearing", PageGearing),
+            new("Drivetrain", "Drag strip", PageDragStrip),
         ];
 
         CollectionViewSource grouped = new() { Source = _calculators };
@@ -117,6 +123,33 @@ public partial class CalculatorsWindow : Window
             box.SelectedIndex = 0;
         }
 
+        foreach (ComboBox box in (ComboBox[])[TurboFuel, RecFuel])
+        {
+            foreach (Fuel fuel in Enum.GetValues<Fuel>())
+                box.Items.Add(TuningMath.Name(fuel));
+
+            box.SelectedIndex = 0;
+        }
+
+        foreach (ComboBox box in (ComboBox[])[TurboVeFamily, RecVeFamily])
+        {
+            foreach (EngineFamily family in EngineFamilies.All) box.Items.Add(family.Name);
+
+            box.SelectedIndex = EngineFamilies.All.Count - 1;
+        }
+
+        foreach (ComboBox box in (ComboBox[])[TurboTempUnit, RecTempUnit])
+        {
+            foreach (string scale in (string[])["°C", "°F"]) box.Items.Add(scale);
+
+            box.SelectedIndex = 0;
+        }
+
+        foreach (DragFormula formula in DragStrip.Formulas)
+            DragFormula.Items.Add(formula.Name);
+
+        DragFormula.SelectedIndex = DragStrip.Formulas.ToList().IndexOf(DragStrip.Default);
+
         foreach (Blendstock stock in Enum.GetValues<Blendstock>())
             OctStock.Items.Add(OctaneBlend.Name(stock));
 
@@ -130,6 +163,32 @@ public partial class CalculatorsWindow : Window
         GearRedline.Text = "7000";
         GearCruise.Text = "70";
         GearRatios.Text = "3.545, 2.048, 1.416, 1.059, 0.848, 0.756";
+
+        DragWeight.Text = "3200";
+        DragPower.Text = "400";
+        DragTrap.Text = "115";
+        DragEt.Text = "13.0";
+
+        RecLitres.Text = "2.0";
+        RecCylinders.Text = "4";
+        RecPower.Text = "500";
+        RecTorqueRpm.Text = "3500";
+        RecPowerRpm.Text = "7000";
+        RecLambda.Text = "0.80";
+        RecVe.Text = "97";
+        RecChargeTemp.Text = "45";
+        RecDuty.Text = "85";
+        RecPumpHeadroom.Text = "20";
+
+        TurboPower.Text = "650";
+        TurboLitres.Text = "5.7";
+        TurboRpm.Text = "6000";
+        TurboVe.Text = "80";
+        TurboAfr.Text = "11.5";
+        TurboBsfc.Text = TurboSizing.RatedBsfc.ToString(CultureInfo.CurrentCulture);
+        TurboChargeTemp.Text = "55";
+        TurboInletLoss.Text = "1";
+        TurboHeadroom.Text = "10";
 
         OctBase.Text = "91";
         OctSensitivity.Text = OctaneBlend.TypicalSensitivity.ToString(CultureInfo.CurrentCulture);
@@ -187,16 +246,55 @@ public partial class CalculatorsWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+    // ----- typing into a field --------------------------------------------------
+
+    /// <summary>
+    /// Selects a field's contents when it takes focus, so typing replaces the
+    /// number rather than joining onto the end of it.
+    ///
+    /// The alternative — clearing the box, or leaving it empty behind ghost text
+    /// — was considered and is wrong here. These are working values, not
+    /// placeholders: the window computes as it is typed into, so a page that
+    /// emptied itself on focus would show dashes until every box had been filled
+    /// in, and there would be nothing to read on opening it.
+    /// </summary>
+    private void OnFieldFocused(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox box) box.SelectAll();
+    }
+
+    /// <summary>
+    /// Gives a field the focus on the first click rather than placing a caret in
+    /// it.
+    ///
+    /// Without this the selection above is undone before it can be seen: the
+    /// click focuses the box, the contents are selected, and then the same click
+    /// puts the caret where the pointer was and deselects everything. Handling
+    /// the first click and letting every later one through leaves the ordinary
+    /// behaviour intact — click again to place the caret and change one digit.
+    /// </summary>
+    private void OnFieldClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox box || box.IsKeyboardFocusWithin) return;
+
+        box.Focus();
+        e.Handled = true;
+    }
+
+
     /// <summary>Everything that is not the box being typed into.</summary>
     private void Recalculate()
     {
         ShowPressure();
         ShowCompressor();
+        ShowTurbo();
+        ShowRecipe();
         ShowInjectors();
         ShowPump();
         ShowLambda();
         ShowEngine();
         ShowGearing();
+        ShowDragStrip();
         ShowOctane();
         ShowAirflow();
     }
@@ -514,7 +612,14 @@ public partial class CalculatorsWindow : Window
 
         PumpBurned.Text = Show(burned, 0);
         PumpNeeded.Text = Show(needed, 0);
-        PumpGallons.Text = Show(needed * 0.264172, 1);
+        PumpGallons.Text = Show(needed * TuningMath.UsGallonsPerLitre, 1);
+
+        // Both, because a pump is quoted in whichever the maker felt like: litres
+        // an hour on most in-tank pumps, gallons a minute on the larger and the
+        // mechanical ones.
+        PumpGallonsNote.Text = needed > 0
+            ? $"US gallons/hour — {TuningMath.GallonsPerMinute(needed):N2} a minute"
+            : "US gallons/hour";
 
         ShowPumpPicks(fuel, needed);
     }
@@ -734,6 +839,544 @@ public partial class CalculatorsWindow : Window
             + "boost brings with it, which moves the knock limit the wrong way, and the cam timing "
             + "the static ratio ignores too. Its use is the trade it makes visible: less compression "
             + "buys boost, and it says roughly how much.";
+    }
+
+    // ----- the whole build -----------------------------------------------------
+
+    /// <summary>Which fuel the lambda box's mixture belongs to.</summary>
+    private Fuel _recipeFuel = Fuel.Petrol;
+
+    private void OnRecipeChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowRecipe();
+    }
+
+    /// <summary>
+    /// Sets the volumetric efficiency from the kind of engine chosen.
+    ///
+    /// The number stays editable, and typing in it moves the list to "measured or
+    /// known" rather than being overwritten — somebody's own figure off a dyno
+    /// beats any description, and the list exists for the far commoner case of
+    /// knowing what the engine is and not what it breathes.
+    /// </summary>
+    private void OnRecipeVeFamilyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating || RecVe is null) return;
+
+        if (EngineFamilies.All.ElementAtOrDefault(RecVeFamily.SelectedIndex) is { IsCustom: false } family)
+            Set(RecVe, Round(family.VolumetricEfficiency, 0));
+
+        ShowRecipe();
+    }
+
+    private bool _recipeFahrenheit;
+
+    /// <summary>Switches the charge temperature between the scales, converting it.</summary>
+    private void OnRecipeTempUnitChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RecChargeTemp is null) return;
+
+        bool nowFahrenheit = RecTempUnit.SelectedIndex == 1;
+
+        if (nowFahrenheit != _recipeFahrenheit && Value(RecChargeTemp) is var shown && !double.IsNaN(shown))
+            Set(RecChargeTemp, Round(
+                nowFahrenheit
+                    ? TuningMath.FahrenheitFromCelsius(shown)
+                    : TuningMath.CelsiusFromFahrenheit(shown),
+                1));
+
+        _recipeFahrenheit = nowFahrenheit;
+
+        ShowRecipe();
+    }
+
+    private void OnRecipeFuelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RecList is null) return;
+
+        // Lambda is already fuel-independent — that is the whole reason this tab
+        // asks for it rather than an air-fuel ratio. Nothing to carry across.
+        _recipeFuel = FuelOf(RecFuel);
+
+        ShowRecipe();
+    }
+
+    /// <summary>A warning dressed for the list, with a colour for how much it matters.</summary>
+    private sealed record ShownWarning(string Severity, string Text, Brush Tint);
+
+    private void ShowRecipe()
+    {
+        if (RecList is null) return;
+
+        Fuel fuel = FuelOf(RecFuel);
+
+        var spec = new RecipeSpec
+        {
+            Litres = Value(RecLitres),
+            Cylinders = (int)Value(RecCylinders),
+            TargetHorsepower = Value(RecPower),
+            PeakTorqueRpm = Value(RecTorqueRpm),
+            PeakPowerRpm = Value(RecPowerRpm),
+            Fuel = fuel,
+            Lambda = Value(RecLambda),
+            VolumetricEfficiency = Value(RecVe),
+            ChargeCelsius = _recipeFahrenheit
+                ? TuningMath.CelsiusFromFahrenheit(Value(RecChargeTemp))
+                : Value(RecChargeTemp),
+            InjectorDutyLimit = Value(RecDuty),
+
+            // Shared with the rest of the window rather than asked for again.
+            BarometricKpa = _barometricKpa,
+            InletLossKpa = Value(PrInletLoss) * TuningMath.KpaPerPsi,
+            ChargeLossKpa = Value(PrChargeLoss) * TuningMath.KpaPerPsi,
+            RailPsi = Value(PumpRailPsi),
+            PumpHeadroomPercent = Value(RecPumpHeadroom),
+        };
+
+        Recipe recipe = EngineRecipe.Build(spec);
+
+        RecLitresNote.Text = spec.Litres > 0
+            ? $"litres — {spec.Litres * TuningMath.CubicInchesPerLitre:N0} cubic inches"
+            : "litres";
+
+        RecPowerNote.Text = double.IsNaN(recipe.SpecificOutput)
+            ? "hp at the crank"
+            : $"hp at the crank — {recipe.SpecificOutput:N0} per litre";
+
+        RecPistonNote.Text = double.IsNaN(recipe.MeanPistonSpeed)
+            ? "rpm"
+            : $"rpm — {recipe.MeanPistonSpeed:N1} m/s of piston, "
+              + EngineGeometry.PistonSpeedVerdict(recipe.MeanPistonSpeed);
+
+        // The list follows the box rather than the other way round, so a typed
+        // figure is never quietly replaced by the description nearest to it.
+        _updating = true;
+        RecVeFamily.SelectedIndex = EngineFamilies.IndexFor(spec.VolumetricEfficiency);
+        _updating = false;
+
+        RecVeNote.Text = EngineFamilies.For(spec.VolumetricEfficiency).Note;
+
+        RecTempNote.Text = double.IsNaN(spec.ChargeCelsius)
+            ? "after the intercooler"
+            : $"after the intercooler — {(_recipeFahrenheit ? $"{spec.ChargeCelsius:N0} °C" : $"{TuningMath.FahrenheitFromCelsius(spec.ChargeCelsius):N0} °F")}";
+
+        RecFuelNote.Text =
+            $"stoichiometric {TuningMath.Stoichiometric(fuel):N2}:1, BSFC {recipe.Bsfc:N2}";
+
+        // The two margins say the same thing in the units each part is bought in
+        // — a duty limit for injectors, headroom for a pump — so both also report
+        // the spare capacity they come to. Without that they cannot be compared,
+        // and sizing injectors with a fifth in hand and a pump with a twentieth
+        // is a fuel system whose weakest part is not the one you were watching.
+        double duty = spec.InjectorDutyLimit;
+
+        RecDutyNote.Text = duty > 0 && duty <= 100
+            ? $"% — {(100 / duty) - 1:P0} more injector than the target needs"
+            : "% at the target";
+
+        RecPumpNote.Text = spec.PumpHeadroomPercent >= 0
+            ? $"% — {spec.PumpHeadroomPercent / 100:P0} more pump than the target burns"
+            : "% over what is burned";
+
+        RecLambdaNote.Text = double.IsNaN(recipe.Afr)
+            ? "at full throttle"
+            : $"at full throttle — {recipe.Afr:N2}:1 on {TuningMath.ShortName(fuel)}";
+
+        RecList.Text = Assemble(recipe);
+
+        ShownWarning[] warnings =
+        [
+            .. recipe.Warnings.Select(w => new ShownWarning(w.Severity, w.Text, TintFor(w.Severity))),
+        ];
+
+        RecWarnings.ItemsSource = warnings;
+        RecWarningsHeading.Visibility = warnings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// A warning's colour: the theme's own marker for the ones that matter, and
+    /// nothing shouting for the ones that are merely worth knowing.
+    /// </summary>
+    private static Brush TintFor(string severity) => severity switch
+    {
+        "stop" => new SolidColorBrush(ThemeManager.Current.RampWarm),
+        "watch" => new SolidColorBrush(ThemeManager.Current.Marker),
+        _ => new SolidColorBrush(ThemeManager.Current.Muted),
+    };
+
+    /// <summary>
+    /// The parts list itself.
+    ///
+    /// Written as a block of text rather than a grid of boxes because it is
+    /// meant to be read from top to bottom once and then copied into a message
+    /// to somebody, which is what people actually do with a list like this.
+    /// </summary>
+    private static string Assemble(Recipe recipe)
+    {
+        if (double.IsNaN(recipe.AirAtPeakPower))
+            return "  a displacement, a power target and an engine speed to make it at";
+
+        var lines = new List<string>
+        {
+            $"  Air            {recipe.AirAtPeakPower,7:N1} lb/min at the power peak",
+            $"                 {recipe.AirAtPeakTorque,7:N1} lb/min at the torque peak",
+            $"  Boost          {recipe.BoostKpa / TuningMath.KpaPerPsi,7:N1} psi"
+            + $"   ({recipe.ManifoldKpa:N0} kPa absolute)",
+            $"  Pressure ratio {recipe.PressureRatio,7:N2}   at the compressor",
+            "",
+        };
+
+        lines.Add(recipe.Turbos.Count > 0
+            ? $"  Turbo          {recipe.Turbos[0].Label} — {recipe.Turbos[0].Turbo.InducerMm:N0} mm inducer,"
+              + $" {recipe.Turbos[0].Turbo.RatedHorsepower:N0} hp rated"
+            : "  Turbo          nothing in the catalogue covers this");
+
+        foreach (TurboMatch other in recipe.Turbos.Skip(1).Take(2))
+            lines.Add($"                 or {other.Label} — {other.Turbo.InducerMm:N0} mm,"
+                      + $" {other.Headroom:P0} spare");
+
+        lines.Add("");
+        lines.Add($"  Injectors      {recipe.InjectorCcEach,7:N0} cc/min each"
+                  + $"   ({recipe.InjectorLbHrEach:N1} lb/hr)");
+        lines.Add($"  Fuel burned    {recipe.FuelLitresPerHour,7:N0} L/h at the target");
+        lines.Add($"  Pump           {recipe.PumpLitresPerHour,7:N0} L/h"
+                  + $"   {TuningMath.GallonsPerMinute(recipe.PumpLitresPerHour):N2} gal/min"
+                  + $"   at {recipe.RailUnderBoostPsi:N0} psi");
+
+        if (recipe.Pumps.Count > 0)
+            lines.Add($"                 {recipe.Pumps[0].Pump.Name}"
+                      + (recipe.Pumps[0].Count > 1 ? $" × {recipe.Pumps[0].Count}" : ""));
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    // ----- turbo sizing --------------------------------------------------------
+
+    private void OnTurboChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowTurbo();
+    }
+
+    /// <summary>Which fuel the mixture and consumption in the boxes belong to.</summary>
+    private Fuel _turboFuel = Fuel.Petrol;
+
+    /// <summary>
+    /// Moves the mixture and the fuel consumption together when the fuel changes.
+    ///
+    /// Both, and that is the whole point of the selector. The air a target needs
+    /// is the power times the ratio times the consumption, so changing one of
+    /// those without the other is not a different fuel — it is an arithmetic
+    /// mistake. Someone who knows E85 wants a richer mixture and types 7.6 into
+    /// the ratio, leaving the consumption at petrol's 0.46, comes out asking for
+    /// a third less air than the engine will actually swallow, and buys a
+    /// turbocharger a size too small on the strength of it.
+    ///
+    /// Moved together they very nearly cancel, which is the true and surprising
+    /// answer: an alcohol needs about the same air for the same power, because a
+    /// pound of air carries about as much energy whichever fuel arrives with it.
+    /// What the alcohols buy is the boost and timing to use more air, not more
+    /// power from the air.
+    ///
+    /// Scaled rather than replaced, as on the fuel pump: someone who typed a
+    /// mixture or a consumption they measured means something by it, and that
+    /// survives the change of fuel.
+    /// </summary>
+    /// <summary>Sets the volumetric efficiency from the kind of engine chosen.</summary>
+    private void OnTurboVeFamilyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating || TurboVe is null) return;
+
+        if (EngineFamilies.All.ElementAtOrDefault(TurboVeFamily.SelectedIndex) is { IsCustom: false } family)
+            Set(TurboVe, Round(family.VolumetricEfficiency, 0));
+
+        ShowTurbo();
+    }
+
+    private void OnTurboFuelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TurboAfr is null) return;
+
+        Fuel chosen = FuelOf(TurboFuel);
+
+        double lambda = TuningMath.LambdaFromAfr(Value(TurboAfr), _turboFuel);
+        if (double.IsNaN(lambda) || lambda <= 0) lambda = 0.78;
+
+        double petrol = TuningMath.PetrolEquivalentBsfc(_turboFuel, Value(TurboBsfc));
+        if (double.IsNaN(petrol)) petrol = TurboSizing.RatedBsfc;
+
+        Set(TurboAfr, Round(TuningMath.AfrFromLambda(lambda, chosen), 2));
+        Set(TurboBsfc, Round(TuningMath.SuggestedBsfc(chosen, petrol), 3));
+
+        _turboFuel = chosen;
+
+        ShowTurbo();
+    }
+
+    /// <summary>
+    /// Switches the charge temperature between the two scales it is quoted in.
+    ///
+    /// The number in the box is converted rather than reinterpreted, so the
+    /// temperature stays the same physical thing and the answer below does not
+    /// move. Reinterpreting it would turn a 55 degree charge into a 55 degree
+    /// Fahrenheit one — thirteen Celsius, colder than the day — and quietly
+    /// change every figure under it.
+    /// </summary>
+    private void OnTurboTempUnitChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TurboChargeTemp is null) return;
+
+        bool nowFahrenheit = TurboTempUnit.SelectedIndex == 1;
+
+        if (nowFahrenheit != _turboFahrenheit && Value(TurboChargeTemp) is var shown && !double.IsNaN(shown))
+            Set(TurboChargeTemp, Round(
+                nowFahrenheit
+                    ? TuningMath.FahrenheitFromCelsius(shown)
+                    : TuningMath.CelsiusFromFahrenheit(shown),
+                1));
+
+        _turboFahrenheit = nowFahrenheit;
+
+        ShowTurbo();
+    }
+
+    private bool _turboFahrenheit;
+
+    private void ShowTurbo()
+    {
+        if (TurboPicks is null) return;
+
+        double litres = Value(TurboLitres);
+        double afr = Value(TurboAfr);
+        Fuel fuel = FuelOf(TurboFuel);
+
+        double shownTemp = Value(TurboChargeTemp);
+        double chargeC = _turboFahrenheit ? TuningMath.CelsiusFromFahrenheit(shownTemp) : shownTemp;
+
+        // The intercooler's share is taken from the Pressure ratio tab rather
+        // than asked for twice: it is the same intercooler, and two boxes for
+        // one number is two chances to disagree with yourself.
+        double chargeLoss = Value(PrChargeLoss) * TuningMath.KpaPerPsi;
+
+        TurboRequirement need = TurboSizing.Required(
+            Value(TurboPower),
+            afr,
+            Value(TurboBsfc),
+            litres,
+            Value(TurboRpm),
+            Value(TurboVe),
+            chargeC,
+            _barometricKpa,
+            Value(TurboInletLoss) * TuningMath.KpaPerPsi,
+            chargeLoss);
+
+        TurboLitresNote.Text = litres > 0
+            ? $"litres — {litres * TuningMath.CubicInchesPerLitre:N0} cubic inches"
+            : "litres";
+
+        double turboVe = Value(TurboVe);
+
+        _updating = true;
+        TurboVeFamily.SelectedIndex = EngineFamilies.IndexFor(turboVe);
+        _updating = false;
+
+        TurboVeNote.Text = EngineFamilies.For(turboVe).Note;
+
+        TurboFuelNote.Text =
+            $"stoichiometric {TuningMath.Stoichiometric(fuel):N2}:1 — the two boxes below follow it";
+
+        TurboAfrNote.Text = afr > 0
+            ? $"at full throttle — lambda {TuningMath.LambdaFromAfr(afr, fuel):N2} on {TuningMath.ShortName(fuel)}"
+            : "at full throttle";
+
+        TurboBsfcNote.Text =
+            $"lb/hp/hr — the ratings assume {TurboSizing.RatedBsfc:N2} on petrol";
+
+        TurboTempNote.Text = double.IsNaN(chargeC)
+            ? "in the manifold, after the intercooler"
+            : $"in the manifold — {(_turboFahrenheit ? $"{chargeC:N0} °C" : $"{TuningMath.FahrenheitFromCelsius(chargeC):N0} °F")}";
+
+        TurboAir.Text = Show(need.AirLbPerMinute, 1);
+
+        TurboBoost.Text = double.IsNaN(need.BoostKpa)
+            ? "—"
+            : (need.BoostKpa / TuningMath.KpaPerPsi).ToString("N1", CultureInfo.CurrentCulture);
+
+        TurboBoostNote.Text = double.IsNaN(need.ManifoldKpa)
+            ? "psi"
+            : $"psi — {need.ManifoldKpa:N0} kPa absolute in the manifold";
+
+        TurboRatio.Text = Show(need.PressureRatio, 2);
+        TurboRatioNote.Text = double.IsNaN(need.PressureRatio)
+            ? "at the compressor"
+            : $"{need.CompressorInletKpa / TuningMath.KpaPerPsi:N1} psia in, "
+              + $"{need.CompressorOutletKpa / TuningMath.KpaPerPsi:N1} out, "
+              + $"drawing {_barometricKpa:N0} kPa";
+
+        double headroom = Value(TurboHeadroom) / 100;
+        if (double.IsNaN(headroom) || headroom < 0) headroom = TurboSizing.SensibleHeadroom;
+
+        IReadOnlyList<TurboMatch> picks = TurboSizing.Suggest(need.AirLbPerMinute, headroom);
+
+        TurboPicksTitle.Text = need.AirLbPerMinute > 0
+            ? $"Turbochargers that could pass {need.AirLbPerMinute:N1} lb/min"
+              + $" with {headroom:P0} spare"
+            : "Turbochargers";
+
+        TurboPicks.Text = picks.Count > 0
+            ? string.Join(Environment.NewLine, picks.Select(Describe))
+            : need.AirLbPerMinute > 0
+                ? "  nothing in the list, even in pairs"
+                : "  a power target and an engine to put it on";
+
+        TurboNote.Text = picks.Count switch
+        {
+            0 when need.AirLbPerMinute > 0 =>
+                "Past what this short list covers, singly or in pairs. Garrett's own range goes a great "
+                + "deal further than the eleven frames here — this is a starting point rather than a "
+                + "catalogue.",
+
+            > 0 when picks[0].Count > 1 =>
+                "No single turbocharger on the list does it, so these are pairs. Two smaller ones is a "
+                + "real answer to a large engine rather than a consolation prize: they spool sooner "
+                + "than the one big one that would be needed, and each sits nearer the middle of its "
+                + "own map.",
+
+            _ =>
+                "Ratings are the maker's own — on the G series the horsepower is the model number. The "
+                + $"flow each one is credited with is worked out from that rating at {TurboSizing.RatedAfr:N1}:1 "
+                + $"and a BSFC of {TurboSizing.RatedBsfc:N2}, which is what the maker's own worked example "
+                + "uses, rather than transcribed off a compressor map — the same map gives a different "
+                + "maximum depending which island and which pressure ratio you read it at. Check the "
+                + "current catalogue before buying anything on the strength of this.",
+        };
+    }
+
+    private static string Describe(TurboMatch match) =>
+        $"  {match.Label,-16} {match.Turbo.InducerMm,3:N0} mm"
+        + $"  {match.Turbo.RatedHorsepower,5:N0} hp"
+        + $"  {match.Turbo.MaxFlowLbPerMinute * match.Count,5:N0} lb/min"
+        + $"  {match.Headroom,5:P0} spare";
+
+
+    // ----- the strip -----------------------------------------------------------
+
+    private void OnDragChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowDragStrip();
+    }
+
+    private void OnDragFormulaChanged(object sender, SelectionChangedEventArgs e) => ShowDragStrip();
+
+    private DragFormula ChosenFormula() =>
+        DragFormula.SelectedIndex >= 0 && DragFormula.SelectedIndex < DragStrip.Formulas.Count
+            ? DragStrip.Formulas[DragFormula.SelectedIndex]
+            : DragStrip.Default;
+
+    private void ShowDragStrip()
+    {
+        if (DragVerdict is null) return;
+
+        DragFormula formula = ChosenFormula();
+
+        double weight = Value(DragWeight);
+        double power = Value(DragPower);
+
+        DragFormulaNote.Text = formula.Note;
+
+        DragWeightNote.Text = weight > 0
+            ? $"lb with the driver in it — {weight * 0.45359237:N0} kg"
+            : "lb, with the driver in it";
+
+        DragPowerNote.Text = weight > 0 && power > 0
+            ? $"hp at the crank — {weight / power:N1} lb per horsepower"
+            : "hp at the crank";
+
+        double quarterEt = DragStrip.QuarterEt(power, weight, formula);
+        double quarterMph = DragStrip.QuarterMph(power, weight, formula);
+
+        DragQuarterEt.Text = Show(quarterEt, 2);
+        DragQuarterNote.Text = double.IsNaN(quarterMph)
+            ? "seconds"
+            : $"seconds at {quarterMph:N1} mph";
+
+        DragEighthEt.Text = Show(DragStrip.EighthEt(power, weight, formula), 2);
+        DragEighthNote.Text = double.IsNaN(quarterMph)
+            ? "seconds"
+            : $"seconds at {DragStrip.EighthMph(power, weight, formula):N1} mph";
+
+        // The spread between the fastest and slowest correlation, which is not
+        // disagreement — it is how much the launch is worth.
+        DragFormula best = DragStrip.Formulas.OrderBy(f => f.EtConstant).First();
+        DragFormula worst = DragStrip.Formulas.OrderByDescending(f => f.EtConstant).First();
+
+        DragBest.Text = Show(DragStrip.QuarterEt(power, weight, best), 2);
+        DragBestNote.Text = $"seconds on {best.Name} — a run that hooked up";
+
+        DragWorst.Text = Show(DragStrip.QuarterEt(power, weight, worst), 2);
+        DragWorstNote.Text = $"seconds on {worst.Name} — one that did not";
+
+        ShowSlip(weight, formula);
+    }
+
+    /// <summary>
+    /// What the timeslip says, if one has been typed in.
+    ///
+    /// The trap is read for power and the time for the start line, because the
+    /// two are not equally trustworthy — a bad launch is forgotten by the far
+    /// end and never forgotten by the clock.
+    /// </summary>
+    private void ShowSlip(double weight, DragFormula formula)
+    {
+        double trap = Value(DragTrap);
+        double et = Value(DragEt);
+
+        SlipReading reading = DragStrip.Read(trap, et, weight, formula);
+
+        DragFromTrap.Text = Show(reading.PowerFromTrap, 0);
+
+        DragFromTrapNote.Text = double.IsNaN(reading.PowerFromTrap)
+            ? "hp — type a trap speed above"
+            : double.IsNaN(reading.PowerFromEt)
+                ? "hp at the crank, from the trap speed"
+                : $"hp from the trap — the time on its own would say {reading.PowerFromEt:N0}";
+
+        DragLaunch.Text = double.IsNaN(reading.LaunchCost)
+            ? "—"
+            : $"{reading.LaunchCost:+0.00;−0.00}";
+
+        DragLaunchNote.Text = double.IsNaN(reading.EtTheTrapDeserved)
+            ? "seconds — type a time as well"
+            : $"seconds against the {reading.EtTheTrapDeserved:N2} that trap deserved";
+
+        DragVerdict.Text = Verdict(reading);
+    }
+
+    private static string Verdict(SlipReading reading)
+    {
+        if (double.IsNaN(reading.LaunchCost))
+            return "Type in a trap speed and a time from a slip and this will read the run: what the "
+                 + "car actually made, and what the start line cost.";
+
+        if (reading.LaunchCost > DragStrip.LaunchWorthMentioning)
+            return $"The car trapped like {reading.PowerFromTrap:N0} hp and ran "
+                 + $"{reading.LaunchCost:N2} s slower than that trap deserved. That time went missing "
+                 + "in the first sixty feet — tyres, pressure, launch rpm or suspension — and it is "
+                 + "the cheapest time on the car to find. Nothing done to the engine will show up "
+                 + "until it is.";
+
+        if (reading.LaunchCost < -DragStrip.LaunchWorthMentioning)
+            return $"The car ran {-reading.LaunchCost:N2} s quicker than its trap speed deserved, which "
+                 + "means it left very well indeed — or that it weighs less than the figure above. "
+                 + "The trap is still the honest read on power.";
+
+        return $"The time and the trap agree: about {reading.PowerFromTrap:N0} hp, and a launch with "
+             + "nothing much left in it. Further time now has to come from power or from weight.";
     }
 
     // ----- gearing -------------------------------------------------------------

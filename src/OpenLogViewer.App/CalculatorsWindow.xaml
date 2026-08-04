@@ -9,10 +9,20 @@
         ShowInTaskbar="False">
 
     <Window.Resources>
+        <!--
+            Every numeric field selects itself when it takes focus, so typing
+            replaces the number rather than joining onto it. These boxes hold
+            working values rather than placeholders — the window computes as you
+            type — so emptying them on focus would leave a page of dashes, and
+            ghost text would mean nothing to read until eight boxes were filled.
+            A second click still places the caret for editing one digit.
+        -->
         <Style x:Key="Field" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="90"/>
             <Setter Property="HorizontalContentAlignment" Value="Right"/>
             <Setter Property="Margin" Value="0,2"/>
+            <EventSetter Event="GotKeyboardFocus" Handler="OnFieldFocused"/>
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OnFieldClicked"/>
         </Style>
 
         <Style x:Key="Label" TargetType="TextBlock">
@@ -40,6 +50,13 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
             <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+            <Setter Property="Margin" Value="0,16,0,5"/>
         </Style>
         <!--
             One row of the calculator list. A ListBoxItem rather than a tab
@@ -113,6 +130,134 @@
         </Border>
 
         <Grid x:Name="Pages" Margin="8">
+
+            <!-- ===== the whole build ===== -->
+            <ScrollViewer x:Name="PageRecipe" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="One build, worked through end to end. Say what the engine is and what you want of it, and every part of the list comes back sized on the same assumptions."/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Displacement"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="RecLitres" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecLitresNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Cylinders"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="RecCylinders" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="one injector each"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Target power"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="RecPower" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecPowerNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Peak torque at"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="RecTorqueRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="rpm — where you want full boost by"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Peak power at"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="RecPowerRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecPistonNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox  Grid.Row="5" Grid.Column="1" x:Name="RecFuel" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnRecipeFuelChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecFuelNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Lambda"/>
+                        <TextBox   Grid.Row="6" Grid.Column="1" x:Name="RecLambda" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecLambdaNote"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Head and cams"/>
+                        <ComboBox  Grid.Row="7" Grid.Column="1" x:Name="RecVeFamily" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnRecipeVeFamilyChanged"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecVeNote"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
+                        <TextBox   Grid.Row="8" Grid.Column="1" x:Name="RecVe" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% — type your own and the list follows"/>
+
+                        <TextBlock Grid.Row="9" Style="{StaticResource Label}" Text="Charge temperature"/>
+                        <TextBox   Grid.Row="9" Grid.Column="1" x:Name="RecChargeTemp" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <StackPanel Grid.Row="9" Grid.Column="2" Orientation="Horizontal">
+                            <ComboBox x:Name="RecTempUnit" Width="62" Margin="8,2,0,2"
+                                      SelectionChanged="OnRecipeTempUnitChanged"/>
+                            <TextBlock Style="{StaticResource Unit}" x:Name="RecTempNote"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="11" Style="{StaticResource Label}" Text="Injector duty limit"/>
+                        <TextBox   Grid.Row="11" Grid.Column="1" x:Name="RecDuty" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="11" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecDutyNote"/>
+
+                        <TextBlock Grid.Row="12" Style="{StaticResource Label}" Text="Pump headroom"/>
+                        <TextBox   Grid.Row="12" Grid.Column="1" x:Name="RecPumpHeadroom" Style="{StaticResource Field}"
+                                   TextChanged="OnRecipeChanged"/>
+                        <TextBlock Grid.Row="12" Grid.Column="2" Style="{StaticResource Unit}" x:Name="RecPumpNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="THE RECIPE"/>
+
+                    <Border Padding="12,10" CornerRadius="5"
+                            Background="{DynamicResource Panel}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        <TextBlock x:Name="RecList" FontFamily="Consolas" FontSize="12"
+                                   Foreground="{DynamicResource Text}"/>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="WORTH KNOWING"
+                               x:Name="RecWarningsHeading"/>
+
+                    <ItemsControl x:Name="RecWarnings">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,6">
+                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="3"
+                                            Margin="0,1,8,0" VerticalAlignment="Top"
+                                            Background="{Binding Tint}">
+                                        <TextBlock Text="{Binding Severity}" FontSize="10"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Bg}" FontWeight="SemiBold"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Text}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Muted}"/>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Every part of this list is sized on one mixture and one fuel consumption, so the pieces match each other. The margins are separate and named — duty on the injectors, headroom on the pump, flow to spare on the compressor — so being more careful is a matter of moving a margin rather than quietly biasing an assumption."/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The torque speed is not decoration. Airflow at the power peak says whether a compressor is large enough; airflow at the torque peak says whether it is too large. A turbocharger with plenty left at 7,000 rpm can be sitting off the left of its map at 3,500 and never spool — which is why two builds wanting the same power can want different turbochargers."/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="A starting point, not a build sheet. Nothing here knows about your cylinder head, your cam, your gearbox or what the engine is bolted into, and every figure carries the fuel consumption that was assumed rather than measured. Take it to the individual calculators to argue with the parts one at a time."/>
+                </StackPanel>
+            </ScrollViewer>
 
             <!-- ===== pressure ===== -->
             <ScrollViewer x:Name="PageBoost" VerticalScrollBarVisibility="Auto"
@@ -373,7 +518,7 @@
                         <TextBlock Grid.Row="9" Style="{StaticResource Label}" Text="Same in"/>
                         <TextBlock Grid.Row="9" Grid.Column="1" x:Name="PumpGallons"
                                    Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}" Text="US gallons/hour"/>
+                        <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}" x:Name="PumpGallonsNote"/>
                     </Grid>
 
                     <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
@@ -558,6 +703,232 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- ===== turbo sizing ===== -->
+            <ScrollViewer x:Name="PageTurbo" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="The sizing worked backwards: from the power you want to the air it takes, the boost that needs, and the turbochargers that could do it."/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Target power"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="TurboPower" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" Text="hp at the crank"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Displacement"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TurboLitres" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboLitresNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Peak-power speed"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="TurboRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="rpm — where the target is made"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Head and cams"/>
+                        <ComboBox  Grid.Row="3" Grid.Column="1" x:Name="TurboVeFamily" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnTurboVeFamilyChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboVeNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="TurboVe" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% at the power peak"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox  Grid.Row="5" Grid.Column="1" x:Name="TurboFuel" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnTurboFuelChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboFuelNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Air-fuel ratio"/>
+                        <TextBox   Grid.Row="6" Grid.Column="1" x:Name="TurboAfr" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboAfrNote"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="BSFC"/>
+                        <TextBox   Grid.Row="7" Grid.Column="1" x:Name="TurboBsfc" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboBsfcNote"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="Charge temperature"/>
+                        <TextBox   Grid.Row="8" Grid.Column="1" x:Name="TurboChargeTemp" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal">
+                            <ComboBox x:Name="TurboTempUnit" Width="62" Margin="8,2,0,2"
+                                      SelectionChanged="OnTurboTempUnitChanged"/>
+                            <TextBlock Style="{StaticResource Unit}" x:Name="TurboTempNote"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="9" Style="{StaticResource Label}" Text="Losses"/>
+                        <TextBox   Grid.Row="9" Grid.Column="1" x:Name="TurboInletLoss" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="psi through the filter (intercooler: Pressure ratio tab)"/>
+
+                        <TextBlock Grid.Row="11" Style="{StaticResource Label}" Text="Air needed"/>
+                        <TextBlock Grid.Row="11" Grid.Column="1" x:Name="TurboAir"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="11" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="lb/min — what a compressor map is read in"/>
+
+                        <TextBlock Grid.Row="12" Style="{StaticResource Label}" Text="Boost needed"/>
+                        <TextBlock Grid.Row="12" Grid.Column="1" x:Name="TurboBoost"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="12" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboBoostNote"/>
+
+                        <TextBlock Grid.Row="13" Style="{StaticResource Label}" Text="Pressure ratio"/>
+                        <TextBlock Grid.Row="13" Grid.Column="1" x:Name="TurboRatio"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="13" Grid.Column="2" Style="{StaticResource Unit}" x:Name="TurboRatioNote"/>
+
+                        <TextBlock Grid.Row="14" Style="{StaticResource Label}" Text="Headroom wanted"/>
+                        <TextBox   Grid.Row="14" Grid.Column="1" x:Name="TurboHeadroom" Style="{StaticResource Field}"
+                                   TextChanged="OnTurboChanged"/>
+                        <TextBlock Grid.Row="14" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="% of flow spare, over what is needed"/>
+                    </Grid>
+
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                            Background="{DynamicResource Panel}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                            HorizontalAlignment="Left">
+                        <StackPanel>
+                            <TextBlock x:Name="TurboPicksTitle"
+                                       Foreground="{DynamicResource Text}" FontSize="11"
+                                       Margin="0,0,0,6"/>
+                            <TextBlock x:Name="TurboPicks" FontFamily="Consolas" FontSize="12"
+                                       Foreground="{DynamicResource Muted}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="TurboNote"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The smallest that can pass the air is listed first, because it is the one that will spool soonest and spend most of its life near the middle of its map rather than off the left edge of it. Anything below it in the list flows more and lags more."/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="This is not a compressor map. A turbocharger that flows enough may still be wrong — choked at low speed, past the edge of its island at the ratio wanted, or simply too large to spool on the engine. Flow and pressure ratio narrow the field to the ones worth looking at; the map decides between them, and there is no substitute for reading one."/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ===== the strip ===== -->
+            <ScrollViewer x:Name="PageDragStrip" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="What a power figure is worth at the strip — and, from a timeslip, what the run says about the car."/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Weight"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="DragWeight" Style="{StaticResource Field}"
+                                   TextChanged="OnDragChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragWeightNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Power"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="DragPower" Style="{StaticResource Field}"
+                                   TextChanged="OnDragChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragPowerNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Correlation"/>
+                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="DragFormula" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnDragFormulaChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragFormulaNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Quarter mile"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DragQuarterEt"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragQuarterNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Eighth mile"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DragEighthEt"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragEighthNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="If it hooks up"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="DragBest"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragBestNote"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="If it does not"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="DragWorst"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragWorstNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="READ A TIMESLIP"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Trap speed"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="DragTrap" Style="{StaticResource Field}"
+                                   TextChanged="OnDragChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="mph at the far end"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Elapsed time"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="DragEt" Style="{StaticResource Field}"
+                                   TextChanged="OnDragChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}"
+                                   Text="seconds over the quarter"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Power it made"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DragFromTrap"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragFromTrapNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="The launch"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="DragLaunch"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="DragLaunchNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="DragVerdict"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Trap speed and elapsed time are not equally worth trusting. By the far end a car has had a quarter of a mile to forget a bad launch, so the speed it arrives at is very nearly a measure of power against weight. The time does not forget — a wheelspin in the first sixty feet is in it for good. So the trap is read for power, and the time is read for the start line."/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="These are correlations fitted to thousands of real runs, not physics. There is no term here for traction, gearing, the air, the track or the driver — any of which moves a quarter-mile time by more than the differences between the three formulas. Every figure is the middle of a wide distribution."/>
+                </StackPanel>
+            </ScrollViewer>
+
             <!-- ===== gearing ===== -->
             <ScrollViewer x:Name="PageGearing" VerticalScrollBarVisibility="Auto"
                           Visibility="Collapsed">
@@ -606,6 +977,8 @@
                         <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Gear ratios"/>
                         <TextBox   Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" x:Name="GearRatios"
                                    Margin="0,2" HorizontalAlignment="Stretch"
+                                   GotKeyboardFocus="OnFieldFocused"
+                                   PreviewMouseLeftButtonDown="OnFieldClicked"
                                    TextChanged="OnGearingChanged"/>
 
                         <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Top speed"/>

@@ -1,4 +1,4 @@
-namespace OpenLogViewer.Core;
+﻿namespace OpenLogViewer.Core;
 
 /// <summary>
 /// A fuel, and the air-fuel ratio at which it burns completely.
@@ -244,6 +244,22 @@ public static class TuningMath
     /// </summary>
     public static double PressureRatio(double absoluteKpa, double atmosphericKpa = AtmosphericKpa) =>
         atmosphericKpa > 0 ? absoluteKpa / atmosphericKpa : double.NaN;
+
+    // ----- temperature ---------------------------------------------------------
+
+    /// <summary>
+    /// Degrees Celsius from Fahrenheit.
+    ///
+    /// Here rather than written out wherever it is wanted because it is the one
+    /// conversion with an offset as well as a factor, and an offset is the thing
+    /// that gets applied in the wrong order. Multiplying first gives a number
+    /// that looks like a temperature and is out by eighteen degrees.
+    /// </summary>
+    public static double CelsiusFromFahrenheit(double fahrenheit) =>
+        (fahrenheit - 32) * 5 / 9;
+
+    public static double FahrenheitFromCelsius(double celsius) =>
+        (celsius * 9 / 5) + 32;
 
     // ----- altitude ------------------------------------------------------------
 
@@ -713,6 +729,19 @@ public static class TuningMath
     public static double PumpLitresPerHour(
         double horsepower, double bsfc, Fuel fuel = Fuel.Petrol, double headroomPercent = 20) =>
         FuelLitresPerHour(horsepower, bsfc, fuel) * (1 + (headroomPercent / 100));
+
+    /// <summary>
+    /// US gallons in a litre.
+    ///
+    /// From the gallon's own definition — 3.785411784 litres exactly — rather
+    /// than from a rounded reciprocal, because it is used on figures that are
+    /// then compared against a pump's printed rating.
+    /// </summary>
+    public const double UsGallonsPerLitre = 1 / 3.785411784;
+
+    /// <summary>Litres an hour as US gallons a minute, which is how larger pumps are quoted.</summary>
+    public static double GallonsPerMinute(double litresPerHour) =>
+        litresPerHour * UsGallonsPerLitre / 60;
 
     // ----- pumps as they are actually sold --------------------------------------
 
