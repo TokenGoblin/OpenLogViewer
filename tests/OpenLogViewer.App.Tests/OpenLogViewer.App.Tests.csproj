@@ -33,6 +33,7 @@
       for what reaches the dashboard.
     -->
     <Compile Include="..\OpenLogViewer.Tests\FakeElm.cs" Link="FakeElm.cs" />
+    <Compile Include="..\OpenLogViewer.Tests\FakeSubaru.cs" Link="FakeSubaru.cs" />
   </ItemGroup>
 
 </Project>

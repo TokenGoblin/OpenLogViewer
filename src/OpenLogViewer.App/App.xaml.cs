@@ -40,7 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
-        "--faults",
+        "--faults", "--connect-ssm",
     ];
 
     /// <summary>
@@ -101,6 +101,11 @@ public partial class App : Application
         int connect = Array.IndexOf(e.Args, "--connect");
         if (connect >= 0 && connect + 1 < e.Args.Length)
             window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
+
+        // "--connect-ssm COM10" opens a Subaru over its own protocol, which is a
+        // deliberate choice rather than something guessed from the adapter.
+        int ssm = Array.IndexOf(e.Args, "--connect-ssm");
+        if (ssm >= 0 && ssm + 1 < e.Args.Length) window.ConnectOverSsm(e.Args[ssm + 1]);
 
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);

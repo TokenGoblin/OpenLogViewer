@@ -188,3 +188,44 @@ Live but unidentified, worth correlating later:
   0x00000D -> 0x24
   0x000012 -> 0x6C
   0x000046 -> 0x7F    static across every read
+
+====================================================================
+ADDRESS MAP VERIFIED, ENGINE IDLING
+====================================================================
+
+Twelve addresses from RomRaider's SSM base set, read against OBD2 in the
+same session. Five overlap and can be checked:
+
+  parameter          SSM            OBD2 said
+  Engine Speed       918.50 rpm     918.0 rpm
+  Coolant            92 C           92 C          exact
+  Intake Air Temp    64 C           64 C          exact
+  MAP                5.37 psi       5.37 psi      exact
+  Engine Load        30.98 %        31.4 %
+
+The rest read plausibly for a warm idle:
+
+  Ignition Timing          13.5 deg BTDC
+  Learned Ignition Timing  0.00 deg      nothing learnt against it
+  A/F Correction #1        +0.78 %
+  A/F Learning #1          -0.78 %
+  Throttle                 7.84 %
+  Battery                  14.00 V       matches the OBD2 log's 13.9-14.2
+
+ONE WRONG, AND IT WAS THE INTERESTING ONE:
+
+  0x000022 "Knock Correction" answered raw 0xFF, which decodes to +63.5 deg
+  and is impossible. 0xFF is the not-supported sentinel. That address is
+  base-set only; on an FB20 knock lives in a calibration-specific RAM
+  address -- the map has entries like 0x021975 and 0x801308 for other
+  parameters in that space. Removed from the parameter file rather than
+  left to show alarming nonsense. Still to find.
+
+END TO END, THROUGH THE APPLICATION:
+
+  Live - SSM, 11 parameters, OBDLink r2.6. 20 rows over 31 s, so 1.7 s a
+  round, against the 1.75 s predicted from 12 bytes at 146 ms.
+
+  Time,Engine Speed,Learned Ignition Timing,Ignition Timing,...
+  1.71,   889.50, 0, 18.5, 0.78125, 1.5625, 94, 67, 33.7, 8.24, 5.80, 13.76
+  31.45,  887.25, 0, 18.0, 0,       2.34375, 94, 67, 34.1, 8.24, 5.80, 14.00
