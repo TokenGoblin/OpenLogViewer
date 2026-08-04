@@ -67,6 +67,7 @@ public partial class CalculatorsWindow : Window
             new("Air & boost", "Pressure ratio", PagePressureRatio),
             new("Air & boost", "Turbo sizing", PageTurbo),
             new("Air & boost", "Airflow", PageAirflow),
+            new("Air & boost", "Intercooling", PageIntercooler),
 
             new("Fuel", "Injectors", PageInjectors),
             new("Fuel", "Fuel pump", PageFuelPump),
@@ -188,6 +189,26 @@ public partial class CalculatorsWindow : Window
             column.Price.Text = FuelPrices.For(KindOf(column.Fuel))
                 .ToString("0.####", CultureInfo.CurrentCulture);
         }
+
+        foreach (Sprayable fluid in Sprayables.All) IcFluid.Items.Add(fluid.Name);
+
+        IcFluid.SelectedIndex = Sprayables.All.ToList().FindIndex(f => f.Name.StartsWith("50/50"));
+
+        foreach (CoreMaterial material in CoreMaterials.All) IcMaterial.Items.Add(material.Name);
+
+        IcMaterial.SelectedIndex = 0;
+
+        IcAir.Text = "40";
+        IcBoost.Text = "20";
+        IcAmbient.Text = "85";
+        IcCompEff.Text = "70";
+        IcEffect.Text = "70";
+        IcW.Text = "24";
+        IcH.Text = "12";
+        IcT.Text = "3";
+        IcDrop.Text = "60";
+        IcEvap.Text = (ChemicalIntercooling.TypicalEvaporated * 100).ToString("F0", CultureInfo.CurrentCulture);
+        IcFuel.Text = "4.0";
 
         DragWeight.Text = "3200";
         DragPower.Text = "400";
@@ -323,6 +344,7 @@ public partial class CalculatorsWindow : Window
         ShowOctane();
         ShowAirflow();
         ShowRunningCosts();
+        ShowIntercooler();
     }
 
     // ----- reading the boxes ---------------------------------------------------
@@ -1870,4 +1892,194 @@ public partial class CalculatorsWindow : Window
         double.IsNaN(value) || double.IsInfinity(value) || value < 0
             ? "—"
             : "$" + value.ToString("N" + digits, CultureInfo.CurrentCulture);
+
+    // ----- intercooling ---------------------------------------------------------
+
+    private void OnIcChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowIntercooler();
+    }
+
+    private void OnIcFluidChanged(object sender, SelectionChangedEventArgs e) => ShowIntercooler();
+
+    private void OnIcMaterialChanged(object sender, SelectionChangedEventArgs e) => ShowIntercooler();
+
+    private Sprayable ChosenFluid() =>
+        IcFluid.SelectedIndex >= 0 && IcFluid.SelectedIndex < Sprayables.All.Count
+            ? Sprayables.All[IcFluid.SelectedIndex]
+            : Sprayables.FiftyFifty;
+
+    private CoreMaterial ChosenMaterial() =>
+        IcMaterial.SelectedIndex >= 0 && IcMaterial.SelectedIndex < CoreMaterials.All.Count
+            ? CoreMaterials.All[IcMaterial.SelectedIndex]
+            : CoreMaterials.All[0];
+
+    private void ShowIntercooler()
+    {
+        if (IcHotSide is null) return;
+
+        double air = Value(IcAir);
+        double boost = Value(IcBoost);
+        double ambient = Value(IcAmbient);
+        double compEff = Value(IcCompEff) / 100;
+        double effect = Value(IcEffect) / 100;
+
+        // ----- what comes out of the compressor --------------------------------
+
+        double ratio = ChargeAir.PressureRatio(boost);
+        double hot = ChargeAir.CompressorOutletF(ambient, ratio, compEff);
+
+        IcAirNote.Text = air > 0
+            ? $"lb/min — roughly {air * 10:N0} hp worth of air"
+            : "lb/min through the compressor";
+
+        IcBoostNote.Text = boost > 0
+            ? $"psi — a pressure ratio of {ratio:N2}"
+            : "psi of boost";
+
+        IcHotSide.Text = Round(hot, 0) + " °F";
+        IcHotSideNote.Text = double.IsNaN(hot)
+            ? ""
+            : $"{hot - ambient:N0} °F above ambient, all of which the core has to take back out";
+
+        double heat = ChargeAir.HeatLoadBtuPerMin(air, double.IsNaN(hot) ? double.NaN : hot - ambient);
+
+        IcHeat.Text = double.IsNaN(heat) ? "—" : $"{heat:N0} BTU/min";
+        IcHeatNote.Text = double.IsNaN(heat)
+            ? ""
+            : $"{heat * 60:N0} BTU/hr · {heat * 60 / 3412.14:N1} kW, if it were all removed";
+
+        // ----- what the core does with it ---------------------------------------
+
+        double outF = ChargeAir.OutletF(hot, ambient, effect);
+        double density = ChargeAir.DensityRatio(hot, outF);
+
+        IcOut.Text = Round(outF, 0) + " °F";
+        IcOutNote.Text = double.IsNaN(outF)
+            ? ""
+            : $"{outF - ambient:N0} °F above ambient · {hot - outF:N0} °F removed";
+
+        IcDensity.Text = double.IsNaN(density) ? "—" : $"{(density - 1) * 100:N1}%";
+        IcDensityNote.Text = double.IsNaN(density)
+            ? ""
+            : "more air at the same pressure, so about that much more torque before "
+              + "any timing the cooler charge now tolerates";
+
+        var core = new IntercoolerCore(Value(IcW), Value(IcH), Value(IcT));
+
+        IcCoreNote.Text = core.IsUsable
+            ? $"inches — {core.FrontalAreaSqIn:N0} in² face, {core.VolumeCuIn:N0} in³"
+            : "inches, width × height × thickness";
+
+        double loading = core.LoadingPerCuIn(double.IsNaN(heat) ? double.NaN : heat * effect);
+
+        IcLoading.Text = double.IsNaN(loading) ? "—" : $"{loading:N2}";
+        IcLoadingNote.Text = double.IsNaN(loading)
+            ? ""
+            : $"BTU/min per in³ · {core.LoadingPerFrontalSqIn(heat * effect):N1} per in² of face";
+
+        CoreMaterial material = ChosenMaterial();
+        double share = CoreMaterials.MetalShareOfResistance(material);
+
+        IcMaterialNote.Text =
+            $"{material.ConductivityWmK:N0} W/m·K, {material.RelativeDensity:N1}× the weight of aluminium — "
+            + $"the metal is {share:P2} of the resistance between the two air streams";
+
+        IcCoreAdvice.Text =
+            material.Note
+            + "  There is no honest way to predict a core's effectiveness from its outside "
+            + "dimensions — that depends on the fin density, the internal geometry and how much "
+            + "air actually reaches it. What the loading figure is for is comparing two "
+            + "candidates: the same duty spread over half the core is twice the loading, and the "
+            + "smaller one will run hotter. Returns fall away sharply, too — a well-sized core "
+            + "doubled buys a few points of effectiveness, not another seventy.";
+
+        // ----- and what a spray does instead -------------------------------------
+
+        Sprayable fluid = ChosenFluid();
+        double drop = Value(IcDrop);
+        double evap = Value(IcEvap) / 100;
+        double fuel = Value(IcFuel);
+
+        IcFluidNote.Text = $"{fluid.LatentBtuPerLb:N0} BTU/lb latent · {fluid.DensityGPerCc:N3} g/cc";
+
+        double sprayLb = ChemicalIntercooling.FlowLbPerMin(air, drop, fluid, outF, 70, evap);
+        double cc = ChemicalIntercooling.FlowCcPerMin(air, drop, fluid, outF, 70, evap);
+
+        IcDropNote.Text = double.IsNaN(outF)
+            ? "°F to take out of the charge"
+            : $"°F below the {outF:N0} °F leaving the core";
+
+        IcNozzle.Text = double.IsNaN(cc) ? "—" : $"{cc:N0} cc/min";
+        IcNozzleNote.Text = double.IsNaN(cc)
+            ? ""
+            : $"at full flow · nozzles are sold in this, which is a volume — {fluid.Name} at "
+              + $"{fluid.DensityGPerCc:N3} g/cc is what turns it into a mass";
+
+        IcSprayLb.Text = double.IsNaN(sprayLb) ? "—" : $"{sprayLb:N2} lb/min";
+        IcSprayLbNote.Text = double.IsNaN(sprayLb) || fuel <= 0
+            ? ""
+            : $"{ChemicalIntercooling.PercentOfFuel(sprayLb, fuel):N0}% of fuel flow — "
+              + "controllers are usually set up in these terms, and 20 to 50 is the usual range";
+
+        IcConsumption.Text = double.IsNaN(cc)
+            ? "—"
+            : $"{ChemicalIntercooling.GallonsPerHour(cc):N1} gal/hr";
+
+        IcConsumptionNote.Text = double.IsNaN(cc)
+            ? ""
+            : $"{ChemicalIntercooling.LitresPerHour(cc):N1} l/hr · a 5 gallon tank lasts "
+              + $"{ChemicalIntercooling.TankMinutes(5, cc):N0} minutes at full flow";
+
+        double displaced = ChemicalIntercooling.PetrolDisplacedLbPerMin(sprayLb, fluid);
+
+        IcDisplaced.Text = double.IsNaN(sprayLb) ? "—" : $"{displaced:N2} lb/min";
+        IcDisplacedNote.Text = displaced > 0
+            ? $"{fluid.CombustibleFraction:P0} of this fluid burns — take that much petrol out, "
+              + "or it runs rich with the spray and lean the moment it stops"
+            : "water does not burn, so nothing here enriches — which is why a big water spray "
+              + "leans the mixture if the tune was relying on it";
+
+        double after = double.IsNaN(outF) || double.IsNaN(drop) ? double.NaN : outF - drop;
+
+        IcAfterSpray.Text = Round(after, 0) + " °F";
+        IcAfterSprayNote.Text = double.IsNaN(after) || double.IsNaN(ambient)
+            ? ""
+            : after < ambient
+                ? $"below the {ambient:N0} °F ambient — a spray can do that, where a core cannot"
+                : $"{after - ambient:N0} °F above ambient";
+
+        IcFluidTable.Text = FluidTable(air, drop, outF, evap);
+    }
+
+    /// <summary>
+    /// Every fluid at the same duty, so the trade is visible rather than argued.
+    ///
+    /// Water needs the least flow because it absorbs the most per pound; E85 needs
+    /// three times as much and is nearly all fuel. Reading that off one table is
+    /// worth more than any amount of prose about latent heat.
+    /// </summary>
+    private static string FluidTable(double air, double drop, double chargeF, double evaporated)
+    {
+        var rows = new System.Text.StringBuilder();
+
+        rows.AppendLine($"{"fluid",-24}{"BTU/lb",8}{"cc/min",10}{"lb/min",9}{"gal/hr",8}   burns");
+
+        foreach (Sprayable fluid in Sprayables.All)
+        {
+            double cc = ChemicalIntercooling.FlowCcPerMin(air, drop, fluid, chargeF, 70, evaporated);
+            double lb = ChemicalIntercooling.FlowLbPerMin(air, drop, fluid, chargeF, 70, evaporated);
+
+            rows.AppendLine(
+                $"{fluid.Name,-24}{fluid.LatentBtuPerLb,8:N0}"
+                + $"{(double.IsNaN(cc) ? "—" : cc.ToString("N0", CultureInfo.CurrentCulture)),10}"
+                + $"{(double.IsNaN(lb) ? "—" : lb.ToString("N2", CultureInfo.CurrentCulture)),9}"
+                + $"{(double.IsNaN(cc) ? "—" : ChemicalIntercooling.GallonsPerHour(cc).ToString("N1", CultureInfo.CurrentCulture)),8}"
+                + $"   {fluid.CombustibleFraction,4:P0}");
+        }
+
+        return rows.ToString().TrimEnd();
+    }
 }

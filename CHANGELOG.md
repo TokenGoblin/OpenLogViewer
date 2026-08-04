@@ -111,6 +111,45 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**Intercooling, and chemical intercooling.** *Calculators ▸ Air & boost ▸
+Intercooling*. What the compressor does to the air, how much heat there is to
+take back out, what a core will actually remove, and what spraying something into
+the charge does instead.
+
+The air side is textbook and worth having in one place: pressure ratio, the
+compressor outlet temperature at a stated efficiency, the heat load in BTU/min
+and kW, the outlet at a given effectiveness, and the density — which is the number
+that turns degrees into torque. Core dimensions give frontal area, volume and a
+loading figure. That last one is deliberately a comparison rather than a verdict:
+there is no honest way to predict a core's effectiveness from its outside
+dimensions, so the figure exists to set two candidates against each other, and
+the page says so rather than pretending otherwise.
+
+**On material, the calculator argues against the question.** A half-millimetre
+aluminium wall is under one per cent of the resistance between the two air
+streams — the air film is what holds things up, not the metal. Copper is nearly
+twice the conductivity and over three times the weight, and buys essentially
+nothing. The page shows that share rather than offering a fake performance
+multiplier per material.
+
+**Chemical intercooling** covers 100% water, 70/30, 50/50, 30/70, 100% methanol
+and E85, in cc/min for buying a nozzle and lb/min for the physics. Latent heats
+are the published thermophysical figures — water 2,260 kJ/kg, methanol 1,100,
+ethanol 850 — converted once and tested against the source values.
+
+Three things it gets right that are easy to get wrong. **A 50/50 mix is sold by
+volume and behaves by mass**: methanol is lighter, so half a litre of it is 44% of
+the weight, and using the volume fraction understates the cooling. **Not all of it
+evaporates where it is wanted** — what wets the pipe still works against knock but
+does nothing for density, so the evaporated share is a control rather than an
+assumption. And **methanol is fuel**: a pound carries 8,640 BTU against petrol's
+18,400, so the page reports the petrol it displaces, because an engine given both
+runs rich with the spray and leans out hard the moment it stops.
+
+It also says plainly what a nozzle calculation cannot: an engine tuned to lean on
+a spray finds its detonation limit within seconds of a failed pump, and sizing the
+nozzle is the easy half of that job.
+
 **Fuel economy: three vehicles side by side.** *Calculators ▸ Running costs ▸
 Fuel economy*. Petrol, hybrid, E85, diesel, CNG or electric in each column, with
 what each costs by the week, the month and the year, per mile, and how many
