@@ -22,6 +22,18 @@ public sealed class Elm327(IEcuTransport transport)
     private readonly byte[] _one = new byte[1];
 
     /// <summary>
+    /// One command at a time.
+    ///
+    /// Nothing needed this while the only traffic was the poll loop, which is a
+    /// single thread asking one question after another. Fault scanning is asked
+    /// for from the user interface while that loop is still running, and two
+    /// commands written into the same adapter interleave into one stream: the
+    /// scan reads the tail of a coolant temperature and the poll reads half a
+    /// fault code. Both would parse. Neither would be true.
+    /// </summary>
+    private readonly Lock _gate = new();
+
+    /// <summary>
     /// How long to wait for the adapter to finish answering.
     ///
     /// Generous for a link this slow. A clone answers a known PID in 40–100 ms,
@@ -53,6 +65,10 @@ public sealed class Elm327(IEcuTransport transport)
     public string Reset()
     {
         string identity = Send("ATZ", ResetTimeout);
+
+        // A reset undoes the protocol search along with everything else, and a
+        // reconnection may land on a different car.
+        _isCan = null;
 
         foreach (string command in Setup) Send(command, Timeout);
 
@@ -97,6 +113,68 @@ public sealed class Elm327(IEcuTransport transport)
     }
 
     /// <summary>
+    /// Which OBD2 protocol the adapter settled on, in its own words.
+    ///
+    /// "ISO 15765-4 (CAN 11/500)" on anything modern, and one of the older serial
+    /// buses on a car from before CAN was mandated. Worth showing rather than
+    /// hiding: it is the first thing that distinguishes a car whose replies will
+    /// be short and fast from one whose will not.
+    ///
+    /// The "AUTO, " prefix the adapter adds after a protocol search is dropped —
+    /// it says how the protocol was arrived at rather than what it is.
+    /// </summary>
+    public string ProtocolName()
+    {
+        string reply = Extended("ATDP");
+        if (reply.Length == 0) return "";
+
+        const string automatic = "AUTO,";
+
+        return reply.StartsWith(automatic, StringComparison.OrdinalIgnoreCase)
+            ? reply[automatic.Length..].Trim()
+            : reply;
+    }
+
+    /// <summary>
+    /// Whether the car is on CAN, which decides how a fault reply is laid out.
+    ///
+    /// Not a detail that can be skipped over. A mode 03 reply on CAN carries the
+    /// number of codes immediately after the mode echo and on the older serial
+    /// protocols it does not, so the same six bytes are one fault code or two
+    /// depending on this answer — and the wrong reading produces codes that look
+    /// perfectly plausible and are not on the car.
+    ///
+    /// <c>ATDPN</c> answers with the protocol number, prefixed "A" where it was
+    /// found by searching: 1 to 5 are the J1850 and ISO serial buses, 6 upwards
+    /// are the CAN variants. Assumed CAN when the adapter will not say, that being
+    /// every vehicle built since the requirement came in.
+    /// </summary>
+    public bool IsCan()
+    {
+        if (_isCan is { } known) return known;
+
+        string reply = Extended("ATDPN");
+
+        // The trailing digit is the protocol; anything before it is the "A" that
+        // says it was searched for rather than set.
+        char number = reply.Length > 0 ? char.ToUpperInvariant(reply[^1]) : '\0';
+
+        bool can = number switch
+        {
+            >= '6' and <= '9' => true,
+            >= 'A' and <= 'C' => true,
+            >= '1' and <= '5' => false,
+            _ => true,
+        };
+
+        _isCan = can;
+
+        return can;
+    }
+
+    private bool? _isCan;
+
+    /// <summary>
     /// One of the ST commands, or empty where the adapter has no such thing.
     ///
     /// An ELM327 answers an unknown command with "?", and a clone that never
@@ -136,17 +214,20 @@ public sealed class Elm327(IEcuTransport transport)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Anything still buffered belongs to the previous exchange — a reply that
-        // arrived after its timeout, or the tail of one that was abandoned. Read
-        // as the front of this answer it would decode as a different reading
-        // altogether, which is worse than a slow one.
-        _transport.DiscardInput();
+        lock (_gate)
+        {
+            // Anything still buffered belongs to the previous exchange — a reply
+            // that arrived after its timeout, or the tail of one that was
+            // abandoned. Read as the front of this answer it would decode as a
+            // different reading altogether, which is worse than a slow one.
+            _transport.DiscardInput();
 
-        if (settle) WaitForQuiet();
+            if (settle) WaitForQuiet();
 
-        _transport.Write(Encoding.ASCII.GetBytes(command + "\r"));
+            _transport.Write(Encoding.ASCII.GetBytes(command + "\r"));
 
-        return ReadToPrompt(timeout);
+            return ReadToPrompt(timeout);
+        }
     }
 
     /// <summary>
