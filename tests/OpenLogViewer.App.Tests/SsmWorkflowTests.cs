@@ -168,6 +168,37 @@ public class SsmWorkflowTests : IDisposable
     }
 
     /// <summary>
+    /// The readings reach the gauges, not merely the recording.
+    ///
+    /// The bug this exists for: the session polled, the recording filled with
+    /// correct values, and every dial stayed blank -- because the timer that
+    /// pushes readings into the view is started by the code that opens a
+    /// connection, and a third way in had been added that did not start it. A
+    /// recording full of data was taken as proof the whole thing worked, and it
+    /// only ever proved the source did.
+    ///
+    /// So this asserts the path the recording cannot: a value taken off the
+    /// source, through a snapshot, onto the gauge.
+    /// </summary>
+    [Fact]
+    public void ReadingsReachTheGaugesAndNotOnlyTheRecording()
+    {
+        MainViewModel vm = NewViewModel();
+        vm.ConnectSsm(new FakeSubaru(), "COM3");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline && !vm.RefreshLive()) Thread.Sleep(10);
+
+        GaugeItem rpm = vm.Dashboard.Single(g => g.Title == "Engine Speed");
+
+        // 0x0E36 over the wire, quarter-scaled: the reading the real car gave.
+        Assert.Equal(909.5, rpm.Value, 3);
+
+        Assert.All(vm.Dashboard, g =>
+            Assert.False(double.IsNaN(g.Value), $"{g.Title} never received a reading"));
+    }
+
+    /// <summary>
     /// Every address in the file may be wrong, and a session that starts happily
     /// and shows a screen of dashes is a worse outcome than one that refuses and
     /// names the address.

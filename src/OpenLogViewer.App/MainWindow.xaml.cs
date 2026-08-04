@@ -989,7 +989,11 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(this, e.Message, "OpenLogViewer",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return;
         }
+
+        LiveSessionStarted();
     }
 
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)
@@ -1240,12 +1244,7 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = null;
         }
 
-        ConnectButton.Content = "Disconnect";
-        _follow = true;
-
-        _liveTimer = new DispatcherTimer { Interval = LiveRefresh };
-        _liveTimer.Tick += OnLiveTick;
-        _liveTimer.Start();
+        LiveSessionStarted();
     }
 
     /// <summary>Connects to the first paired BLE adapter whose name matches, for a scripted run.</summary>
@@ -1314,9 +1313,28 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = null;
         }
 
+        LiveSessionStarted();
+    }
+
+    /// <summary>
+    /// Everything that has to happen once a session is running, whichever way it
+    /// was started.
+    ///
+    /// Extracted because it had been written out twice and then a third way in
+    /// was added that forgot the timer entirely -- the session polled, the
+    /// recording filled up, and every gauge sat blank, which reads as a link that
+    /// is not working rather than a view that is not being told. Nothing here is
+    /// optional and none of it is obvious from the outside, so it should not be
+    /// possible to add a connection path and miss it.
+    /// </summary>
+    private void LiveSessionStarted()
+    {
         ConnectButton.Content = "Disconnect";
         _follow = true;
 
+        // The only thing that pushes readings into the gauges and the plot. The
+        // session itself is quite happy without it, which is what makes leaving
+        // it out so quiet a failure.
         _liveTimer = new DispatcherTimer { Interval = LiveRefresh };
         _liveTimer.Tick += OnLiveTick;
         _liveTimer.Start();
