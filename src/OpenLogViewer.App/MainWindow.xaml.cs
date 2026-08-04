@@ -60,6 +60,12 @@ public partial class MainWindow : Window
         CalibrationFaults.ScanOnFirstSight();
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
+
+        // Ctrl+K repeats the last connection. Does nothing when there is nothing
+        // to repeat, rather than opening a menu somebody did not ask for.
+        InputBindings.Add(new KeyBinding(
+            new RelayCommand(() => OnReconnectClick(this, new RoutedEventArgs())),
+            Key.K, ModifierKeys.Control));
     }
 
     private void OnThemeChanged(Theme theme) => TitleBar.Apply(this, theme);
@@ -634,6 +640,34 @@ public partial class MainWindow : Window
         Mouse.Capture(null);
     }
 
+    /// <summary>
+    /// Most recently used first, then everything else.
+    ///
+    /// Sorted rather than merely grouped, because "known" is not one bucket on a
+    /// machine that has seen three ECUs — the one wanted now is almost always the
+    /// one wanted last time.
+    /// </summary>
+    private static long Rank(SerialPortInfo port) =>
+        port.LastUsed is { } when ? -when.ToUnixTimeSeconds() : long.MaxValue;
+
+    /// <summary>
+    /// Reconnects to the ECU used last, which is what the shortcut is for.
+    ///
+    /// Goes through the same path as picking it from the menu rather than a
+    /// quicker one of its own: an OBD2 dongle needs a different conversation from
+    /// a MegaSquirt, and a second route to connecting would be a second place for
+    /// that decision to be got wrong.
+    /// </summary>
+    private void OnReconnectClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LastConnected is not { } port) return;
+
+        ConnectTo(port.PortName, port.IsObd2);
+    }
+
+    private void OnForgetEcusClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.ForgetKnownEcus());
+
     private void OnConnectClick(object sender, RoutedEventArgs e)
     {
         if (_vm.IsLive) { StopLive(); return; }
@@ -673,9 +707,31 @@ public partial class MainWindow : Window
         // Cabled ports first, and they mean something: a USB adapter appears in
         // this list when it is plugged in and vanishes when it is not, so its
         // presence is already the answer to "is it there".
-        SerialPortInfo[] wired = [.. ports.Where(p => !p.IsBluetooth)];
+        SerialPortInfo[] wired = [.. ports.Where(p => !p.IsBluetooth).OrderBy(Rank)];
 
-        foreach (SerialPortInfo port in wired) Add(PortItem(port));
+        // Anything that has answered before goes above anything that has not,
+        // and among those the one used most recently goes first. The heading
+        // only appears when both kinds are present — on a machine with one
+        // adapter it would be a label over a list of one.
+        bool split = wired.Any(p => p.IsKnown) && wired.Any(p => !p.IsKnown);
+        bool headed = false;
+
+        if (split && wired.Length > 0)
+        {
+            Add(new MenuItem { Header = "Used before", IsEnabled = false });
+            headed = true;
+        }
+
+        foreach (SerialPortInfo port in wired)
+        {
+            if (headed && !port.IsKnown)
+            {
+                Add(new MenuItem { Header = "Other ports", IsEnabled = false });
+                headed = false;
+            }
+
+            Add(PortItem(port));
+        }
 
         // Everything over a radio is a different matter. Pairing is a fact about
         // this computer rather than about the device, so a paired ECU is listed

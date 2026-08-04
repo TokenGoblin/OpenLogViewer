@@ -92,6 +92,65 @@ public class RecordingWorkflowTests : IDisposable
         return reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
     }
 
+    // ----- getting back to the last ECU ---------------------------------------
+
+    /// <summary>
+    /// A device remembered before use times were kept still offers the shortcut.
+    ///
+    /// Caught by looking at the screen rather than by a test: every profile that
+    /// predates the timestamps has signatures and no times, so requiring a time
+    /// hid the shortcut from precisely the people who had been using this
+    /// longest. Worse, it would have come back on its own after the next
+    /// connection — which reads as intermittent rather than broken, and nobody
+    /// reports intermittent.
+    /// </summary>
+    [Fact]
+    public void ADeviceRememberedBeforeTimesWereKeptStillCounts()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"olv-old-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(path, """
+            {"version":1,"knownEcus":{"USB\\VID_2341":"Speeduino 2025.01.7"}}
+            """);
+
+        try
+        {
+            var settings = new SettingsStore(path);
+
+            Assert.NotEmpty(settings.KnownEcus);
+            Assert.Empty(settings.EcuLastUsed);
+
+            // The signature is what the label is built from, and it survives
+            // being shortened to something that fits on a button.
+            Assert.Equal("Speeduino 2025.01.7", settings.KnownEcus[@"USB\VID_2341"]);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>
+    /// With nothing ever connected there is no shortcut and no label pretending
+    /// there is one — a new install shows the plain Connect button.
+    /// </summary>
+    [Fact]
+    public void AFreshInstallOffersNoShortcut()
+    {
+        MainViewModel vm = NewViewModel();
+
+        Assert.Equal("Connect", vm.ReconnectLabel);
+    }
+
+    /// <summary>Forgetting reports what went, and says what it did not touch.</summary>
+    [Fact]
+    public void ForgettingSaysWhatItDidAndWhatItLeftAlone()
+    {
+        MainViewModel vm = NewViewModel();
+
+        Assert.Contains("No devices", vm.ForgetKnownEcus(), StringComparison.OrdinalIgnoreCase);
+    }
+
     // ----- the default ---------------------------------------------------------
 
     /// <summary>

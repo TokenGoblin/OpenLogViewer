@@ -68,6 +68,7 @@ public sealed class MainViewModel : ObservableObject
 
         Workspace = new Workspace(_settings.DataFolder);
         SerialPortNames.Recall(_settings.KnownEcus);
+        SerialPortNames.RecallLastUsed(_settings.EcuLastUsed);
 
         _theme = ThemeCatalog.Find(_settings.ThemeId);
         ThemeManager.Apply(_theme);
@@ -1983,6 +1984,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
         Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
         RaiseRecording();
     }
 
@@ -2040,6 +2042,84 @@ public sealed class MainViewModel : ObservableObject
     /// such thing to offer.
     /// </summary>
     private Elm327Source? _obd2;
+
+    // ----- getting back to the ECU you were on last --------------------------
+
+    /// <summary>
+    /// The device to offer as one click, or null when there is nothing to offer.
+    ///
+    /// The most recently used of the devices that are actually present. Presence
+    /// matters as much as recency: a USB adapter that is unplugged is not in the
+    /// port list at all, and a button offering to connect to it would be offering
+    /// a wait and then a failure. A paired Bluetooth port is always listed
+    /// whether or not the ECU has power, so that one can still disappoint — but
+    /// it is the best guess available and it is one click to find out.
+    /// </summary>
+    /// <remarks>
+    /// A device with no recorded time still counts. Every profile written before
+    /// times were kept has signatures and no timestamps, so requiring one would
+    /// hide the shortcut from exactly the people who have been using this longest
+    /// — and it would come back on its own after the next connection, which makes
+    /// it look intermittent rather than broken. Undated devices simply sort last.
+    /// </remarks>
+    public SerialPortInfo? LastConnected =>
+        SerialPortNames.Describe()
+            .Where(p => p.IsKnown && !p.IsIncoming)
+            .OrderByDescending(p => p.LastUsed ?? DateTimeOffset.MinValue)
+            .FirstOrDefault();
+
+    /// <summary>Whether the shortcut has anything to point at.</summary>
+    public bool CanReconnect => !IsLive && LastConnected is not null;
+
+    /// <summary>
+    /// What the shortcut says it will do.
+    ///
+    /// Named after the ECU rather than the port, because the port number is
+    /// Windows' business and changes with the order things were plugged in. What
+    /// somebody remembers is that they were on the Speeduino.
+    /// </summary>
+    public string ReconnectLabel => LastConnected is { } port
+        ? $"Connect: {(port.KnownEcu.Length > 0 ? Shorten(port.KnownEcu) : port.PortName)}"
+        : "Connect";
+
+    /// <summary>
+    /// An ECU signature cut down to something that fits on a button.
+    ///
+    /// Firmware signatures are not names — a MegaSquirt reports "MS2/Extra 3.4.1
+    /// release 20151223 14:04GMT(c)KC/JSM/JB uS", which is a build stamp with a
+    /// copyright notice in it. The first couple of words are the part a person
+    /// would say out loud.
+    /// </summary>
+    private static string Shorten(string signature)
+    {
+        string[] words = signature.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return words.Length <= 2 ? signature : string.Join(' ', words.Take(2));
+    }
+
+    /// <summary>
+    /// Forgets every device this has connected to.
+    ///
+    /// Only the devices. Presets, filters and calculated channels are somebody's
+    /// work and are not swept up in this — the reason to reach for it is a dongle
+    /// that has been sold or an adapter replaced, whose name keeps appearing in a
+    /// list of things that are no longer there.
+    /// </summary>
+    public string ForgetKnownEcus()
+    {
+        int count = _settings.KnownEcus.Count;
+
+        SerialPortNames.Forget();
+        _settings.ForgetKnownEcus();
+
+        Raise(nameof(CanReconnect));
+        Raise(nameof(ReconnectLabel));
+
+        return count == 0
+            ? "No devices were remembered."
+            : $"Forgot {count} remembered device{(count == 1 ? "" : "s")}. "
+              + "Presets, filters and calculated channels are untouched.";
+    }
 
     /// <summary>Whether faults can be scanned for — which needs a standard vehicle.</summary>
     public bool IsObd2Live => _obd2 is not null && IsLive;
@@ -2106,6 +2186,9 @@ public sealed class MainViewModel : ObservableObject
 
         SerialPortNames.Remember(port, _liveSignature);
         _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+        Raise(nameof(CanReconnect));
 
         Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
         Title = $"Live: OBD2 — OpenLogViewer";
@@ -2121,6 +2204,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
         Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
         RaiseRecording();
     }
 
@@ -2265,6 +2349,9 @@ public sealed class MainViewModel : ObservableObject
         // of the answer when the question is which ECU to connect to.
         SerialPortNames.Remember(port, version);
         _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+        Raise(nameof(CanReconnect));
 
         string iniText = TuningText.Read(ini.Path);
         RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
@@ -2315,6 +2402,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
         Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
         RaiseRecording();
     }
 
@@ -2338,6 +2426,8 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(ShowNoTuneNotice));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
+        Raise(nameof(ReconnectLabel));
         RaiseRecording();
 
         if (Document is not null)
