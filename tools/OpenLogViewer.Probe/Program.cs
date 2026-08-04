@@ -458,7 +458,10 @@ static void Guard(string command)
         return;
     }
 
-    // OBD2 service 01 and 09 read; 22 reads by identifier. KWP2000 service 21 is
+    // OBD2 services 01, 05 and 09 read; 22 reads by identifier. 05 is also the
+    // ISO-TP single-frame marker for a five-byte payload, which is how a raw SSM
+    // read looks with the adapter's auto-formatting off -- harmless under either
+    // reading, which is exactly why it is the one worth testing with. KWP2000 service 21 is
     // readDataByLocalIdentifier, which is what Toyota puts its extra parameters
     // behind — read-only by definition of the service. SSM 0xA8 and 0xA0 read
     // addresses and blocks, 0xBF asks what is supported.
@@ -467,6 +470,7 @@ static void Guard(string command)
     // routine. Neither belongs in a tool for finding out what a car will say.
     bool reads =
         text.StartsWith("01", StringComparison.Ordinal)
+        || text.StartsWith("05", StringComparison.Ordinal)
         || text.StartsWith("09", StringComparison.Ordinal)
         || text.StartsWith("21", StringComparison.Ordinal)
         || text.StartsWith("22", StringComparison.Ordinal)

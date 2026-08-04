@@ -152,3 +152,39 @@ STPX was refused by this firmware (STN1100 v2.2.2). Until that is solved a
 round is one byte per request, which is slower per parameter than OBD2.
 
 Mode 21 and mode 22: NO DATA throughout. Subaru uses neither.
+
+====================================================================
+BATCHING: RULED OUT ON THIS HARDWARE
+====================================================================
+
+Four routes tried, all closed:
+
+  A0 read-block          NO DATA      the ECU does not implement it
+  A8 with 2 addresses,   7F A8 13     the ECU parsed it and refused the
+  no padding byte                     length, so the pad is mandatory and
+                                      two addresses genuinely needs 8 bytes
+  A8 with 2 addresses,   ?            the ADAPTER refused, not the car
+  8 bytes
+  STPX (4 syntaxes)      ?            absent from STN1100 v2.2.2
+  ATCAF0 + 8 bytes       ?            still refused with auto-format off
+
+So a round is one byte per request.
+
+SUSTAINED RATE, eight consecutive reads:
+  131, 137, 143, 143, 148, 153, 154, 162 ms   -> ~146 ms mean
+  ~6.8 bytes per second
+
+Which is slow, and mostly does not matter. The parameters worth having over
+SSM -- knock correction, fine knock learn, IAM, A/F learning -- are learned
+values that move over seconds and minutes, not transients. Eight of them is
+about 1.2 s a round, near enough 0.85 Hz. For catching a misfire it is
+useless; for watching what the ECU has learned over a drive it is ample.
+
+Live but unidentified, worth correlating later:
+  0x000009 -> 0x80    128 is the "no correction" midpoint of a trim-like
+                      value, which makes this a candidate worth checking
+  0x000007 -> 0x49, 0x4C   moving; MAP read 34 kPa at the same moment, so
+                      not MAP at this scaling
+  0x00000D -> 0x24
+  0x000012 -> 0x6C
+  0x000046 -> 0x7F    static across every read
