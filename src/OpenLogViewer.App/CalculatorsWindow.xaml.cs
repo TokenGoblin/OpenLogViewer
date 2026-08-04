@@ -77,6 +77,8 @@ public partial class CalculatorsWindow : Window
 
             new("Drivetrain", "Gearing", PageGearing),
             new("Drivetrain", "Drag strip", PageDragStrip),
+
+            new("Running costs", "Fuel economy", PageRunningCosts),
         ];
 
         CollectionViewSource grouped = new() { Source = _calculators };
@@ -163,6 +165,29 @@ public partial class CalculatorsWindow : Window
         GearRedline.Text = "7000";
         GearCruise.Text = "70";
         GearRatios.Text = "3.545, 2.048, 1.416, 1.059, 0.848, 0.756";
+
+        foreach (ComboBox box in (ComboBox[])[CostFuelA, CostFuelB, CostFuelC])
+        {
+            foreach (FuelSpec fuel in Fuels.All) box.Items.Add(fuel.Name);
+        }
+
+        // Three different fuels to start with, because a page that opens showing
+        // the same car three times does not look like a comparison.
+        CostFuelA.SelectedIndex = 0;
+        CostFuelB.SelectedIndex = Fuels.All.ToList().FindIndex(f => f.Kind == FuelKind.Hybrid);
+        CostFuelC.SelectedIndex = Fuels.All.ToList().FindIndex(f => f.Kind == FuelKind.Electricity);
+
+        CostMiles.Text = RunningCosts.TypicalAnnualMiles.ToString("F0", CultureInfo.CurrentCulture);
+
+        CostEconomyA.Text = "26";
+        CostEconomyB.Text = "48";
+        CostEconomyC.Text = "3.5";
+
+        foreach (var column in CostColumns)
+        {
+            column.Price.Text = FuelPrices.For(KindOf(column.Fuel))
+                .ToString("0.####", CultureInfo.CurrentCulture);
+        }
 
         DragWeight.Text = "3200";
         DragPower.Text = "400";
@@ -297,6 +322,7 @@ public partial class CalculatorsWindow : Window
         ShowDragStrip();
         ShowOctane();
         ShowAirflow();
+        ShowRunningCosts();
     }
 
     // ----- reading the boxes ---------------------------------------------------
@@ -1670,4 +1696,178 @@ public partial class CalculatorsWindow : Window
 
         return $"hp — {afr:N1}:1, BSFC {own:N2}{against}";
     }
+
+    // ----- running costs --------------------------------------------------------
+
+    /// <summary>
+    /// The three vehicles, so every handler works on the columns rather than on
+    /// nine named boxes. Built on demand because the fields do not exist until
+    /// the window has been laid out.
+    /// </summary>
+    private (ComboBox Fuel, TextBox Economy, TextBox Price,
+             TextBlock Week, TextBlock Month, TextBlock Year,
+             TextBlock Mile, TextBlock Mpge)[] CostColumns =>
+    [
+        (CostFuelA, CostEconomyA, CostPriceA, CostWeekA, CostMonthA, CostYearA, CostMileA, CostMpgeA),
+        (CostFuelB, CostEconomyB, CostPriceB, CostWeekB, CostMonthB, CostYearB, CostMileB, CostMpgeB),
+        (CostFuelC, CostEconomyC, CostPriceC, CostWeekC, CostMonthC, CostYearC, CostMileC, CostMpgeC),
+    ];
+
+    private void OnCostChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowRunningCosts();
+    }
+
+    /// <summary>
+    /// Changing the fuel refills the price with that fuel's average.
+    ///
+    /// Overwriting what somebody typed, deliberately: a price left over from
+    /// petrol sitting next to a newly chosen electricity is not a considered
+    /// figure, it is a leftover, and it would quietly produce an answer that is
+    /// wrong by a factor of twenty. The typed price is theirs again the moment
+    /// they type it.
+    /// </summary>
+    private void OnCostFuelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        _updating = true;
+
+        foreach ((ComboBox fuel, _, TextBox price, _, _, _, _, _) in CostColumns)
+        {
+            if (!ReferenceEquals(fuel, sender)) continue;
+
+            price.Text = FuelPrices.For(KindOf(fuel)).ToString("0.####", CultureInfo.CurrentCulture);
+        }
+
+        _updating = false;
+
+        ShowRunningCosts();
+    }
+
+    private static FuelKind KindOf(ComboBox box) =>
+        box.SelectedIndex >= 0 && box.SelectedIndex < Fuels.All.Count
+            ? Fuels.All[box.SelectedIndex].Kind
+            : FuelKind.Petrol;
+
+    private void ShowRunningCosts()
+    {
+        if (CostVerdict is null) return;
+
+        double miles = Value(CostMiles);
+
+        CostMilesNote.Text = miles > 0
+            ? $"{miles / RunningCosts.WeeksPerYear:N0} a week, {miles / 12:N0} a month"
+            : "how far you drive in a year";
+
+        var vehicles = new List<VehicleCost>();
+        string[] names = ["A", "B", "C"];
+
+        for (int i = 0; i < CostColumns.Length; i++)
+        {
+            var column = CostColumns[i];
+            FuelKind kind = KindOf(column.Fuel);
+            FuelSpec fuel = Fuels.For(kind);
+
+            var vehicle = new VehicleCost(
+                names[i], kind, Value(column.Economy), Value(column.Price));
+
+            vehicles.Add(vehicle);
+
+            column.Week.Text = Money(RunningCosts.PerWeek(vehicle, miles), 0);
+            column.Month.Text = Money(RunningCosts.PerMonth(vehicle, miles), 0);
+            column.Year.Text = Money(RunningCosts.PerYear(vehicle, miles), 0);
+
+            column.Mile.Text = vehicle.IsUsable
+                ? $"{vehicle.CostPerMile * 100:N1}¢ · {Show(vehicle.UnitsPer(miles), 0)} {fuel.UnitPlural} a year"
+                : $"{fuel.EfficiencyUnit}, ${fuel.Unit}";
+
+            column.Mpge.Text = vehicle.IsUsable ? $"{vehicle.Mpge:N0} MPGe" : "—";
+        }
+
+        ShowCostVerdict(vehicles, miles);
+
+        // Only the fuels actually chosen, and each once. Three petrol columns
+        // should not print the same paragraph three times.
+        CostFuelNotes.Text = string.Join(
+            "\n\n",
+            vehicles.Select(v => v.Kind).Distinct().Select(k =>
+            {
+                FuelSpec f = Fuels.For(k);
+                return $"{f.Name} — {f.Note}";
+            }));
+
+        CostPriceSource.Text = FuelPrices.Source;
+    }
+
+    /// <summary>
+    /// What the comparison actually says, in a sentence.
+    ///
+    /// The numbers above are the answer; this is the part somebody repeats to
+    /// whoever is deciding with them. Given as a difference over a year, because
+    /// a saving per mile is invisible and a saving per year is not.
+    /// </summary>
+    private void ShowCostVerdict(IReadOnlyList<VehicleCost> vehicles, double miles)
+    {
+        VehicleCost[] usable = [.. vehicles.Where(v => v.IsUsable)];
+
+        if (miles <= 0 || usable.Length == 0)
+        {
+            CostVerdict.Text =
+                "Fill in the economy and the price for at least one vehicle, and how far you "
+                + "drive in a year.";
+            CostWarning.Visibility = Visibility.Collapsed;
+
+            return;
+        }
+
+        VehicleCost best = RunningCosts.Cheapest(usable)!;
+
+        if (usable.Length == 1)
+        {
+            CostVerdict.Text =
+                $"Vehicle {best.Name} costs {Money(RunningCosts.PerYear(best, miles), 0)} a year "
+                + $"in {Fuels.For(best.Kind).Name.ToLowerInvariant()} over {miles:N0} miles. "
+                + "Fill in another to compare.";
+        }
+        else
+        {
+            IEnumerable<string> against = usable
+                .Where(v => v != best)
+                .Select(v =>
+                    $"{Money(RunningCosts.AnnualSaving(best, v, miles), 0)} a year less than {v.Name}");
+
+            CostVerdict.Text =
+                $"Vehicle {best.Name} is the cheapest to run — {string.Join(", and ", against)}. "
+                + $"Over {miles:N0} miles a year.";
+        }
+
+        // The mistake most likely to be sitting on this page, said plainly rather
+        // than quietly costed as typed.
+        VehicleCost? copied = usable.FirstOrDefault(
+            v => RunningCosts.LooksCopiedFromPetrol(v, usable));
+
+        if (copied is not null)
+        {
+            CostWarning.Text =
+                $"Vehicle {copied.Name} is on E85 at {copied.Economy:N0} mpg, which is close to "
+                + "what a petrol car in this comparison manages. E85 holds about three-quarters "
+                + "of petrol's energy, so the same car does roughly a quarter fewer miles to the "
+                + "gallon on it. As entered, E85 will look cheaper than it is.";
+
+            CostWarning.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CostWarning.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Currency, or a dash where there is nothing to show.</summary>
+    private static string Money(double value, int digits) =>
+        double.IsNaN(value) || double.IsInfinity(value) || value < 0
+            ? "—"
+            : "$" + value.ToString("N" + digits, CultureInfo.CurrentCulture);
 }

@@ -828,6 +828,149 @@
             </ScrollViewer>
 
             <!-- ===== the strip ===== -->
+            <!--
+                Running costs.
+
+                Laid out in columns rather than as three stacked forms, because
+                the question is a comparison and a comparison you have to scroll
+                between is not one. Every row is the same field for all three
+                cars, so the eye runs across it.
+            -->
+            <ScrollViewer x:Name="PageRunningCosts" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="Three vehicles side by side: what each costs to run by the week, the month and the year."/>
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Style="{StaticResource Label}" Text="Miles a year"/>
+                        <TextBox   Grid.Column="1" x:Name="CostMiles" Style="{StaticResource Field}"
+                                   TextChanged="OnCostChanged"/>
+                        <TextBlock Grid.Column="2" Style="{StaticResource Unit}" x:Name="CostMilesNote"/>
+                    </Grid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*" MinWidth="110"/>
+                            <ColumnDefinition Width="*" MinWidth="110"/>
+                            <ColumnDefinition Width="*" MinWidth="110"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Heading}"
+                                   Margin="0,0,0,4" Text="VEHICLE A"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Heading}"
+                                   Margin="0,0,0,4" Text="VEHICLE B"/>
+                        <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource Heading}"
+                                   Margin="0,0,0,4" Text="VEHICLE C"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Fuel"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="CostFuelA" Margin="0,2,6,2"
+                                  SelectionChanged="OnCostFuelChanged"/>
+                        <ComboBox Grid.Row="1" Grid.Column="2" x:Name="CostFuelB" Margin="0,2,6,2"
+                                  SelectionChanged="OnCostFuelChanged"/>
+                        <ComboBox Grid.Row="1" Grid.Column="3" x:Name="CostFuelC" Margin="0,2,0,2"
+                                  SelectionChanged="OnCostFuelChanged"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Economy"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="CostEconomyA" Margin="0,2,6,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                        <TextBox Grid.Row="2" Grid.Column="2" x:Name="CostEconomyB" Margin="0,2,6,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                        <TextBox Grid.Row="2" Grid.Column="3" x:Name="CostEconomyC" Margin="0,2,0,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Price"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="CostPriceA" Margin="0,2,6,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                        <TextBox Grid.Row="3" Grid.Column="2" x:Name="CostPriceB" Margin="0,2,6,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+                        <TextBox Grid.Row="3" Grid.Column="3" x:Name="CostPriceC" Margin="0,2,0,2"
+                                 HorizontalContentAlignment="Right" TextChanged="OnCostChanged"
+                                 GotKeyboardFocus="OnFieldFocused" PreviewMouseLeftButtonDown="OnFieldClicked"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="A week"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CostWeekA" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" x:Name="CostWeekB" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="5" Grid.Column="3" x:Name="CostWeekC" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="A month"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="CostMonthA" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" x:Name="CostMonthB" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="6" Grid.Column="3" x:Name="CostMonthC" Style="{StaticResource Answer}"
+                                   HorizontalAlignment="Right"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="A year"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="CostYearA" Style="{StaticResource Answer}"
+                                   FontSize="19" HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" x:Name="CostYearB" Style="{StaticResource Answer}"
+                                   FontSize="19" HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="7" Grid.Column="3" x:Name="CostYearC" Style="{StaticResource Answer}"
+                                   FontSize="19" HorizontalAlignment="Right"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="Per mile"/>
+                        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="CostMileA" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="8" Grid.Column="2" x:Name="CostMileB" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="8" Grid.Column="3" x:Name="CostMileC" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right"/>
+
+                        <TextBlock Grid.Row="10" Style="{StaticResource Label}" Text="Energy, as MPGe"/>
+                        <TextBlock Grid.Row="10" Grid.Column="1" x:Name="CostMpgeA" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="10" Grid.Column="2" x:Name="CostMpgeB" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right" Margin="0,0,6,0"/>
+                        <TextBlock Grid.Row="10" Grid.Column="3" x:Name="CostMpgeC" Style="{StaticResource Unit}"
+                                   HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="5"
+                            Background="{DynamicResource Panel}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock x:Name="CostVerdict" TextWrapping="Wrap" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Text}"/>
+                            <TextBlock x:Name="CostWarning" TextWrapping="Wrap" FontSize="11"
+                                       Margin="0,7,0,0" Visibility="Collapsed"
+                                       Foreground="{DynamicResource Marker}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="ABOUT THESE FUELS"/>
+                    <TextBlock x:Name="CostFuelNotes" Style="{StaticResource Note}" Margin="0"/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="WHERE THE PRICES CAME FROM"/>
+                    <TextBlock x:Name="CostPriceSource" Style="{StaticResource Note}" Margin="0"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Fuel prices move week to week and differ by dollars between states, so the figures above are a starting point rather than an answer. Type in what you actually pay and the comparison becomes about your cars rather than about the national average. This counts fuel and electricity only — not tyres, servicing, insurance or depreciation, any of which can be larger than the difference shown here."/>
+                </StackPanel>
+            </ScrollViewer>
+
             <ScrollViewer x:Name="PageDragStrip" VerticalScrollBarVisibility="Auto"
                           Visibility="Collapsed">
                 <StackPanel Margin="14">
