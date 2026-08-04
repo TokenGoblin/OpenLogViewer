@@ -469,11 +469,19 @@ public sealed class LogPlot : FrameworkElement
     /// range, so this is the single place that mapping is defined — the trace
     /// geometry and the pointer hit-test must agree exactly.
     /// </summary>
+    /// <summary>
+    /// Whether a nearly-constant channel is drawn as steady rather than having its
+    /// last decimal place stretched to fill the lane.
+    ///
+    /// On by default. Off is the raw view, which is what somebody chasing a small
+    /// drift actually wants — the shape this hides is exactly the shape they are
+    /// looking for.
+    /// </summary>
+    public static bool HoldSteady { get; set; } = true;
+
     private static double ChannelY(LogChannel channel, double value, Rect area)
     {
-        double min = channel.Min;
-        double range = channel.Max - min;
-        if (range <= 0) { min -= 0.5; range = 1; }
+        (double min, double range) = TraceScale.For(channel.Min, channel.Max, HoldSteady);
 
         // Inset slightly so flat-topped traces do not sit on the frame edge.
         double top = area.Top + 3;

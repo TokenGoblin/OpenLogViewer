@@ -92,6 +92,9 @@
                           ToolTip="Each channel gets its own strip — best when several are plotted"/>
                 <Separator/>
                 <MenuItem Header="_Reset zoom" Click="OnResetZoomClick" IsEnabled="{Binding ShowLog}"/>
+                <MenuItem x:Name="HoldSteadyItem" Header="Draw steady channels as steady"
+                          IsCheckable="True" IsChecked="True" Click="OnHoldSteadyClick"
+                          ToolTip="A sensor that barely moves is drawn flat rather than having its last decimal stretched to fill the lane. Turn off to see the true range"/>
                 <Separator/>
                 <MenuItem x:Name="UnitsMenuItem" Header="_Units" SubmenuOpened="OnUnitsMenuOpened">
                     <MenuItem Header="…" IsEnabled="False"/>
