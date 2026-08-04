@@ -151,4 +151,147 @@ public class Obd2WorkflowTests : IDisposable
         // live vehicle through a BLE ELM327 v1.5.
         Assert.Contains("twice a second", vm.Hint, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ----- fault codes --------------------------------------------------------
+
+    /// <summary>
+    /// Fault scanning is offered only where there is something to scan. Every
+    /// other link here is an aftermarket ECU with no such thing, and a menu item
+    /// that is enabled and then reports "not supported" is worse than one that is
+    /// visibly unavailable.
+    /// </summary>
+    [Fact]
+    public void FaultScanningIsOfferedOnlyToAStandardVehicle()
+    {
+        MainViewModel vm = NewViewModel();
+
+        Assert.False(vm.IsObd2Live);
+
+        vm.ConnectObd2(Car(), "COM3");
+        Assert.True(vm.IsObd2Live);
+
+        vm.Disconnect();
+        Assert.False(vm.IsObd2Live);
+    }
+
+    /// <summary>
+    /// A car that offers more than this can read says so.
+    ///
+    /// The car enumerates what it will answer; this keeps the ones it has a
+    /// decoder for, and the rest used to be dropped with nothing said. A channel
+    /// the vehicle was willing to send and this discarded looks, on screen,
+    /// exactly like a car that never had it — and the difference between those
+    /// two is the difference between a dead end and a morning's work.
+    /// </summary>
+    [Fact]
+    public void WhatTheCarOffersAndThisCannotReadIsReported()
+    {
+        FakeElm car = Car();
+
+        // Bit 2 of the first mask is PID 0x03, fuel system status: a real
+        // parameter, in the standard, that this has no decoder for.
+        car.Answers[0x00] = [0b1011_1000, 0b0011_1010, 0b1000_0000, 0b0000_0001];
+        car.Answers[0x03] = [0x02, 0x00];
+
+        MainViewModel vm = NewViewModel();
+        vm.ConnectObd2(car, "COM3");
+
+        Assert.Contains("0x03", vm.Obd2Gaps, StringComparison.Ordinal);
+        Assert.Contains("cannot decode yet", vm.Obd2Gaps, StringComparison.Ordinal);
+
+        // And it does not claim a gap that is not there.
+        Assert.DoesNotContain("0x0C", vm.Obd2Gaps, StringComparison.Ordinal);
+    }
+
+    /// <summary>A car whose parameters are all readable says nothing about gaps.</summary>
+    [Fact]
+    public void NoGapMeansNoNoise()
+    {
+        MainViewModel vm = NewViewModel();
+        vm.ConnectObd2(Car(), "COM3");
+
+        Assert.Equal("", vm.Obd2Gaps);
+    }
+
+    /// <summary>
+    /// Calibration means fault codes on a standard vehicle.
+    ///
+    /// An OBD2 car has no tune and never will, so the tab used to tell somebody
+    /// who was plainly connected to "connect to an ECU" — the view describing a
+    /// state the application was not in. The notice and the fault panel are
+    /// mutually exclusive, and both are asserted: showing neither would leave the
+    /// tab blank, and showing both would be worse.
+    /// </summary>
+    [Fact]
+    public void CalibrationOffersFaultCodesRatherThanATuneItCannotHave()
+    {
+        MainViewModel vm = NewViewModel();
+
+        // Nothing connected: the notice is the right thing to show.
+        Assert.True(vm.ShowNoTuneNotice);
+        Assert.False(vm.IsObd2Live);
+
+        vm.ConnectObd2(Car(), "COM3");
+
+        Assert.True(vm.IsObd2Live, "the fault panel is shown on this");
+        Assert.False(vm.ShowNoTuneNotice, "and the 'connect to an ECU' notice is not");
+        Assert.True(vm.NoEcuTune, "there is still no tune — that has not changed");
+
+        vm.Disconnect();
+
+        Assert.False(vm.IsObd2Live);
+        Assert.True(vm.ShowNoTuneNotice);
+    }
+
+    /// <summary>
+    /// The whole path, with the session already polling. This is the part the core
+    /// tests cannot reach: there, a scan has the adapter to itself; here the poll
+    /// loop is running against the same one throughout.
+    /// </summary>
+    [Fact]
+    public void ScansTheCarWhileItIsBeingPolled()
+    {
+        FakeElm car = Car();
+        car.StoredCodes.AddRange(["P0301", "P0171"]);
+        car.PendingCodes.Add("P0420");
+
+        MainViewModel vm = NewViewModel();
+        vm.ConnectObd2(car, "COM3");
+
+        FaultScan? scan = vm.ScanFaults();
+
+        Assert.NotNull(scan);
+        Assert.Equal(["P0301", "P0171"], scan.Stored.Select(f => f.Code));
+        Assert.Equal(["P0420"], scan.Pending.Select(f => f.Code));
+        Assert.Equal("Cylinder 1 misfire detected", scan.Stored[0].Description);
+    }
+
+    [Fact]
+    public void ErasingLeavesTheCarWithNothingStored()
+    {
+        FakeElm car = Car();
+        car.StoredCodes.Add("P0301");
+
+        MainViewModel vm = NewViewModel();
+        vm.ConnectObd2(car, "COM3");
+
+        FaultClear? cleared = vm.ClearFaults();
+
+        Assert.NotNull(cleared);
+        Assert.True(cleared.Erased);
+        Assert.Empty(vm.ScanFaults()!.Stored);
+    }
+
+    /// <summary>
+    /// Asking with nothing connected returns nothing rather than throwing. The
+    /// window can be left open while the cable is pulled.
+    /// </summary>
+    [Fact]
+    public void AskingWithNothingConnectedIsNotAnError()
+    {
+        MainViewModel vm = NewViewModel();
+
+        Assert.Null(vm.ScanFaults());
+        Assert.Null(vm.ClearFaults());
+    }
 }

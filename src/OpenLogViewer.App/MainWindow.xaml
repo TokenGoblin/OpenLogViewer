@@ -98,6 +98,17 @@
                     <MenuItem Header="…" IsEnabled="False"/>
                 </MenuItem>
                 <MenuItem Header="_Disconnect" Click="OnDisconnectClick" IsEnabled="{Binding IsLive}"/>
+                <MenuItem Header="_Fault codes…" Click="OnFaultsClick"
+                          IsEnabled="{Binding IsObd2Live}"
+                          ToolTip="Read and clear the vehicle's trouble codes — OBD2 only"/>
+                <Separator/>
+                <MenuItem Header="{Binding RecordLabel}" Click="OnRecordClick"
+                          IsEnabled="{Binding CanRecord}"
+                          ToolTip="Choose when a log starts, what it is called and where it goes"/>
+                <MenuItem Header="Record as soon as I _connect" IsCheckable="True"
+                          IsChecked="{Binding RecordOnConnect}"
+                          ToolTip="On by default. Turn it off to pick the moment a log starts yourself — the session is still watched and plotted either way"/>
+                <MenuItem Header="Open the _recordings folder" Click="OnOpenRecordingsClick"/>
                 <Separator/>
                 <MenuItem x:Name="RateMenuItem" Header="Logging _rate" SubmenuOpened="OnRateMenuOpened">
                     <MenuItem Header="…" IsEnabled="False"/>
@@ -161,6 +172,32 @@
                     <Button.ContextMenu>
                         <ContextMenu x:Name="PortsMenu"/>
                     </Button.ContextMenu>
+                </Button>
+
+                <!--
+                    Only while connected, and next to Connect because that is
+                    what it belongs to. Docked early so it keeps its width — the
+                    label changes between "Record…" and "Stop recording", and a
+                    button that trims to "Stop rec…" mid-session is exactly the
+                    thing worth not doing on the one control that says whether a
+                    file is being written.
+                -->
+                <Button x:Name="RecordButton" Content="{Binding RecordLabel}"
+                        Click="OnRecordClick" Margin="6,0,0,0" DockPanel.Dock="Left"
+                        Visibility="{Binding CanRecord, Converter={StaticResource BoolToVis}}"
+                        ToolTip="Start or stop writing the live session to a file of your choosing">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Style.Triggers>
+                                <!-- Coloured only while it is actually writing, so
+                                     the state is readable without reading. -->
+                                <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                 </Button>
 
                 <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
@@ -1092,10 +1129,27 @@
                                      Selection="{Binding SelectedCells, Mode=TwoWay}"/>
             </DockPanel>
 
+            <!--
+                What Calibration means on a standard vehicle.
+
+                An OBD2 car has no tune to read and never will — the standard
+                exposes readings and diagnostics, not calibration — so this tab
+                used to tell somebody who was plainly connected to "connect to an
+                ECU". Fault codes are the thing OBD2 offers that is about the car
+                rather than about this moment, which is what this tab is for.
+
+                Spanning all three columns because the table list and its splitter
+                are collapsed without a tune, and a column definition does not
+                shrink just because what is in it is hidden — left in one column
+                this would sit behind a 260-pixel gutter.
+            -->
+            <local:FaultsPanel x:Name="CalibrationFaults" Grid.Column="0" Grid.ColumnSpan="3"
+                               Visibility="{Binding IsObd2Live, Converter={StaticResource BoolToVis}}"/>
+
             <TextBlock Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Foreground="{DynamicResource Muted}" TextAlignment="Center"
                        Text="Connect to an ECU to read its tune.&#10;Tables come off the controller itself, not from a saved file."
-                       Visibility="{Binding NoEcuTune, Converter={StaticResource BoolToVis}}"/>
+                       Visibility="{Binding ShowNoTuneNotice, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         </Grid>
