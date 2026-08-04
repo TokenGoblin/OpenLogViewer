@@ -110,7 +110,10 @@
                           ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
                 <Separator/>
                 <MenuItem Header="Ca_lculators…" Click="OnCalculatorsClick"
-                          ToolTip="Boost, injectors, fuel pump, lambda and airflow"/>
+                          ToolTip="Boost, pressure ratio, injectors, fuel pump, lambda, octane, engine, gearing and airflow"/>
+                <MenuItem Header="Estimate _power…" Click="OnEstimatePowerClick"
+                          IsEnabled="{Binding HasDocument}"
+                          ToolTip="Calculated channels that estimate horsepower from the log"/>
             </MenuItem>
 
             <MenuItem Header="_Help">
