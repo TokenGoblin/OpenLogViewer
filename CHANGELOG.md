@@ -111,6 +111,24 @@ is rather than left to be inferred from silence: the toolbar button, the status
 bar — "REC 1,204 rows" or "not recording" — and the hint on connecting all say
 which of the two is happening.
 
+**A steady sensor is drawn as steady.** Every trace is scaled to its own range,
+which is what lets a dozen channels with different units share a plot — and it had
+one failure that was the first thing a new log showed you. A manifold pressure
+holding 12.0 within a tenth had its last decimal stretched to the full height of
+the lane and came out as a wall of noise, indistinguishable at a glance from a
+channel swinging idle to redline.
+
+A trace now gets a floor on its drawn range, proportional to the channel's own
+magnitude — proportional because there is no unit available, and a tenth is
+nothing on a manifold pressure and everything on a lambda reading. The floor
+widens a range and never replaces it, so the effect tapers: a sensor jittering one
+per cent of itself ends up occupying a quarter of its lane, while a lambda
+wandering four per cent still fills four fifths of one. There is no point at which
+a trace visibly snaps between two treatments.
+
+*View ▸ Draw steady channels as steady* turns it off, because the shape it hides
+is exactly the shape somebody chasing a slow drift is looking for.
+
 **Compare two logs.** *File ▸ Compare against another log…*. The loop tuning
 actually is — change something, drive it again, find out what moved — and until
 now the application could only hold one log at a time.

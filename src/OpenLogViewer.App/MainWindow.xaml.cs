@@ -117,6 +117,19 @@ public partial class MainWindow : Window
         _calculators.Close();
     }
 
+    /// <summary>
+    /// Turns the steady-channel floor on and off.
+    ///
+    /// Worth being reachable rather than a constant. The floor is a judgement
+    /// about what somebody wants to see, and somebody chasing a slow drift in a
+    /// sensor wants precisely the shape it hides.
+    /// </summary>
+    private void OnHoldSteadyClick(object sender, RoutedEventArgs e)
+    {
+        LogPlot.HoldSteady = HoldSteadyItem.IsChecked;
+        Plot.InvalidateVisual();
+    }
+
     private void OnResetGaugePeaksClick(object sender, RoutedEventArgs e) => _vm.ResetGaugePeaks();
 
     // ----- the menu -----------------------------------------------------------
