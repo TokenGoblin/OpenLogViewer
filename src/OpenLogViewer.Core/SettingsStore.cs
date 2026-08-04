@@ -28,6 +28,28 @@ public sealed class SettingsStore
     public double LiveRate { get; private set; } = DefaultLiveRate;
 
     /// <summary>
+    /// Whether connecting starts a recording straight away.
+    ///
+    /// Off by default: connecting watches, and recording is asked for. A session
+    /// is opened far more often to see whether the link works, to read a gauge or
+    /// to check a change than to capture anything — and every one of those used to
+    /// leave a file behind, so the recordings folder filled with runs nobody
+    /// wanted and the one that mattered had to be found among them.
+    ///
+    /// The cost of this default is a run somebody meant to capture and did not.
+    /// That is a real cost, and it is why the state is stated wherever a session
+    /// is: the toolbar button, the status bar and the hint all say which of the
+    /// two is happening, rather than leaving it to be inferred from silence.
+    /// </summary>
+    public bool RecordOnConnect { get; private set; }
+
+    /// <summary>
+    /// Where the last recording was saved by hand, so the next Save As opens
+    /// where the last one went rather than back at the workspace every time.
+    /// </summary>
+    public string? RecordingFolder { get; private set; }
+
+    /// <summary>
     /// What a session records when nothing has been chosen. Well above what a
     /// wideband can actually resolve, and far below what a USB link will offer.
     /// </summary>
@@ -47,6 +69,17 @@ public sealed class SettingsStore
             : DefaultLiveRate;
 
         SingleRequestBlock = file?.SingleRequestBlock ?? false;
+
+        // Absent takes the default rather than the old behaviour. A settings file
+        // written before this was a choice came from a version that always
+        // recorded, so this does change what happens to an existing install — and
+        // that is the intent, not an oversight. Anyone who wants it back ticks it
+        // once and it persists.
+        RecordOnConnect = file?.RecordOnConnect ?? false;
+
+        RecordingFolder = string.IsNullOrWhiteSpace(file?.RecordingFolder)
+            ? null
+            : file.RecordingFolder.Trim();
 
         Units = Enum.TryParse(file?.Units, out UnitSystem units) ? units : UnitSystem.AsReported;
 
@@ -108,6 +141,23 @@ public sealed class SettingsStore
         Persist();
     }
 
+    public void SetRecordOnConnect(bool record)
+    {
+        if (record == RecordOnConnect) return;
+
+        RecordOnConnect = record;
+        Persist();
+    }
+
+    public void SetRecordingFolder(string? folder)
+    {
+        string? trimmed = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim();
+        if (trimmed == RecordingFolder) return;
+
+        RecordingFolder = trimmed;
+        Persist();
+    }
+
     public void SetLiveRate(double rate)
     {
         double clamped = Math.Clamp(rate, 1, MaximumLiveRate);
@@ -146,6 +196,8 @@ public sealed class SettingsStore
         DataFolder = DataFolder,
         LiveRate = LiveRate,
         SingleRequestBlock = SingleRequestBlock,
+        RecordOnConnect = RecordOnConnect,
+        RecordingFolder = RecordingFolder,
         KnownEcus = KnownEcus.Count > 0 ? new Dictionary<string, string>(KnownEcus) : null,
         Units = Units.ToString(),
     });
@@ -157,6 +209,8 @@ public sealed class SettingsStore
         public string? DataFolder { get; set; }
         public double? LiveRate { get; set; }
         public bool? SingleRequestBlock { get; set; }
+        public bool? RecordOnConnect { get; set; }
+        public string? RecordingFolder { get; set; }
         public Dictionary<string, string>? KnownEcus { get; set; }
         public string? Units { get; set; }
     }
