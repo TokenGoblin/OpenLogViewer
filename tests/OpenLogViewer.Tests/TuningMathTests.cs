@@ -1,4 +1,4 @@
-using OpenLogViewer.Core;
+﻿using OpenLogViewer.Core;
 using Xunit;
 
 namespace OpenLogViewer.Tests;
@@ -1009,5 +1009,72 @@ public class TuningMathTests
         // The pump calculation should agree with it — 60 lb/hr is what 100 hp
         // at a BSFC of 0.60 burns, and 609 cc/min is 36.5 litres an hour.
         Assert.Equal(36.5, TuningMath.FuelLitresPerHour(100, 0.60, Fuel.Petrol), 1);
+    }
+
+    // ----- temperature ---------------------------------------------------------
+
+    [Theory]
+    // The fixed points, and the one place the two scales cross.
+    [InlineData(32, 0)]
+    [InlineData(212, 100)]
+    [InlineData(-40, -40)]
+    [InlineData(68, 20)]
+    [InlineData(130, 54.44444)]
+    public void FahrenheitAndCelsiusAreTheSameTemperature(double f, double c)
+    {
+        Assert.Equal(c, TuningMath.CelsiusFromFahrenheit(f), 3);
+        Assert.Equal(f, TuningMath.FahrenheitFromCelsius(c), 3);
+    }
+
+    [Fact]
+    public void TheOffsetIsAppliedBeforeTheFactorAndNotAfter()
+    {
+        // The mistake this exists to prevent. Scaling first and then adding
+        // gives 88 for a 40 degree day rather than 104 — a number that looks
+        // like a temperature and is sixteen degrees out.
+        Assert.Equal(104, TuningMath.FahrenheitFromCelsius(40), 6);
+        Assert.NotEqual(88, TuningMath.FahrenheitFromCelsius(40), 6);
+
+        foreach (double c in (double[])[-40, 0, 25, 55, 100])
+            Assert.Equal(c, TuningMath.CelsiusFromFahrenheit(TuningMath.FahrenheitFromCelsius(c)), 9);
+    }
+
+    // ----- gallons -------------------------------------------------------------
+
+    [Fact]
+    public void AGallonIsTheGallonsOwnDefinition()
+    {
+        // 3.785411784 litres exactly, so the reciprocal is taken from that rather
+        // than typed as a rounded 0.2642 — these figures end up compared against
+        // a pump's printed rating.
+        Assert.Equal(1 / 3.785411784, TuningMath.UsGallonsPerLitre, 12);
+        Assert.Equal(3.785411784, 1 / TuningMath.UsGallonsPerLitre, 9);
+    }
+
+    [Fact]
+    public void LitresAnHourBecomeGallonsAMinute()
+    {
+        // A pump rated 255 L/h is a shade over a gallon a minute, which is the
+        // figure the larger and mechanical pumps are quoted in.
+        Assert.Equal(1.123, TuningMath.GallonsPerMinute(255), 3);
+
+        // And the two gallon figures agree with each other.
+        foreach (double litresPerHour in (double[])[100, 183, 255, 450])
+            Assert.Equal(
+                litresPerHour * TuningMath.UsGallonsPerLitre / 60,
+                TuningMath.GallonsPerMinute(litresPerHour),
+                9);
+    }
+
+    [Fact]
+    public void ThePumpFiguresAgreeAcrossEveryUnitTheyAreQuotedIn()
+    {
+        // 500 hp at a BSFC of 0.5 burns 152 L/h of petrol; with a fifth in hand
+        // that is 183 L/h, 48.3 US gallons an hour, and 0.80 a minute.
+        double pump = TuningMath.PumpLitresPerHour(500, 0.50);
+
+        Assert.Equal(183, pump, 0);
+        Assert.Equal(48.3, pump * TuningMath.UsGallonsPerLitre, 1);
+        Assert.Equal(0.80, TuningMath.GallonsPerMinute(pump), 2);
     }
 }
