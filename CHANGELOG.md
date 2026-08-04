@@ -5,6 +5,35 @@
 Everything below landed in one run of work. Grouped by what it does for you
 rather than by commit.
 
+### Housekeeping
+
+**Third-party notices, and the installer now carries them.** The published build
+is self-contained — the .NET runtime and WPF are inside the executable, all MIT,
+and MIT asks that its notice travels with copies of the software. Setup displayed
+a licence pane and installed nothing, which is not the same thing.
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists what is redistributed and
+what is only used to build, and both it and the licence are now installed beside
+the application.
+
+It also records what is deliberately absent. No copyleft code or data is included
+anywhere: RomRaider (GPL-2.0) and FreeSSM (GPL-3.0) both publish Subaru address
+maps, neither is copied, and neither was read while implementing the protocol.
+The two addresses in the SSM template were measured against a running car and
+cross-checked against OBD2 before either was consulted — the probe transcript and
+the commit order both record it.
+
+**Continuous integration.** There are 1,440 tests and nothing had been running
+them except somebody remembering to. Every push and pull request now restores,
+builds with warnings as errors, runs the suite, and fails on a dependency with a
+known advisory.
+
+**A clean build at last.** Four analyser warnings and three compiler warnings are
+gone. Two were worth more than the silence: `MathExpression.TryParse` did not
+declare that it returns a non-null expression when it succeeds, so every caller
+carried a nullable it could not have been null, and a text box named `SetValue`
+was hiding `DependencyObject.SetValue` on the main window — harmless until
+somebody called it.
+
 ### Added
 
 **Live connection to a MegaSquirt.** *Connect ▾* lists the serial ports; picking

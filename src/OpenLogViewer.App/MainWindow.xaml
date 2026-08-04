@@ -1122,7 +1122,7 @@
 
                         <TextBlock Text="Set to" VerticalAlignment="Center" FontSize="11"
                                    Foreground="{DynamicResource Muted}" Margin="0,0,6,0"/>
-                        <TextBox x:Name="SetValue" Width="60" Margin="0,0,4,0"
+                        <TextBox x:Name="SetValueBox" Width="60" Margin="0,0,4,0"
                                  HorizontalContentAlignment="Right"
                                  GotKeyboardFocus="OnFieldFocused"
                                  PreviewMouseLeftButtonDown="OnFieldClicked"

@@ -331,7 +331,7 @@ public sealed class LiveSession : IDisposable
 
                 Record(at, values, row);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 // Deliberately everything. This runs on a background thread, and
                 // an exception that escapes one of those does not fail the
