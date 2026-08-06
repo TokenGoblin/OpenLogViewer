@@ -9,7 +9,12 @@
 /// away and asked for again; only a run of consecutive failures ends the
 /// session.
 ///
-/// Read-only throughout. Nothing in this class can change anything in the ECU.
+/// This is the one class here that can change an ECU. Reads are the bulk of it,
+/// but <see cref="WriteTunePage"/> and <see cref="BurnPage"/> live here too, and
+/// they are deliberately two calls rather than one: a write is undone by turning
+/// the key off, a burn is not. A write is read back and compared before it is
+/// reported as having worked, because an acknowledgement only says the command
+/// was understood.
 /// </summary>
 public sealed class EcuConnection : IDisposable
 {

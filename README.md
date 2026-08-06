@@ -766,6 +766,8 @@ Third-party components, and what the installer redistributes, are listed in
 No copyleft code or data is included, and no ECU definition files are
 redistributed — the application reads the ones already on your machine.
 
-This is a tool for engine tuning. It only reads log files and never writes to an
-ECU, but tuning decisions made with it are yours; the authors accept no
-liability for engine damage.
+This is a tool for engine tuning. It can change the tune in a connected ECU and
+burn that change to flash — each behind its own confirmation saying what is about
+to happen, and a write takes effect immediately on a running engine. Tuning
+decisions made with it are yours; the authors accept no liability for engine
+damage.

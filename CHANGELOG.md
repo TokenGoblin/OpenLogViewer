@@ -51,8 +51,9 @@ Losing the link does not end the session: key off and key on is normal, so a
 lost link is waited on, and a recording in progress carries straight on into the
 same file when the ECU returns.
 
-Read-only throughout. The only commands sent ask what the firmware is and read
-the realtime page; nothing can write a value, burn a page, or change a setting.
+A live session itself only reads: the commands it sends ask what the firmware is
+and read the realtime page. Changing what the ECU is running is a separate and
+deliberate act from the tune table editor — see *Sending a tune to the ECU*.
 
 Verified against a MegaSquirt 3 on a bench: 249 channels at about 16 Hz with no
 retries, surviving repeated unplugs.
@@ -366,6 +367,28 @@ selected cell would become — *2600 rpm × 100  98 → 100  +2 % (2.0% more)* �
 before any of it is sent. Interpolation fills the middle of a selection from its
 ends, in a row, a column or a rectangle, and leaves the ends exactly as they
 were.
+
+**Sending a tune to the ECU.** *Send* writes the changed cells to a connected
+controller and *Burn* commits the page to flash. They are two buttons rather than
+one because they are two different risks: a write is gone at the next power cycle
+and a burn is not.
+
+Both confirm first, and the confirmation says the thing worth knowing rather than
+asking whether you are sure. Send names how many cells are about to change —
+a table scaled by five per cent when one cell was meant is 256 changes, and it
+looks identical to one change until it is counted — and says the write reaches a
+running engine immediately. Burn says it is permanent, and to do it with the
+engine stopped, because the controller stops answering while it writes flash.
+
+A write is read back from the ECU and compared before it is called a success. An
+acknowledgement only says the command was understood, not that the right bytes
+landed at the right offset, and every way of getting that wrong ends with an
+engine running on numbers nobody chose. A mismatch is reported as a failure that
+a power cycle undoes, because nothing has been burned.
+
+Verified against a live MicroSquirt: one cell changed here, confirmed changed in
+TunerStudio — which is the check a whole-table write would hide, since it catches
+a wrong page, a wrong offset, wrong scaling and a transposed table all at once.
 
 **Estimated horsepower, two ways.** *Tools ▸ Estimate power…* adds calculated
 channels that work out what the engine was making, from a log a logger already
