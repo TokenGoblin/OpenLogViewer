@@ -42,9 +42,12 @@ public interface IEcuTransport : IDisposable
 /// having even on a USB cable — it is the only thing that catches a truncated or
 /// corrupted block, which is the normal failure on a Bluetooth link.
 ///
-/// Only reads are implemented here, deliberately. This software has no reason to
-/// write to an ECU, and a wrong byte written to a running engine is not a bug
-/// that can be undone.
+/// The commands named here are the reads: a signature, a version, a realtime
+/// block. Write and burn are absent not because they are unsupported but because
+/// they are not fixed — each firmware declares its own in its INI, and
+/// <c>EcuConnection</c> parses them from there rather than assuming them. The
+/// care they need is real either way: a wrong byte written to a running engine
+/// is not a bug that can be undone.
 /// </summary>
 public static class MsProtocol
 {

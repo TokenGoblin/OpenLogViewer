@@ -14,8 +14,11 @@ public sealed record TuneWrite(int Page, int Offset, byte[] Data);
 /// carry no tables at all, so for that firmware there is no file to fall back
 /// on. Reading the pages settles it.
 ///
-/// Read-only, as it happens — this class only fetches and decodes. Writing is a
-/// separate path with a separate command.
+/// Nothing here reaches the ECU. This decodes the pages, encodes edited values
+/// back into bytes, and records a write in the copy held here once one has been
+/// sent and read back. Sending is <see cref="EcuConnection"/>'s job, and keeping
+/// the two apart is what lets an edit be built and checked without anything
+/// having left the machine yet.
 /// </summary>
 public sealed class EcuTune
 {
