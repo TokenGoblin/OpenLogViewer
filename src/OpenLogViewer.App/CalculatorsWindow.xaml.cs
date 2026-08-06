@@ -75,6 +75,7 @@ public partial class CalculatorsWindow : Window
             new("Fuel", "Octane", PageOctane),
 
             new("Engine", "Engine", PageEngine),
+            new("Engine", "Runners & headers", PageManifold),
 
             new("Drivetrain", "Gearing", PageGearing),
             new("Drivetrain", "Drag strip", PageDragStrip),
@@ -275,6 +276,45 @@ public partial class CalculatorsWindow : Window
         PrInletLoss.Text = Round(TuningMath.TypicalInletLossKpa / TuningMath.KpaPerPsi, 1);
         PrChargeLoss.Text = Round(TuningMath.TypicalChargeLossKpa / TuningMath.KpaPerPsi, 1);
 
+        // The induction and goal lists are filled from the enums in their declared
+        // order, because that is the order they are read back in.
+        foreach (Induction induction in Enum.GetValues<Induction>())
+            ManInduction.Items.Add(induction == Induction.Turbocharged ? "Turbocharged" : "Naturally aspirated");
+
+        ManInduction.SelectedIndex = 0;
+
+        foreach (ManifoldGoal goal in Enum.GetValues<ManifoldGoal>())
+        {
+            ManGoal.Items.Add(goal switch
+            {
+                ManifoldGoal.QuickSpool => "Quick spool",
+                ManifoldGoal.HighRpmRace => "High-rpm race",
+                _ => "Street and strip",
+            });
+        }
+
+        ManGoal.SelectedIndex = (int)ManifoldGoal.Balanced;
+
+        foreach (CamProfile cam in CamProfiles.All) ManCam.Items.Add(cam.Name);
+
+        ManLitres.Text = "2.0";
+        ManCylinders.Text = "4";
+        ManTorqueRpm.Text = "4500";
+        ManPowerRpm.Text = "7000";
+        ManVe.Text = "100";
+        ManCompression.Text = "10.5";
+
+        // Opens on the middle of the five, so the page starts on an engine
+        // somebody might actually be building rather than on a bare default.
+        CamProfile opening = CamProfiles.All[2];
+
+        ManIntakeDuration.Text = Round(opening.IntakeDurationDeg, 0);
+        ManExhaustDuration.Text = Round(opening.ExhaustDurationDeg, 0);
+        ManIntakeTemp.Text = Round(opening.ChargeCelsius, 0);
+        ManExhaustTemp.Text = Round(opening.ExhaustCelsius, 0);
+        ManBoost.Text = Round(TuningMath.AtmosphericKpa, 1);
+        ManBackPressure.Text = Round(TuningMath.AtmosphericKpa, 1);
+
         EngBore.Text = "86";
         EngStroke.Text = "86";
         EngCylinders.Text = "4";
@@ -345,6 +385,7 @@ public partial class CalculatorsWindow : Window
         ShowAirflow();
         ShowRunningCosts();
         ShowIntercooler();
+        ShowManifold();
     }
 
     // ----- reading the boxes ---------------------------------------------------
@@ -2081,5 +2122,377 @@ public partial class CalculatorsWindow : Window
         }
 
         return rows.ToString().TrimEnd();
+    }
+
+    // ----- runners, plenum and headers -----------------------------------------
+
+    private void OnManifoldChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_updating) return;
+
+        ShowManifold();
+    }
+
+    private void OnManifoldSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating || ManRunnerLength is null) return;
+
+        // Switching to a turbo with both pressures still at atmospheric describes
+        // an engine that cannot exist, and the page would immediately say so. The
+        // induction choice therefore carries the pressures that go with it: a
+        // pressure ratio somebody would actually build, and a manifold sitting
+        // above it because a turbine is a restriction. Both stay editable.
+        if (sender == ManInduction)
+        {
+            bool turbo = ManifoldInduction == Induction.Turbocharged;
+
+            Set(ManBoost, Round(turbo ? TurboManifoldKpa : TuningMath.AtmosphericKpa, 1));
+            Set(ManBackPressure, Round(turbo ? TurboBackPressureKpa : TuningMath.AtmosphericKpa, 1));
+        }
+
+        ShowManifold();
+    }
+
+    /// <summary>
+    /// Manifold pressure a turbocharged page opens at — about 14 psi of boost.
+    ///
+    /// A starting point rather than a recommendation. It exists so that choosing
+    /// "turbocharged" produces a believable engine instead of one at atmospheric
+    /// pressure, which is what the box would otherwise still be holding.
+    /// </summary>
+    private const double TurboManifoldKpa = 200;
+
+    /// <summary>
+    /// Exhaust manifold pressure to match, at 1.2 times the inlet manifold.
+    ///
+    /// A turbine has to be driven, so the manifold in front of it always sits
+    /// above the one behind the compressor. The ratio runs from about 1:1 on a
+    /// generously sized turbine to past 2:1 on one that is working too hard, and
+    /// 1.2 is a well matched setup. It matters here because the exhaust gas
+    /// density follows it directly, and with it the primary size.
+    /// </summary>
+    private const double TurboBackPressureKpa = TurboManifoldKpa * 1.2;
+
+    /// <summary>
+    /// Fills the duration and gas boxes from the chosen cam.
+    ///
+    /// The list writes the boxes and never the other way round — picking an entry
+    /// is the whole point of it — but typing in a box moves the list to "from your
+    /// cam card" rather than quietly leaving a description that no longer applies.
+    /// Somebody's own cam beats any of these, which is the same arrangement the
+    /// volumetric efficiency list uses on the other pages.
+    /// </summary>
+    private void OnManifoldCamChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating || ManIntakeDuration is null) return;
+
+        if (CamProfiles.All.ElementAtOrDefault(ManCam.SelectedIndex) is not { IsCustom: false } cam)
+        {
+            ShowManifold();
+            return;
+        }
+
+        Set(ManIntakeDuration, Round(cam.IntakeDurationDeg, 0));
+        Set(ManExhaustDuration, Round(cam.ExhaustDurationDeg, 0));
+        Set(ManIntakeTemp, Round(cam.ChargeCelsius, 0));
+        Set(ManExhaustTemp, Round(cam.ExhaustCelsius, 0));
+
+        ShowManifold();
+    }
+
+    /// <summary>
+    /// What the induction and goal boxes say, in the order the enums declare them.
+    ///
+    /// Read back by position rather than by parsing the label, so the words on
+    /// screen can be changed without silently selecting a different design.
+    /// </summary>
+    private Induction ManifoldInduction =>
+        ManInduction.SelectedIndex >= 0
+            ? Enum.GetValues<Induction>()[ManInduction.SelectedIndex]
+            : Induction.NaturallyAspirated;
+
+    private ManifoldGoal ManifoldGoalChosen =>
+        ManGoal.SelectedIndex >= 0
+            ? Enum.GetValues<ManifoldGoal>()[ManGoal.SelectedIndex]
+            : ManifoldGoal.Balanced;
+
+    private void ShowManifold()
+    {
+        if (ManRunnerLength is null) return;
+
+        Induction induction = ManifoldInduction;
+        ManifoldGoal goal = ManifoldGoalChosen;
+
+        ManifoldSpec spec = new()
+        {
+            Litres = Value(ManLitres),
+            Cylinders = (int)Value(ManCylinders),
+            Induction = induction,
+            Goal = goal,
+            PeakTorqueRpm = Value(ManTorqueRpm),
+            PeakPowerRpm = Value(ManPowerRpm),
+            IntakeDurationDeg = Value(ManIntakeDuration),
+            ExhaustDurationDeg = Value(ManExhaustDuration),
+            IntakeAirCelsius = Value(ManIntakeTemp),
+            ExhaustCelsius = Value(ManExhaustTemp),
+            VolumetricEfficiency = Value(ManVe),
+            CompressionRatio = Value(ManCompression),
+            ManifoldKpa = Value(ManBoost),
+            ExhaustBackPressureKpa = Value(ManBackPressure),
+
+            // Blank means "whatever the goal wants", which is why this is read as
+            // a zero rather than defended against — the record treats zero as unset.
+            PlenumMultiple = Value(ManPlenumMultiple) is var m && double.IsNaN(m) ? 0 : m,
+        };
+
+        ManifoldPlan plan = ManifoldTuning.Plan(spec);
+        IntakePlan intake = plan.Intake;
+        ExhaustPlan exhaust = plan.Exhaust;
+
+        // ----- the engine -----
+        double sweptCc = spec.Cylinders > 0 ? spec.Litres * 1_000 / spec.Cylinders : double.NaN;
+
+        ManLitresNote.Text = double.IsNaN(sweptCc)
+            ? "litres"
+            : $"litres — {sweptCc:N0} cc a cylinder";
+
+        ManInductionNote.Text = induction == Induction.Turbocharged
+            ? "the turbine reflects nothing — volume decides"
+            : "the collector reflects — length is a real choice";
+
+        ManGoalNote.Text = goal switch
+        {
+            ManifoldGoal.QuickSpool =>
+                $"tuned at the torque peak, small fast ports — {ManifoldTuning.TargetIntakeVelocity(goal):N0} m/s",
+            ManifoldGoal.HighRpmRace =>
+                $"tuned at the power peak, big ports — {ManifoldTuning.TargetIntakeVelocity(goal):N0} m/s",
+            _ =>
+                $"tuned between the two peaks — {ManifoldTuning.TargetIntakeVelocity(goal):N0} m/s",
+        };
+
+        ManTorqueNote.Text = induction == Induction.Turbocharged
+            ? "rpm — where you want full boost by"
+            : "rpm — where the engine is asked to pull";
+
+        ManPowerNote.Text = $"rpm — the ports are sized to flow here";
+
+        // The list follows the boxes, so a typed duration is never overwritten by
+        // the description nearest to it — it moves the description instead.
+        _updating = true;
+        ManCam.SelectedIndex = CamProfiles.IndexFor(spec.IntakeDurationDeg, spec.ExhaustDurationDeg);
+        _updating = false;
+
+        CamProfile chosen = CamProfiles.For(spec.IntakeDurationDeg, spec.ExhaustDurationDeg);
+
+        // The short line beside the list is the overlap verdict, because that is
+        // the part of a cam choice felt from the driver's seat. The full
+        // description is too long to sit in a column and goes underneath.
+        ManCamNote.Text = chosen.IsCustom
+            ? "your own figures, seat to seat"
+            : CamProfiles.OverlapVerdict(chosen.OverlapDeg);
+
+        ManCamDetail.Text = chosen.IsCustom
+            ? "Working from your own cam. Both duration boxes want the seat-to-seat figure; if what you "
+              + "have is duration at 0.050 in, it is roughly 45° shorter than the number this page wants."
+            : $"{chosen.Name} — {chosen.IntakeDurationDeg:N0}/{chosen.ExhaustDurationDeg:N0}° seat to seat, "
+              + $"{chosen.IntakeAtFiftyDeg:N0}/{chosen.ExhaustAtFiftyDeg:N0}° at 0.050 in, "
+              + $"{chosen.LobeSeparationDeg:N0}° lobe separation, {chosen.OverlapDeg:N0}° of overlap. "
+              + $"{char.ToUpper(chosen.Note[0], CultureInfo.CurrentCulture)}{chosen.Note[1..]}. "
+              + "Compare the 0.050 in pair against a cam card to see whether your grind is near this one.";
+
+        ManIntakeDurationNote.Text = "° crank the inlet valve is open, seat to seat";
+
+        ManExhaustDurationNote.Text = double.IsNaN(exhaust.WaveWindowDeg)
+            ? "° crank — must exceed 180"
+            : $"° crank — {exhaust.WaveWindowDeg:N0}° from valve opening to overlap";
+
+        ManIntakeTempNote.Text = double.IsNaN(intake.SpeedOfSound)
+            ? "°C in the runner"
+            : $"°C in the runner — sound runs at {intake.SpeedOfSound:N0} m/s";
+
+        ManExhaustTempNote.Text = double.IsNaN(exhaust.SpeedOfSound)
+            ? "°C mean along the primary, not at the valve"
+            : $"°C mean along the pipe — sound at {exhaust.SpeedOfSound:N0} m/s";
+
+        ManBoostNote.Text = double.IsNaN(spec.ManifoldKpa)
+            ? "kPa absolute"
+            : $"kPa absolute — {Gauge(spec.ManifoldKpa):N1} psi gauge";
+
+        ManBackPressureNote.Text = double.IsNaN(spec.ExhaustBackPressureKpa)
+            ? "kPa absolute in the manifold"
+            : $"kPa absolute — {Gauge(spec.ExhaustBackPressureKpa):N1} psi gauge";
+
+        // ----- intake -----
+        ManRunnerLength.Text = Show(intake.Recommended.LengthMm, 0);
+
+        ManRunnerLengthNote.Text = intake.Recommended.Order > 0
+            ? $"mm from valve to plenum, at order {intake.Recommended.Order}, tuned for "
+              + $"{intake.TunedRpm:N0} rpm{(intake.Recommended.Practical ? "" : " — does not package")}"
+            : "mm from valve to plenum";
+
+        ManRunnerDia.Text = Show(intake.RunnerDiameterMm, 1);
+
+        ManRunnerDiaNote.Text = double.IsNaN(intake.RunnerAreaMm2)
+            ? "mm bore"
+            : $"mm bore — {intake.RunnerAreaMm2:N0} mm² of port";
+
+        ManRunnerVolume.Text = Show(intake.RunnerVolumeCc, 0);
+
+        ManRunnerVolumeNote.Text = double.IsNaN(intake.RunnerVolumeCc) || spec.Cylinders <= 0
+            ? "cc each"
+            : $"cc each, {intake.RunnerVolumeCc * spec.Cylinders:N0} cc in all the runners";
+
+        ManPortVelocity.Text = Show(intake.VelocityAtPeakPower, 0);
+
+        ManPortVelocityNote.Text = double.IsNaN(intake.VelocityAtPeakPower)
+            ? "m/s mean at peak power"
+            : $"m/s at peak power, {intake.VelocityAtPeakTorque:N0} at torque — "
+              + ManifoldTuning.VelocityVerdict(intake.VelocityAtPeakPower);
+
+        ManPlenum.Text = Show(intake.PlenumVolumeCc, 0);
+
+        ManPlenumNote.Text = double.IsNaN(intake.PlenumVolumeCc)
+            ? "cc"
+            : $"cc — {intake.PlenumMultiple:N2} × displacement"
+              + (spec.PlenumMultiple > 0 ? ", your figure" : ", the goal's figure");
+
+        ManHelmholtz.Text = Show(intake.HelmholtzHz, 0);
+
+        ManHelmholtzNote.Text = double.IsNaN(intake.HelmholtzRatio)
+            ? "Hz, runner against cylinder"
+            : $"Hz — ratio {intake.HelmholtzRatio:N1} to the tuned speed (3 to 4 is tuned)";
+
+        ManOrderList.Text = OrderTable(intake, exhaust, induction);
+
+        // ----- exhaust -----
+        ManPrimaryLength.Text = Show(exhaust.Recommended.LengthMm, 0);
+
+        ManPrimaryLengthNote.Text = induction == Induction.Turbocharged
+            ? "mm if tuned — but build it short and equal instead"
+            : exhaust.Recommended.Order > 0
+                ? $"mm from valve to collector, at order {exhaust.Recommended.Order}, tuned for "
+                  + $"{exhaust.TunedRpm:N0} rpm"
+                : "mm from valve to collector";
+
+        ManPrimaryDia.Text = Show(exhaust.PrimaryDiameterMm, 1);
+
+        ManPrimaryDiaNote.Text = double.IsNaN(exhaust.PrimaryDiameterMm)
+            ? "mm bore"
+            : $"mm bore — {exhaust.PrimaryDiameterMm / 25.4:N2} in, nearest tube "
+              + $"{NearestTube(exhaust.PrimaryDiameterMm)}";
+
+        ManPrimaryVolume.Text = Show(exhaust.PrimaryVolumeCc, 0);
+        ManPrimaryVolumeNote.Text = "cc in one primary";
+
+        ManExhaustVelocity.Text = Show(exhaust.VelocityAtPeakPower, 0);
+
+        ManExhaustVelocityNote.Text = double.IsNaN(exhaust.VelocityAtPeakPower)
+            ? "m/s mean at peak power"
+            : $"m/s mean at peak power — {ManifoldTuning.ExhaustVelocityVerdict(exhaust.VelocityAtPeakPower)}";
+
+        ManCollectorDia.Text = Show(exhaust.CollectorDiameterMm, 1);
+
+        ManCollectorDiaNote.Text = double.IsNaN(exhaust.CollectorDiameterMm)
+            ? "mm"
+            : $"mm — twice a primary's area, which is 1.41 times its bore";
+
+        ManCollectorLength.Text = Show(exhaust.CollectorLengthMm, 0);
+
+        ManTotalVolume.Text = Show(exhaust.TotalPrimaryVolumeCc, 0);
+
+        ManTotalVolumeNote.Text = induction == Induction.Turbocharged
+            ? "cc to fill before the turbine sees pressure — this is spool"
+            : "cc of primaries, all cylinders together";
+
+        ManBellNote.Text = induction == Induction.Turbocharged || double.IsNaN(exhaust.BellLengthMm)
+            ? "The exhaust length is worked out from the speed of sound in the gas and the time the "
+              + "valve is open — no fitted constants. On a turbocharged engine it is shown for interest: "
+              + "the turbine is what the pipe actually has to feed."
+            : $"Cross-check: A. Graham Bell's published formula gives {exhaust.BellLengthMm:N0} mm for this "
+              + $"cam and speed, against the {exhaust.Recommended.LengthMm:N0} mm derived here from the speed "
+              + "of sound and the valve timing. The two share no constant, and across the usual range of "
+              + "cams and engine speeds they agree within a few per cent.";
+
+        ShownWarning[] warnings =
+        [
+            .. plan.Warnings.Select(w => new ShownWarning(w.Severity, w.Text, TintFor(w.Severity))),
+        ];
+
+        ManWarnings.ItemsSource = warnings;
+        ManWarningsHeading.Visibility = warnings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// An absolute pressure as a gauge reading in psi, without the minus sign that
+    /// floating point puts on a pressure sitting exactly at the barometer.
+    ///
+    /// Adding a positive zero is what clears it: IEEE arithmetic keeps the sign
+    /// through the rounding, so 101.325 kPa absolute formats as "-0.0 psi" and
+    /// looks like a fault in the calculator rather than in the printing.
+    /// </summary>
+    private static double Gauge(double absoluteKpa) =>
+        Math.Round(TuningMath.GaugeFromAbsolute(absoluteKpa) / TuningMath.KpaPerPsi, 1) + 0.0;
+
+    /// <summary>
+    /// The nearest tube anybody actually sells, in inches.
+    ///
+    /// A primary calculated to 43.2 mm is bought as 1.75 in, and saying so saves
+    /// the person doing it from converting and then guessing. Steps of an eighth,
+    /// because that is how header tube is stocked.
+    /// </summary>
+    private static string NearestTube(double diameterMm)
+    {
+        if (double.IsNaN(diameterMm) || diameterMm <= 0) return "—";
+
+        double inches = diameterMm / 25.4;
+        double eighths = Math.Round(inches * 8);
+
+        return $"{eighths / 8:N3} in".Replace(".000", "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every harmonic side by side, so the choice between them is visible.
+    ///
+    /// The recommendation is one row of this table and not a separate answer:
+    /// somebody whose bonnet will not close on the suggested runner needs to see
+    /// what the next order costs, and somebody building a race engine may want the
+    /// shorter one on purpose. Marking the practical ones is the whole point —
+    /// the arithmetic will happily return a 1.4 metre runner.
+    /// </summary>
+    private static string OrderTable(IntakePlan intake, ExhaustPlan exhaust, Induction induction)
+    {
+        var rows = new System.Text.StringBuilder();
+
+        rows.AppendLine($"{"",-8}{"intake runner",20}{"exhaust primary",20}");
+        rows.AppendLine($"{"order",-8}{"mm",20}{"mm",20}");
+        rows.AppendLine(new string('-', 48));
+
+        for (int i = 0; i < Math.Max(intake.Orders.Count, exhaust.Orders.Count); i++)
+        {
+            TuningOrder? inlet = i < intake.Orders.Count ? intake.Orders[i] : null;
+            TuningOrder? primary = i < exhaust.Orders.Count ? exhaust.Orders[i] : null;
+
+            int order = inlet?.Order ?? primary?.Order ?? i + 1;
+
+            rows.AppendLine(
+                $"{order,-8}{Cell(inlet, intake.Recommended),20}"
+                + $"{Cell(primary, induction == Induction.Turbocharged ? null : exhaust.Recommended),20}");
+        }
+
+        rows.AppendLine();
+        rows.Append("* the one to build   · packages   (no mark) too long or too short");
+
+        return rows.ToString();
+
+        static string Cell(TuningOrder? order, TuningOrder? recommended)
+        {
+            if (order is not { } o || double.IsNaN(o.LengthMm)) return "—";
+
+            string mark = recommended is { } r && r.Order == o.Order
+                ? "*"
+                : o.Practical ? "·" : " ";
+
+            return $"{o.LengthMm,7:N0} {mark}";
+        }
     }
 }
