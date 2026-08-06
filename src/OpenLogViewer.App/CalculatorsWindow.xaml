@@ -1527,6 +1527,261 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- ===== runners, plenum and headers ===== -->
+            <ScrollViewer x:Name="PageManifold" VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <StackPanel Margin="14">
+                    <TextBlock Style="{StaticResource Label}" Margin="0,0,0,10" TextWrapping="Wrap"
+                               Text="Runner and primary lengths, port sizes, plenum and manifold volume — sized by the pressure waves running up and down the pipes. Length decides which engine speed the resonance helps at, so it is a choice about what the engine is for rather than one right answer."/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="THE ENGINE"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Displacement"/>
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="ManLitres" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManLitresNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Cylinders"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="ManCylinders" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="one runner and one primary each"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Induction"/>
+                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="ManInduction" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnManifoldSelectionChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManInductionNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Build for"/>
+                        <ComboBox  Grid.Row="3" Grid.Column="1" x:Name="ManGoal" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnManifoldSelectionChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManGoalNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Peak torque at"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="ManTorqueRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManTorqueNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Peak power at"/>
+                        <TextBox   Grid.Row="5" Grid.Column="1" x:Name="ManPowerRpm" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPowerNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
+                        <TextBox   Grid.Row="6" Grid.Column="1" x:Name="ManVe" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" Text="% at peak power"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Compression ratio"/>
+                        <TextBox   Grid.Row="7" Grid.Column="1" x:Name="ManCompression" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" Text=":1 — sets the volume the runner springs against"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="THE CAM AND THE GAS"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Cam"/>
+                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="ManCam" Width="150" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnManifoldCamChanged"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManCamNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Inlet duration"/>
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="ManIntakeDuration" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManIntakeDurationNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Exhaust duration"/>
+                        <TextBox   Grid.Row="2" Grid.Column="1" x:Name="ManExhaustDuration" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManExhaustDurationNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Charge temperature"/>
+                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="ManIntakeTemp" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManIntakeTempNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Primary gas temperature"/>
+                        <TextBox   Grid.Row="4" Grid.Column="1" x:Name="ManExhaustTemp" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManExhaustTempNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Manifold pressure"/>
+                        <TextBox   Grid.Row="5" Grid.Column="1" x:Name="ManBoost" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManBoostNote"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Exhaust back pressure"/>
+                        <TextBox   Grid.Row="6" Grid.Column="1" x:Name="ManBackPressure" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManBackPressureNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="ManCamDetail"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Durations are seat to seat — the advertised figure. A cam card leads with duration at 0.050 in, which runs about 45° shorter and would take a fifth off every length on this page. Picking a cam above fills both boxes correctly; the list moves to your own figures the moment you type in one."/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="INTAKE"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Runner length"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ManRunnerLength"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManRunnerLengthNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Runner diameter"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ManRunnerDia"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManRunnerDiaNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Runner volume"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ManRunnerVolume"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManRunnerVolumeNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Port velocity"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ManPortVelocity"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPortVelocityNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Plenum volume"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ManPlenum"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPlenumNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Plenum, if you'd rather"/>
+                        <TextBox   Grid.Row="5" Grid.Column="1" x:Name="ManPlenumMultiple" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="× displacement — blank takes the figure the goal wants"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Resonance"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ManHelmholtz"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManHelmholtzNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="EVERY LENGTH THAT WOULD WORK"/>
+
+                    <Border Background="{DynamicResource Panel}" Padding="10" Margin="0,0,0,6"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        <TextBlock x:Name="ManOrderList" FontFamily="Consolas" FontSize="12"
+                                   Foreground="{DynamicResource Text}"/>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="A lower order is a longer pipe and a stronger pulse, so the recommendation is the longest one that still fits in a car. If it will not package, going up an order is the usual answer and costs some of the effect rather than all of it."/>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="EXHAUST"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Primary length"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ManPrimaryLength"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPrimaryLengthNote"/>
+
+                        <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="Primary diameter"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ManPrimaryDia"
+                                   Style="{StaticResource Answer}" FontSize="19" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPrimaryDiaNote"/>
+
+                        <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Primary volume"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ManPrimaryVolume"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPrimaryVolumeNote"/>
+
+                        <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Gas velocity"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ManExhaustVelocity"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManExhaustVelocityNote"/>
+
+                        <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="Collector diameter"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ManCollectorDia"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManCollectorDiaNote"/>
+
+                        <TextBlock Grid.Row="5" Style="{StaticResource Label}" Text="Collector length"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="ManCollectorLength"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="mm — about half a primary"/>
+
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Manifold volume"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ManTotalVolume"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManTotalVolumeNote"/>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Heading}" Text="WORTH KNOWING"
+                               x:Name="ManWarningsHeading"/>
+
+                    <ItemsControl x:Name="ManWarnings">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,0,0,6">
+                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="3"
+                                            Margin="0,1,8,0" VerticalAlignment="Top"
+                                            Background="{Binding Tint}">
+                                        <TextBlock Text="{Binding Severity}" FontSize="10"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Bg}" FontWeight="SemiBold"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Text}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Muted}"/>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Lengths are measured from the valve head to the open end — the port in the cylinder head is part of the runner and part of the primary, and forgetting it is the commonest way one of these comes out long. The figure given is what a tape measure should read; the acoustic length it came from is a few millimetres more, because a pipe behaves longer than it is."/>
+
+                    <TextBlock Style="{StaticResource Note}" x:Name="ManBellNote"/>
+
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="This sizes pipework from wave timing and mean velocity. It knows nothing about port shape, valve curtain area, the short-side radius or a badly cast bend, and no length here will rescue a port that does not flow. It gets a design to the right size before any of that is worth measuring."/>
+                </StackPanel>
+            </ScrollViewer>
+
         </Grid>
     </DockPanel>
 </Window>

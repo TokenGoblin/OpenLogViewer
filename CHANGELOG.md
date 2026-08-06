@@ -156,6 +156,114 @@ their own ranges from their own data, so their cells would not line up and the
 subtraction would compare 2,400 rpm against 2,650 while looking entirely
 reasonable.
 
+**Runners, plenum and headers.** *Calculators ▸ Engine ▸ Runners & headers*.
+Intake runner length and bore, plenum volume, exhaust primary length and bore,
+collector size, and the gas volume of every one of them — for a naturally
+aspirated or a turbocharged engine, across an rpm range you give it.
+
+A manifold is not a plumbing problem. An opening valve launches a pressure wave
+along the pipe, the far end reflects it back inverted, and if it arrives before
+the valve shuts it either packs charge in or pulls exhaust out. Length decides
+when it arrives, so length decides the engine speed it works at — which makes it
+a choice about what the engine is for, not a correct answer waiting to be found.
+
+So the page asks where you want torque and where you want power, and offers three
+ways to spend the difference. **Quick spool** tunes at the torque peak with small
+fast ports and a small plenum. **High-rpm race** tunes at the power peak with big
+ports and a large one, and is allowed to be soft at 3,000 rpm because it is never
+there. **Street and strip** sits between them. On a turbocharged engine the plenum
+comes down again, because a plenum is dead volume that has to be pressurised
+before boost is anywhere.
+
+**Five cams to pick from, so the page works without a cam card.** *Stock*,
+*Stock +*, *Performance*, *Performance +* and *Full race*, each filling in both
+durations and the gas temperatures that go with that sort of build. Duration
+drives every length here and it is the number somebody planning a build is least
+likely to have to hand; asking for it as a bare figure in degrees gets either the
+default left alone or a number invented, and both produce lengths that look
+authoritative and are wrong.
+
+The ladder is described by what the engine is like to own rather than by peak
+power, because that is what actually decides whether somebody can live with a
+cam. Each step adds overlap — 33°, 46°, 60°, 78°, 102° — and overlap is where
+idle quality, manifold vacuum and the whole possibility of scavenging come from.
+The list says so in those terms: *Stock* keeps full vacuum for the brakes,
+*Performance +* wants a high-stall converter, *Full race* has no idle worth the
+name.
+
+The figures track what reputable grinders sell and are checked for internal
+consistency rather than taken on trust. The overlap each entry implies is worked
+out from its own durations and lobe separation — (DI + DE)/2 − 2·LSA — and lands
+where catalogue grinds of that description land; the formula reproduces Comp's
+252H at 32° and their XE274H at 60° exactly.
+
+**And it carries both duration figures, because that is the trap.** A cam card
+leads with duration at 0.050 in lift, since that is what grinds are compared on,
+and it runs 44 to 52 crank degrees shorter than the seat-to-seat number. The wave
+does not care where 0.050 in is; it cares when the valve opened. Putting a 0.050
+in figure into a box that wants seat to seat takes about a fifth off every runner
+and primary on the page, and nothing about the answer looks wrong — there is a
+test holding that claim to between 12 and 25 per cent. So each entry shows both,
+the 0.050 in pair is printed alongside for checking against a card, and the boxes
+say which one they want.
+
+Picking a cam fills the boxes; typing in a box moves the list to *from your cam
+card* rather than leaving a description that no longer applies — the same
+arrangement the volumetric efficiency list uses elsewhere.
+
+**Choosing turbocharged now brings its pressures with it.** It used to leave the
+manifold and the exhaust both at atmospheric, which describes an engine that
+cannot exist, and the page would immediately say so — a poor first thing to meet.
+It now opens at about 14 psi of boost with the exhaust manifold 20 per cent above
+it, because a turbine has to be driven and always sits higher than the compressor
+side. Both stay editable, and switching back to naturally aspirated puts them
+back.
+
+**Every harmonic is shown, not just the chosen one.** A given engine speed has
+several lengths that work — the wave can make two round trips, or three, or six —
+and a lower order is a longer pipe with a stronger pulse. The table gives all of
+them and marks which package in a car, because tuning a turbo engine at 3,500 rpm
+wants a metre of runner at the second order and nobody has a metre. The
+recommendation is the longest one that fits; the rest are there for when it does
+not.
+
+**The arithmetic is derived, not fitted, and that means it can be checked.**
+Lengths come from the speed of sound in the gas and the time the valve is open;
+bores come from mean velocity through the valve-open window. Against A. Graham
+Bell's published empirical primary length — a fit to engines that were built and
+dynoed, sharing no constant with any of this — the derived answer agrees within
+about five per cent across cams from 250° to 300° and speeds from 5,500 to 8,000
+rpm. Read the other way, Bell's constant implies a mean primary gas temperature of
+536 to 676 °C, and the page defaults to 600. Both directions are tests.
+
+Exhaust bore is calibrated the same way. Published figures for "exhaust gas
+velocity" vary threefold between sources because they are averaged over different
+things, so rather than import one whose basis cannot be checked, the target is
+worked backwards out of headers that are on engines — a 1.6 at 8,000 rpm on 1.5 in
+primaries, a 2.0 on 1.625, a 5.7 V8 on 1.75, a 6.2 on 1.875. On this page's basis
+all of them fall between 168 and 211 m/s, and asked to size those four engines the
+calculator lands within a quarter inch of what they actually run. It also names
+the nearest tube in eighths, because that is how header tube is sold.
+
+**On a turbocharged engine it says the header length is not the lever.** A turbine
+reflects no usable wave back down the primary, so the length is shown for interest
+and the total manifold volume is given instead — that is the number that decides
+how fast it spools. Boost is carried through properly: denser exhaust gas needs
+*less* pipe area, not more, and the page warns when back pressure has been left at
+atmospheric, which no turbine produces.
+
+Lengths are from the valve head to the open end, so the port in the cylinder head
+is part of the runner and part of the primary — forgetting it is the commonest way
+one of these comes out long. The figure given is what a tape measure should read,
+the acoustic length it came from being a few millimetres more because a pipe
+behaves longer than it is.
+
+What it is not is a flow bench. It sizes pipework from wave timing and mean
+velocity and knows nothing about port shape, valve curtain area, the short-side
+radius or a badly cast bend, and no length here will rescue a port that does not
+flow. It gets a design to the right size before any of that is worth measuring,
+and it says so on the page.
+
 **Intercooling, and chemical intercooling.** *Calculators ▸ Air & boost ▸
 Intercooling*. What the compressor does to the air, how much heat there is to
 take back out, what a core will actually remove, and what spraying something into
@@ -437,10 +545,11 @@ exp pow sign if`. Missing readings propagate, including through comparisons.
 Stored in `math.json` by name and expression, so a set written for one car
 applies to any log carrying those channels.
 
-**Calculators.** *Tools ▸ Calculators*: nine of them, grouped down the side into
-air and boost, fuel, engine and drivetrain, and all recomputing as you type. A
-list rather than a row of tabs because tabs run out of width at about eight, and
-there is no reason to expect this to stop at nine.
+**Calculators.** *Tools ▸ Calculators*: fifteen of them by the end of this
+release, grouped down the side into planning a build, air and boost, fuel,
+engine, drivetrain and running costs, and all recomputing as you type. A list
+rather than a row of tabs because tabs run out of width at about eight — which
+was the right call, since this started at nine.
 
 Engine takes a bore, a stroke and a cylinder count and answers three questions at
 once, because all three rest on the same two numbers: how big the engine is, how
