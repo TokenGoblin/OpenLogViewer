@@ -820,9 +820,16 @@ public partial class MainWindow : Window
         if (wired.Length + paired.Length + adapters.Count == 0)
             Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
 
+        // Always offered, unlike everything above it. A Wi-Fi dongle appears in
+        // no list this or any other program can build — it is an access point
+        // with a socket behind it — so a menu that only showed it when something
+        // else had been found would hide it on the one machine that has nothing
+        // but the dongle.
+        Add(new Separator());
+        Add(WifiMenu());
+
         if (ports.Count > 0)
         {
-            Add(new Separator());
             Add(Obd2Menu(ports));
             Add(SsmMenu(ports));
         }
@@ -1034,6 +1041,157 @@ public partial class MainWindow : Window
         }
 
         LiveSessionStarted();
+    }
+
+    /// <summary>
+    /// The Wi-Fi adapters, which are reached by address because there is nothing
+    /// else to reach them by.
+    ///
+    /// A dongle like the Vgate iCar Pro runs its own access point and answers on
+    /// a fixed address behind it, so the addresses are the list — there is no
+    /// scanning to be done and nothing to discover. The one thing that has to be
+    /// true is not visible from here at all, which is why it is written down in
+    /// the menu: this computer must have joined the dongle's network and still be
+    /// on it.
+    /// </summary>
+    private MenuItem WifiMenu()
+    {
+        var menu = new MenuItem
+        {
+            Header = "Connect to a Wi-Fi OBD2 adapter",
+            ToolTip = "For a Vgate iCar Pro Wi-Fi and the dongles built like it. These are their "
+                      + "own access point rather than a COM port or a paired device, so join "
+                      + "their Wi-Fi first — V-LINK on a Vgate — and pick the address below.",
+        };
+
+        foreach (string address in WifiEcuTransport.KnownAddresses)
+        {
+            var item = new MenuItem
+            {
+                Header = Decorate(
+                    address == WifiEcuTransport.KnownAddresses[0]
+                        ? $"{address}  (Vgate iCar Pro, and most of them)"
+                        : $"{address}  (some other clones)",
+                    Seen(address)),
+            };
+
+            string at = address;
+            item.Click += async (_, _) => await StartLiveOverWifi(at);
+
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem
+        {
+            // Said here because the failure it prevents looks like a broken
+            // dongle rather than a network that moved. Windows treats a network
+            // with no internet as a mistake and returns to one that has some,
+            // often within seconds of joining the adapter's.
+            Header = "Join the adapter's own Wi-Fi first, and check Windows has stayed on it",
+            IsEnabled = false,
+        });
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Connects to a Wi-Fi adapter, doing the waiting off the interface thread.
+    ///
+    /// A dongle that is not there is discovered by waiting, and unlike a serial
+    /// port there is no cheap way to find that out first: the wait <em>is</em> the
+    /// connection attempt. So the whole conversation — socket, reset, and asking
+    /// the car what it supports — happens on a background thread, and only the
+    /// session start comes back here, where the gauges and the dashboard live.
+    ///
+    /// Probing first and connecting afterwards, which is what the port menu does,
+    /// would be actively wrong here. These adapters take one client at a time,
+    /// and a probe that has only just let go is a fair way to be refused by the
+    /// connection it was meant to make safe.
+    /// </summary>
+    public async Task StartLiveOverWifi(string address = "", bool quiet = false)
+    {
+        // Every address this attempt covers, not just the one it is named after.
+        // A connection with none given tries them all, so noting a failure
+        // against the first alone leaves the menu saying "no answer" beside one
+        // address and nothing at all beside another that was just as silent —
+        // which reads as an address still worth trying, and is the one somebody
+        // reaches for next.
+        IReadOnlyList<string> tried = address.Length > 0
+            ? [address]
+            : WifiEcuTransport.KnownAddresses;
+
+        string where = tried[0];
+
+        ConnectButton.IsEnabled = false;
+        _vm.SetHint($"Connecting to the Wi-Fi adapter at {(address.Length > 0 ? address : "the usual addresses")}…");
+
+        Elm327Source source;
+
+        try
+        {
+            // Through the view model rather than straight to Elm327Source: the
+            // batch memory lives there, and an adapter connected without it
+            // re-probes batching — and, on the dongles that cannot take it,
+            // re-kills the link — on every drive.
+            source = await Task.Run(() => _vm.OpenWifiAdapter(address));
+        }
+        // Everything, as with the ports and the radios. A radio fails in more
+        // ways than a cable and each type left off a list is an application that
+        // disappears instead of showing a message.
+        catch (Exception ex)
+        {
+            foreach (string at in tried) Record(at, "no answer");
+
+            if (quiet) App.Report($"Could not connect over Wi-Fi: {ex}");
+            else
+                MessageBox.Show(this,
+                    $"Could not connect over Wi-Fi.\n\n{ex.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            _vm.SetHint("The Wi-Fi adapter did not answer.");
+            return;
+        }
+        finally
+        {
+            ConnectButton.IsEnabled = true;
+        }
+
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        try
+        {
+            _vm.StartObd2Session(source);
+        }
+        catch (Exception ex)
+        {
+            source.Dispose();
+
+            if (quiet) App.Report($"Could not start the session: {ex}");
+            else
+                MessageBox.Show(this,
+                    $"Could not start the session.\n\n{ex.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        Record(source.Link.Length > 0 ? source.Link : where, "answered");
+        LiveSessionStarted();
+    }
+
+    /// <summary>Connects to a Wi-Fi adapter for a scripted run.</summary>
+    public async Task ConnectToWifi(string address)
+    {
+        App.Report($"connecting over Wi-Fi to {address}…");
+
+        await StartLiveOverWifi(address, quiet: true);
+
+        App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
     }
 
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)

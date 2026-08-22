@@ -168,6 +168,110 @@ public static class CamProfiles
     }
 
     /// <summary>
+    /// Where a profile sits in the ladder, from 0 for stock to 4 for full race,
+    /// or −1 for somebody's own cam.
+    /// </summary>
+    public static int LevelOf(CamProfile cam)
+    {
+        for (int i = 0; i < All.Count; i++)
+            if (All[i].Name == cam.Name && !All[i].IsCustom) return i;
+
+        return -1;
+    }
+
+    /// <summary>
+    /// How much peak volumetric efficiency one step up the cam ladder is worth.
+    ///
+    /// A convention, like every figure in <see cref="EngineFamilies"/>, and quoted
+    /// with the same warning: two engines answering the same description differ by
+    /// more than this on port work alone. Four points a step puts the whole spread
+    /// from a stock grind to a full race one at sixteen, which is about what a cam
+    /// swap is worth on an engine that is otherwise left alone.
+    /// </summary>
+    public const double PointsPerCamLevel = 4;
+
+    /// <summary>
+    /// The most a cam can add to a head, in points of volumetric efficiency.
+    ///
+    /// There has to be a ceiling because the port is the limit and a camshaft
+    /// cannot make a small one flow more air — it can only hold it open longer. An
+    /// old two-valve head given a full race grind gains, but it does not turn into
+    /// a four-valve. Thirteen points is about three steps' worth, and it is what
+    /// stops the arithmetic promising a smog-era head 91 per cent or a road
+    /// four-valve 113.
+    /// </summary>
+    public const double MostACamCanAdd = 13;
+
+    /// <summary>
+    /// Peak volumetric efficiency for a head and a cam together.
+    ///
+    /// Neither alone answers it. The family says what the ports and the manifold
+    /// can flow, the cam says how long they are held open, and the figure quoted
+    /// for a family already assumes a particular cam — so this counts the
+    /// difference from that assumption rather than adding the cam twice.
+    ///
+    /// The direction is the point. A modern pushrod V8 quoted at 85 keeps 85 with
+    /// the cam its description assumes, reaches the high nineties on a full race
+    /// grind, and drops to the seventies if a milder one goes in; a race intake
+    /// quoted at 105 only earns that figure with the race cam it was quoted for,
+    /// and loses ground as the cam comes back. What it will not do is let a cam
+    /// carry a head past what it flows.
+    /// </summary>
+    public static double VolumetricEfficiency(EngineFamily family, CamProfile cam)
+    {
+        if (family.IsCustom || cam.IsCustom) return double.NaN;
+
+        int level = LevelOf(cam);
+        if (level < 0) return double.NaN;
+
+        double moved = (level - family.ImpliedCamLevel) * PointsPerCamLevel;
+        double ceiling = family.VolumetricEfficiency + MostACamCanAdd;
+
+        return Math.Clamp(family.VolumetricEfficiency + moved, 40, ceiling);
+    }
+
+    /// <summary>
+    /// The family a volumetric efficiency corresponds to given the cam in front of
+    /// it, or the custom entry.
+    ///
+    /// The reverse of the above, and it cannot be <see cref="EngineFamilies.For"/>
+    /// because the figure in the box is no longer any family's own number — a
+    /// modern two-valve on a performance cam reads 93, which is nobody's baseline.
+    /// Each family is asked what it would produce with this cam, and the one that
+    /// agrees is the one to show.
+    ///
+    /// Two heads can land on the same figure — a four-valve on fixed cams and a
+    /// race intake both reach 105 with a full race grind, by different routes —
+    /// so the answer is not always unique. <paramref name="preferred"/> is the
+    /// selection already showing, and it wins whenever it still fits. Without it
+    /// the list would jump from the head somebody chose to whichever other one
+    /// happens to be listed first, which looks like the page overruling them.
+    /// </summary>
+    /// <param name="preferred">
+    /// Index of the family already selected, or −1 for none.
+    /// </param>
+    public static int FamilyIndexFor(double vePercent, CamProfile cam, int preferred = -1)
+    {
+        if (vePercent > 0 && !cam.IsCustom)
+        {
+            if (preferred >= 0 && preferred < EngineFamilies.All.Count && Fits(preferred))
+                return preferred;
+
+            for (int i = 0; i < EngineFamilies.All.Count; i++)
+                if (Fits(i)) return i;
+        }
+
+        return EngineFamilies.All.Count - 1;
+
+        bool Fits(int index)
+        {
+            double ve = VolumetricEfficiency(EngineFamilies.All[index], cam);
+
+            return !double.IsNaN(ve) && Math.Abs(ve - vePercent) < 0.5;
+        }
+    }
+
+    /// <summary>
     /// What an overlap figure means for living with the engine.
     ///
     /// Overlap is the part of a cam choice that is felt from the driver's seat

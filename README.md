@@ -370,11 +370,89 @@ is no standard for which service to use, so the known ones are tried in turn
 something before being used** — the adapter this was verified against publishes
 two and answers on only one of them.
 
+**Wi-Fi adapters work as well — a Vgate iCar Pro and the dongles built like
+it.** These are further out of sight than the LE ones: a Wi-Fi dongle is its own
+access point with a TCP socket behind it, so it becomes no COM port, pairs with
+nothing, and appears in no list any program can build. An address is the whole of
+what it is reached by, so **Connect ▾ → Connect to a Wi-Fi OBD2 adapter** offers
+the ones they are known to use — `192.168.0.10:35000`, where a Vgate answers, and
+`192.168.4.1:35000` for the clones that differ — and `--connect-wifi <address>`
+takes any other.
+
+The thing to get right is not in the application at all: **join the dongle's own
+Wi-Fi first** (`V-LINK` on a Vgate) **and check Windows has stayed on it**. A
+network with no route to the internet is one Windows treats as a mistake and
+leaves for one that has some, often within seconds — so the failure lands on the
+dongle while the cause is a laptop that quietly went home. That is what the
+message says when nothing answers, along with the other two: these accept one
+connection at a time, so a phone app still holding it is refused rather than
+queued.
+
+**Knowing when a reply has finished is not as simple as the datasheet makes it
+sound**, and getting it wrong is what makes a working dongle feel broken. An
+ELM327 is supposed to end every reply with a `>` prompt; a Vgate sends one on
+roughly 60–80 % of reads, so the rest used to wait out the full window with a
+complete answer already sitting in the buffer. Three rules, each of which exists
+because the obvious version of it failed on a car:
+
+- **A prompt always finishes a reply**, as it should.
+- **Quiet finishes one too** — but only with something in hand that is more than
+  the command coming back. This adapter ignores `ATE0`: it echoes, pauses, and
+  only then answers, so an echo mistaken for a reply completes the read before
+  the reply exists and every answer afterwards is one command late.
+- **Silence finishes nothing.** A read that has received no answer waits out its
+  whole timeout, because nothing arriving is not the same as a short reply.
+
+The quiet rule leaves the prompt it did not wait for still in flight, so a `>`
+arriving with nothing in front of it is treated as that leftover and read past
+rather than taken as an empty answer — and after a read that really did time out,
+the next command waits for the late reply and throws it away first.
+
 On a wired adapter the speed is found rather than assumed. A genuine ELM327
 ships at 38,400 and clones ship at whatever the batch was built with, so 38,400,
 115,200, 9,600 and 500,000 are tried in that order; a Bluetooth adapter ignores
 the setting entirely. A wrong speed is told apart from a key left out, because
 the two need different things done about them.
+
+**Where the car allows it, six parameters are asked for in one request.** The
+cost of OBD2 is round trips rather than bytes, and ISO 15765 lets a single mode
+01 request carry up to six — so a round of readings is two exchanges instead of
+six, and the parameters that used to take turns one per round now come back six
+at a time.
+
+It is **probed, never assumed**, and the probe is written so it can only answer
+yes on evidence: at least two parameters must come back, because a car that
+ignores the extras and answers the first looks exactly like a batched reply
+carrying one. It is only tried on a bus **positively identified as CAN** — not
+merely one that failed to identify as slow, since an unknown protocol is neither
+and this request reaches a J1850 vehicle as a malformed one. Three unanswered
+batches and it gives up for the rest of the session; what gets given up is the
+batching and never the channels, because a request that failed says nothing
+about which sensors the car has.
+
+**Some dongles cannot survive being asked, and that is remembered.** A Vgate
+iCar Pro Wi-Fi does not refuse a batched request — it answers one, completely
+and on time, and then the TCP session is simply gone: every read afterwards
+returns nothing while the socket still reports itself connected. So the batch
+that killed the link looks like a success, and what identifies it is the silence
+that follows. Learning this costs a dropped link, so the verdict is **written to
+the settings file against that adapter** and a dongle with form is not probed
+again — the probe is itself a batched request, and on such a dongle that one
+request is the whole of the damage. Two bad links before it is believed, because
+a link can also die from being out of range or the key going off, and condemning
+a capable adapter on one of those would cost the advantage permanently. A
+different dongle starts clean.
+
+**A reply of a length that is knowable does not wait for its prompt.** On the
+same adapter the `>` trails the payload by around 200 ms, which with batching
+dead is most of the poll cycle. A mode 01 request has a defined answer length,
+so the answer terminates itself the moment it is complete — guarded so that
+every way of being wrong ends in an ordinary wait rather than a short read: it
+must begin `41` (a refusal like `7F 01 12` is pure hex and exactly as long as a
+one-byte answer, and on a broadcast it can be one module's while the answer is
+another's), it must be nothing but hex (a segment marker means this is not the
+reply the length was computed for), and a capability bitmap never comes here at
+all, because both modules' answers are wanted.
 
 **It is slow, and that is the protocol rather than this.** Every other ECU here
 hands over its whole realtime block in one exchange; OBD2 has no such thing, so

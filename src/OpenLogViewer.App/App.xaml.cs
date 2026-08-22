@@ -40,7 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
-        "--faults", "--connect-ssm",
+        "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
     /// <summary>
@@ -109,6 +109,18 @@ public partial class App : Application
 
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
+
+        // "--connect-wifi 192.168.0.10:35000" opens a Wi-Fi OBD2 dongle, which
+        // is reachable by address and by nothing else. The address may be left
+        // off — "--connect-wifi auto" — to try the ones they are known to use.
+        int wifi = Array.IndexOf(e.Args, "--connect-wifi");
+        if (wifi >= 0 && wifi + 1 < e.Args.Length)
+        {
+            string at = e.Args[wifi + 1];
+
+            _ = window.ConnectToWifi(
+                at.Equals("auto", StringComparison.OrdinalIgnoreCase) ? "" : at);
+        }
 
         int viaMenu = Array.IndexOf(e.Args, "--connect-menu");
         if (viaMenu >= 0 && viaMenu + 1 < e.Args.Length)

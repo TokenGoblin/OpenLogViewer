@@ -329,4 +329,36 @@ public class WorkspaceTests : IDisposable
         store.SetLiveRate(100_000);
         Assert.Equal(SettingsStore.MaximumLiveRate, store.LiveRate);
     }
+
+    [Fact]
+    public void ADeathNotedWhileSomethingElseIsSavingIsNotLost()
+    {
+        // The one setting written from somewhere other than the interface
+        // thread. A batched request killing a link is noticed by the poll
+        // thread, and the note it writes lands in the middle of whatever the
+        // window happens to be saving: the count is read, copied and swapped
+        // while another write is doing the same, and both go through one scratch
+        // file on the way to disk.
+        string path = SettingsPath();
+        var store = new SettingsStore(path);
+
+        const string Adapter = "192.168.0.10:35000";
+        const int Threads = 8;
+        const int Each = 25;
+
+        Parallel.For(0, Threads, worker =>
+        {
+            for (int note = 0; note < Each; note++)
+            {
+                store.RecordObd2BatchDeath(Adapter);
+
+                // And one of them standing in for the window, saving something
+                // of its own the whole time.
+                if (worker == 0) store.SetTheme(note % 2 == 0 ? "gruvbox" : "nord");
+            }
+        });
+
+        Assert.Equal(Threads * Each, store.Obd2BatchDeaths[Adapter]);
+        Assert.Equal(Threads * Each, new SettingsStore(path).Obd2BatchDeaths[Adapter]);
+    }
 }

@@ -2003,7 +2003,25 @@ public sealed class MainViewModel : ObservableObject
     /// every other link here it cannot be assumed — a genuine ELM327 ships at
     /// 38,400 and clones at anything.
     /// </summary>
-    public void ConnectObd2(string port) => StartObd2(Elm327Source.ConnectOnPort(port), port);
+    public void ConnectObd2(string port) =>
+        StartObd2(Elm327Source.ConnectOnPort(port, BatchMemory), port);
+
+    /// <summary>
+    /// What batching has already cost each adapter, kept in the settings file.
+    ///
+    /// One instance for every OBD2 route, because the thing being remembered is
+    /// a property of the dongle rather than of how it was reached.
+    /// </summary>
+    private IObd2BatchMemory BatchMemory => _batchMemory ??= new SettingsBatchMemory(_settings);
+
+    private IObd2BatchMemory? _batchMemory;
+
+    private sealed class SettingsBatchMemory(SettingsStore settings) : IObd2BatchMemory
+    {
+        public int DeathsOn(string adapter) => settings.Obd2BatchDeaths.GetValueOrDefault(adapter);
+
+        public void Died(string adapter) => settings.RecordObd2BatchDeath(adapter);
+    }
 
     /// <summary>
     /// Connects to an OBD2 adapter over Bluetooth Low Energy.
@@ -2018,8 +2036,68 @@ public sealed class MainViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(adapter);
 
         StartObd2(
-            Elm327Source.Connect(new BleEcuTransport(adapter.Address, adapter.Name)),
+            Elm327Source.Connect(
+                new BleEcuTransport(adapter.Address, adapter.Name), memory: BatchMemory),
             adapter.Label);
+    }
+
+    /// <summary>
+    /// Connects to an OBD2 adapter over Wi-Fi — a Vgate iCar Pro and the clones
+    /// built like it.
+    ///
+    /// The same ELM327 conversation again, over a TCP socket this time. These are
+    /// invisible to everything else here: no COM port, no pairing, nothing in any
+    /// list Windows keeps, so an address is the only way to reach one and the
+    /// computer has to be on the dongle's own Wi-Fi before it means anything.
+    /// </summary>
+    /// <param name="address">
+    /// "host" or "host:port", defaulting to the port these adapters listen on.
+    /// Empty tries each address one is known to answer at.
+    /// </param>
+    public void ConnectObd2Wifi(string address = "") =>
+        StartObd2Session(OpenWifiAdapter(address));
+
+    /// <summary>
+    /// Connects to a Wi-Fi adapter without starting a session on it.
+    ///
+    /// The two halves belong to different threads, which is why they are
+    /// separate calls. Opening a socket to a dongle that may not be there costs
+    /// seconds of waiting, so the window does this part in the background;
+    /// everything after it touches the gauges and the dashboard.
+    ///
+    /// What this gives the window that calling
+    /// <see cref="Elm327Source.ConnectOverWifi(string, IObd2BatchMemory?)"/>
+    /// directly does not is the batch memory. It lives here, with the settings,
+    /// and an adapter reached without it learns what batching costs it again on
+    /// every drive — at the price of a dropped session each time, since that is
+    /// the only way the thing can be learnt.
+    /// </summary>
+    /// <param name="address">
+    /// "host" or "host:port". Empty tries each address one is known to answer at.
+    /// </param>
+    public Elm327Source OpenWifiAdapter(string address = "") =>
+        address.Trim().Length > 0
+            ? Elm327Source.ConnectOverWifi(address, BatchMemory)
+            : Elm327Source.ConnectOverWifi(BatchMemory);
+
+    /// <summary>
+    /// Starts a session on an OBD2 adapter that is already talking.
+    ///
+    /// Its own entry because connecting is the slow part and this is not: opening
+    /// a socket to a dongle that is not there takes seconds and is pure protocol,
+    /// so the window does it on a background thread and hands the result over
+    /// here. Everything from this point touches the gauges and the dashboard,
+    /// which belong to the interface thread.
+    /// </summary>
+    public void StartObd2Session(Elm327Source source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // Labelled with the address that answered rather than the one that was
+        // asked for. A connection with no address given tries several, and a
+        // session named after the wrong one of them is a note about a device
+        // that was never reached.
+        StartObd2(source, source.Link.Length > 0 ? $"Wi-Fi {source.Link}" : "OBD2");
     }
 
     /// <summary>
@@ -2324,9 +2402,14 @@ public sealed class MainViewModel : ObservableObject
 
         Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
         Title = $"Live: OBD2 — OpenLogViewer";
-        Hint = $"{Opening(recording)} OBD2 asks for one parameter at a time, so this "
-               + "updates about twice a second rather than 25 times — the protocol's limit, "
-               + "not the link's. A standard vehicle has no tune to read, so calibration "
+        Hint = $"{Opening(recording)} "
+               + (source.Batching
+                   ? "This car answers several parameters to one request, so a round of readings "
+                     + "is two exchanges rather than six — still slower than a tuning cable, and "
+                     + "much better than OBD2 usually manages. "
+                   : "OBD2 asks for one parameter at a time, so this updates about twice a second "
+                     + "rather than 25 times — the protocol's limit, not the link's. ")
+               + "A standard vehicle has no tune to read, so calibration "
                + "shows its fault codes instead."
                + (Obd2Gaps.Length > 0 ? $"  {Obd2Gaps}." : "");
 

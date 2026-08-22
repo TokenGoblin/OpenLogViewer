@@ -297,11 +297,16 @@ public partial class CalculatorsWindow : Window
 
         foreach (CamProfile cam in CamProfiles.All) ManCam.Items.Add(cam.Name);
 
+        foreach (EngineFamily family in EngineFamilies.All) ManVeFamily.Items.Add(family.Name);
+
+        // A four-valve head with phasing, which is what most engines somebody is
+        // planning a manifold for actually are.
+        ManVeFamily.SelectedIndex = 3;
+
         ManLitres.Text = "2.0";
         ManCylinders.Text = "4";
         ManTorqueRpm.Text = "4500";
         ManPowerRpm.Text = "7000";
-        ManVe.Text = "100";
         ManCompression.Text = "10.5";
 
         // Opens on the middle of the five, so the page starts on an engine
@@ -312,6 +317,11 @@ public partial class CalculatorsWindow : Window
         ManExhaustDuration.Text = Round(opening.ExhaustDurationDeg, 0);
         ManIntakeTemp.Text = Round(opening.ChargeCelsius, 0);
         ManExhaustTemp.Text = Round(opening.ExhaustCelsius, 0);
+
+        // From the head and the cam together, rather than a bare 100 that agreed
+        // with neither of them.
+        ManVe.Text = Round(
+            CamProfiles.VolumetricEfficiency(EngineFamilies.All[3], opening), 0);
         ManBoost.Text = Round(TuningMath.AtmosphericKpa, 1);
         ManBackPressure.Text = Round(TuningMath.AtmosphericKpa, 1);
 
@@ -2197,6 +2207,39 @@ public partial class CalculatorsWindow : Window
         Set(ManIntakeTemp, Round(cam.ChargeCelsius, 0));
         Set(ManExhaustTemp, Round(cam.ExhaustCelsius, 0));
 
+        // The cam moves how well the engine breathes, so the efficiency follows it
+        // — but only while a head is chosen from the list. Somebody working from
+        // their own measured figure keeps it, because a number off a dyno beats
+        // anything worked out from two descriptions.
+        ApplyManifoldVe(cam);
+
+        ShowManifold();
+    }
+
+    /// <summary>
+    /// Sets the volumetric efficiency from the head and the cam together.
+    ///
+    /// Neither answers it alone: the head says what the ports flow, the cam says
+    /// how long they are held open, and the figure quoted for a head already
+    /// assumes a particular cam. Leaves the box alone when either side is
+    /// somebody's own.
+    /// </summary>
+    private void ApplyManifoldVe(CamProfile cam)
+    {
+        if (EngineFamilies.All.ElementAtOrDefault(ManVeFamily.SelectedIndex) is not { IsCustom: false } family)
+            return;
+
+        double ve = CamProfiles.VolumetricEfficiency(family, cam);
+
+        if (!double.IsNaN(ve)) Set(ManVe, Round(ve, 0));
+    }
+
+    private void OnManifoldVeFamilyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updating || ManVe is null) return;
+
+        ApplyManifoldVe(CamProfiles.For(Value(ManIntakeDuration), Value(ManExhaustDuration)));
+
         ShowManifold();
     }
 
@@ -2284,6 +2327,23 @@ public partial class CalculatorsWindow : Window
 
         CamProfile chosen = CamProfiles.For(spec.IntakeDurationDeg, spec.ExhaustDurationDeg);
 
+        // Same arrangement for the head: the list follows the box. The selection
+        // already showing is offered back, because two heads meet at the same
+        // figure on a full race cam and the page must not overrule a choice on the
+        // strength of a tie.
+        _updating = true;
+        ManVeFamily.SelectedIndex = CamProfiles.FamilyIndexFor(
+            spec.VolumetricEfficiency, chosen, ManVeFamily.SelectedIndex);
+        _updating = false;
+
+        EngineFamily head = EngineFamilies.All[ManVeFamily.SelectedIndex];
+
+        ManVeFamilyNote.Text = head.Note;
+
+        ManVeNote.Text = head.IsCustom || chosen.IsCustom
+            ? "% at peak power — your own figure"
+            : "% — the head and the cam together";
+
         // The short line beside the list is the overlap verdict, because that is
         // the part of a cam choice felt from the driver's seat. The full
         // description is too long to sit in a column and goes underneath.
@@ -2353,8 +2413,16 @@ public partial class CalculatorsWindow : Window
 
         ManPlenumNote.Text = double.IsNaN(intake.PlenumVolumeCc)
             ? "cc"
-            : $"cc — {intake.PlenumMultiple:N2} × displacement"
-              + (spec.PlenumMultiple > 0 ? ", your figure" : ", the goal's figure");
+            : $"cc at {intake.PlenumMultiple:N2}× — "
+              + ManifoldTuning.PlenumVerdict(intake.PlenumMultiple, induction);
+
+        ManTract.Text = Show(intake.TractVolumeCc, 0);
+
+        ManTractNote.Text = induction == Induction.Turbocharged
+            ? "cc to pressurise — but the intercooler and pipes are ~3× this again"
+            : "cc of plenum and runners together";
+
+        ManPlenumTable.Text = PlenumTable(spec, intake, induction);
 
         ManHelmholtz.Text = Show(intake.HelmholtzHz, 0);
 
@@ -2420,6 +2488,65 @@ public partial class CalculatorsWindow : Window
 
         ManWarnings.ItemsSource = warnings;
         ManWarningsHeading.Visibility = warnings.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Plenum volume across the range anybody builds in, so the multiple is a dial
+    /// rather than a choice between three presets.
+    ///
+    /// The table is the answer to "what would a different multiple give me": every
+    /// quarter step from half displacement to twice it, with the volume it comes
+    /// to and what it does. The row in use is marked, and the runners are added on
+    /// so the figure that matters for spool — everything the compressor has to
+    /// pressurise that this page can see — moves with it.
+    /// </summary>
+    private static string PlenumTable(ManifoldSpec spec, IntakePlan intake, Induction induction)
+    {
+        var rows = new System.Text.StringBuilder();
+
+        double runners = intake.RunnerVolumeCc * Math.Max(spec.Cylinders, 0);
+
+        // The two widths here are the cell widths below, and the cells carry
+        // their own "cc" so that both are one field. Counted separately, the
+        // headings drift left of the numbers by the width of a unit: 9 and 11
+        // against rows of 11 and 13, which put "volume" and "+ runners" two and
+        // three characters off the columns they name.
+        rows.AppendLine($"{"plenum",-9}{"volume",11}{"+ runners",13}   what it does");
+        rows.AppendLine(new string('-', 74));
+
+        // The figure actually in force earns its own row when it is not one of the
+        // steps — the goals use 0.75, 1.20 and 1.40, and marking the nearest step
+        // instead would put the asterisk against a volume nobody is building.
+        List<double> steps = [.. ManifoldTuning.PlenumMultiples];
+
+        if (intake.PlenumMultiple > 0 && steps.TrueForAll(m => Math.Abs(m - intake.PlenumMultiple) > 0.005))
+            steps.Add(intake.PlenumMultiple);
+
+        steps.Sort();
+
+        foreach (double multiple in steps)
+        {
+            double volume = ManifoldTuning.PlenumVolumeCc(spec.Litres * 1_000, multiple);
+
+            if (double.IsNaN(volume)) continue;
+
+            bool inUse = Math.Abs(multiple - intake.PlenumMultiple) < 0.005;
+
+            string volumeCell = $"{volume:N0} cc";
+            string totalCell = $"{volume + runners:N0} cc";
+
+            rows.AppendLine(
+                $"{multiple,5:N2}×{(inUse ? " *" : "  "),-3}"
+                + $"{volumeCell,11}{totalCell,13}"
+                + $"   {ManifoldTuning.PlenumVerdict(multiple, induction)}");
+        }
+
+        rows.Append("\n* in use");
+
+        if (induction == Induction.Turbocharged)
+            rows.Append("   — and the intercooler and its pipework are around three times the whole column again");
+
+        return rows.ToString();
     }
 
     /// <summary>

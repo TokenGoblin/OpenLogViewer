@@ -254,6 +254,168 @@ public class CamProfileTests
         Assert.InRange(1 - (mistaken / correct), 0.12, 0.25);
     }
 
+    // ----- what a cam does to breathing ------------------------------------------
+
+    /// <summary>
+    /// A bigger cam never breathes worse. Within one head, every step up the ladder
+    /// has to be worth the same or more — which is the whole reason the page asks
+    /// for the cam at all.
+    /// </summary>
+    [Fact]
+    public void ABiggerCamNeverBreathesWorseOnTheSameHead()
+    {
+        foreach (EngineFamily family in EngineFamilies.All.Where(f => !f.IsCustom))
+        {
+            var byLevel = CamProfiles.All
+                .Where(c => !c.IsCustom)
+                .Select(c => CamProfiles.VolumetricEfficiency(family, c))
+                .ToList();
+
+            for (int i = 1; i < byLevel.Count; i++)
+            {
+                Assert.True(
+                    byLevel[i] >= byLevel[i - 1],
+                    $"{family.Name}: level {i} gave {byLevel[i]:N0} against {byLevel[i - 1]:N0}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// A cam cannot carry a head past what it flows. The port is the limit — a
+    /// camshaft only holds it open longer — so an old two-valve given a full race
+    /// grind gains, and does not turn into a four-valve.
+    /// </summary>
+    [Fact]
+    public void NoCamCarriesAHeadPastWhatItFlows()
+    {
+        foreach (EngineFamily family in EngineFamilies.All.Where(f => !f.IsCustom))
+        {
+            foreach (CamProfile cam in CamProfiles.All.Where(c => !c.IsCustom))
+            {
+                double ve = CamProfiles.VolumetricEfficiency(family, cam);
+
+                Assert.True(
+                    ve <= family.VolumetricEfficiency + CamProfiles.MostACamCanAdd,
+                    $"{family.Name} on {cam.Name} reached {ve:N0}");
+            }
+        }
+
+        // The oldest head with the wildest cam still has to look like an old head.
+        double old = CamProfiles.VolumetricEfficiency(EngineFamilies.All[0], CamProfiles.All[4]);
+
+        Assert.InRange(old, 80, 92);
+    }
+
+    /// <summary>
+    /// The race entry is the one whose description already has a big cam in it, so
+    /// it is the one that *loses* ground as the cam comes back — it must not be
+    /// handed its 105 for an engine running a stock grind.
+    /// </summary>
+    [Fact]
+    public void TheRaceIntakeOnlyEarnsItsFigureWithTheCamItAssumes()
+    {
+        EngineFamily race = EngineFamilies.All.First(f => f.ImpliedCamLevel > 0);
+
+        Assert.Equal(
+            race.VolumetricEfficiency,
+            CamProfiles.VolumetricEfficiency(race, CamProfiles.All[race.ImpliedCamLevel]),
+            6);
+
+        double onAStockCam = CamProfiles.VolumetricEfficiency(race, CamProfiles.All[0]);
+
+        Assert.True(
+            onAStockCam < race.VolumetricEfficiency - 10,
+            $"a race intake on a stock cam still read {onAStockCam:N0}");
+    }
+
+    /// <summary>
+    /// Nothing the table can produce may be outside what a naturally aspirated
+    /// engine does. This is the guard that would catch a sign error or a runaway
+    /// step size, which is exactly the sort of mistake that reads as plausible.
+    /// </summary>
+    [Fact]
+    public void EveryCombinationStaysInsideWhatAnEngineActuallyBreathes()
+    {
+        foreach (EngineFamily family in EngineFamilies.All.Where(f => !f.IsCustom))
+            foreach (CamProfile cam in CamProfiles.All.Where(c => !c.IsCustom))
+                Assert.InRange(CamProfiles.VolumetricEfficiency(family, cam), 70, 112);
+    }
+
+    /// <summary>Somebody's own head or own cam means their own figure, not a guess.</summary>
+    [Fact]
+    public void AnythingCustomDeclinesToAnswer()
+    {
+        EngineFamily customFamily = EngineFamilies.All[^1];
+        CamProfile customCam = CamProfiles.All[^1];
+
+        Assert.True(double.IsNaN(CamProfiles.VolumetricEfficiency(customFamily, CamProfiles.All[0])));
+        Assert.True(double.IsNaN(CamProfiles.VolumetricEfficiency(EngineFamilies.All[0], customCam)));
+        Assert.Equal(-1, CamProfiles.LevelOf(customCam));
+    }
+
+    /// <summary>
+    /// Every figure the table produces has to lead back to a head that really
+    /// produces it, or the list under the box would drop to "measured or known"
+    /// the instant a cam was chosen.
+    ///
+    /// A head and not necessarily *the* head: two of them meet at 105 on a full
+    /// race grind, so the figure alone cannot always say which was meant.
+    /// </summary>
+    [Fact]
+    public void EveryFigureLeadsBackToAHeadThatProducesIt()
+    {
+        foreach (EngineFamily family in EngineFamilies.All.Where(f => !f.IsCustom))
+        {
+            foreach (CamProfile cam in CamProfiles.All.Where(c => !c.IsCustom))
+            {
+                double ve = CamProfiles.VolumetricEfficiency(family, cam);
+
+                int found = CamProfiles.FamilyIndexFor(ve, cam);
+
+                Assert.NotEqual(EngineFamilies.All.Count - 1, found);
+                Assert.Equal(ve, CamProfiles.VolumetricEfficiency(EngineFamilies.All[found], cam), 6);
+            }
+        }
+    }
+
+    /// <summary>
+    /// And where the figure is ambiguous, the selection already showing wins.
+    /// Picking a race intake and a full race cam must not quietly become a
+    /// four-valve on fixed cams just because both arrive at 105.
+    /// </summary>
+    [Fact]
+    public void AnAmbiguousFigureKeepsTheHeadAlreadyChosen()
+    {
+        CamProfile race = CamProfiles.All[4];
+
+        // The collision this guards: two families, one figure.
+        double fixedCams = CamProfiles.VolumetricEfficiency(EngineFamilies.All[2], race);
+        double tunedIntake = CamProfiles.VolumetricEfficiency(EngineFamilies.All[4], race);
+
+        Assert.Equal(fixedCams, tunedIntake, 6);
+
+        // Each keeps itself when it is the one already selected.
+        Assert.Equal(2, CamProfiles.FamilyIndexFor(fixedCams, race, 2));
+        Assert.Equal(4, CamProfiles.FamilyIndexFor(tunedIntake, race, 4));
+
+        // A preference that no longer fits is dropped rather than honoured.
+        Assert.Equal(0, CamProfiles.FamilyIndexFor(
+            CamProfiles.VolumetricEfficiency(EngineFamilies.All[0], race), race, 3));
+    }
+
+    /// <summary>A figure no head and cam would produce is somebody's own measurement.</summary>
+    [Fact]
+    public void AFigureNothingProducesIsTheirOwn()
+    {
+        Assert.Equal(
+            EngineFamilies.All.Count - 1,
+            CamProfiles.FamilyIndexFor(63.7, CamProfiles.All[0]));
+
+        Assert.Equal(
+            EngineFamilies.All.Count - 1,
+            CamProfiles.FamilyIndexFor(0, CamProfiles.All[0]));
+    }
+
     /// <summary>Nothing in the list may be blank, and the custom entry must be last.</summary>
     [Fact]
     public void TheListIsWellFormed()

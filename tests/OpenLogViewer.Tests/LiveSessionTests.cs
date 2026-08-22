@@ -425,6 +425,41 @@ public class LiveSessionTests : IDisposable
     }
 
     [Fact]
+    public void RetryingSlowsDownRatherThanHammering()
+    {
+        // A link that does not come back at once is not helped by being asked
+        // harder. An OBD2 dongle takes one client at a time and needs a moment
+        // to release the last one, so a fresh connect and a reset arriving every
+        // few hundred milliseconds is a way to wedge the thing being reached.
+        var transport = new FlakyTransport(Block(1000, 400));
+
+        using LiveSession session = Session(transport, new LiveSessionSettings
+        {
+            FailuresBeforeStopping = 2,
+            ReconnectFor = TimeSpan.FromSeconds(1.5),
+            ReconnectEvery = TimeSpan.FromMilliseconds(50),
+            ReconnectAtMost = TimeSpan.FromMilliseconds(300),
+        });
+
+        session.Start();
+        Until(session, 2);
+
+        int before = transport.Closes;
+        transport.Down = new IOException("gone for good");
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(8);
+        while (session.IsRunning && DateTime.UtcNow < deadline) Thread.Sleep(20);
+
+        // 50 ms flat across a second and a half is thirty attempts; doubling to
+        // a 300 ms ceiling is nearer seven. The bound is loose because the point
+        // is the shape, not a count — what must not happen is the flat rate.
+        int attempts = transport.Closes - before;
+
+        Assert.False(session.IsRunning);
+        Assert.True(attempts is > 0 and < 15, $"{attempts} reconnect attempts in 1.5 s");
+    }
+
+    [Fact]
     public void RecoveryCanBeTurnedOff()
     {
         var transport = new FlakyTransport(Block(1000, 400));
