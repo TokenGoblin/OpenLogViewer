@@ -406,4 +406,48 @@ public class Obd2WedgeTests
         // And the session is a working one, on single requests.
         Assert.Equal(1726, source.Read()[source.Names.ToList().IndexOf("RPM")], 0);
     }
+
+    [Fact]
+    public void AReconnectionThatFollowedNoDeathBlamesNothing()
+    {
+        // Recover is public and is not only reached from a link that has died —
+        // a reconnection can be asked for. Nothing was in flight, so there is
+        // nothing to draw a conclusion from, and a verdict written here would be
+        // written against an adapter that had done nothing at all.
+        var car = Car();
+        var memory = new Remembered();
+
+        using Elm327Source source = Elm327Source.Connect(car, "192.168.0.10:35000", memory);
+        Assert.True(source.Batching);
+
+        source.Recover();
+
+        Assert.Empty(memory.Recorded);
+        Assert.True(source.Batching, "a reconnection gave up batching on its own");
+    }
+
+    [Fact]
+    public void ALinkThatDiedWithBatchingAlreadyOffIsNotBlamedForIt()
+    {
+        // The same rule from the other side. Once batching has been given up,
+        // every later death happened without it — so nothing that follows is
+        // evidence about it, and the count must not go on climbing towards a
+        // verdict the adapter has already had.
+        var car = Car(FakeElm.BatchReply.Refuse);
+        var memory = new Remembered();
+
+        using Elm327Source source = Elm327Source.Connect(car, "192.168.0.10:35000", memory);
+        Assert.False(source.Batching, "the refused probe turned batching on");
+
+        // Everything stops answering, and then comes back.
+        car.Answers.Clear();
+
+        try { source.Read(); }
+        catch (EcuProtocolException) { }
+
+        car.Answers[0x0C] = [0x1A, 0xF8];
+        source.Recover();
+
+        Assert.Empty(memory.Recorded);
+    }
 }

@@ -2107,9 +2107,14 @@ public sealed class MainViewModel : ObservableObject
     /// dashboard — can be exercised against an adapter in software. There is no
     /// other way to test it: a car is required otherwise, and the parts that have
     /// actually gone wrong here are in choosing gauges rather than in the wire.
+    ///
+    /// It carries the batch memory because the route it stands in for does. A
+    /// seam that leaves out what the real path includes cannot catch a real path
+    /// that leaves it out, which is exactly how the Wi-Fi route came to be
+    /// connecting without it while its tests went on passing.
     /// </summary>
     public void ConnectObd2(IEcuTransport transport, string port) =>
-        StartObd2(Elm327Source.Connect(transport), port);
+        StartObd2(Elm327Source.Connect(transport, memory: BatchMemory), port);
 
     // ----- Subaru's own protocol ---------------------------------------------
 

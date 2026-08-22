@@ -172,6 +172,61 @@ public class Obd2WorkflowTests : IDisposable
     }
 
     [Fact]
+    public void ASerialAdapterWithFormIsNotProbedForBatchingEither()
+    {
+        // The same memory, over the route a cable takes. Worth its own test
+        // rather than being assumed from the Wi-Fi one: these are separate calls
+        // into Elm327Source, and the one that was broken was broken by being
+        // written out a second time somewhere else.
+        MainViewModel vm = NewViewModel(out SettingsStore settings);
+
+        var car = Car();
+        car.Batches = FakeElm.BatchReply.All;
+
+        for (int drive = 0; drive < Elm327Source.BatchDeathsBeforeGivingUp; drive++)
+            settings.RecordObd2BatchDeath(car.Elm327Name);
+
+        vm.ConnectObd2(car, "COM3");
+        Assert.True(vm.IsLive);
+
+        // Stopped before the traffic is read: the session polls on a thread of
+        // its own, and Disconnect joins it.
+        vm.Disconnect();
+
+        Assert.DoesNotContain(
+            car.Received,
+            c => c.StartsWith("01", StringComparison.Ordinal) && c.Length > 4);
+    }
+
+    [Fact]
+    public void ASerialAdapterThatCannotBatchIsWrittenDownForNextTime()
+    {
+        // The other direction on the same wiring: a verdict reached on this route
+        // has to reach the settings, or it is learnt again on every drive.
+        MainViewModel vm = NewViewModel(out SettingsStore settings);
+
+        var car = Car();
+        car.Batches = FakeElm.BatchReply.All;
+
+        vm.ConnectObd2(car, "COM3");
+        Assert.Empty(settings.Obd2BatchDeaths);
+
+        // It answered the probe and now refuses, which is the shape that counts
+        // as evidence: singles go on working where the batch does not, so the
+        // link is plainly alive and the request is what failed.
+        car.Batches = FakeElm.BatchReply.Refuse;
+
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+
+        while (DateTime.UtcNow < deadline && settings.Obd2BatchDeaths.Count == 0)
+            Thread.Sleep(10);
+
+        vm.Disconnect();
+
+        Assert.Equal(1, settings.Obd2BatchDeaths.GetValueOrDefault(car.Elm327Name));
+    }
+
+    [Fact]
     public void TheAdapterIsNamedRatherThanTheChipInIt()
     {
         MainViewModel vm = NewViewModel();

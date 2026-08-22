@@ -56,7 +56,7 @@ internal static class JsonSettingsFile
         try
         {
             File.WriteAllText(temp, JsonSerializer.Serialize(value, Options));
-            File.Move(temp, path, overwrite: true);
+            Replace(temp, path);
         }
         catch (Exception)
         {
@@ -72,6 +72,42 @@ internal static class JsonSettingsFile
             }
 
             throw;
+        }
+    }
+
+    /// <summary>Attempts at the move before a save is reported failed.</summary>
+    private const int MoveAttempts = 12;
+
+    /// <summary>
+    /// Moves the finished file into place, retrying briefly.
+    ///
+    /// Two writers replacing the same destination collide even with a scratch
+    /// file each: Windows reports the sharing violation as
+    /// <see cref="UnauthorizedAccessException"/>, and it is transient — what
+    /// holds the destination is the other writer's own move, finishing. Two
+    /// copies of the application running at once are enough to produce it.
+    ///
+    /// Worth retrying rather than throwing because of where the throw comes out.
+    /// A failed save is not only a lost preference: this is also how a dead link
+    /// is written down, from a background thread, in the middle of a recovery
+    /// that the exception would abandon.
+    /// </summary>
+    private static void Replace(string temp, string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(temp, path, overwrite: true);
+                return;
+            }
+            catch (Exception e)
+                when (e is UnauthorizedAccessException or IOException && attempt < MoveAttempts)
+            {
+                // Longer each time. The collision clears in milliseconds, and a
+                // tight spin against a file lock is a good way to extend one.
+                Thread.Sleep(attempt * 5);
+            }
         }
     }
 

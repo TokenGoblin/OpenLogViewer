@@ -2112,7 +2112,16 @@ public partial class CalculatorsWindow : Window
     /// three times as much and is nearly all fuel. Reading that off one table is
     /// worth more than any amount of prose about latent heat.
     /// </summary>
-    private static string FluidTable(double air, double drop, double chargeF, double evaporated)
+    /// <summary>
+    /// What each fluid would have to flow to take the same heat out, side by side.
+    ///
+    /// Internal rather than private so the columns can be tested. These tables
+    /// are built with fixed field widths and their headings are written out
+    /// separately from their rows, so the two drift apart the moment a unit is
+    /// added to a cell — which is a heading sitting over the wrong numbers, and
+    /// nothing about the code that produced it looks wrong.
+    /// </summary>
+    internal static string FluidTable(double air, double drop, double chargeF, double evaporated)
     {
         var rows = new System.Text.StringBuilder();
 
@@ -2500,7 +2509,7 @@ public partial class CalculatorsWindow : Window
     /// so the figure that matters for spool — everything the compressor has to
     /// pressurise that this page can see — moves with it.
     /// </summary>
-    private static string PlenumTable(ManifoldSpec spec, IntakePlan intake, Induction induction)
+    internal static string PlenumTable(ManifoldSpec spec, IntakePlan intake, Induction induction)
     {
         var rows = new System.Text.StringBuilder();
 
@@ -2586,7 +2595,7 @@ public partial class CalculatorsWindow : Window
     /// shorter one on purpose. Marking the practical ones is the whole point —
     /// the arithmetic will happily return a 1.4 metre runner.
     /// </summary>
-    private static string OrderTable(IntakePlan intake, ExhaustPlan exhaust, Induction induction)
+    internal static string OrderTable(IntakePlan intake, ExhaustPlan exhaust, Induction induction)
     {
         var rows = new System.Text.StringBuilder();
 
