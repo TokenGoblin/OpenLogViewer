@@ -533,6 +533,186 @@ public class ManifoldTuningTests
     }
 
     /// <summary>
+    /// A turbocharged build chosen to spool takes the shortest pipe that packages,
+    /// where an atmospheric one takes the longest.
+    ///
+    /// The trade genuinely reverses. On an atmospheric engine the returning pulse
+    /// is the only help there is, so the strongest one wins; under boost it is
+    /// worth a few per cent against fifty or more from the compressor, while the
+    /// pipe's volume is charge that has to be pressurised before any of that
+    /// arrives. Same goal, opposite answer, and the induction is what decides it.
+    /// </summary>
+    [Fact]
+    public void SpoolTakesTheShortRunnerWhereAtmosphericTakesTheLong()
+    {
+        ManifoldSpec engine = new()
+        {
+            Goal = ManifoldGoal.QuickSpool,
+            PeakTorqueRpm = 3_500,
+            PeakPowerRpm = 7_000,
+        };
+
+        ManifoldPlan atmospheric = ManifoldTuning.Plan(engine);
+
+        ManifoldPlan boosted = ManifoldTuning.Plan(engine with
+        {
+            Induction = Induction.Turbocharged,
+            ManifoldKpa = TuningMath.AtmosphericKpa + 150,
+            ExhaustBackPressureKpa = TuningMath.AtmosphericKpa + 170,
+        });
+
+        Assert.True(
+            boosted.Intake.Recommended.LengthMm < atmospheric.Intake.Recommended.LengthMm,
+            $"turbo took {boosted.Intake.Recommended.LengthMm:N0} mm, "
+            + $"atmospheric {atmospheric.Intake.Recommended.LengthMm:N0} mm");
+
+        // Both still have to be buildable — this is a different pipe, not no pipe.
+        Assert.True(boosted.Intake.Recommended.Practical);
+        Assert.True(atmospheric.Intake.Recommended.Practical);
+    }
+
+    /// <summary>
+    /// Preferring the shortest must still respect what packages, and must pick a
+    /// higher order than preferring the longest does.
+    /// </summary>
+    [Fact]
+    public void PreferringTheShortestStillOnlyTakesOneThatFits()
+    {
+        IReadOnlyList<TuningOrder> orders = ManifoldTuning.Orders(345, 240, 4_000, 34, 650);
+
+        TuningOrder longest = ManifoldTuning.Recommend(orders, 650);
+        TuningOrder shortest = ManifoldTuning.Recommend(orders, 650, preferShortest: true);
+
+        Assert.True(shortest.Practical);
+        Assert.True(longest.Practical);
+        Assert.True(shortest.Order > longest.Order);
+        Assert.True(shortest.LengthMm < longest.LengthMm);
+        Assert.InRange(shortest.LengthMm, ManifoldTuning.MinPracticalRunnerMm, 650);
+    }
+
+    /// <summary>
+    /// The tract is the plenum plus every runner, and it has to add up — this is
+    /// the figure a turbo build is asked to judge spool on.
+    /// </summary>
+    [Fact]
+    public void TheTractIsThePlenumPlusEveryRunner()
+    {
+        ManifoldPlan plan = ManifoldTuning.Plan(new ManifoldSpec { Cylinders = 4 });
+
+        Assert.Equal(
+            plan.Intake.PlenumVolumeCc + (plan.Intake.RunnerVolumeCc * 4),
+            plan.Intake.TractVolumeCc,
+            6);
+    }
+
+    /// <summary>
+    /// A smaller plenum multiple really is a smaller plenum and a smaller tract.
+    /// Obvious, and worth pinning because the multiple is now the user's dial.
+    /// </summary>
+    [Fact]
+    public void ASmallerMultipleIsASmallerPlenumAndTract()
+    {
+        ManifoldSpec engine = new() { Induction = Induction.Turbocharged };
+
+        ManifoldPlan small = ManifoldTuning.Plan(engine with { PlenumMultiple = 0.75 });
+        ManifoldPlan large = ManifoldTuning.Plan(engine with { PlenumMultiple = 1.5 });
+
+        Assert.Equal(small.Intake.PlenumVolumeCc * 2, large.Intake.PlenumVolumeCc, 6);
+        Assert.True(small.Intake.TractVolumeCc < large.Intake.TractVolumeCc);
+    }
+
+    /// <summary>
+    /// The honest qualifier, held to arithmetic: on a typical installation the
+    /// manifold is about a quarter of what has to be pressurised, so trimming the
+    /// plenum moves a couple of per cent of the total and no more.
+    ///
+    /// The 10 litres is an ordinary front-mount — a medium core and two runs of
+    /// 60 mm pipe. If this ever stops being roughly true the note on the page
+    /// claiming it should change with it.
+    /// </summary>
+    [Fact]
+    public void TheManifoldIsAboutAQuarterOfWhatHasToBePressurised()
+    {
+        const double interCoolerAndPiping = 10_000;
+
+        ManifoldSpec turbo = new()
+        {
+            Induction = Induction.Turbocharged,
+            Goal = ManifoldGoal.QuickSpool,
+            ManifoldKpa = TuningMath.AtmosphericKpa + 150,
+            ExhaustBackPressureKpa = TuningMath.AtmosphericKpa + 170,
+        };
+
+        double share = ManifoldTuning.TractShareOfTypicalInstallation(
+            ManifoldTuning.Plan(turbo).Intake.TractVolumeCc, interCoolerAndPiping);
+
+        Assert.InRange(share, 0.15, 0.35);
+
+        // And the whole plenum decision moves only a few per cent of the total.
+        double lean = ManifoldTuning.Plan(turbo with { PlenumMultiple = 0.75 }).Intake.TractVolumeCc;
+        double fat = ManifoldTuning.Plan(turbo with { PlenumMultiple = 0.90 }).Intake.TractVolumeCc;
+
+        Assert.InRange((fat - lean) / (fat + interCoolerAndPiping), 0.005, 0.05);
+    }
+
+    /// <summary>Plenum advice reads differently boosted, because the volume costs differently.</summary>
+    [Fact]
+    public void PlenumAdviceDependsOnInduction()
+    {
+        Assert.NotEqual(
+            ManifoldTuning.PlenumVerdict(0.75, Induction.Turbocharged),
+            ManifoldTuning.PlenumVerdict(0.75, Induction.NaturallyAspirated));
+
+        Assert.All(ManifoldTuning.PlenumMultiples, m =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(
+                ManifoldTuning.PlenumVerdict(m, Induction.Turbocharged)));
+            Assert.NotEqual("—", ManifoldTuning.PlenumVerdict(m, Induction.NaturallyAspirated));
+        });
+
+        Assert.Equal("—", ManifoldTuning.PlenumVerdict(0, Induction.Turbocharged));
+    }
+
+    /// <summary>
+    /// Every step in the table has to say something different from its neighbours.
+    ///
+    /// This is the whole point of offering seven of them: a table where 0.75 and
+    /// 1.00 carry identical words is worth less than no table, because it invites
+    /// the reader to conclude the choice does not matter. The bands and the steps
+    /// have to stay the same width as each other, and this is what says so.
+    /// </summary>
+    [Theory]
+    [InlineData(Induction.NaturallyAspirated)]
+    [InlineData(Induction.Turbocharged)]
+    public void EveryPlenumStepReadsDifferentlyFromTheLast(Induction induction)
+    {
+        var seen = ManifoldTuning.PlenumMultiples
+            .Select(m => ManifoldTuning.PlenumVerdict(m, induction))
+            .ToList();
+
+        Assert.Equal(seen.Count, seen.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// And the multiples the goals actually pick must each be findable, because
+    /// the table marks the row in force by matching on the number.
+    /// </summary>
+    [Fact]
+    public void EveryGoalsOwnMultipleGetsItsOwnVerdict()
+    {
+        foreach (ManifoldGoal goal in Enum.GetValues<ManifoldGoal>())
+        {
+            foreach (Induction induction in Enum.GetValues<Induction>())
+            {
+                double multiple = ManifoldTuning.DefaultPlenumMultiple(goal, induction);
+
+                Assert.InRange(multiple, 0.5, 2.0);
+                Assert.NotEqual("—", ManifoldTuning.PlenumVerdict(multiple, induction));
+            }
+        }
+    }
+
+    /// <summary>
     /// A low torque peak wants a runner longer than any car can hold. The
     /// calculator must not silently hand back a metre of pipe as though it were
     /// buildable — it says so instead.
@@ -627,6 +807,42 @@ public class ManifoldTuningTests
         Assert.Contains(plan.Warnings, w => w.Text.Contains("turbine", StringComparison.OrdinalIgnoreCase));
 
         Assert.DoesNotContain(plan.Warnings, w => w.Severity == "stop");
+    }
+
+    /// <summary>
+    /// The note about runner length has to agree with the runner that was
+    /// actually chosen.
+    ///
+    /// A short runner is a quick-spool choice rather than a turbocharged one: a
+    /// boosted build aiming at the top end, or at a balance, is given the longest
+    /// runner that packages. Saying "a shorter runner is chosen here" on every
+    /// turbocharged engine describes somebody else's manifold two thirds of the
+    /// time, and it reads as an explanation of the number printed beside it.
+    /// </summary>
+    [Theory]
+    [InlineData(ManifoldGoal.QuickSpool, true)]
+    [InlineData(ManifoldGoal.Balanced, false)]
+    [InlineData(ManifoldGoal.HighRpmRace, false)]
+    public void TheRunnerLengthNoteFollowsTheGoalRatherThanTheBoost(ManifoldGoal goal, bool shorter)
+    {
+        ManifoldPlan plan = ManifoldTuning.Plan(new ManifoldSpec
+        {
+            Litres = 2.0,
+            Cylinders = 4,
+            Induction = Induction.Turbocharged,
+            Goal = goal,
+            PeakTorqueRpm = 3_500,
+            PeakPowerRpm = 7_000,
+            ManifoldKpa = TuningMath.AtmosphericKpa + 150,
+            ExhaustBackPressureKpa = TuningMath.AtmosphericKpa + 170,
+            VolumetricEfficiency = 105,
+        });
+
+        RecipeWarning note = Assert.Single(
+            plan.Warnings, w => w.Text.Contains("plenum and runners come to", StringComparison.Ordinal));
+
+        Assert.Equal(
+            shorter, note.Text.Contains("a shorter runner is chosen here", StringComparison.Ordinal));
     }
 
     /// <summary>

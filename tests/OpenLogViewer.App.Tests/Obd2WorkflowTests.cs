@@ -32,13 +32,16 @@ public class Obd2WorkflowTests : IDisposable
     /// A view model whose recordings land in a temporary folder rather than in
     /// the user's own.
     /// </summary>
-    private MainViewModel NewViewModel()
+    private MainViewModel NewViewModel() => NewViewModel(out _);
+
+    /// <summary>The same, handing back the settings it was built on.</summary>
+    private MainViewModel NewViewModel(out SettingsStore settings)
     {
         string directory = Path.Combine(Path.GetTempPath(), $"olv-obd2-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         _temp.Add(directory);
 
-        var settings = new SettingsStore(Path.Combine(directory, "settings.json"));
+        settings = new SettingsStore(Path.Combine(directory, "settings.json"));
         settings.SetDataFolder(Path.Combine(directory, "workspace"));
 
         _vm = new MainViewModel(
@@ -125,6 +128,47 @@ public class Obd2WorkflowTests : IDisposable
         vm.ConnectObd2(Car(), "COM3");
 
         Assert.All(vm.Dashboard, g => Assert.True(g.Spec.HasScale, $"{g.Title} has no range"));
+    }
+
+    [Fact]
+    public void AWiFiDongleReachesTheDashboardLikeAnyOtherAdapter()
+    {
+        // Nothing about the gauges changes over Wi-Fi — it is the same ELM327
+        // conversation down a socket — so what this proves is that the address
+        // route arrives at the same place the port and the radio do, rather than
+        // at a session with no dashboard.
+        MainViewModel vm = NewViewModel();
+
+        using var dongle = new FakeElmOverTcp(Car());
+
+        vm.ConnectObd2Wifi(dongle.Address);
+
+        Assert.True(vm.IsLive);
+        Assert.Contains("RPM", vm.Dashboard.Select(g => g.Title));
+
+        // Named by the address that answered, which is the only handle a Wi-Fi
+        // adapter has: nothing else lists one.
+        Assert.Contains(dongle.Address, vm.LiveDetail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AWiFiDongleWithFormIsNotProbedForBatchingAgain()
+    {
+        // What the settings remember has to reach the Wi-Fi route, and this is
+        // the route the window takes. Connected without it, every drive re-probes
+        // batching — and the probe is itself a batched request, so on the dongle
+        // the memory exists for it re-kills the session too, once per drive, for
+        // ever.
+        using var dongle = new FakeElmOverTcp(Car());
+
+        MainViewModel vm = NewViewModel(out SettingsStore settings);
+
+        for (int drive = 0; drive < Elm327Source.BatchDeathsBeforeGivingUp; drive++)
+            settings.RecordObd2BatchDeath(dongle.Address);
+
+        using Elm327Source source = vm.OpenWifiAdapter(dongle.Address);
+
+        Assert.False(source.Batching, "an adapter with form was probed anyway");
     }
 
     [Fact]

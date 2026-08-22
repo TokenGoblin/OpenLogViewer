@@ -47,8 +47,21 @@ public sealed record LiveSessionSettings
     /// </summary>
     public TimeSpan ReconnectFor { get; init; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>Wait between attempts to get the link back.</summary>
+    /// <summary>Wait before the first attempt to get the link back.</summary>
     public TimeSpan ReconnectEvery { get; init; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>
+    /// Longest wait between attempts, which each one doubles towards.
+    ///
+    /// A minute of retrying at three-quarters of a second is eighty attempts,
+    /// and on the links where recovery takes that long it is eighty attempts at
+    /// something that needs to be left alone: a Wi-Fi OBD2 dongle accepts one
+    /// client, takes a moment to release the last one, and a connect-and-reset
+    /// arriving inside that moment wedges it. Backing off costs a few seconds on
+    /// an ECU that comes back late and nothing at all on the common case, which
+    /// is a key turned off and on and answers on the first or second try.
+    /// </summary>
+    public TimeSpan ReconnectAtMost { get; init; } = TimeSpan.FromSeconds(6);
 }
 
 /// <summary>What a session has done so far, for the status line.</summary>
@@ -423,10 +436,20 @@ public sealed class LiveSession : IDisposable
         try
         {
             DateTime deadline = DateTime.UtcNow + _settings.ReconnectFor;
+            TimeSpan wait = _settings.ReconnectEvery;
 
             while (!token.IsCancellationRequested && DateTime.UtcNow < deadline)
             {
-                if (token.WaitHandle.WaitOne(_settings.ReconnectEvery)) break;
+                if (token.WaitHandle.WaitOne(wait)) break;
+
+                // Each attempt waits longer than the last, up to the cap. The
+                // first few are quick because the usual cause is the key going
+                // off and on again; after that, attempting harder stops helping
+                // and starts hurting. An OBD2 dongle takes one client at a time
+                // and needs a moment to let the last session go, so a fresh
+                // connect and a reset every three-quarters of a second is a good
+                // way to wedge the thing you are trying to reach.
+                wait = Slower(wait, _settings.ReconnectAtMost);
 
                 try
                 {
@@ -451,6 +474,10 @@ public sealed class LiveSession : IDisposable
             _reconnecting = false;
         }
     }
+
+    /// <summary>The next wait, twice the last but never past the cap.</summary>
+    private static TimeSpan Slower(TimeSpan wait, TimeSpan cap) =>
+        cap > TimeSpan.Zero && wait + wait > cap ? cap : wait + wait;
 
     /// <summary>Reporting a fault must not become one; a handler that throws is not our problem to inherit.</summary>
     private void Announce()

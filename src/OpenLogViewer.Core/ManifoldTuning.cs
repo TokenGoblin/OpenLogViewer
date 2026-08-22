@@ -153,6 +153,17 @@ public sealed record IntakePlan
 
     public required double PlenumMultiple { get; init; }
 
+    /// <summary>
+    /// The plenum and every runner together — the charge this page can account
+    /// for, in cc.
+    ///
+    /// Worth reporting on a turbocharged engine because it is the part of spool
+    /// that manifold design controls. Worth reading with care for the same reason:
+    /// it is not the whole tract, and on a normal front-mount installation it is
+    /// not even most of it. See <see cref="ManifoldTuning.PlenumVerdict"/>.
+    /// </summary>
+    public required double TractVolumeCc { get; init; }
+
     /// <summary>Where the plenum and runners resonate together, in hertz.</summary>
     public required double HelmholtzHz { get; init; }
 
@@ -506,6 +517,73 @@ public static class ManifoldTuning
     public static double PlenumVolumeCc(double displacementCc, double multiple) =>
         displacementCc > 0 && multiple > 0 ? displacementCc * multiple : double.NaN;
 
+    /// <summary>
+    /// The multiples worth putting side by side, so the choice is a slider rather
+    /// than one of three presets.
+    ///
+    /// Quarter steps from half displacement to twice it, which is the whole of the
+    /// range anybody builds in. Anything under about a half starves the top end
+    /// and anything over about two is a plenum nobody has to fill.
+    /// </summary>
+    public static IReadOnlyList<double> PlenumMultiples { get; } =
+        [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00];
+
+    /// <summary>
+    /// What a plenum multiple does, in words, and it differs by induction.
+    ///
+    /// On an atmospheric engine the plenum is a reservoir and the trade is
+    /// throttle response against top-end flow. On a turbocharged one it is also
+    /// dead volume that has to be pressurised before there is any boost, so the
+    /// same multiple reads differently — which is why this asks which it is.
+    /// </summary>
+    /// <remarks>
+    /// The bands are a quarter of displacement wide, matching
+    /// <see cref="PlenumMultiples"/>, so that every step in the table reads
+    /// differently. Coarser bands made neighbouring rows identical, which is worth
+    /// less than no table at all — the point of showing seven is that they are
+    /// seven distinct choices.
+    /// </remarks>
+    public static string PlenumVerdict(double multiple, Induction induction) => (multiple, induction) switch
+    {
+        ( <= 0, _) => "—",
+
+        ( < 0.65, Induction.Turbocharged) => "least to pressurise, sharpest spool — watch distribution",
+        ( < 0.90, Induction.Turbocharged) => "lean, chosen for spool over steadiness",
+        ( < 1.15, Induction.Turbocharged) => "a little more settled, slightly slower to fill",
+        ( < 1.40, Induction.Turbocharged) => "middling — steadier under boost",
+        ( < 1.65, Induction.Turbocharged) => "generous — smooth at full boost, slower to it",
+        ( < 1.90, Induction.Turbocharged) => "large — noticeably slower to build",
+        (_, Induction.Turbocharged) => "very large — the slowest of these to pressurise",
+
+        ( < 0.65, _) => "very small — sharp off idle, gone up top",
+        ( < 0.90, _) => "small — strong response, caps peak power",
+        ( < 1.15, _) => "on the small side, favours the mid-range",
+        ( < 1.40, _) => "a common road compromise",
+        ( < 1.65, _) => "the usual compromise",
+        ( < 1.90, _) => "generous — top end over pedal feel",
+        _ => "large — peak power, and a soft pedal",
+    };
+
+    /// <summary>
+    /// How much of the charge a turbocharger has to pressurise this page can see.
+    ///
+    /// The honest qualifier on every spool argument made from plenum volume, and
+    /// the reason the page prints it. On an ordinary front-mount installation the
+    /// intercooler core and its two pipe runs come to something like three
+    /// quarters of the tract on their own — a 2.0 litre on 60 mm pipework and a
+    /// medium core carries roughly 10 litres in them against 1.8 in the plenum and
+    /// 1.9 in the runners.
+    ///
+    /// So the manifold is worth about a quarter of the volume, and taking a plenum
+    /// from 0.9 to 0.75 of displacement moves perhaps two per cent of the total.
+    /// It is a real lever and a small one, and anyone chasing spool through plenum
+    /// volume alone is working on the wrong quarter of the problem.
+    /// </summary>
+    public static double TractShareOfTypicalInstallation(double tractCc, double interCoolerAndPipingCc) =>
+        tractCc > 0 && interCoolerAndPipingCc > 0
+            ? tractCc / (tractCc + interCoolerAndPipingCc)
+            : double.NaN;
+
     // ----- the exhaust side ------------------------------------------------------
 
     /// <summary>
@@ -651,7 +729,7 @@ public static class ManifoldTuning
     /// </summary>
     public static double DefaultPlenumMultiple(ManifoldGoal goal, Induction induction) => (goal, induction) switch
     {
-        (ManifoldGoal.QuickSpool, Induction.Turbocharged) => 0.9,
+        (ManifoldGoal.QuickSpool, Induction.Turbocharged) => 0.75,
         (ManifoldGoal.QuickSpool, _) => 1.0,
         (ManifoldGoal.HighRpmRace, Induction.Turbocharged) => 1.6,
         (ManifoldGoal.HighRpmRace, _) => 1.8,
@@ -706,14 +784,33 @@ public static class ManifoldTuning
     /// The order to build: the longest practical one, or failing that the closest
     /// thing to it.
     /// </summary>
-    public static TuningOrder Recommend(IReadOnlyList<TuningOrder> orders, double maxLengthMm)
+    /// <param name="preferShortest">
+    /// Take the shortest pipe that still packages instead of the longest.
+    ///
+    /// What a turbocharged engine wants. Wave tuning is worth a few per cent of
+    /// filling; boost is worth fifty to a hundred and fifty, so the resonance is a
+    /// rounding error against it — while the volume of the pipe is charge the
+    /// compressor has to pressurise before there is any boost at all. On a build
+    /// chosen for response that trade goes the other way round from an atmospheric
+    /// engine, where the pulse is the only help there is and the longest pipe wins.
+    /// </param>
+    public static TuningOrder Recommend(
+        IReadOnlyList<TuningOrder> orders, double maxLengthMm, bool preferShortest = false)
     {
         ArgumentNullException.ThrowIfNull(orders);
 
         if (orders.Count == 0) return default;
 
-        foreach (TuningOrder order in orders)
-            if (order.Practical) return order;
+        if (preferShortest)
+        {
+            for (int i = orders.Count - 1; i >= 0; i--)
+                if (orders[i].Practical) return orders[i];
+        }
+        else
+        {
+            foreach (TuningOrder order in orders)
+                if (order.Practical) return order;
+        }
 
         // Nothing fits. The least bad is whichever is nearest the limit it missed,
         // which is almost always the shortest available.
@@ -774,7 +871,14 @@ public static class ManifoldTuning
         IReadOnlyList<TuningOrder> intakeOrders =
             Orders(aIn, intakeWindow, intakeRpm, runnerDiameter, maxRunner);
 
-        TuningOrder intakePick = Recommend(intakeOrders, maxRunner);
+        // A turbocharged build chosen for response takes the shortest pipe that
+        // packages rather than the longest: the pulse it gives up is worth a few
+        // per cent, and the volume it saves is charge that no longer has to be
+        // pressurised before boost arrives.
+        bool shortRunners = spec.Induction == Induction.Turbocharged
+                            && spec.Goal == ManifoldGoal.QuickSpool;
+
+        TuningOrder intakePick = Recommend(intakeOrders, maxRunner, shortRunners);
 
         double plenumMultiple = spec.PlenumMultiple > 0
             ? spec.PlenumMultiple
@@ -802,6 +906,7 @@ public static class ManifoldTuning
                 sweptCc, spec.VolumetricEfficiency, spec.PeakPowerRpm, intakeWindow, runnerArea) / aIn,
             PlenumVolumeCc = plenumCc,
             PlenumMultiple = plenumMultiple,
+            TractVolumeCc = plenumCc + (PipeVolumeCc(intakePick.LengthMm, runnerDiameter) * spec.Cylinders),
             HelmholtzHz = helmholtz,
             HelmholtzRatio = HelmholtzRatio(helmholtz, intakeRpm),
         };
@@ -958,6 +1063,23 @@ public static class ManifoldTuning
                 + "turbine does not reflect a usable wave back down the primary, so the manifold is built "
                 + $"short and equal-length instead — the {exhaust.TotalPrimaryVolumeCc:N0} cc total volume "
                 + "is what decides how fast it spools."));
+
+            // The short runner is a quick-spool choice and not a turbocharged
+            // one — see shortRunners above, which asks for both. A turbo build
+            // aiming at the top end or at a balance is given the longest runner
+            // that packages, and a note telling it the opposite describes
+            // somebody else's manifold.
+            string lengthNote = spec.Goal == ManifoldGoal.QuickSpool
+                ? "and a shorter runner is chosen here for that reason rather than for its pulse"
+                : "which the longest runner that packages is adding to — at this goal the pulse is worth "
+                  + "having and the volume is what it costs";
+
+            warnings.Add(new RecipeWarning(
+                "note",
+                $"The plenum and runners come to {intake.TractVolumeCc:N0} cc, {lengthNote}. Keep it in "
+                + "proportion though: on an ordinary front-mount installation the intercooler core and its "
+                + "two pipe runs are around three quarters of what the compressor has to pressurise, and "
+                + "this page cannot see any of it. Plenum multiple is a real lever on spool and a small one."));
 
             if (spec.ExhaustBackPressureKpa <= TuningMath.AtmosphericKpa * 1.05)
                 warnings.Add(new RecipeWarning(

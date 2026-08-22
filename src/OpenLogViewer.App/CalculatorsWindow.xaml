@@ -1545,6 +1545,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
                             <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/>
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Displacement"/>
@@ -1558,12 +1559,12 @@
                         <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Unit}" Text="one runner and one primary each"/>
 
                         <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Induction"/>
-                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="ManInduction" Width="150" Margin="0,2"
+                        <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="ManInduction" Width="195" Margin="0,2"
                                    HorizontalAlignment="Left" SelectionChanged="OnManifoldSelectionChanged"/>
                         <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManInductionNote"/>
 
                         <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Build for"/>
-                        <ComboBox  Grid.Row="3" Grid.Column="1" x:Name="ManGoal" Width="150" Margin="0,2"
+                        <ComboBox  Grid.Row="3" Grid.Column="1" x:Name="ManGoal" Width="195" Margin="0,2"
                                    HorizontalAlignment="Left" SelectionChanged="OnManifoldSelectionChanged"/>
                         <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManGoalNote"/>
 
@@ -1577,15 +1578,20 @@
                                    TextChanged="OnManifoldChanged"/>
                         <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManPowerNote"/>
 
-                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
-                        <TextBox   Grid.Row="6" Grid.Column="1" x:Name="ManVe" Style="{StaticResource Field}"
-                                   TextChanged="OnManifoldChanged"/>
-                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" Text="% at peak power"/>
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Engine type"/>
+                        <ComboBox  Grid.Row="6" Grid.Column="1" x:Name="ManVeFamily" Width="195" Margin="0,2"
+                                   HorizontalAlignment="Left" SelectionChanged="OnManifoldVeFamilyChanged"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManVeFamilyNote"/>
 
-                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Compression ratio"/>
-                        <TextBox   Grid.Row="7" Grid.Column="1" x:Name="ManCompression" Style="{StaticResource Field}"
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Volumetric efficiency"/>
+                        <TextBox   Grid.Row="7" Grid.Column="1" x:Name="ManVe" Style="{StaticResource Field}"
                                    TextChanged="OnManifoldChanged"/>
-                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" Text=":1 — sets the volume the runner springs against"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManVeNote"/>
+
+                        <TextBlock Grid.Row="8" Style="{StaticResource Label}" Text="Compression ratio"/>
+                        <TextBox   Grid.Row="8" Grid.Column="1" x:Name="ManCompression" Style="{StaticResource Field}"
+                                   TextChanged="OnManifoldChanged"/>
+                        <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}" Text=":1 — the volume the runner springs against"/>
                     </Grid>
 
                     <TextBlock Style="{StaticResource Heading}" Text="THE CAM AND THE GAS"/>
@@ -1602,7 +1608,7 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Cam"/>
-                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="ManCam" Width="150" Margin="0,2"
+                        <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="ManCam" Width="195" Margin="0,2"
                                    HorizontalAlignment="Left" SelectionChanged="OnManifoldCamChanged"/>
                         <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManCamNote"/>
 
@@ -1652,7 +1658,7 @@
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
-                            <RowDefinition/><RowDefinition/><RowDefinition/>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="Runner length"/>
@@ -1685,11 +1691,22 @@
                                    TextChanged="OnManifoldChanged"/>
                         <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource Unit}" Text="× displacement — blank takes the figure the goal wants"/>
 
-                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Resonance"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ManHelmholtz"
+                        <TextBlock Grid.Row="6" Style="{StaticResource Label}" Text="Plenum and runners"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ManTract"
                                    Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManHelmholtzNote"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManTractNote"/>
+
+                        <TextBlock Grid.Row="7" Style="{StaticResource Label}" Text="Resonance"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ManHelmholtz"
+                                   Style="{StaticResource Answer}" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="7" Grid.Column="2" Style="{StaticResource Unit}" x:Name="ManHelmholtzNote"/>
                     </Grid>
+
+                    <Border Background="{DynamicResource Panel}" Padding="10" Margin="0,6,0,6"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        <TextBlock x:Name="ManPlenumTable" FontFamily="Consolas" FontSize="12"
+                                   Foreground="{DynamicResource Text}"/>
+                    </Border>
 
                     <TextBlock Style="{StaticResource Heading}" Text="EVERY LENGTH THAT WOULD WORK"/>
 

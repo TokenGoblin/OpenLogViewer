@@ -205,6 +205,20 @@ public static class Obd2Pids
         return supported;
     }
 
+    /// <summary>
+    /// How many data bytes a parameter carries, or zero where this does not
+    /// know it.
+    ///
+    /// Zero is the useful answer rather than a failure. It is what keeps an
+    /// unrecognised parameter out of a batched request, where the groups run
+    /// into one another with nothing to separate them and a length nobody knows
+    /// costs every group after it.
+    /// </summary>
+    public static int DataBytesOf(byte pid) => Lengths.GetValueOrDefault(pid, 0);
+
+    private static readonly Dictionary<byte, int> Lengths =
+        All.ToDictionary(p => p.Pid, p => p.DataBytes);
+
     /// <summary>The parameters this knows about, out of a set the car reports.</summary>
     public static IReadOnlyList<Obd2Pid> Known(IEnumerable<byte> supported)
     {

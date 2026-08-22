@@ -11,6 +11,22 @@ public readonly record struct EngineFamily(string Name, double VolumetricEfficie
     /// <summary>True for the entry that stands for "whatever was typed in".</summary>
     public bool IsCustom => VolumetricEfficiency <= 0;
 
+    /// <summary>
+    /// Which of <see cref="CamProfiles"/> this description already assumes, as an
+    /// index into that list.
+    ///
+    /// Every figure here is quoted for an engine with a particular sort of cam in
+    /// it — "small ports and a mild cam" is a stock grind, "inlet lengths tuned to
+    /// resonate" is a race one — and until now that assumption was buried in the
+    /// prose. Naming it lets a page that also knows the cam work out what changing
+    /// it would do, instead of counting the cam twice.
+    ///
+    /// Zero for everything but the race entry, because the rest describe the head
+    /// and the manifold on an otherwise standard engine. Unused by the pages that
+    /// do not ask about a cam.
+    /// </summary>
+    public int ImpliedCamLevel { get; init; }
+
     public override string ToString() => Name;
 }
 
@@ -56,7 +72,14 @@ public static class EngineFamilies
             "phasing broadens the peak as well as raising it"),
 
         new("Race, tuned intake", 105,
-            "throttle bodies and inlet lengths tuned to resonate"),
+            "throttle bodies and inlet lengths tuned to resonate")
+        {
+            // The only entry whose description already has a big cam in it. A page
+            // that also asks for the cam therefore starts from a full race grind
+            // here and takes VE away as milder ones are chosen, rather than adding
+            // to a figure that assumed one all along.
+            ImpliedCamLevel = 4,
+        },
 
         new("Measured or known", 0,
             "your own figure, off a dyno or a log"),

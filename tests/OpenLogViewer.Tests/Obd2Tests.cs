@@ -49,6 +49,27 @@ public class Obd2Tests
     }
 
     [Fact]
+    public void TheProtocolSearchIsSpentOnARequestNobodyReads()
+    {
+        // The first request after ATSP0 is the one the adapter searches on, and
+        // it narrates the search: "SEARCHING..." arrives ahead of the data,
+        // seconds can pass, and S, E, A, R, C and H all pass a hex parser as
+        // digits. Spending it on an answer that is thrown away leaves discovery
+        // talking to an adapter that has settled — which matters more now that a
+        // pause can finish a read, since a search paused mid-word would end one
+        // on nothing but the word.
+        var car = Car();
+        Elm327Source.Connect(car);
+
+        // Twice, back to back: once discarded, then again for the capability
+        // mask that is actually read.
+        int first = car.Received.IndexOf("0100");
+
+        Assert.Equal(2, car.Received.Count(c => c == "0100"));
+        Assert.Equal("0100", car.Received[first + 1]);
+    }
+
+    [Fact]
     public void TheAdapterSaysWhatItIs()
     {
         Assert.Equal("ELM327 v1.5", Elm327Source.Connect(Car()).Adapter);

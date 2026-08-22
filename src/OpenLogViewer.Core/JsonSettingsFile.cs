@@ -45,9 +45,34 @@ internal static class JsonSettingsFile
         string? directory = Path.GetDirectoryName(path);
         if (directory is { Length: > 0 }) Directory.CreateDirectory(directory);
 
-        string temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(value, Options));
-        File.Move(temp, path, overwrite: true);
+        // A scratch name of its own per write, rather than one shared
+        // "settings.json.tmp". Two writers landing together — a second copy of
+        // the application, or a background thread noting something while the
+        // window saves a preference — otherwise write into the same file each is
+        // half way through, and what lands is not one of the two versions but a
+        // splice of both.
+        string temp = $"{path}.{Guid.NewGuid():N}.tmp";
+
+        try
+        {
+            File.WriteAllText(temp, JsonSerializer.Serialize(value, Options));
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception)
+        {
+            // A write that failed must not leave its scratch file behind as
+            // well; with a name of its own, nothing else would ever clear it up.
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception)
+            {
+                // Nothing useful to do about a scratch file that will not go.
+            }
+
+            throw;
+        }
     }
 
     public static string InAppData(string fileName) => Path.Combine(

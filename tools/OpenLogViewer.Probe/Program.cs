@@ -21,8 +21,14 @@ if (args.Contains("--help") || args.Contains("-h"))
 {
     Console.WriteLine("""
         usage: olv-probe [COM port] [--baud N] [--out transcript.txt] [--sweep]
+               olv-probe --wifi [address|auto] [--out transcript.txt] [--sweep]
 
         With no port, lists what is available and exits.
+
+        --wifi reaches a Wi-Fi dongle — a Vgate iCar Pro and the like — which is
+        its own access point rather than a COM port: join its network first
+        (V-LINK on a Vgate). "auto" tries the addresses these are known to use;
+        otherwise give one, e.g. 192.168.0.10:35000.
 
         Asks, in order:
           - what the adapter is, and which OBD2 protocol the car settled on
@@ -57,7 +63,7 @@ string? port = PortIn(args);
 /// </summary>
 static string? PortIn(string[] args)
 {
-    string[] takesAValue = ["--baud", "--out", "--raw"];
+    string[] takesAValue = ["--baud", "--out", "--raw", "--wifi"];
 
     for (int i = 0; i < args.Length; i++)
     {
@@ -73,12 +79,19 @@ static string? PortIn(string[] args)
     return null;
 }
 
-if (port is null)
+// A Wi-Fi dongle is reached by address and by nothing else: it becomes no COM
+// port and appears in no list, so it cannot be offered above and cannot be found
+// by looking.
+string? wifi = Value(args, "--wifi");
+
+if (port is null && wifi is null)
 {
     Console.WriteLine(ports.Count > 0
         ? $"Serial ports: {string.Join(", ", ports)}\n\nGive one, e.g.  olv-probe {ports[0]}"
+          + "\nOr --wifi auto for a Wi-Fi dongle, once you have joined its network."
         : "No serial ports. A Bluetooth Classic adapter must be paired first; a BLE one\n"
-          + "never becomes a COM port and cannot be reached by this tool.");
+          + "never becomes a COM port and cannot be reached by this tool.\n"
+          + "A Wi-Fi dongle can: join its network and use --wifi auto.");
 
     return ports.Count > 0 ? 1 : 2;
 }
@@ -95,20 +108,70 @@ void Log(string line)
 }
 
 Log($"# OpenLogViewer probe — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-Log($"# port {port}{(baud > 0 ? $" at {baud}" : " (speed found automatically)")}");
+
+Log(wifi is not null
+    ? $"# Wi-Fi {(IsAuto(wifi) ? "(the usual addresses)" : wifi)}"
+    : $"# port {port}{(baud > 0 ? $" at {baud}" : " (speed found automatically)")}");
+
 Log("");
 
 IEcuTransport? transport = null;
 int exit = 0;
 
+static bool IsAuto(string address) =>
+    address.Length == 0 || address.Equals("auto", StringComparison.OrdinalIgnoreCase);
+
 try
 {
+    if (wifi is not null)
+    {
+        // No speed to find: the radio settled that, as it does on Bluetooth. What
+        // has to be found instead is the address, and only because the makers
+        // did not agree on one.
+        foreach (string address in IsAuto(wifi) ? WifiEcuTransport.KnownAddresses : [wifi])
+        {
+            transport = WifiEcuTransport.At(address);
+
+            try
+            {
+                transport.Open();
+
+                var trial = new Elm327(transport);
+                if (trial.Reset().Length > 0)
+                {
+                    Log($"opened at {address}");
+                    break;
+                }
+
+                Log($"  {address}: connected, but nothing answered as an ELM327");
+            }
+            catch (Exception e)
+            {
+                Log($"  {address}: {e.Message}");
+            }
+
+            transport.Dispose();
+            transport = null;
+        }
+
+        if (transport is null)
+        {
+            Log("No Wi-Fi OBD2 adapter answered. Check this computer is still on the dongle's "
+                + "own network — Windows leaves one that has no internet.");
+
+            return 3;
+        }
+    }
+
     // A Bluetooth adapter ignores the speed entirely, the radio having already
     // negotiated one; a wired one has to be found. Trying the list is what
     // Elm327Source does on connect, so this matches it.
-    foreach (int speed in baud > 0 ? [baud] : Elm327Source.BaudRates)
+    IReadOnlyList<int> speeds =
+        transport is not null ? [] : baud > 0 ? [baud] : Elm327Source.BaudRates;
+
+    foreach (int speed in speeds)
     {
-        transport = new SerialEcuTransport(port, speed) { OpenAttempts = 3 };
+        transport = new SerialEcuTransport(port!, speed) { OpenAttempts = 3 };
 
         try
         {

@@ -85,6 +85,156 @@ Verified on a live vehicle with two dongles: a BLE `OBDII` clone, and an OBDLink
 r2.6 over Bluetooth Classic — 24 channels, connected in eight seconds, the car
 settling on ISO 15765-4 with two modules answering.
 
+**Wi-Fi dongles too — a Vgate iCar Pro and the ones built like it.** The third
+radio these come with, and the one that hides best: a Wi-Fi adapter is its own
+access point with a TCP socket behind it, so it becomes no COM port, pairs with
+nothing, and there is no list for it to be missing from. It carries the same
+ELM327 conversation as the other two, so everything above applies to it
+unchanged — the capability walk, the fault codes, the gauges.
+
+Reached by address, because there is nothing else to reach it by. *Connect ▾ →
+Connect to a Wi-Fi OBD2 adapter* offers `192.168.0.10:35000`, which is where a
+Vgate answers, and `192.168.4.1:35000` for the clones that differ;
+`--connect-wifi <address>` takes any other, and `olv-probe --wifi auto` reaches
+one from the probe.
+
+What has to be true is not visible from inside the application: this computer
+must have joined the dongle's network — `V-LINK` on a Vgate — and must still be
+on it. Windows treats a network with no internet as a mistake and returns to one
+that has some, often within seconds, so the failure appears at the dongle while
+the cause is a laptop that went home. Nothing answering therefore says that,
+along with the other two reasons: the adapters take one client at a time, so a
+phone app still holding one is refused rather than queued, and the address itself
+may simply be a different one.
+
+**Not yet verified against the dongle from here.** The endpoint and the
+adapter's habits are known from the same hardware on a 2014 Subaru, through a
+different client; this path is checked against a fake adapter on a real socket,
+including the one habit that breaks clients — a Vgate acknowledges `ATE0` and
+goes on echoing anyway, so every reply arrives behind the command that caused it.
+
+**A reply is finished when the adapter has finished, not when it says so.** The
+`>` prompt is supposed to end every reply and is the only thing this waited for.
+It is not reliable: on a Vgate it arrives on roughly 60–80 % of reads, and the
+rest ran the whole window out with a complete answer already in the buffer. No
+timeout is long enough for a character that is not coming — measured elsewhere,
+lengthening the window made it worse — so quiet now finishes a reply too.
+
+Which needs two guards, because the naive version of that rule breaks two other
+things. **The echo does not count as an answer:** this adapter echoes, pauses,
+and only then replies, so a pause after the echo would complete the read before
+the reply existed and leave every answer one command late for the rest of the
+session. And **a prompt with nothing before it is a leftover, not an answer** —
+finishing on quiet leaves the previous reply's prompt still in flight, where it
+cannot be discarded because it has not been sent, so it lands at the front of
+the next read. Taken at face value it is a complete empty answer, which is the
+same one-behind desync arriving by the other door. A read that receives nothing
+at all still waits out its whole timeout: silence is not a short reply.
+
+Around those: after a read that did time out, the next command waits for the
+late answer and discards it rather than reading it as its own; the protocol
+search is spent on one request whose answer is thrown away, so no capability
+query is ever answered with "SEARCHING..." half-arrived; and reconnection now
+backs off — doubling to a ceiling instead of a flat 750 ms — because these
+dongles take one client at a time and a connect-and-reset every three-quarters
+of a second is how you wedge one.
+
+None of that is guesswork about a device nobody has: each rule is a defect
+measured on this dongle against a running car, and each has a test that goes red
+when the fix is taken back out.
+
+**Six parameters to a request, where the car allows it.** The cost of OBD2 is
+round trips rather than bytes — one request, one answer, one parameter — and ISO
+15765 lets a single mode 01 request carry six. A round of readings is now two
+exchanges instead of six, and the slow parameters stop being a queue: they used
+to take turns one per round, and six now come back for the same single request.
+
+Probed rather than assumed, and the probe can only answer yes on evidence. **Two
+parameters must come back**: a car that ignores the extras and answers the first
+one listed looks exactly like a batched reply that carried one, so a single
+answer proves nothing. It is tried only on a bus **positively identified as
+CAN** — "not identified as slow" is not the same test, an unknown protocol is
+neither, and an asleep ECU answering `STOPPED` is precisely how a link comes to
+be unidentified at the wrong moment. Three unanswered batches and it stops for
+the rest of the session, giving up the batching and never the channels: a
+request that failed says nothing about which sensors the car has, and until then
+each failed batch is retried one parameter at a time so nothing blinks.
+
+Reading the reply is where the care went. It is multi-frame, so an adapter
+prints it as a length header and segment-marked lines — and `0:` and `1:` are
+themselves valid hex, so anything that strips non-hex characters and pairs the
+rest shifts every byte after the first marker by half a byte. There is nothing
+between the groups either, so the walk stays in step only while every parameter
+number is recognised, and one that is not stops it rather than guessing a
+length. And more than one module answers: a reply can be two responses run
+together, so **every possible starting point is scored by how much of the reply
+it explains** and the best one wins. Taking the first plausible one is not a
+theoretical problem — on a live car a leading fragment came first, yielded one
+parameter of four, and read as "this car cannot batch" on a car that could.
+
+**A parameter that has answered is never given up on.** Both paths share this
+now, and it was wrong before: six consecutive silences retired a parameter
+whatever its history, and the retirement is never undone — so one bad moment
+cost a live gauge for the rest of the drive. Only parameters that have *never*
+answered are dropped from the rotation.
+
+**And a reply carrying only some of what was asked for is not a round that
+worked.** Whatever it left out is asked for singly, exactly as it would have
+been with no batching at all. Without that it was asked once and then never
+again — nothing comes back to a parameter that has answered before, so one that
+stopped appearing in the batched reply simply kept its gauge, showing a reading
+from minutes ago and looking live the whole time. A segmented frame that lost
+its tail, or a second module's line that missed the window, is all it takes.
+
+**Some dongles cannot survive being asked that way, and the verdict is now
+remembered.** A Vgate iCar Pro Wi-Fi does not refuse a batched request. It
+answers one — completely, on time, on a healthy link — and then the TCP session
+is gone: every read afterwards returns nothing while the socket still reports
+itself connected. The batch that killed the link therefore looks like a success,
+and the only thing identifying it is the silence that follows — which, by
+itself, is also precisely what a key turned off looks like. Three unanswered
+batches will not catch this one: singles fall silent along with the batch, and
+that is the shape of a link that has gone rather than a request that was refused.
+
+So it is caught on the way back instead. **A reconnection does not probe** — the
+probe is a batched request, and one sent to rebuild a link that batching has just
+killed kills the replacement as fast, every attempt, for as long as the
+reconnection window lasts. A link that died with batching on comes back without
+it, and single requests answering across that reconnection are the evidence: the
+car is there, the adapter is there, and the one thing that has changed is the
+request that was in flight when it died.
+
+Learning that costs a dropped link and several seconds of blank gauges, so it is
+learnt once rather than once per drive: the verdict goes into the settings file
+against that adapter, and one with form is not probed again. That last part
+matters more than it sounds — the probe is itself a batched request, so probing
+a dongle already known to fail is not a cheap check, it is the entire cost of
+the thing being checked for. Two bad links before it is believed, because a link
+also dies from going out of range or the key turning off, and condemning a
+capable adapter on one of those would quietly cost the advantage for ever. A
+different dongle starts clean.
+
+**A reply whose length is knowable no longer waits for its prompt.** On the same
+adapter the `>` trails the payload by about 200 ms, and with batching dead that
+gap *is* the poll cycle. A mode 01 request has a defined answer length, so the
+answer now ends itself the moment it is complete. Three guards, each of which
+turns every way of being wrong into an ordinary wait rather than a short read:
+it must begin `41`; it must be nothing but hex; and anything whose length
+depends on the answer never comes here at all. The first is subtler than it
+looks — `NO DATA` is caught by having letters in it, but a negative response
+like `7F 01 12` is pure hex and exactly as long as a one-byte answer, and on a
+broadcast that refusal can be one module's while the real answer is another's,
+arriving behind it.
+
+**A link that answers nothing to a reset is a corpse, not a slow adapter.** `ATZ`
+never reaches the vehicle — an adapter answers it out of its own firmware — so
+silence there is a session that has died. Recovery used to walk on into the
+warm-up, the protocol question and a whole poll round before anything concluded
+what the first reply already said, which is fifteen to twenty seconds of blank
+gauges per attempt; it now hangs up after a second opinion and lets the
+reconnect open a fresh socket. A reset that hears nothing at all also stops
+configuring the five options on a link that is not there, at a timeout apiece.
+
 **Recording is yours to start and stop.** A **Record** button appears next to
 *Connect* whenever a session is live, and there is a matching pair in *Tools*.
 Recording and watching used to be the same act — a session wrote from connect to
@@ -210,6 +360,65 @@ say which one they want.
 Picking a cam fills the boxes; typing in a box moves the list to *from your cam
 card* rather than leaving a description that no longer applies — the same
 arrangement the volumetric efficiency list uses elsewhere.
+
+**A turbocharged spool build now gets the short runner, not the long one.** This
+was backwards. The recommendation had always been the longest pipe that packages,
+because on an atmospheric engine the returning pulse is the only help there is.
+Under boost the trade reverses: the resonance is worth a few per cent of filling
+against fifty or more from the compressor, while the pipe's volume is charge that
+has to be pressurised before any boost arrives at all. Same goal, opposite answer,
+and the induction is what decides it. On a 2.0 litre wanting boost by 3,500 rpm
+that moves the runner from 561 mm to 370 mm.
+
+**Plenum volume is a dial rather than three presets.** A table of every quarter
+step from half displacement to twice it, with the volume each comes to, the
+runners added on, and what each one does — worded differently for a turbocharged
+engine, because there the same volume also has to be filled before boost. The
+figure actually in force gets its own marked row even when it is not one of the
+steps.
+
+The turbocharged spool default came down from 0.90 to 0.75 of displacement.
+
+**And the page now says how much of spool this is really worth.** *Plenum and
+runners* is the charge the compressor has to pressurise that this page can see —
+and the note beside it says plainly that it is not most of it. On an ordinary
+front-mount installation the intercooler core and its two pipe runs come to around
+three quarters of the tract on their own: roughly 10 litres against 1.5 in the
+plenum and 1.1 in the runners. Taking a plenum from 0.90 to 0.75 moves about two
+per cent of the total, and the shorter runner about five. Both are real levers and
+both are small, and anyone chasing spool through plenum volume alone is working on
+the wrong quarter of the problem.
+
+**Volumetric efficiency now follows the head and the cam together.** The page
+gained an *Engine type* list — the same one the recipe and turbo pages use — and
+the figure in the box is worked out from it and the chosen cam rather than left
+at a flat 100. It fed straight into port sizing, so a stock cam used to get ports
+sized for an engine breathing like a race motor.
+
+Neither input answers it alone. The head says what the ports flow, the cam says
+how long they are held open, and — this is the part that was buried in prose
+until now — the figure quoted for a head already assumes a particular cam. Every
+entry in the list now names the cam it was quoted with, so choosing one counts
+the difference from that assumption instead of counting the cam twice. The race
+entry is the only one whose description already has a big cam in it, so it is the
+one that *loses* ground as the cam comes back: 105 with the grind it assumes, 89
+on a stock one.
+
+A cam cannot carry a head past what it flows, so the gain is capped. An old
+two-valve given a full race grind reaches 88 and does not turn into a four-valve;
+a modern pushrod V8 goes 85 to 98 across the ladder. Four points a step, capped
+at thirteen — conventions, quoted with the same warning the volumetric efficiency
+list has always carried, that two engines answering the same description differ
+by more than this on port work alone.
+
+Typing your own figure still wins and moves the list to *measured or known*,
+because a number off a dyno beats anything worked out from two descriptions.
+
+One thing this turned up: two heads can land on the same figure — a four-valve on
+fixed cams and a race intake both reach 105 with a full race grind, by different
+routes. The list would have jumped from the head you picked to whichever was
+listed first, which looks like the page overruling you. The selection already
+showing now wins any tie.
 
 **Choosing turbocharged now brings its pressures with it.** It used to leave the
 manifold and the exhaust both at atmospheric, which describes an engine that

@@ -14,6 +14,18 @@ public sealed class SettingsStore
 
     public string Path { get; }
 
+    /// <summary>
+    /// Guards the file and the fields it is written from.
+    ///
+    /// Every other setting here is changed from the interface thread, and one is
+    /// not: batching killing a link is noticed by the poll thread, and the note
+    /// it writes lands in the middle of whatever the window happens to be
+    /// saving. Two of those cost more than a lost preference — the dictionary is
+    /// read, copied and swapped, so one of the two updates disappears, and the
+    /// two writes share a scratch file that each is half way through.
+    /// </summary>
+    private readonly Lock _gate = new();
+
     /// <summary>Identifier of the active theme, or null to take the app's default.</summary>
     public string? ThemeId { get; private set; }
 
@@ -57,6 +69,11 @@ public sealed class SettingsStore
 
     public void Reload()
     {
+        lock (_gate) ReadFile();
+    }
+
+    private void ReadFile()
+    {
         SettingsFile? file = JsonSettingsFile.Read<SettingsFile>(Path);
         ThemeId = string.IsNullOrWhiteSpace(file?.ThemeId) ? null : file.ThemeId.Trim();
         DataFolder = string.IsNullOrWhiteSpace(file?.DataFolder) ? null : file.DataFolder.Trim();
@@ -93,6 +110,10 @@ public sealed class SettingsStore
         KnownEcus = file?.KnownEcus is { Count: > 0 } known
             ? new Dictionary<string, string>(known, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        Obd2BatchDeaths = file?.Obd2BatchDeaths is { Count: > 0 } deaths
+            ? new Dictionary<string, int>(deaths, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -169,6 +190,36 @@ public sealed class SettingsStore
         Persist();
     }
 
+    /// <summary>
+    /// Links that asking for several parameters at once has killed, by adapter.
+    ///
+    /// Worth keeping between sessions because the finding out is what costs: an
+    /// adapter that cannot survive a batched request answers one and then goes
+    /// silent, so each attempt is a dropped link and several seconds of blank
+    /// gauges. Learnt once and it is free from then on; forgotten each time and
+    /// it is paid on every drive. See <see cref="IObd2BatchMemory"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> Obd2BatchDeaths { get; private set; } =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Notes that batching cost this adapter another link.</summary>
+    public void RecordObd2BatchDeath(string adapter)
+    {
+        if (string.IsNullOrWhiteSpace(adapter)) return;
+
+        // Read, copied, swapped and written as one act. This is the one setter
+        // called from the poll thread, so it is also the one where two of these
+        // running at once would lose a death outright.
+        lock (_gate)
+        {
+            var deaths = new Dictionary<string, int>(Obd2BatchDeaths, StringComparer.OrdinalIgnoreCase);
+            deaths[adapter] = deaths.GetValueOrDefault(adapter) + 1;
+
+            Obd2BatchDeaths = deaths;
+            WriteFile();
+        }
+    }
+
     /// <summary>Above this the cap is meaningless — no link answers that fast.</summary>
     public const double MaximumLiveRate = 1000;
 
@@ -234,7 +285,12 @@ public sealed class SettingsStore
     /// Writes the whole file. Settings are saved together rather than one at a
     /// time, or saving the second would drop the first.
     /// </summary>
-    private void Persist() => JsonSettingsFile.Write(Path, new SettingsFile
+    private void Persist()
+    {
+        lock (_gate) WriteFile();
+    }
+
+    private void WriteFile() => JsonSettingsFile.Write(Path, new SettingsFile
     {
         Version = 1,
         ThemeId = ThemeId,
@@ -248,6 +304,9 @@ public sealed class SettingsStore
             ? EcuLastUsed.ToDictionary(e => e.Key, e => e.Value.ToString("O"))
             : null,
         Units = Units.ToString(),
+        Obd2BatchDeaths = Obd2BatchDeaths.Count > 0
+            ? new Dictionary<string, int>(Obd2BatchDeaths)
+            : null,
     });
 
     private sealed class SettingsFile
@@ -265,5 +324,6 @@ public sealed class SettingsStore
         // differently-cultured file cannot turn a timestamp into a wrong one.
         public Dictionary<string, string>? EcuLastUsed { get; set; }
         public string? Units { get; set; }
+        public Dictionary<string, int>? Obd2BatchDeaths { get; set; }
     }
 }

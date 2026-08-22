@@ -71,6 +71,18 @@ internal sealed class FakeElm : IEcuTransport
 
     public bool Echo { get; private set; } = true;
 
+    /// <summary>
+    /// Answer ATE0 with OK and go on echoing anyway.
+    ///
+    /// Not a fault being invented: a Vgate iCar Pro does this. The command is
+    /// acknowledged and ignored, so every reply arrives with the command that
+    /// caused it on the front — "ATDPN" then "A6", "0100" then "4100BE3FA813" —
+    /// and a client that runs the two together reads the protocol number as
+    /// nonsense and every capability bitmap as a car supporting nothing, minutes
+    /// after it was reporting rpm.
+    /// </summary>
+    public bool StickyEcho { get; init; }
+
     public bool Spaces { get; private set; } = true;
 
     /// <summary>Said once, before the first mode-01 reply, as a real one does.</summary>
@@ -138,7 +150,7 @@ internal sealed class FakeElm : IEcuTransport
         {
             case "ATZ": Echo = true; Spaces = true; Say(Elm327Name); break;
             case "ATI": Say(Elm327Name); break;
-            case "ATE0": Echo = false; Say("OK"); break;
+            case "ATE0": Echo = StickyEcho; Say("OK"); break;
             case "ATS0": Spaces = false; Say("OK"); break;
 
             // Both forms of "which protocol did you settle on". The "A" says it
@@ -280,21 +292,81 @@ internal sealed class FakeElm : IEcuTransport
         }
     }
 
+    /// <summary>
+    /// How this car answers a request carrying more than one parameter.
+    ///
+    /// ISO 15765 allows six at a time and turns fifteen round trips into three,
+    /// but not every car and not every adapter obliges. <see cref="First"/> is
+    /// the one worth having a name for: a car that ignores the extra parameters
+    /// and answers the first as though it had been asked on its own, which is
+    /// exactly what a batched reply carrying one looks like.
+    ///
+    /// Settable rather than fixed, because an adapter that batched at the probe
+    /// and stopped afterwards is a case the client has to survive.
+    /// </summary>
+    public enum BatchReply
+    {
+        /// <summary>NO DATA, as a car that does not understand the request.</summary>
+        Refuse,
+
+        /// <summary>Only the first parameter listed, in the ordinary shape.</summary>
+        First,
+
+        /// <summary>Every parameter it has, as one run of groups.</summary>
+        All,
+    }
+
+    /// <summary>What this car does with a request for several parameters.</summary>
+    public BatchReply Batches { get; set; } = BatchReply.Refuse;
+
+    /// <summary>
+    /// Parameters left out of a batched reply, which this car still answers for
+    /// when it is asked about them on their own.
+    ///
+    /// A different thing from a parameter the car does not have, which is absent
+    /// from both. This is an answer that went astray on the way back — a
+    /// segmented reply that lost its tail, or a second module's line arriving
+    /// after the window — and the sensor is there and reading the whole time.
+    /// </summary>
+    public HashSet<byte> OmitFromBatch { get; } = [];
+
     private void Mode01(string command)
     {
-        if (command.Length != 4 || !command.StartsWith("01", StringComparison.OrdinalIgnoreCase))
+        if (command.Length < 4
+            || command.Length % 2 != 0
+            || !command.StartsWith("01", StringComparison.OrdinalIgnoreCase))
         {
             Say("?");
             return;
         }
 
-        byte pid = Convert.ToByte(command[2..], 16);
+        var pids = new List<byte>();
+
+        for (int at = 2; at < command.Length; at += 2)
+        {
+            if (!byte.TryParse(
+                    command.AsSpan(at, 2), System.Globalization.NumberStyles.HexNumber, null, out byte one))
+            {
+                Say("?");
+                return;
+            }
+
+            pids.Add(one);
+        }
 
         if (Searching)
         {
             Say("SEARCHING...");
             Searching = false;
         }
+
+        if (pids.Count > 1)
+        {
+            AnswerBatch(pids);
+            return;
+        }
+
+        byte pid = pids[0];
 
         // Ahead of the real one, so anything that takes the first answer takes
         // the wrong one.
@@ -308,6 +380,73 @@ internal sealed class FakeElm : IEcuTransport
         }
 
         Say(Hex([0x41, pid, .. data]));
+    }
+
+    /// <summary>
+    /// Answers a request that carried several parameters.
+    ///
+    /// One 0x41 and then a run of (parameter, data) with nothing between the
+    /// groups — which is what makes the reply only readable by somebody who
+    /// knows how long each parameter is. Parameters this car does not have are
+    /// simply absent, exactly as a single request would be answered NO DATA.
+    /// </summary>
+    private void AnswerBatch(List<byte> pids)
+    {
+        if (Batches == BatchReply.Refuse)
+        {
+            Say("NO DATA");
+            return;
+        }
+
+        var payload = new List<byte> { 0x41 };
+
+        foreach (byte pid in Batches == BatchReply.First ? pids.Take(1) : pids)
+        {
+            if (OmitFromBatch.Contains(pid)) continue;
+            if (!Answers.TryGetValue(pid, out byte[]? data)) continue;
+
+            payload.Add(pid);
+            payload.AddRange(data);
+        }
+
+        if (payload.Count == 1)
+        {
+            Say("NO DATA");
+            return;
+        }
+
+        SayFrames([.. payload]);
+    }
+
+    /// <summary>
+    /// Prints a payload the way an adapter with headers off does: one line while
+    /// it fits in a CAN frame, and beyond that a total length followed by
+    /// numbered segments — "0:" carrying six bytes and each one after it seven.
+    ///
+    /// The segment markers are the point. Their digits are valid hex, so a
+    /// reader that strips non-hex characters and pairs what is left shifts every
+    /// byte after the first marker by half a byte.
+    /// </summary>
+    private void SayFrames(byte[] payload)
+    {
+        if (payload.Length <= 7)
+        {
+            Say(Hex(payload));
+            return;
+        }
+
+        Say(payload.Length.ToString("X3"));
+
+        int taken = Math.Min(6, payload.Length);
+        Say($"0:{Hex(payload[..taken])}");
+
+        for (int frame = 1; taken < payload.Length; frame++)
+        {
+            int size = Math.Min(7, payload.Length - taken);
+
+            Say($"{frame:X}:{Hex(payload[taken..(taken + size)])}");
+            taken += size;
+        }
     }
 
     private string Hex(byte[] bytes)
