@@ -361,4 +361,35 @@ public class WorkspaceTests : IDisposable
         Assert.Equal(Threads * Each, store.Obd2BatchDeaths[Adapter]);
         Assert.Equal(Threads * Each, new SettingsStore(path).Obd2BatchDeaths[Adapter]);
     }
+
+    [Fact]
+    public void TwoCopiesOfTheApplicationSavingAtOnceLeaveAFileThatStillReads()
+    {
+        // Nothing coordinates between processes and nothing needs to: last one
+        // wins is a fine answer for a preference. What is not a fine answer is a
+        // settings file left half written, which is what one shared
+        // "settings.json.tmp" produces with two writers in it at once — each
+        // moves the other's half of a file into place.
+        string path = SettingsPath();
+
+        var first = new SettingsStore(path);
+        var second = new SettingsStore(path);
+
+        Parallel.Invoke(
+            () => { for (int i = 0; i < 60; i++) first.SetTheme($"gruvbox-{i}"); },
+            () => { for (int i = 0; i < 60; i++) second.SetTheme($"nord-{i}"); });
+
+        string? theme = new SettingsStore(path).ThemeId;
+
+        Assert.NotNull(theme);
+        Assert.True(
+            theme.StartsWith("gruvbox-", StringComparison.Ordinal)
+            || theme.StartsWith("nord-", StringComparison.Ordinal),
+            $"the settings file came back holding \"{theme}\"");
+
+        // And nothing left behind. A scratch name of its own is only an
+        // improvement if it is also cleared up; one per failed write, never
+        // collected, is a directory that fills.
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, "*.tmp"));
+    }
 }
