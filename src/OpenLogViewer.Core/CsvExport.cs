@@ -106,6 +106,45 @@ public static class CsvExport
         writer.WriteLine();
     }
 
+    /// <summary>
+    /// The points of a scatter, one row per sample that survived: the sample's
+    /// index in the log, then its X, Y and Z.
+    ///
+    /// The index is first because it is what makes the file answerable — a row
+    /// here can be found again in a full-log export, or in the log itself, which
+    /// a bare triple of numbers cannot. Samples are written in log order, which
+    /// is not the order anything is drawn in, but is the only order that means
+    /// something outside this window.
+    /// </summary>
+    public static void WritePoints(TextWriter writer, ScatterPlot points)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(points);
+
+        // Named for what the column holds: with a comparison set, Z is a
+        // deviation and labelling it with the channel's own name would be wrong.
+        string z = points.IsDelta
+            ? $"{points.Z.Name} − {points.ZCompare!.Name}"
+            : points.Z.Name;
+
+        WriteHeader(
+            writer,
+            ["Sample", points.X.Name, points.Y.Name, z],
+            ["", points.X.Units, points.Y.Units, points.Z.Units]);
+
+        for (int i = 0; i < points.Count; i++)
+        {
+            writer.Write(points.Samples[i].ToString(CultureInfo.InvariantCulture));
+            writer.Write(',');
+            writer.Write(Number(points.Xs[i]));
+            writer.Write(',');
+            writer.Write(Number(points.Ys[i]));
+            writer.Write(',');
+            writer.Write(Number(points.Zs[i]));
+            writer.WriteLine();
+        }
+    }
+
     /// <summary>Sample counts per cell, in the same shape as <see cref="WriteTable"/>.</summary>
     public static void WriteTableCounts(TextWriter writer, HistogramTable table)
     {

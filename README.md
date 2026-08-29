@@ -144,6 +144,60 @@ Filters are matched to channels by name and persist between sessions in
 `%APPDATA%\OpenLogViewer\filters.json`. A filter naming a channel the log does
 not have is reported and skipped, never applied as "reject everything".
 
+## Scatter mode
+
+The third button in the toolbar. Same three channels as the table, same
+filters, same panel — the samples left where they fell instead of averaged into
+cells.
+
+The two answer different questions. A table says what a region of the map
+averaged, which is what you edit a tuning table against. It cannot say whether
+the samples behind a cell agreed with each other, and a cell reading dead on
+target looks identical whether it was measured twelve times at target or six
+times rich and six times lean. That is what a scatter is for: the structure and
+the spread inside what a table has already averaged away. A drive's pulls,
+overrun and idle separate into visibly different shapes, which no binning of
+them preserves.
+
+**Overplotting is what makes a naive scatter lie**, and it is the one thing
+worth understanding here. A drive is tens or hundreds of thousands of samples
+and an engine spends most of one in a small part of the map. Drawn one mark per
+sample they land on top of one another thousands deep, and the colour that
+survives is whichever sample happened to be drawn last — an accident of the
+order the log is in, presented with all the authority of a measurement. Alpha
+blending only moves the problem: dense regions saturate to a colour that is not
+any channel's value.
+
+So the samples are aggregated onto the display's own grid before anything is
+drawn — three pixels a block, which is finer than any tuning table by two orders
+of magnitude and still bounded by the size of the window rather than the size of
+the log. Every mark is then the mean of what actually landed under it, computed
+rather than raced for. Hovering one gives the count behind it **and the range
+its samples covered**, because the spread is precisely what a mean hides.
+
+**The colour scale is trimmed rather than fitted to the extremes.** A wideband
+touches both of its rails for a moment during a transient, and scaled over the
+full range those few blocks own the whole ramp while the drive around them draws
+as one flat colour. The ends are trimmed to the 2nd and 98th percentiles of the
+occupied blocks and anything past them saturates — still drawn, still the most
+extreme colour on the plot, still exact on hover, but no longer able to flatten
+everything else. The legend marks a bound with `≤` or `≥` when the trim moved it
+far enough to matter, so a number that is not the largest value on the plot is
+never read as one. Where a channel has no outliers the trim is not taken and the
+legend says nothing.
+
+**Click a mark to trace it back to the log**, exactly as a table cell traces
+back: the samples are grouped into visits, the longest is framed and selected,
+and the rest are shaded.
+
+*Colour by sample count* re-shades by how busy each block is. On a log scale,
+unlike the table's — a drive spends orders of magnitude longer at idle than
+anywhere else, and on a linear scale idle is the only block with any colour in
+it while the rest of the map reads as equally empty.
+
+Export offers the plotted points as CSV — one row per surviving sample, carrying
+its index in the log so a row can be found again — and the scatter as a PNG.
+
 ## Features
 
 - **Binary `.mlg` support**, including packed flag bytes and interleaved marker
@@ -170,6 +224,9 @@ not have is reported and skipped, never applied as "reject everything".
   row, right-click → *Jump to maximum / minimum*, or click the max or min line in
   the hover readout itself. All keep the current zoom and plot the channel first
   if it was not already showing
+- **Scatter mode** — every sample at its own X and Y, coloured by a third
+  channel, aggregated onto the display grid so no mark is an accident of draw
+  order — see above
 - **Overlaid or stacked** — overlaid traces, each scaled to its own range, read
   well for phase relationships between channels; stacked lanes give each channel
   its own strip, which is what you want past about four channels. Toggle in the
@@ -629,6 +686,13 @@ In histogram view:
 | Table as CSV | the binned values, highest row first |
 | Sample counts as CSV | how many samples landed in each cell |
 | Table as PNG | the heat table as drawn, at 2× |
+
+In scatter view:
+
+| | |
+|---|---|
+| Plotted points as CSV | one row per sample, with its index in the log |
+| Scatter as PNG | the scatter as drawn, at 2× |
 
 The table is written in the shape a tuning table has — X breakpoints across the
 top, Y down the side, highest row first — so a block can be pasted straight into

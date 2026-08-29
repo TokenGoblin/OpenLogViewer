@@ -25,11 +25,12 @@ public partial class MainWindow : Window
         FitToWorkArea();
 
         _vm.PlotInvalidated += OnPlotInvalidated;
-        _vm.HistogramInvalidated += RebuildHistogram;
+        _vm.HistogramInvalidated += RebuildAnalysis;
         Plot.CursorSampleChanged += _vm.UpdateCursor;
         Plot.HoverChannelChanged += _vm.HighlightChannel;
         Plot.SelectionChanged += _vm.UpdateSelection;
         Histogram.CellActivated += OnHistogramCellActivated;
+        Scatter.BlockActivated += OnScatterBlockActivated;
 
         // The table view knows which keys were pressed and nothing else; what a
         // table may become is the view model's business.
@@ -1557,7 +1558,7 @@ public partial class MainWindow : Window
 
         // The heat table is far more work than the plot, so it is rebuilt at a
         // fraction of the rate — and only when it is the thing being looked at.
-        if (_vm.ShowHistogram && ++_histogramTick % 5 == 0) RebuildHistogram();
+        if (!_vm.ShowLog && ++_histogramTick % 5 == 0) RebuildAnalysis();
     }
 
     private int _histogramTick;
@@ -1637,9 +1638,19 @@ public partial class MainWindow : Window
         if (path is not null) Export(() => _vm.ExportTableCsv(path, counts));
     }
 
+    private void OnExportPointsCsvClick(object sender, RoutedEventArgs e)
+    {
+        string? path = AskWhereToSave(
+            _vm.SuggestExportName("points", ".csv"), "CSV file|*.csv|All files|*.*");
+
+        if (path is not null) Export(() => _vm.ExportPointsCsv(path));
+    }
+
     private void OnExportPlotPngClick(object sender, RoutedEventArgs e) => ExportPng(Plot, "plot");
 
     private void OnExportTablePngClick(object sender, RoutedEventArgs e) => ExportPng(Histogram, "table");
+
+    private void OnExportScatterPngClick(object sender, RoutedEventArgs e) => ExportPng(Scatter, "scatter");
 
     private void ExportPng(FrameworkElement view, string suffix)
     {
@@ -1674,6 +1685,13 @@ public partial class MainWindow : Window
             _vm.ExportTableCsv(In("table", ".csv"), counts: false);
             _vm.ExportTableCsv(In("counts", ".csv"), counts: true);
             ImageExport.Save(Histogram, In("table", ".png"), Backdrop());
+            return;
+        }
+
+        if (_vm.ShowScatter)
+        {
+            _vm.ExportPointsCsv(In("points", ".csv"));
+            ImageExport.Save(Scatter, In("scatter", ".png"), Backdrop());
             return;
         }
 
@@ -1772,6 +1790,44 @@ public partial class MainWindow : Window
         if (countStatistic) _vm.StatCount = true;
     }
 
+    /// <summary>
+    /// Switches to the scatter, for a scripted run. Takes the same three
+    /// channels the table does, since they are the same setting.
+    /// </summary>
+    public void ShowScatter(
+        bool colourByCount = false, string? compareTo = null, string? zChannel = null)
+    {
+        _vm.ShowScatter = true;
+
+        if (zChannel is { Length: > 0 })
+        {
+            ChannelItem? pick = _vm.Channels.FirstOrDefault(
+                c => c.Name.Equals(zChannel, StringComparison.OrdinalIgnoreCase));
+
+            if (pick is not null) _vm.ZAxis = pick;
+        }
+
+        if (compareTo is { Length: > 0 })
+        {
+            CompareOption? match = _vm.CompareOptions.FirstOrDefault(
+                o => o.Channel?.Name.Equals(compareTo, StringComparison.OrdinalIgnoreCase) == true);
+            if (match is not null) _vm.ZCompare = match;
+        }
+
+        if (colourByCount) _vm.ColorByCount = true;
+    }
+
+    /// <summary>Traces a mark on the scatter back to the log, for a scripted run.</summary>
+    public void ActivateMark(int column, int row)
+    {
+        RebuildAnalysis();
+
+        // The marks are binned to the size the view was given, so it has to have
+        // been laid out before a block index means anything.
+        Scatter.UpdateLayout();
+        OnScatterBlockActivated((column, row));
+    }
+
     /// <summary>Turns on VE Calibration, for a scripted run.</summary>
     public void EnableVeAnalyze(bool showSuggested)
     {
@@ -1811,7 +1867,7 @@ public partial class MainWindow : Window
     /// <summary>Traces a table cell back to the log.</summary>
     public void ActivateCell(int column, int row)
     {
-        RebuildHistogram();
+        RebuildAnalysis();
         OnHistogramCellActivated((column, row));
     }
 
@@ -1846,15 +1902,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Rebuilds the table. The sample window comes from the plot's current zoom
-    /// when the user has asked to restrict it, so a table can be built from one
-    /// pull rather than the whole log.
+    /// Rebuilds whichever of the two derived views is showing. The sample window
+    /// comes from the plot's current zoom when the user has asked to restrict
+    /// it, so either can be built from one pull rather than the whole log.
+    ///
+    /// Only the one on screen is built. They cost the same walk over the log, and
+    /// building the other for a switch that may never come would double the work
+    /// of every filter change on a live session.
     /// </summary>
-    private void RebuildHistogram()
+    private void RebuildAnalysis()
     {
         if (_vm.Document is not { SampleCount: > 0 } doc)
         {
             Histogram.SetTable(null, _vm.ColorByCount);
+            Scatter.SetPlot(null, _vm.ColorByCount);
             return;
         }
 
@@ -1863,6 +1924,13 @@ public partial class MainWindow : Window
         {
             first = doc.IndexAtTime(Plot.ViewStart);
             last = doc.IndexAtTime(Plot.ViewEnd);
+        }
+
+        if (_vm.ShowScatter)
+        {
+            _vm.RebuildScatter(first, last);
+            Scatter.SetPlot(_vm.Points, _vm.ColorByCount);
+            return;
         }
 
         _vm.RebuildHistogram(first, last);
@@ -1884,7 +1952,7 @@ public partial class MainWindow : Window
         (int First, int Last) longest = table.LongestVisitTo(cell.Column, cell.Row)!.Value;
 
         Histogram.SetSelectedCell(cell);
-        _vm.ShowHistogram = false;
+        _vm.ShowLog = true;
 
         Plot.SetOccurrences([.. visits.Select(v => (doc.Time.At(v.First), doc.Time.At(v.Last)))]);
 
@@ -1897,6 +1965,38 @@ public partial class MainWindow : Window
         Plot.SelectRange(from, to);
 
         _vm.DescribeCellTrace(table, cell, visits, longest);
+        return;
+    }
+
+    /// <summary>
+    /// Traces a mark on the scatter back to the log, the same way a table cell
+    /// is traced. A mark is a much smaller region of the map than a cell, so it
+    /// is visited fewer times — but it is still rarely visited once, and framing
+    /// first sample to last would still cover most of the drive.
+    /// </summary>
+    private void OnScatterBlockActivated((int Column, int Row) block)
+    {
+        if (_vm.Points is not { } points || _vm.Document is not { } doc) return;
+        if (Scatter.Bins is not { } bins) return;
+
+        IReadOnlyList<int> samples = points.SamplesIn(bins, block.Column, block.Row);
+        if (samples.Count == 0) return;
+
+        IReadOnlyList<(int First, int Last)> visits = ScatterPlot.VisitsAmong(samples);
+        (int First, int Last) longest = visits.MaxBy(v => v.Last - v.First);
+
+        _vm.ShowLog = true;
+
+        Plot.SetOccurrences([.. visits.Select(v => (doc.Time.At(v.First), doc.Time.At(v.Last)))]);
+
+        double from = doc.Time.At(longest.First);
+        double to = doc.Time.At(longest.Last);
+        double margin = Math.Max((to - from) * 2, 1.0);
+
+        Plot.ZoomTo(from - margin, to + margin);
+        Plot.SelectRange(from, to);
+
+        _vm.DescribeMarkTrace(points, bins, block, visits, longest);
     }
 
     private void OnPlotInvalidated()
@@ -2134,7 +2234,7 @@ public partial class MainWindow : Window
     private void OnClearTuneClick(object sender, RoutedEventArgs e)
     {
         _vm.ClearTune();
-        RebuildHistogram();
+        RebuildAnalysis();
     }
 
     private void LoadTuneFile(string path)
@@ -2142,7 +2242,7 @@ public partial class MainWindow : Window
         try
         {
             _vm.LoadTune(path);
-            RebuildHistogram();
+            RebuildAnalysis();
         }
         catch (Exception ex) when (ex is LogFormatException or IOException or UnauthorizedAccessException)
         {

@@ -5,7 +5,8 @@ using OpenLogViewer.Core;
 namespace OpenLogViewer.App.Tests;
 
 /// <summary>
-/// Presets, filters and the histogram, driven the way the UI drives them.
+/// Presets, filters, the histogram and the scatter, driven the way the UI
+/// drives them.
 /// </summary>
 public class AnalysisWorkflowTests : IDisposable
 {
@@ -208,6 +209,130 @@ public class AnalysisWorkflowTests : IDisposable
         var before = vm.Channels.Where(c => c.IsVisible).Select(c => c.Name).ToList();
 
         vm.ShowHistogram = true;
+
+        Assert.Equal(before, vm.Channels.Where(c => c.IsVisible).Select(c => c.Name));
+    }
+
+    // ----- scatter ----------------------------------------------------------
+
+    [Fact]
+    public void TheThreeViewsAreExclusiveAndThePlotIsTheDefault()
+    {
+        MainViewModel vm = Loaded();
+
+        Assert.True(vm.ShowLog);
+        Assert.False(vm.ShowHistogram);
+        Assert.False(vm.ShowScatter);
+
+        vm.ShowScatter = true;
+
+        Assert.True(vm.ShowScatter);
+        Assert.False(vm.ShowLog);
+        Assert.False(vm.ShowHistogram);
+    }
+
+    [Fact]
+    public void TheScatterAndTheTableShareTheirAxesAndTheirPanel()
+    {
+        // Picking RPM against MAP once should survive switching between the two
+        // readings of it — they are one setting, not two.
+        MainViewModel vm = Loaded();
+        vm.ShowHistogram = true;
+
+        Assert.True(vm.ShowAxisPanel);
+        (string? x, string? y, string? z) = (vm.XAxis?.Name, vm.YAxis?.Name, vm.ZAxis?.Name);
+
+        vm.ShowScatter = true;
+
+        Assert.True(vm.ShowAxisPanel);
+        Assert.Equal((x, y, z), (vm.XAxis?.Name, vm.YAxis?.Name, vm.ZAxis?.Name));
+    }
+
+    [Fact]
+    public void TheScatterKeepsEverySampleWhereTheTableWouldHaveBinnedThem()
+    {
+        MainViewModel vm = Loaded();
+        vm.ShowScatter = true;
+        vm.RebuildScatter(0, vm.Document!.SampleCount - 1);
+
+        Assert.Equal(vm.Document.SampleCount, vm.Points!.Count);
+        Assert.Equal(0, vm.Points.Dropped);
+    }
+
+    [Fact]
+    public void EnablingAFilterShrinksTheScatterAndSaysByHowMuch()
+    {
+        MainViewModel vm = Loaded();
+        vm.ShowScatter = true;
+        vm.RebuildScatter(0, vm.Document!.SampleCount - 1);
+        int before = vm.Points!.Count;
+
+        vm.Filters.First(f => f.Filter.Channel == "CLT").Enabled = true;
+        vm.RebuildScatter(0, vm.Document.SampleCount - 1);
+
+        Assert.True(vm.Points!.Count < before);
+        Assert.Equal(before - vm.Points.Count, vm.Points.Filtered);
+        Assert.Contains("excluded by filters", vm.Hint);
+    }
+
+    [Fact]
+    public void ComparingAgainstATargetGivesTheScatterSignedDeviations()
+    {
+        MainViewModel vm = Loaded();
+        vm.ZCompare = vm.CompareOptions.First(o => o.Channel?.Name == "AFR Target");
+        vm.ShowScatter = true;
+        vm.RebuildScatter(0, vm.Document!.SampleCount - 1);
+
+        Assert.True(vm.Points!.IsDelta);
+        Assert.True(vm.Points.ZMin < 0);
+        Assert.True(vm.Points.ZMax > 0);
+    }
+
+    [Fact]
+    public void AMarkTracesBackToTheSamplesThatMadeIt()
+    {
+        MainViewModel vm = Loaded();
+        vm.ShowScatter = true;
+        vm.RebuildScatter(0, vm.Document!.SampleCount - 1);
+
+        ScatterPlot points = vm.Points!;
+        ScatterBins bins = points.Bin(64, 64);
+
+        int occupied = Array.FindIndex(bins.Counts, c => c > 0);
+        (int column, int row) = (occupied % bins.Columns, occupied / bins.Columns);
+
+        IReadOnlyList<int> traced = points.SamplesIn(bins, column, row);
+
+        Assert.Equal(bins.Counts[occupied], traced.Count);
+        Assert.NotEmpty(ScatterPlot.VisitsAmong(traced));
+
+        // Every sample it traced back really does fall inside that block, so a
+        // click cannot frame a stretch of log that had nothing to do with the
+        // mark that was clicked.
+        double xStep = (bins.XMax - bins.XMin) / bins.Columns;
+        double yStep = (bins.YMax - bins.YMin) / bins.Rows;
+
+        Assert.All(traced, i =>
+        {
+            Assert.InRange(
+                points.X.At(i),
+                bins.XMin + (column * xStep) - 1e-6,
+                bins.XMin + ((column + 1) * xStep) + 1e-6);
+
+            Assert.InRange(
+                points.Y.At(i),
+                bins.YMin + (row * yStep) - 1e-6,
+                bins.YMin + ((row + 1) * yStep) + 1e-6);
+        });
+    }
+
+    [Fact]
+    public void SwitchingToTheScatterDoesNotDisturbThePlottedChannels()
+    {
+        MainViewModel vm = Loaded();
+        var before = vm.Channels.Where(c => c.IsVisible).Select(c => c.Name).ToList();
+
+        vm.ShowScatter = true;
 
         Assert.Equal(before, vm.Channels.Where(c => c.IsVisible).Select(c => c.Name));
     }

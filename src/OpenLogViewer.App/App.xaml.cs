@@ -39,7 +39,7 @@ public partial class App : Application
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
-        "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer",
+        "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -248,6 +248,27 @@ public partial class App : Application
                 z >= 0 && z + 1 < e.Args.Length ? e.Args[z + 1] : null);
 
             if (e.Args.Contains("--ve")) window.EnableVeAnalyze(e.Args.Contains("--ve-values"));
+        }
+
+        if (e.Args.Contains("--scatter"))
+        {
+            int cmp = Array.IndexOf(e.Args, "--compare");
+            int z = Array.IndexOf(e.Args, "--z");
+
+            window.ShowScatter(
+                e.Args.Contains("--count-colour"),
+                cmp >= 0 && cmp + 1 < e.Args.Length ? e.Args[cmp + 1] : null,
+                z >= 0 && z + 1 < e.Args.Length ? e.Args[z + 1] : null);
+
+            // "--mark 120,80" traces a block back to the log, the way --cell does
+            // for the table.
+            int mark = Array.IndexOf(e.Args, "--mark");
+            if (mark >= 0 && mark + 1 < e.Args.Length
+                && e.Args[mark + 1].Split(',') is [string c, string r]
+                && int.TryParse(c, out int column) && int.TryParse(r, out int row))
+            {
+                window.ActivateMark(column, row);
+            }
         }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
