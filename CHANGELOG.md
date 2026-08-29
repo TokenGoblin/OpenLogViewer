@@ -71,6 +71,27 @@ Clicking a mark traces it back to the log the way a table cell does, grouping
 the samples into visits and framing the longest. Export offers the points as
 CSV, carrying each sample's index in the log, and the scatter as a PNG.
 
+**A channel can keep its own colour and its own scale.** Right-click a channel
+row. Both are held by name in `channels.json`, so a choice made on one log
+applies to every other carrying that channel.
+
+The fixed scale is the more useful half. Auto-scaling every trace to its own
+range is what lets a dozen channels in different units share a plot, and it
+costs comparability: the same channel is drawn over a different range in every
+log, and in the same log before and after a filter, so two runs cannot be read
+against each other by eye. Pinning RPM to 0…8000 gives that back. A pinned range
+is used exactly as given — the steady-channel floor is not applied on top of one,
+since naming a range answers the question that floor exists to ask — and the
+stacked-lane labels now report the range a lane is drawn over rather than the
+channel's own extremes, which were not the same number even before this.
+
+A pinned colour opts out of something and the menu is built to say so. Trace
+colours are otherwise re-picked for every scheme, because a palette is only
+separable against the background it was chosen for; a pinned one is not
+re-picked and not re-checked. So the menu offers the current scheme's own
+palette, whose entries have been checked against that background, and an entry a
+pinned channel holds is no longer handed out to another trace.
+
 **Live connection to a MegaSquirt.** *Connect ▾* lists the serial ports; picking
 one reads the ECU's signature, matches an INI to it, and starts a live session.
 A live session is an ordinary log, so the sidebar, filters, calculated channels,

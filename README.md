@@ -227,6 +227,11 @@ its index in the log so a row can be found again — and the scatter as a PNG.
 - **Scatter mode** — every sample at its own X and Y, coloured by a third
   channel, aggregated onto the display grid so no mark is an accident of draw
   order — see above
+- **Pin a channel's colour or its scale** — right-click a channel row.
+  *Colour* offers the scheme's palette; *Fixed scale…* draws the channel over a
+  range you name instead of its own. Both are held by channel name in
+  `%APPDATA%\OpenLogViewer\channels.json`, so a choice made on one log applies
+  to every other carrying that channel — see below
 - **Overlaid or stacked** — overlaid traces, each scaled to its own range, read
   well for phase relationships between channels; stacked lanes give each channel
   its own strip, which is what you want past about four channels. Toggle in the
@@ -268,17 +273,18 @@ megabytes of continuous sync over whatever connection the car happens to be
 near. The user profile is not redirected.
 
 Settings are separate, under `%APPDATA%\OpenLogViewer\` — `settings.json`,
-`presets.json`, `filters.json`, `math.json`. Those belong to the app; the
-folder above belongs to you. Nothing is ever written next to the executable, so
-the app is content installed read-only under Program Files.
+`presets.json`, `filters.json`, `math.json`, `channels.json`. Those belong to
+the app; the folder above belongs to you. Nothing is ever written next to the
+executable, so the app is content installed read-only under Program Files.
 
 ### What is yours, and what ships
 
-Everything the application remembers about *you* is in those four files and none
+Everything the application remembers about *you* is in those five files and none
 of it travels with the software. **A new install is a blank slate**: no presets,
-no filters, no calculated channels. The filters offered when you open a log are
-generated from the channels *that log* has and arrive switched off, so opening a
-file never silently changes what a table counts.
+no filters, no calculated channels, no pinned colours or scales. The filters
+offered when you open a log are generated from the channels *that log* has and
+arrive switched off, so opening a file never silently changes what a table
+counts.
 
 **Devices are remembered by hardware id rather than by COM port**, because
 Windows hands port numbers out and reuses them — the same Speeduino is COM7 today
@@ -701,6 +707,38 @@ as zero, which would read as a measurement of nothing.
 
 `--export <folder>` writes every export for the current mode without the
 dialogs, for scripted use.
+
+## Pinned colours and scales
+
+Right-click any channel row.
+
+**A fixed scale** is the more useful of the two. Auto-scaling every trace to its
+own range is what lets a dozen channels in different units share a plot, and it
+costs comparability: the same channel is drawn over a different range in every
+log, and in the same log before and after a filter, so two runs cannot be read
+against each other by eye and a shape cannot be remembered between sessions.
+Pinning RPM to 0…8000 gives that back for the channels where it matters. The
+editor opens seeded with the range the channel is drawn over now, and clearing
+both boxes goes back to automatic.
+
+A pinned scale is used exactly as given — the steady-channel floor is not
+applied on top of it, since somebody who named a range has already answered the
+question it exists to ask. In stacked lanes the labels report the range the lane
+is actually drawn over rather than the channel's own extremes, so a pinned trace
+says what it is scaled to.
+
+**A pinned colour** opts out of something, which is worth knowing. Trace colours
+are normally re-picked whenever the scheme changes, because a palette is only
+separable against the background it was chosen for, and each scheme's palette has
+been checked for lightness range, contrast and separation under colour-vision
+deficiency against its own ground. A pinned colour is not re-picked and not
+re-checked: that is the point of pinning one, and the cost is that a colour
+chosen on a dark scheme may sit poorly on a light one. The menu therefore offers
+the current scheme's own palette, so the easy choice is still a checked one, and
+an entry a pinned channel holds is not handed out to another trace — two traces
+in the same colour being exactly the failure the palettes exist to prevent.
+
+*Back to automatic* clears both at once.
 
 ## Colour schemes
 

@@ -2182,6 +2182,87 @@ public partial class MainWindow : Window
             : null;
     }
 
+    // ----- pinned colours and scales ----------------------------------------
+
+    /// <summary>
+    /// Fills the colour submenu with the current scheme's palette.
+    ///
+    /// Built on opening rather than declared, because the palette belongs to the
+    /// scheme and changes under the menu. The scheme's own entries are offered
+    /// rather than an arbitrary colour picker: those have been checked against
+    /// this background for contrast and for separation under colour-vision
+    /// deficiency, and a pinned colour is not re-checked later.
+    /// </summary>
+    private void OnColourMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu) return;
+        if (MenuOwner(menu) is not { } item) return;
+
+        menu.Items.Clear();
+
+        foreach (Color colour in _vm.PaletteColors)
+        {
+            var swatch = new System.Windows.Shapes.Rectangle
+            {
+                Width = 26,
+                Height = 12,
+                RadiusX = 2,
+                RadiusY = 2,
+                Fill = new SolidColorBrush(colour),
+            };
+
+            var entry = new MenuItem { Header = swatch, Tag = item };
+            entry.Click += (_, _) => _vm.PinColor(item, colour);
+            menu.Items.Add(entry);
+        }
+
+        menu.Items.Add(new Separator());
+
+        var automatic = new MenuItem
+        {
+            Header = "Automatic",
+            IsEnabled = item.HasFixedColor,
+            ToolTip = "Take whichever palette entry this channel is handed",
+        };
+
+        automatic.Click += (_, _) => _vm.PinColor(item, null);
+        menu.Items.Add(automatic);
+    }
+
+    /// <summary>
+    /// The row a submenu belongs to. A submenu's own parent is the menu item
+    /// above it rather than the context menu, so the chain has to be walked
+    /// rather than read one level up the way a leaf item's is.
+    /// </summary>
+    private static ChannelItem? MenuOwner(DependencyObject item)
+    {
+        for (DependencyObject? node = item; node is not null;)
+        {
+            if (node is ContextMenu { PlacementTarget: FrameworkElement target })
+                return target.DataContext as ChannelItem;
+
+            node = node is MenuItem parented
+                ? ItemsControl.ItemsControlFromItemContainer(parented) ?? LogicalTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+
+        return null;
+    }
+
+    private void OnPinScaleClick(object sender, RoutedEventArgs e)
+    {
+        if (ChannelFrom(sender) is { } item) _vm.BeginStyleEdit(item);
+    }
+
+    private void OnClearStyleClick(object sender, RoutedEventArgs e)
+    {
+        if (ChannelFrom(sender) is { } item) _vm.ClearStyle(item);
+    }
+
+    private void OnConfirmStyleClick(object sender, RoutedEventArgs e) => _vm.CommitStyleEdit();
+
+    private void OnCancelStyleClick(object sender, RoutedEventArgs e) => _vm.CancelStyleEdit();
+
     /// <summary>
     /// Moves the cursor to where a channel peaks or bottoms out. The channel is
     /// plotted first if it was not already, so the jump has something to land on.

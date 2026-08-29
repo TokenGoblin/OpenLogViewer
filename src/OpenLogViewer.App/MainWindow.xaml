@@ -695,6 +695,40 @@
                             </ItemsControl>
                         </DockPanel>
 
+                        <!-- Fixed scale for one channel. Inline rather than a dialog,
+                             beside the list the channel was picked from. -->
+                        <Border Margin="0,8,0,0" Background="{DynamicResource Bg}" CornerRadius="4"
+                                Padding="8" BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                Visibility="{Binding EditingStyle, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding StyleTargetName, StringFormat=Fixed scale for {0}}"
+                                           FontSize="11" Foreground="{DynamicResource Text}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,0,0,2"/>
+                                <TextBlock Text="Drawn over this range in every log, so the same channel keeps the same shape."
+                                           FontSize="10" Foreground="{DynamicResource Faint}"
+                                           TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Margin="0,0,3,0" ToolTip="Bottom of the scale"
+                                             Text="{Binding StyleMin, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBox Grid.Column="1" Margin="3,0,0,0" ToolTip="Top of the scale"
+                                             Text="{Binding StyleMax, UpdateSourceTrigger=PropertyChanged}"/>
+                                </Grid>
+                                <TextBlock Text="Clear both to go back to the channel's own range."
+                                           FontSize="10" Foreground="{DynamicResource Faint}"
+                                           TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                    <Button Content="Apply" Padding="10,3" FontSize="11"
+                                            Click="OnConfirmStyleClick"/>
+                                    <Button Content="Cancel" Padding="10,3" FontSize="11" Margin="5,0,0,0"
+                                            Click="OnCancelStyleClick"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Calculated channels. Once built they behave like any
                              other channel, so the list here is only the definitions. -->
                         <StackPanel Margin="0,8,0,0">
@@ -854,6 +888,15 @@
                                         <MenuItem Header="Jump to minimum" Click="OnJumpToMinClick"/>
                                         <Separator/>
                                         <MenuItem Header="Plot only this channel" Click="OnPlotOnlyClick"/>
+                                        <Separator/>
+                                        <!-- Swatches are built when the submenu opens: the
+                                             palette belongs to the scheme, which the row does
+                                             not know about, and it changes under it. -->
+                                        <MenuItem Header="Colour" SubmenuOpened="OnColourMenuOpened"/>
+                                        <MenuItem Header="Fixed scale…" Click="OnPinScaleClick"
+                                                  ToolTip="Draw this channel over a range you choose, in every log"/>
+                                        <MenuItem Header="Back to automatic" Click="OnClearStyleClick"
+                                                  ToolTip="Take the scheme's colour and the channel's own range again"/>
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>
@@ -869,7 +912,8 @@
                                               VerticalAlignment="Center"/>
 
                                     <Rectangle Grid.Column="1" Width="3" Height="16" Margin="6,0,7,0"
-                                               RadiusX="1.5" RadiusY="1.5" Fill="{Binding Brush}">
+                                               RadiusX="1.5" RadiusY="1.5" Fill="{Binding Brush}"
+                                               ToolTip="{Binding ScaleNote}">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
                                                 <Setter Property="Opacity" Value="1"/>
