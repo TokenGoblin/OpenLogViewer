@@ -76,6 +76,60 @@ public sealed class ChannelItem : ObservableObject
     /// <summary>Groups sort by this, so categories appear in a deliberate order.</summary>
     public int CategoryOrder => (int)Category;
 
+    /// <summary>
+    /// A scale the user pinned, or null to take the channel's own range.
+    ///
+    /// Auto-scaling every trace to its own range is what lets a dozen channels
+    /// in different units share a plot. What it costs is comparability: the same
+    /// channel is drawn over a different range in every log, and in the same log
+    /// before and after a filter, so two traces cannot be read against each
+    /// other by eye and a shape cannot be remembered between sessions. Pinning
+    /// RPM to 0…8000 gives that back, for the channels where it matters.
+    /// </summary>
+    public (double Min, double Max)? FixedRange { get; private set; }
+
+    public bool HasFixedRange => FixedRange is not null;
+
+    /// <summary>
+    /// True when the colour was pinned rather than handed out, which is what
+    /// keeps a theme change from taking it back.
+    /// </summary>
+    public bool HasFixedColor { get; private set; }
+
+    /// <summary>Pins the vertical range, or clears it with null.</summary>
+    public void SetFixedRange((double Min, double Max)? range)
+    {
+        if (range is { } r && (!double.IsFinite(r.Min) || !double.IsFinite(r.Max) || r.Max <= r.Min))
+            range = null;
+
+        FixedRange = range;
+
+        Raise(nameof(FixedRange));
+        Raise(nameof(HasFixedRange));
+        Raise(nameof(ScaleNote));
+    }
+
+    /// <summary>
+    /// The range this trace is drawn over: the pinned one where there is one,
+    /// otherwise the channel's own with the steady-channel floor applied.
+    ///
+    /// A pinned range is used exactly as given. The floor exists to stop a
+    /// nearly-constant channel filling its lane with its own last decimal place,
+    /// and somebody who has said what range they want has already answered that.
+    /// </summary>
+    public (double Min, double Range) Scale(bool holdSteady) =>
+        FixedRange is { } r
+            ? (r.Min, r.Max - r.Min)
+            : TraceScale.For(Channel.Min, Channel.Max, holdSteady);
+
+    /// <summary>
+    /// What the row says about a pinned scale, so a trace drawn over something
+    /// other than its own range says so rather than looking like the data.
+    /// </summary>
+    public string ScaleNote => FixedRange is { } r
+        ? $"scale {Channel.Format(r.Min, System)} … {Channel.Format(r.Max, System)}"
+        : "";
+
     public Color Color { get; private set; }
 
     public SolidColorBrush Brush { get; private set; } = null!;
@@ -151,8 +205,25 @@ public sealed class ChannelItem : ObservableObject
     public event Action<ChannelItem>? VisibilityChanged;
 
     /// <summary>
+    /// Pins this channel's colour, or with null hands it back to the palette.
+    ///
+    /// A pinned colour survives a theme change, which is the point of it and
+    /// also its cost — see <see cref="ChannelStyleStore"/>.
+    /// </summary>
+    public void SetFixedColor(Color? color)
+    {
+        HasFixedColor = color is not null;
+
+        if (color is { } c) SetColor(c);
+
+        Raise(nameof(HasFixedColor));
+    }
+
+    /// <summary>
     /// Recolours the trace. Colours are handed out as channels are plotted rather
-    /// than fixed per channel, so whatever is on screen stays distinguishable.
+    /// than fixed per channel, so whatever is on screen stays distinguishable —
+    /// unless the user has pinned one, which <see cref="HasFixedColor"/> marks
+    /// and callers handing out the palette are expected to respect.
     /// </summary>
     public void SetColor(Color color)
     {

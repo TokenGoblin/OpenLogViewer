@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Data;
@@ -39,6 +40,7 @@ public sealed class MainViewModel : ObservableObject
         "Shift-drag to mark a span and summarise it  •  Right-click for more";
 
     private readonly PresetStore _store;
+    private readonly ChannelStyleStore _styleStore;
     private readonly SettingsStore _settings;
     private readonly MathChannelStore _mathStore;
 
@@ -59,12 +61,14 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     public MainViewModel(
         PresetStore? presets = null, FilterStore? filters = null,
-        SettingsStore? settings = null, MathChannelStore? math = null)
+        SettingsStore? settings = null, MathChannelStore? math = null,
+        ChannelStyleStore? styles = null)
     {
         _store = presets ?? new PresetStore();
         _filterStore = filters ?? new FilterStore();
         _settings = settings ?? new SettingsStore();
         _mathStore = math ?? new MathChannelStore();
+        _styleStore = styles ?? new ChannelStyleStore();
 
         Workspace = new Workspace(_settings.DataFolder);
         SerialPortNames.Recall(_settings.KnownEcus);
@@ -135,6 +139,183 @@ public sealed class MainViewModel : ObservableObject
         return true;
     }
 
+    // ----- pinned colours and scales ----------------------------------------
+
+    /// <summary>The palette of the current scheme, offered as the easy choice.</summary>
+    public IReadOnlyList<Color> PaletteColors => Palette;
+
+    private ChannelItem? _styleTarget;
+    private string _styleMin = "";
+    private string _styleMax = "";
+
+    /// <summary>The channel the appearance editor is open on, or null when it is shut.</summary>
+    public ChannelItem? StyleTarget
+    {
+        get => _styleTarget;
+        private set
+        {
+            if (!Set(ref _styleTarget, value)) return;
+
+            Raise(nameof(EditingStyle));
+            Raise(nameof(StyleTargetName));
+        }
+    }
+
+    public bool EditingStyle => _styleTarget is not null;
+
+    public string StyleTargetName => _styleTarget?.Name ?? "";
+
+    public string StyleMin
+    {
+        get => _styleMin;
+        set => Set(ref _styleMin, value);
+    }
+
+    public string StyleMax
+    {
+        get => _styleMax;
+        set => Set(ref _styleMax, value);
+    }
+
+    /// <summary>
+    /// Opens the appearance editor on a channel, seeded with what it is drawn
+    /// over now rather than with empty boxes — the usual edit is a nudge to the
+    /// range already on screen, and retyping it from the plot is the slow way to
+    /// get there.
+    /// </summary>
+    public void BeginStyleEdit(ChannelItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        (double min, double range) = item.Scale(LogPlot.HoldSteady);
+
+        StyleMin = Round(min);
+        StyleMax = Round(min + range);
+        StyleTarget = item;
+    }
+
+    /// <summary>
+    /// Seeded bounds at the channel's own precision. The full double is the
+    /// float's rounding error printed out, which is not a number anybody wants
+    /// to edit.
+    /// </summary>
+    private static string Round(double value) =>
+        Math.Round(value, 3).ToString(CultureInfo.InvariantCulture);
+
+    public void CancelStyleEdit() => StyleTarget = null;
+
+    /// <summary>Applies the typed bounds, keeping the editor open on a bad pair.</summary>
+    public bool CommitStyleEdit()
+    {
+        if (_styleTarget is not { } item) return false;
+
+        bool blank = string.IsNullOrWhiteSpace(_styleMin) && string.IsNullOrWhiteSpace(_styleMax);
+
+        if (blank)
+        {
+            PinRange(item, null, null);
+            StyleTarget = null;
+            return true;
+        }
+
+        if (!double.TryParse(_styleMin, NumberStyles.Float, CultureInfo.InvariantCulture, out double min)
+            || !double.TryParse(_styleMax, NumberStyles.Float, CultureInfo.InvariantCulture, out double max))
+        {
+            Hint = "A pinned scale needs two numbers, or neither to go back to automatic.";
+            return false;
+        }
+
+        if (!PinRange(item, min, max)) return false;
+
+        StyleTarget = null;
+        return true;
+    }
+
+    /// <summary>Puts whatever is pinned for this channel's name onto its row.</summary>
+    private void ApplyStyle(ChannelItem item)
+    {
+        if (_styleStore.For(item.Name) is not { } style) return;
+
+        if (style.HasColor)
+            item.SetFixedColor(Color.FromRgb(
+                (byte)(style.Color!.Value >> 16),
+                (byte)(style.Color.Value >> 8),
+                (byte)style.Color.Value));
+
+        if (style.HasRange) item.SetFixedRange((style.Min!.Value, style.Max!.Value));
+    }
+
+    /// <summary>
+    /// Pins a trace colour by channel name, or with null hands it back to the
+    /// palette — which then re-picks for every plotted channel, since the
+    /// released colour is available again and the palette is handed out in plot
+    /// order.
+    /// </summary>
+    public void PinColor(ChannelItem item, Color? color)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        _styleStore.SetColor(item.Name, color is { } c ? (c.R << 16) | (c.G << 8) | c.B : null);
+        item.SetFixedColor(color);
+
+        if (color is null) RecolorChannels();
+
+        Hint = color is null
+            ? $"{item.Name} takes the scheme's palette again"
+            : $"{item.Name} is pinned to this colour in every log";
+
+        PlotInvalidated?.Invoke();
+    }
+
+    /// <summary>
+    /// Pins the vertical range a channel is drawn over, or with either bound null
+    /// hands it back to the channel's own range.
+    /// </summary>
+    /// <returns>False when the bounds are not a range, which is not an error
+    /// worth a dialog — the caller reports it.</returns>
+    public bool PinRange(ChannelItem item, double? min, double? max)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (min is null || max is null)
+        {
+            _styleStore.SetRange(item.Name, null, null);
+            item.SetFixedRange(null);
+            Hint = $"{item.Name} is scaled to its own range again";
+            PlotInvalidated?.Invoke();
+            return true;
+        }
+
+        if (!double.IsFinite(min.Value) || !double.IsFinite(max.Value) || max <= min)
+        {
+            Hint = "A pinned scale needs a low value below a high one.";
+            return false;
+        }
+
+        _styleStore.SetRange(item.Name, min, max);
+        item.SetFixedRange((min.Value, max.Value));
+
+        Hint = $"{item.Name} is drawn over {item.Channel.Format(min.Value, Units)}"
+               + $" … {item.Channel.Format(max.Value, Units)} in every log";
+
+        PlotInvalidated?.Invoke();
+        return true;
+    }
+
+    /// <summary>Unpins both halves, putting a channel back to automatic.</summary>
+    public void ClearStyle(ChannelItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        _styleStore.Clear(item.Name);
+        item.SetFixedColor(null);
+        item.SetFixedRange(null);
+
+        RecolorChannels();
+        Hint = $"{item.Name} is back to the scheme's colour and its own range";
+        PlotInvalidated?.Invoke();
+    }
+
     /// <summary>
     /// Hands out the new palette in the order channels are plotted, so what is on
     /// screen gets the widely separated entries rather than whatever the file
@@ -142,14 +323,29 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private void RecolorChannels()
     {
-        Color[] palette = Palette;
+        // Entries a pinned channel already holds are stepped over, so a pinned
+        // colour is not handed out again to the trace beside it. Only pins that
+        // landed on a palette entry can collide at all; a colour from outside
+        // the palette takes nothing away from it.
+        HashSet<Color> pinned = [.. Channels.Where(c => c.HasFixedColor).Select(c => c.Color)];
+
+        Color[] palette = [.. Palette.Where(c => !pinned.Contains(c))];
+
+        // Unless pinning has claimed the palette entire, in which case some
+        // repetition is unavoidable and the full palette is the better of two
+        // bad answers — an empty one would throw.
+        if (palette.Length == 0) palette = Palette;
+
         int next = 0;
 
+        // A pinned channel is skipped rather than given an entry it will not
+        // use, so pinning one does not shuffle the colours of the traces beside
+        // it every time the scheme changes.
         foreach (ChannelItem item in Channels.Where(c => c.IsVisible))
-            item.SetColor(palette[next++ % palette.Length]);
+            if (!item.HasFixedColor) item.SetColor(palette[next++ % palette.Length]);
 
         foreach (ChannelItem item in Channels.Where(c => !c.IsVisible))
-            item.SetColor(palette[next++ % palette.Length]);
+            if (!item.HasFixedColor) item.SetColor(palette[next++ % palette.Length]);
 
         _colorCursor = next;
     }
@@ -2771,6 +2967,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (LogChannel channel in snapshot.Channels.Where(c => !snapshot.IsTimeBase(c)))
         {
             var item = new ChannelItem(channel, Palette[_colorCursor++ % Palette.Length]);
+            ApplyStyle(item);
             item.Show(Units);
             item.VisibilityChanged += OnVisibilityChanged;
             Channels.Add(item);
@@ -3248,6 +3445,7 @@ public sealed class MainViewModel : ObservableObject
                 IsCalculated = calculated,
             };
 
+            ApplyStyle(item);
             item.Show(Units);
             item.VisibilityChanged += OnVisibilityChanged;
             Channels.Add(item);
@@ -3577,6 +3775,7 @@ public sealed class MainViewModel : ObservableObject
                     IsCalculated = true,
                 };
 
+                ApplyStyle(item);
                 item.Show(Units);
                 item.VisibilityChanged += OnVisibilityChanged;
                 Channels.Add(item);
@@ -3927,7 +4126,7 @@ public sealed class MainViewModel : ObservableObject
 
     private void OnVisibilityChanged(ChannelItem item)
     {
-        if (item.IsVisible)
+        if (item.IsVisible && !item.HasFixedColor)
         {
             HashSet<Color> taken = Channels
                 .Where(c => c.IsVisible && !ReferenceEquals(c, item))

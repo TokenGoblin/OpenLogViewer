@@ -379,18 +379,18 @@ public sealed class LogPlot : FrameworkElement
                 // The hovered lane still gets a heavier stroke; without overlap
                 // it reads as emphasis rather than as separation.
                 Pen pen = ReferenceEquals(item, _hover) ? item.HighlightPen : item.Pen;
-                dc.DrawGeometry(null, pen, BuildTrace(item.Channel, time, i0, i1, lane, doc.GapThreshold));
+                dc.DrawGeometry(null, pen, BuildTrace(item, time, i0, i1, lane, doc.GapThreshold));
                 continue;
             }
 
             // Overlaid: the hovered trace is drawn last so it sits on top.
             if (ReferenceEquals(item, _hover)) continue;
-            dc.DrawGeometry(null, item.Pen, BuildTrace(item.Channel, time, i0, i1, area, doc.GapThreshold));
+            dc.DrawGeometry(null, item.Pen, BuildTrace(item, time, i0, i1, area, doc.GapThreshold));
         }
 
         if (!_stacked && _hover is { IsVisible: true } hover)
             dc.DrawGeometry(null, hover.HighlightPen,
-                BuildTrace(hover.Channel, time, i0, i1, area, doc.GapThreshold));
+                BuildTrace(hover, time, i0, i1, area, doc.GapThreshold));
 
         DrawOccurrences(dc, area);
         DrawSelection(dc, doc, area);
@@ -458,17 +458,19 @@ public sealed class LogPlot : FrameworkElement
         FormattedText name = Text(channel.Name, 10, item.Brush);
         dc.DrawText(name, new Point(lane.Left + 4, lane.Top + 1));
 
-        FormattedText high = Text(channel.Format(channel.Max, item.System), 9, AxisTextBrush);
-        FormattedText low = Text(channel.Format(channel.Min, item.System), 9, AxisTextBrush);
+        // The range the lane is actually drawn over, not the channel's own
+        // extremes. The two differ whenever a scale is pinned, and by a little
+        // whenever the steady floor has widened a near-constant channel — a
+        // label that named the data instead of the axis would be describing a
+        // trace that does not reach it.
+        (double min, double range) = item.Scale(HoldSteady);
+
+        FormattedText high = Text(channel.Format(min + range, item.System), 9, AxisTextBrush);
+        FormattedText low = Text(channel.Format(min, item.System), 9, AxisTextBrush);
         dc.DrawText(high, new Point(lane.Right - high.Width - 2, lane.Top + 1));
         dc.DrawText(low, new Point(lane.Right - low.Width - 2, lane.Bottom - low.Height - 1));
     }
 
-    /// <summary>
-    /// Maps a channel value to a y coordinate. Each channel is scaled to its own
-    /// range, so this is the single place that mapping is defined — the trace
-    /// geometry and the pointer hit-test must agree exactly.
-    /// </summary>
     /// <summary>
     /// Whether a nearly-constant channel is drawn as steady rather than having its
     /// last decimal place stretched to fill the lane.
@@ -479,9 +481,14 @@ public sealed class LogPlot : FrameworkElement
     /// </summary>
     public static bool HoldSteady { get; set; } = true;
 
-    private static double ChannelY(LogChannel channel, double value, Rect area)
+    /// <summary>
+    /// Maps a channel value to a y coordinate. This is the single place that
+    /// mapping is defined — the trace geometry and the pointer hit-test must
+    /// agree exactly.
+    /// </summary>
+    private static double ChannelY(ChannelItem item, double value, Rect area)
     {
-        (double min, double range) = TraceScale.For(channel.Min, channel.Max, HoldSteady);
+        (double min, double range) = item.Scale(HoldSteady);
 
         // Inset slightly so flat-topped traces do not sit on the frame edge.
         double top = area.Top + 3;
@@ -512,7 +519,7 @@ public sealed class LogPlot : FrameworkElement
             double value = item.Channel.At(index);
             if (double.IsNaN(value)) continue;
 
-            double distance = Math.Abs(ChannelY(item.Channel, value, area) - pointer.Y);
+            double distance = Math.Abs(ChannelY(item, value, area) - pointer.Y);
             if (distance < bestDistance) { bestDistance = distance; best = item; }
         }
 
@@ -578,7 +585,7 @@ public sealed class LogPlot : FrameworkElement
 
         // Anchored to the trace, but never allowed outside the plot.
         Rect lane = LaneOf(hover, area);
-        double y = Math.Clamp(ChannelY(channel, channel.At(_cursorIndex), lane) - height / 2,
+        double y = Math.Clamp(ChannelY(hover, channel.At(_cursorIndex), lane) - height / 2,
                               area.Top, Math.Max(area.Top, area.Bottom - height));
 
         dc.DrawRoundedRectangle(CardBrush, CardPen, new Rect(x, y, width, height), 4, 4);
@@ -613,11 +620,12 @@ public sealed class LogPlot : FrameworkElement
     /// would drop.
     /// </summary>
     private Geometry BuildTrace(
-        LogChannel channel, LogChannel time, int i0, int i1, Rect area, double gapThreshold)
+        ChannelItem item, LogChannel time, int i0, int i1, Rect area, double gapThreshold)
     {
+        LogChannel channel = item.Channel;
         var geo = new StreamGeometry();
 
-        double Y(double v) => ChannelY(channel, v, area);
+        double Y(double v) => ChannelY(item, v, area);
 
         using (StreamGeometryContext ctx = geo.Open())
         {
