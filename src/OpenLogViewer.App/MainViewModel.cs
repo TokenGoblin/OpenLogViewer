@@ -297,7 +297,7 @@ public sealed class MainViewModel : ObservableObject
 
     // ----- histogram --------------------------------------------------------
 
-    private bool _showHistogram;
+    private LogView _logView = LogView.Plot;
     private ChannelItem? _xAxis, _yAxis, _zAxis;
     private int _columns = 16, _rows = 16;
     private HistogramStatistic _statistic = HistogramStatistic.Mean;
@@ -572,22 +572,54 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Raised when a histogram setting changes and the table needs rebuilding.</summary>
     public event Action? HistogramInvalidated;
 
-    public bool ShowHistogram
+    /// <summary>Every sample placed by two channels and coloured by a third.</summary>
+    public ScatterPlot? Points { get; private set; }
+
+    /// <summary>Which reading of the recording is on screen.</summary>
+    public LogView LogView
     {
-        get => _showHistogram;
+        get => _logView;
         set
         {
-            if (!Set(ref _showHistogram, value)) return;
+            if (!Set(ref _logView, value)) return;
+
             Raise(nameof(ShowLog));
+            Raise(nameof(ShowHistogram));
+            Raise(nameof(ShowScatter));
+            Raise(nameof(ShowAxisPanel));
+            Raise(nameof(ZAxisCaption));
             HistogramInvalidated?.Invoke();
         }
     }
 
     public bool ShowLog
     {
-        get => !_showHistogram;
-        set { if (value) ShowHistogram = false; }
+        get => _logView == LogView.Plot;
+        set { if (value) LogView = LogView.Plot; }
     }
+
+    public bool ShowHistogram
+    {
+        get => _logView == LogView.Histogram;
+        set { if (value) LogView = LogView.Histogram; }
+    }
+
+    public bool ShowScatter
+    {
+        get => _logView == LogView.Scatter;
+        set { if (value) LogView = LogView.Scatter; }
+    }
+
+    /// <summary>
+    /// Whether the sidebar shows the axis and filter settings rather than the
+    /// channel list. The table and the scatter are chosen and filtered the same
+    /// way, so they share the panel; only what is done with the samples differs.
+    /// </summary>
+    public bool ShowAxisPanel => _logView is LogView.Histogram or LogView.Scatter;
+
+    public string ZAxisCaption => _logView == LogView.Scatter
+        ? "Z axis — the colour of each mark"
+        : "Z axis — the value in each cell";
 
     // ----- top-level mode -----------------------------------------------------
 
@@ -3020,6 +3052,50 @@ public sealed class MainViewModel : ObservableObject
         return true;
     }
 
+    /// <summary>
+    /// Rebuilds <see cref="Points"/> over the given sample window, from the same
+    /// three channels and the same filters the table uses.
+    /// </summary>
+    public void RebuildScatter(int firstSample, int lastSample)
+    {
+        if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
+        {
+            Points = null;
+            return;
+        }
+
+        SampleMask mask = SampleFilter.Build(Document, Filters.Select(f => f.Filter));
+
+        Points = ScatterPlot.Build(
+            XAxis.Channel, YAxis.Channel, ZAxis.Channel,
+            firstSample, lastSample, mask, _zCompare.Channel?.Channel);
+
+        if (Points.IsEmpty)
+        {
+            Hint = mask.FiltersApplied && mask.PassCount == 0
+                ? "Every sample was filtered out — loosen or switch off a filter."
+                : "No samples to plot — try a wider time range.";
+            return;
+        }
+
+        var parts = new List<string> { $"{Points.Count:N0} samples" };
+
+        if (Points.IsDelta) parts.Insert(0, $"difference against {CompareName}");
+
+        if (mask.FiltersApplied)
+            parts.Add($"{Points.Filtered:N0} of {mask.Total:N0} excluded by filters");
+
+        // Said rather than absorbed: a scatter quietly missing a third of the
+        // log would look like a sparser drive than it was.
+        if (Points.Dropped > 0)
+            parts.Add($"{Points.Dropped:N0} with a reading missing");
+
+        if (mask.UnknownChannels.Count > 0)
+            parts.Add($"not in this log: {string.Join(", ", mask.UnknownChannels.Distinct())}");
+
+        Hint = string.Join("   •   ", parts);
+    }
+
     public void RebuildHistogram(int firstSample, int lastSample)
     {
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
@@ -3586,6 +3662,16 @@ public sealed class MainViewModel : ObservableObject
         Hint = $"Saved the {table.Columns}×{table.Rows} table to {Path.GetFileName(path)}";
     }
 
+    /// <summary>Writes the points behind the current scatter, one row per sample.</summary>
+    public void ExportPointsCsv(string path)
+    {
+        if (Points is not { Count: > 0 } points) return;
+
+        WriteAtomic(path, writer => CsvExport.WritePoints(writer, points));
+
+        Hint = $"Saved {points.Count:N0} points to {Path.GetFileName(path)}";
+    }
+
     /// <summary>
     /// Written to a temporary file and moved into place. An export interrupted
     /// part way leaves the previous file intact rather than a truncated one that
@@ -3715,6 +3801,39 @@ public sealed class MainViewModel : ObservableObject
 
         Hint = $"{where} — {table.Format(cell.Column, cell.Row)} from {samples:N0} samples over " +
                $"{visitText}. Showing the longest ({longest.Last - longest.First + 1:N0} samples).";
+    }
+
+    /// <summary>
+    /// The same account for a mark on the scatter, with the spread named. A
+    /// block whose samples disagreed is the one worth going back to the log for,
+    /// so the readout says so before the plot is even framed.
+    /// </summary>
+    public void DescribeMarkTrace(
+        ScatterPlot points,
+        ScatterBins bins,
+        (int Column, int Row) block,
+        IReadOnlyList<(int First, int Last)> visits,
+        (int First, int Last) longest)
+    {
+        int bin = bins.Index(block.Column, block.Row);
+        int count = bins.Counts[bin];
+
+        double x = bins.XMin + (block.Column + 0.5) / bins.Columns * (bins.XMax - bins.XMin);
+        double y = bins.YMin + (block.Row + 0.5) / bins.Rows * (bins.YMax - bins.YMin);
+
+        string where = $"{points.X.Name} {x:G6} · {points.Y.Name} {y:G6}";
+
+        string visitText = visits.Count == 1
+            ? "one visit"
+            : $"{visits.Count} visits, all marked";
+
+        string spread = count > 1 && bins.SpreadIn(block.Column, block.Row) > 0
+            ? $" ({points.Z.Format(bins.Lowest[bin])} to {points.Z.Format(bins.Highest[bin])})"
+            : "";
+
+        Hint = $"{where} — {points.Z.Name} {points.Z.Format(bins.Means[bin])}{spread} from " +
+               $"{count:N0} samples over {visitText}. " +
+               $"Showing the longest ({longest.Last - longest.First + 1:N0} samples).";
     }
 
     public void ResetHint() => Hint = DefaultHint;

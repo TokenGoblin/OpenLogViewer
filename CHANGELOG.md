@@ -36,6 +36,41 @@ somebody called it.
 
 ### Added
 
+**Scatter mode — a third reading of a recording.** The plot orders samples by
+time; the heat table throws time away and bins by two channels. This throws time
+away and does not bin: every sample at its own X and Y, coloured by a third
+channel. It takes the same three channels the table does, through the same
+filters and the same panel, so switching between them is a switch of view rather
+than of setup.
+
+What it shows that a table cannot is spread. A cell reading dead on target looks
+identical whether it was measured twelve times at target or six times rich and
+six times lean, and that difference is most of what a log has to say about
+whether a region of the map is settled or merely averages well.
+
+**Overplotting is what makes a naive scatter lie, so the marks are aggregated
+before anything is drawn.** A drive is tens or hundreds of thousands of samples
+concentrated in a small part of the map; drawn one mark per sample they stack
+thousands deep and the colour that survives is whichever was drawn last — an
+accident of the order the log is in, wearing the authority of a measurement.
+Samples are binned onto the display's own grid at three pixels a block instead,
+so every mark is the mean of what landed under it, and hovering one reports the
+count behind it and the range its samples covered.
+
+**The colour scale is trimmed rather than fitted to the extremes.** A wideband
+touches both rails for a moment during a transient; scaled over the full range
+those few blocks own the ramp and the drive around them draws as one flat
+colour. The ends are trimmed to the 2nd and 98th percentiles of the occupied
+blocks and anything past them saturates — still drawn, still the most extreme
+mark, still exact on hover. The legend marks a bound `≤` or `≥` only when the
+trim moved it far enough to matter, so a number that is not the largest value on
+the plot is never read as one, and a channel with no outliers is not trimmed at
+all.
+
+Clicking a mark traces it back to the log the way a table cell does, grouping
+the samples into visits and framing the longest. Export offers the points as
+CSV, carrying each sample's index in the log, and the scatter as a PNG.
+
 **Live connection to a MegaSquirt.** *Connect ▾* lists the serial ports; picking
 one reads the ECU's signature, matches an INI to it, and starts a live session.
 A live session is an ordinary log, so the sidebar, filters, calculated channels,

@@ -54,6 +54,10 @@
                               Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
                     <MenuItem Header="Table as PNG…" Click="OnExportTablePngClick"
                               Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Plotted points as CSV…" Click="OnExportPointsCsvClick"
+                              Visibility="{Binding ShowScatter, Converter={StaticResource BoolToVis}}"/>
+                    <MenuItem Header="Scatter as PNG…" Click="OnExportScatterPngClick"
+                              Visibility="{Binding ShowScatter, Converter={StaticResource BoolToVis}}"/>
                     <Separator Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
                     <MenuItem Header="{Binding ExportScope, StringFormat=CSV covers the {0}}"
                               IsEnabled="False"
@@ -83,6 +87,9 @@
                 <MenuItem Header="_Histogram" IsCheckable="True" IsChecked="{Binding ShowHistogram}"
                           IsEnabled="{Binding InLogMode}"
                           ToolTip="Bin the log into a table, like a tuning table"/>
+                <MenuItem Header="Sc_atter" IsCheckable="True" IsChecked="{Binding ShowScatter}"
+                          IsEnabled="{Binding InLogMode}"
+                          ToolTip="Every sample at its own X and Y, coloured by a third channel"/>
                 <Separator/>
                 <MenuItem Header="_Overlaid traces" IsCheckable="True" IsChecked="{Binding OverlaidLanes}"
                           IsEnabled="{Binding ShowLog}"
@@ -291,6 +298,9 @@
                     <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
                                  IsChecked="{Binding ShowHistogram}"
                                  ToolTip="Bin the log into a table, like a tuning table"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Scatter" GroupName="LogView"
+                                 IsChecked="{Binding ShowScatter}"
+                                 ToolTip="Every sample at its own X and Y, coloured by a third channel"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="12,0,0,0"
@@ -385,10 +395,12 @@
             </Grid.ColumnDefinitions>
 
             <!-- Channel sidebar -->
-            <!-- Histogram settings replace the channel list in table mode. -->
+            <!-- Axis settings replace the channel list in table and scatter modes.
+                 Both are the same three channels through the same filters, so they
+                 are chosen in one place; only what becomes of the samples differs. -->
             <Border Grid.Column="0" Background="{DynamicResource Panel}"
                     BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0"
-                    Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding ShowAxisPanel, Converter={StaticResource BoolToVis}}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="10,10,12,12">
                     <TextBlock Text="AXIS FIELDS" FontSize="10" FontWeight="SemiBold"
@@ -402,7 +414,7 @@
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding YAxis}"
                               ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
 
-                    <TextBlock Text="Z axis — the value in each cell" FontSize="11"
+                    <TextBlock Text="{Binding ZAxisCaption}" FontSize="11"
                                Foreground="{DynamicResource Muted}"/>
                     <ComboBox ItemsSource="{Binding AxisChannels}" SelectedItem="{Binding ZAxis}"
                               ItemTemplate="{StaticResource ChannelName}" Margin="0,2,0,7"/>
@@ -413,111 +425,118 @@
                               ItemTemplate="{StaticResource AxisSourceName}" Margin="0,2,0,12"
                               ToolTip="Subtract a target channel, so each cell shows how far off it is rather than what it read"/>
 
-                    <TextBlock Text="CELL VALUE" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <RadioButton Style="{StaticResource Chip}" Content="Mean" IsChecked="{Binding StatMean}"/>
-                        <RadioButton Style="{StaticResource Chip}" Content="Min" IsChecked="{Binding StatMin}"/>
-                        <RadioButton Style="{StaticResource Chip}" Content="Max" IsChecked="{Binding StatMax}"/>
-                        <RadioButton Style="{StaticResource Chip}" Content="Count" IsChecked="{Binding StatCount}"/>
-                    </StackPanel>
-
-                    <DockPanel Margin="0,0,0,2">
-                        <Button DockPanel.Dock="Right" Content="Open tune…" Padding="7,2" FontSize="10"
-                                Click="OnOpenTuneClick"
-                                ToolTip="Use tables from a .msq file instead of the one stored in the log"/>
-                        <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
-                    </DockPanel>
-
-                    <DockPanel Margin="0,0,0,4">
-                        <Button DockPanel.Dock="Right" Content="✕" Padding="5,0" FontSize="10"
-                                Click="OnClearTuneClick" ToolTip="Go back to the tune stored in the log"
-                                Visibility="{Binding UsingLoadedTune, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Text="{Binding TuneSource, StringFormat=Tune: {0}}" FontSize="10"
-                                   Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
-                    </DockPanel>
-
-                    <TextBlock Text="{Binding TuneWarning}" FontSize="10" TextWrapping="Wrap"
-                               Foreground="{DynamicResource Marker}" Margin="0,0,0,4"
-                               Visibility="{Binding HasTuneWarning, Converter={StaticResource BoolToVis}}"/>
-
-                    <ComboBox ItemsSource="{Binding AxisSources}" SelectedItem="{Binding AxisSource}"
-                              ItemTemplate="{StaticResource AxisSourceName}" Margin="0,0,0,4"
-                              ToolTip="Bin onto the tune's own table axes, so cells line up with the table you are editing"/>
-                    <TextBlock Text="No tune available, so bins come from the data. Open a .msq to use its tables."
-                               FontSize="10" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasTuneAxes}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"
-                               Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}"/>
-                    <Grid Margin="0,0,0,12"
-                          Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                            <TextBlock Text="Columns" FontSize="11" Foreground="{DynamicResource Muted}"/>
-                            <TextBox Text="{Binding HistogramColumns, UpdateSourceTrigger=PropertyChanged, Delay=400}"
-                                     Margin="0,2,0,0"/>
+                    <!-- Only the table does anything with these. A scatter has no
+                         cells to reduce, no size to choose, and nothing to bin onto
+                         the tune's breakpoints — it draws the samples where they
+                         fell. Hidden rather than disabled: a control that could
+                         never apply here is noise, not a hint. -->
+                    <StackPanel Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="CELL VALUE" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <RadioButton Style="{StaticResource Chip}" Content="Mean" IsChecked="{Binding StatMean}"/>
+                            <RadioButton Style="{StaticResource Chip}" Content="Min" IsChecked="{Binding StatMin}"/>
+                            <RadioButton Style="{StaticResource Chip}" Content="Max" IsChecked="{Binding StatMax}"/>
+                            <RadioButton Style="{StaticResource Chip}" Content="Count" IsChecked="{Binding StatCount}"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                            <TextBlock Text="Rows" FontSize="11" Foreground="{DynamicResource Muted}"/>
-                            <TextBox Text="{Binding HistogramRows, UpdateSourceTrigger=PropertyChanged, Delay=400}"
-                                     Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Grid>
 
-                    <!-- VE Calibration. Only offered once the axis source carries the
-                         tune's numbers, since it can only suggest a change to a
-                         value it can read. -->
-                    <TextBlock Text="VE CALIBRATION" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
+                        <DockPanel Margin="0,0,0,2">
+                            <Button DockPanel.Dock="Right" Content="Open tune…" Padding="7,2" FontSize="10"
+                                    Click="OnOpenTuneClick"
+                                    ToolTip="Use tables from a .msq file instead of the one stored in the log"/>
+                            <TextBlock Text="AXIS BREAKPOINTS" FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                        </DockPanel>
 
-                    <CheckBox Content="Suggest a new fuel table" IsChecked="{Binding VeAnalyze}"
-                              IsEnabled="{Binding VeAvailable}" FontSize="11" Margin="0,0,0,4"
-                              ToolTip="Compare logged AFR against the target and scale the tune's cells to match"/>
+                        <DockPanel Margin="0,0,0,4">
+                            <Button DockPanel.Dock="Right" Content="✕" Padding="5,0" FontSize="10"
+                                    Click="OnClearTuneClick" ToolTip="Go back to the tune stored in the log"
+                                    Visibility="{Binding UsingLoadedTune, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="{Binding TuneSource, StringFormat=Tune: {0}}" FontSize="10"
+                                       Foreground="{DynamicResource Faint}" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
 
-                    <TextBlock Text="{Binding VeSummary}" FontSize="10" TextWrapping="Wrap"
-                               Foreground="{DynamicResource Faint}" Margin="0,0,0,5"
-                               Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="{Binding TuneWarning}" FontSize="10" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Marker}" Margin="0,0,0,4"
+                                   Visibility="{Binding HasTuneWarning, Converter={StaticResource BoolToVis}}"/>
 
-                    <StackPanel Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"
-                                Margin="0,0,0,10">
-                        <CheckBox Content="Show the new numbers" IsChecked="{Binding VeShowSuggested}"
-                                  FontSize="11" Margin="0,0,0,5"
-                                  ToolTip="Off shows how far each cell moves, as a percentage"/>
-                        <Grid>
+                        <ComboBox ItemsSource="{Binding AxisSources}" SelectedItem="{Binding AxisSource}"
+                                  ItemTemplate="{StaticResource AxisSourceName}" Margin="0,0,0,4"
+                                  ToolTip="Bin onto the tune's own table axes, so cells line up with the table you are editing"/>
+                        <TextBlock Text="No tune available, so bins come from the data. Open a .msq to use its tables."
+                                   FontSize="10" Foreground="{DynamicResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasTuneAxes}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Text="TABLE SIZE" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Muted}" Margin="0,0,0,5"
+                                   Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}"/>
+                        <Grid Margin="0,0,0,12"
+                              Visibility="{Binding UsingDataAxes, Converter={StaticResource BoolToVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="6"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Min samples" FontSize="10"
-                                           Foreground="{DynamicResource Faint}"/>
-                                <TextBox Text="{Binding VeMinimumSamples, UpdateSourceTrigger=LostFocus}"
-                                         ToolTip="A cell with fewer samples is left alone"/>
+                            <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                <TextBlock Text="Columns" FontSize="11" Foreground="{DynamicResource Muted}"/>
+                                <TextBox Text="{Binding HistogramColumns, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                                         Margin="0,2,0,0"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Max change %" FontSize="10"
-                                           Foreground="{DynamicResource Faint}"/>
-                                <TextBox Text="{Binding VeMaxChange, UpdateSourceTrigger=LostFocus}"
-                                         ToolTip="Largest move suggested for one pass"/>
+                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                <TextBlock Text="Rows" FontSize="11" Foreground="{DynamicResource Muted}"/>
+                                <TextBox Text="{Binding HistogramRows, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                                         Margin="0,2,0,0"/>
                             </StackPanel>
                         </Grid>
+
+                        <!-- VE Calibration. Only offered once the axis source carries the
+                             tune's numbers, since it can only suggest a change to a
+                             value it can read. -->
+                        <TextBlock Text="VE CALIBRATION" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Muted}" Margin="0,0,0,5"/>
+
+                        <CheckBox Content="Suggest a new fuel table" IsChecked="{Binding VeAnalyze}"
+                                  IsEnabled="{Binding VeAvailable}" FontSize="11" Margin="0,0,0,4"
+                                  ToolTip="Compare logged AFR against the target and scale the tune's cells to match"/>
+
+                        <TextBlock Text="{Binding VeSummary}" FontSize="10" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Faint}" Margin="0,0,0,5"
+                                   Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"/>
+
+                        <StackPanel Visibility="{Binding VeAnalyze, Converter={StaticResource BoolToVis}}"
+                                    Margin="0,0,0,10">
+                            <CheckBox Content="Show the new numbers" IsChecked="{Binding VeShowSuggested}"
+                                      FontSize="11" Margin="0,0,0,5"
+                                      ToolTip="Off shows how far each cell moves, as a percentage"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Min samples" FontSize="10"
+                                               Foreground="{DynamicResource Faint}"/>
+                                    <TextBox Text="{Binding VeMinimumSamples, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="A cell with fewer samples is left alone"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Max change %" FontSize="10"
+                                               Foreground="{DynamicResource Faint}"/>
+                                    <TextBox Text="{Binding VeMaxChange, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="Largest move suggested for one pass"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
 
                     <TextBlock Text="DISPLAY" FontSize="10" FontWeight="SemiBold"
@@ -930,6 +949,8 @@
                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
             <local:HistogramView Grid.Column="2" x:Name="Histogram"
                                  Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
+            <local:ScatterView Grid.Column="2" x:Name="Scatter" Cursor="Cross"
+                               Visibility="{Binding ShowScatter, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         <!-- Gauge mode: the firmware's own dials over a live connection. -->
