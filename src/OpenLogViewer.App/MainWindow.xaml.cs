@@ -611,6 +611,30 @@ public partial class MainWindow : Window
             : _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading);
     }
 
+    /// <summary>Opens a saved tune and one of its settings pages, for a scripted run.</summary>
+    public void ShowSavedTune(string msqPath, string? page = null)
+    {
+        _vm.Mode = WorkspaceMode.Calibration;
+
+        if (!_vm.OpenSavedTune(msqPath)) { Report(_vm.EcuTuneSummary); return; }
+
+        _vm.ShowSettingsPages = true;
+
+        _vm.OpenMenuEntry = page is { Length: > 0 }
+            ? _vm.SettingsMenu.FirstOrDefault(
+                  m => !m.IsHeading && m.Title.Contains(page, StringComparison.OrdinalIgnoreCase))
+              ?? _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading)
+            : _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading);
+
+        Report(_vm.EcuTuneSummary);
+    }
+
+    /// <summary>Compares the tune in hand with a file, for a scripted run.</summary>
+    public void CompareTune(string msqPath) => Report(_vm.CompareWithSavedTune(msqPath));
+
+    /// <summary>Writes the tune in hand to a file, for a scripted run.</summary>
+    public void SaveTune(string msqPath) => Report(_vm.SaveTuneToFile(msqPath));
+
     /// <summary>
     /// Opens a settings page of whatever tune is loaded, live or otherwise, for
     /// a scripted run.
@@ -2502,6 +2526,57 @@ public partial class MainWindow : Window
             LoadTuneFile(files[0]);
         else
             LoadFile(files[0]);
+    }
+
+    /// <summary>
+    /// Writes the settings to a .msq.
+    ///
+    /// A tune that exists only in an ECU is one power supply away from being
+    /// gone, and this is the format the rest of the tuning world reads.
+    /// </summary>
+    private void OnSaveTuneFileClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save the tune",
+            Filter = "TunerStudio tune|*.msq",
+            DefaultExt = ".msq",
+            FileName = $"{DateTime.Now:yyyy-MM-dd_HH.mm.ss}.msq",
+        };
+
+        if (dialog.ShowDialog(this) == true) Report(_vm.SaveTuneToFile(dialog.FileName));
+    }
+
+    /// <summary>Opens a saved tune and the settings pages of the firmware it belongs to.</summary>
+    private void OnOpenSavedTuneClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Open a saved tune",
+            Filter = "TunerStudio tune|*.msq|All files|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        _vm.Mode = WorkspaceMode.Calibration;
+
+        if (_vm.OpenSavedTune(dialog.FileName)) _vm.ShowSettingsPages = true;
+
+        Report(_vm.EcuTuneSummary);
+    }
+
+    /// <summary>Says what a file and the tune in hand disagree about.</summary>
+    private void OnCompareTuneClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Compare with a saved tune",
+            Filter = "TunerStudio tune|*.msq|All files|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true) Report(_vm.CompareWithSavedTune(dialog.FileName));
     }
 
     private void OnOpenTuneClick(object sender, RoutedEventArgs e)

@@ -94,6 +94,23 @@ public sealed class ViewModelHarness : IDisposable
             new MathChannelStore(Path.Combine(directory, "math.json")));
     }
 
+    /// <summary>
+    /// Puts a firmware definition where the view model will find it, and points
+    /// the workspace at a temporary folder so it is looking somewhere of its
+    /// own rather than at whatever this machine has installed.
+    /// </summary>
+    public void PutDefinition(MainViewModel viewModel, string iniPath)
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"olv-workspace-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        _temp.Add(root);
+
+        viewModel.SetDataFolder(root);
+
+        string folder = viewModel.Workspace.EnsureDefinitions();
+        File.Copy(iniPath, Path.Combine(folder, Path.GetFileName(iniPath)), overwrite: true);
+    }
+
     public void Dispose()
     {
         foreach (string path in _temp)
