@@ -202,6 +202,55 @@ public sealed class TuneSettingsEdit
     /// </summary>
     public int BytesToWrite => Writes().Sum(w => w.Data.Length);
 
+    /// <summary>
+    /// Pages this would write to, which are the pages a burn would have to
+    /// commit.
+    /// </summary>
+    public IReadOnlyList<int> PagesToWrite => [.. Writes().Select(w => w.Page).Distinct().Order()];
+
+    /// <summary>
+    /// Drops the changes the ECU has taken, keeping the ones it has not.
+    ///
+    /// Called after sending. A send is not one write but several, and one of
+    /// them failing leaves the earlier ones applied — so what is still
+    /// outstanding cannot be "all of it" or "none of it". Asking which settings
+    /// still differ from the controller answers it exactly, and needs no record
+    /// of which writes got through.
+    /// </summary>
+    public void Reconcile()
+    {
+        foreach (string key in _order.ToArray())
+        {
+            if (!_changed.ContainsKey(key)) continue;
+
+            (string name, int element) = Split(key);
+
+            // A text setting has no number to compare, so it is judged by its
+            // characters instead.
+            bool settled = _tune.Constant(name) is { IsText: true }
+                ? _tune.TextIn(_working, name) == _tune.TextIn(_tune.Pages, name)
+                : Same(_tune.ValueIn(_working, name, element), _tune.ValueIn(_tune.Pages, name, element));
+
+            if (!settled) continue;
+
+            _changed.Remove(key);
+            _original.Remove(key);
+            _order.Remove(key);
+        }
+    }
+
+    private static bool Same(double? a, double? b) =>
+        a is null || b is null ? a is null && b is null : Math.Abs(a.Value - b.Value) < 1e-12;
+
+    private static (string Name, int Element) Split(string key)
+    {
+        int open = key.IndexOf('[', StringComparison.Ordinal);
+
+        return open > 0 && key.EndsWith(']') && int.TryParse(key[(open + 1)..^1], out int element)
+            ? (key[..open], element)
+            : (key, 0);
+    }
+
     private void Remember(string key, double before, double after)
     {
         _original.TryAdd(key, before);
