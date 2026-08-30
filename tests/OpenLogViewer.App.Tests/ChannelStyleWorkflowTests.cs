@@ -38,6 +38,26 @@ public class ChannelStyleWorkflowTests : IDisposable
 
     private static ChannelItem Rpm(MainViewModel vm) => vm.Channels.First(c => c.Name == "RPM");
 
+    /// <summary>
+    /// A log whose channels carry real units, which the typical one does not.
+    /// Nothing converts without them, so a unit test written against a unitless
+    /// channel passes whatever the conversion does.
+    /// </summary>
+    private MainViewModel LoadedWithUnits()
+    {
+        var clt = new double[40];
+        var rpm = new double[40];
+        for (int i = 0; i < 40; i++)
+        {
+            clt[i] = 60 + (i * 0.5);
+            rpm[i] = 800 + (i * 100);
+        }
+
+        MainViewModel vm = NewViewModel();
+        vm.Load(_harness.WriteCsv(("CLT (C)", clt), ("RPM (rpm)", rpm)));
+        return vm;
+    }
+
     public void Dispose()
     {
         _harness.Dispose();
@@ -346,6 +366,74 @@ public class ChannelStyleWorkflowTests : IDisposable
 
         Assert.False(vm.EditingStyle);
         Assert.False(rpm.HasFixedRange);
+    }
+
+    [Fact]
+    public void TheEditorSeedsAndReadsBackInTheUnitsOnScreen()
+    {
+        // The failure this prevents: the lane axis reads 176…203 °F, the editor
+        // seeds 80…95 (°C), the user types 160 and 220 meaning °F, and the trace
+        // is pinned to 160…220 °C — a range the channel never reaches.
+        MainViewModel vm = LoadedWithUnits();
+        vm.Units = UnitSystem.Imperial;
+
+        ChannelItem clt = vm.Channels.First(c => c.Name == "CLT");
+        Assert.True(UnitConvert.Converts(clt.Channel.Units, UnitSystem.Imperial),
+            "this test is only meaningful on a channel whose units convert");
+
+        vm.BeginStyleEdit(clt);
+
+        // Seeded in Fahrenheit, like the axis beside it.
+        double seededLow = double.Parse(vm.StyleMin, CultureInfo.InvariantCulture);
+        Assert.Equal(
+            UnitConvert.Value(clt.Scale(holdSteady: true).Min, clt.Channel.Units, UnitSystem.Imperial),
+            seededLow,
+            precision: 2);
+
+        vm.StyleMin = "160";
+        vm.StyleMax = "220";
+        Assert.True(vm.CommitStyleEdit());
+
+        // Stored in the log's own units, so the pin means the same range
+        // whichever system is chosen later.
+        (double min, double range) = clt.Scale(holdSteady: true);
+
+        Assert.Equal(UnitConvert.ToReported(160, clt.Channel.Units, UnitSystem.Imperial), min, precision: 4);
+        Assert.Equal(UnitConvert.ToReported(220, clt.Channel.Units, UnitSystem.Imperial), min + range, precision: 4);
+    }
+
+    [Fact]
+    public void ReopeningTheEditorShowsBackWhatWasTyped()
+    {
+        // A conversion that did not invert exactly would drift the range a
+        // little every time the editor was opened and applied.
+        MainViewModel vm = LoadedWithUnits();
+        vm.Units = UnitSystem.Imperial;
+
+        ChannelItem clt = vm.Channels.First(c => c.Name == "CLT");
+
+        vm.BeginStyleEdit(clt);
+        vm.StyleMin = "160";
+        vm.StyleMax = "220";
+        vm.CommitStyleEdit();
+
+        vm.BeginStyleEdit(clt);
+
+        Assert.Equal(160.0, double.Parse(vm.StyleMin, CultureInfo.InvariantCulture), precision: 3);
+        Assert.Equal(220.0, double.Parse(vm.StyleMax, CultureInfo.InvariantCulture), precision: 3);
+    }
+
+    [Fact]
+    public void TheEditorSaysWhichUnitItWants()
+    {
+        MainViewModel vm = LoadedWithUnits();
+        vm.Units = UnitSystem.Imperial;
+
+        ChannelItem clt = vm.Channels.First(c => c.Name == "CLT");
+        vm.BeginStyleEdit(clt);
+
+        Assert.True(vm.HasStyleUnits);
+        Assert.Equal(clt.Units, vm.StyleUnits);
     }
 
     [Fact]

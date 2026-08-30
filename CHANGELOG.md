@@ -97,6 +97,11 @@ it would produce plausible breakpoints and a VE suggestion resting on them.
 row. Both are held by name in `channels.json`, so a choice made on one log
 applies to every other carrying that channel.
 
+The editor takes and shows its bounds in whichever units the list is showing,
+and says which — the axis beside it reads °F, so the boxes do too — while the
+pin itself is stored in the log's own units, so it means the same range whatever
+system is chosen later.
+
 The fixed scale is the more useful half. Auto-scaling every trace to its own
 range is what lets a dozen channels in different units share a plot, and it
 costs comparability: the same channel is drawn over a different range in every

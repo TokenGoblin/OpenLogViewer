@@ -1,4 +1,4 @@
-using OpenLogViewer.Core;
+﻿using OpenLogViewer.Core;
 using Xunit;
 
 namespace OpenLogViewer.Tests;
@@ -186,4 +186,48 @@ public class UnitConvertTests
 
         Assert.Equal("3000 rpm", rpm.FormatWithUnits(3000, UnitSystem.Imperial));
     }
+
+    // ----- back the other way -----------------------------------------------
+
+    [Theory]
+    [InlineData("C", UnitSystem.Imperial, 212.0, 100.0)]
+    [InlineData("C", UnitSystem.Imperial, 32.0, 0.0)]
+    [InlineData("F", UnitSystem.Metric, 100.0, 212.0)]
+    [InlineData("kph", UnitSystem.Imperial, 100.0, 160.9344)]
+    [InlineData("mph", UnitSystem.Metric, 160.9344, 100.0)]
+    [InlineData("kpa", UnitSystem.Imperial, 14.503773773020923, 100.0)]
+    public void ATypedValueComesBackInTheUnitsTheLogUses(
+        string units, UnitSystem from, double typed, double expected) =>
+        Assert.Equal(expected, UnitConvert.ToReported(typed, units, from), precision: 6);
+
+    [Theory]
+    [InlineData("C", UnitSystem.Imperial, 87.5)]
+    [InlineData("F", UnitSystem.Metric, 187.5)]
+    [InlineData("kph", UnitSystem.Imperial, 137.5)]
+    [InlineData("mph", UnitSystem.Metric, 87.5)]
+    [InlineData("kpa", UnitSystem.Imperial, 137.5)]
+    [InlineData("psi", UnitSystem.Metric, 17.5)]
+    [InlineData("rpm", UnitSystem.Imperial, 4500)]
+    [InlineData("", UnitSystem.Metric, 12.5)]
+    public void ShowingAValueAndTypingItBackGivesTheSameNumber(
+        string units, UnitSystem system, double raw)
+    {
+        // The round trip a pinned scale makes: seeded into the editor in the
+        // units on screen, typed back, stored raw. A conversion that did not
+        // invert exactly would move a pinned range every time it was reopened.
+        double shown = UnitConvert.Value(raw, units, system);
+
+        Assert.Equal(raw, UnitConvert.ToReported(shown, units, system), precision: 9);
+    }
+
+    [Fact]
+    public void AsReportedConvertsNeitherWay()
+    {
+        Assert.Equal(90.0, UnitConvert.Value(90.0, "C", UnitSystem.AsReported));
+        Assert.Equal(90.0, UnitConvert.ToReported(90.0, "C", UnitSystem.AsReported));
+    }
+
+    [Fact]
+    public void AMissingReadingStaysMissingComingBack() =>
+        Assert.True(double.IsNaN(UnitConvert.ToReported(double.NaN, "C", UnitSystem.Imperial)));
 }

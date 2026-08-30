@@ -734,6 +734,10 @@ Pinning RPM to 0…8000 gives that back for the channels where it matters. The
 editor opens seeded with the range the channel is drawn over now, and clearing
 both boxes goes back to automatic.
 
+The boxes take and show their bounds in the units the list is showing, and say
+which. The pin itself is stored in the log's own units, so switching between
+metric and imperial redraws the labels without moving the range.
+
 A pinned scale is used exactly as given — the steady-channel floor is not
 applied on top of it, since somebody who named a range has already answered the
 question it exists to ask. In stacked lanes the labels report the range the lane

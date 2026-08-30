@@ -102,11 +102,21 @@ public sealed class ScatterView : FrameworkElement
         Invalidate();
     }
 
-    /// <summary>Throws away the binned marks, so the next render rebuilds them.</summary>
+    /// <summary>
+    /// Throws away the binned marks, so the next render rebuilds them.
+    ///
+    /// The hover goes with them. It is a position on the grid that is about to
+    /// stop existing, and on a grid that comes back smaller — the window
+    /// restored down, or the status line wrapping to a second line — it would
+    /// index past the new arrays during the very next render, before any mouse
+    /// event could correct it. It also no longer means anything: the block under
+    /// that point is not the block that was under it.
+    /// </summary>
     private void Invalidate()
     {
         _bins = null;
         _marks = null;
+        _hover = (-1, -1);
         InvalidateVisual();
     }
 
@@ -362,6 +372,11 @@ public sealed class ScatterView : FrameworkElement
     {
         (int column, int row) = _hover;
         if (column < 0 || row < 0) return;
+
+        // Against this grid, not whichever one the hover was recorded on. An
+        // out-of-range index here throws inside OnRender, which is an unhandled
+        // dispatcher exception rather than a mark drawn in the wrong place.
+        if (column >= bins.Columns || row >= bins.Rows) return;
 
         double blockWidth = area.Width / bins.Columns;
         double blockHeight = area.Height / bins.Rows;
