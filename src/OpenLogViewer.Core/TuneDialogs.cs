@@ -270,7 +270,7 @@ public static partial class TuneInterfaceReader
 
                 case "submenu":
                 {
-                    (string[] parts, string condition) = Arguments(rest);
+                    (string[] parts, string condition, _) = Arguments(rest);
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     menuEntries.Add(new MenuEntry(
@@ -284,7 +284,7 @@ public static partial class TuneInterfaceReader
                 {
                     CloseDialog();
 
-                    (string[] parts, _) = Arguments(rest);
+                    (string[] parts, _, _) = Arguments(rest);
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     dialogName = parts[0];
@@ -303,9 +303,24 @@ public static partial class TuneInterfaceReader
                 case "field":
                 case "displayonlyfield":
                 {
-                    (string[] parts, string condition) = Arguments(rest);
+                    (string[] parts, string condition, int conditionAt) = Arguments(rest);
                     string label = parts.Length > 0 ? Unquote(parts[0]) : "";
                     string constant = parts.Length > 1 ? parts[1] : "";
+
+                    // An expression standing alone where the constant belongs is
+                    // a computed caption, not a rule about when to show the line:
+                    //     displayOnlyField = "Injector A", { bitStringValue(…) }
+                    // Read as a condition it would hide the field whenever that
+                    // text happened to evaluate to zero.
+                    //
+                    // Standing alone is the test, not merely being in that
+                    // position: a condition may also trail a constant inside the
+                    // same argument, and there the constant is a constant.
+                    if (conditionAt == 1 && constant.Length == 0)
+                    {
+                        items.Add(new DialogItem(DialogItemKind.Label, label));
+                        break;
+                    }
 
                     // A field naming no constant is a caption or a blank line
                     // between groups, and there are a great many of both.
@@ -321,7 +336,7 @@ public static partial class TuneInterfaceReader
 
                 case "panel":
                 {
-                    (string[] parts, string condition) = Arguments(rest);
+                    (string[] parts, string condition, _) = Arguments(rest);
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     // A panel may carry a position, a condition, both or neither.
@@ -336,7 +351,7 @@ public static partial class TuneInterfaceReader
 
                 case "commandbutton":
                 {
-                    (string[] parts, string condition) = Arguments(rest);
+                    (string[] parts, string condition, _) = Arguments(rest);
                     if (parts.Length < 2 || parts[1].Length == 0) break;
 
                     items.Add(new DialogItem(
@@ -346,7 +361,7 @@ public static partial class TuneInterfaceReader
 
                 case "slider":
                 {
-                    (string[] parts, string condition) = Arguments(rest);
+                    (string[] parts, string condition, _) = Arguments(rest);
                     if (parts.Length < 2 || parts[1].Length == 0) break;
 
                     items.Add(new DialogItem(
@@ -356,7 +371,7 @@ public static partial class TuneInterfaceReader
 
                 case "gauge":
                 {
-                    (string[] parts, _) = Arguments(rest);
+                    (string[] parts, _, _) = Arguments(rest);
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     items.Add(new DialogItem(DialogItemKind.Gauge, "", parts[0]));
@@ -454,10 +469,11 @@ public static partial class TuneInterfaceReader
     /// empty pair of braces is not a condition and must not be mistaken for the
     /// constant either.
     /// </summary>
-    private static (string[] Parts, string Condition) Arguments(string rest)
+    private static (string[] Parts, string Condition, int ConditionAt) Arguments(string rest)
     {
         var parts = new List<string>();
         string condition = "";
+        int conditionAt = -1;
 
         foreach (string raw in Split(rest))
         {
@@ -470,7 +486,11 @@ public static partial class TuneInterfaceReader
 
                 // The last one that says something. A line may carry several
                 // placeholders before the real condition.
-                if (found.Length > 0) condition = found;
+                if (found.Length > 0)
+                {
+                    condition = found;
+                    conditionAt = parts.Count;
+                }
 
                 value = value[..brace].Trim();
             }
@@ -496,7 +516,7 @@ public static partial class TuneInterfaceReader
 
         while (parts.Count > 0 && parts[^1].Length == 0) parts.RemoveAt(parts.Count - 1);
 
-        return ([.. parts], condition);
+        return ([.. parts], condition, conditionAt);
     }
 
     /// <summary>Whether the text is a bare name, rather than punctuation or prose.</summary>
