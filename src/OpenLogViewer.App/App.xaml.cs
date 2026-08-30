@@ -41,6 +41,7 @@ public partial class App : Application
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
+        "--open-tune", "--save-tune", "--compare-tune",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -308,6 +309,28 @@ public partial class App : Application
                     ? e.Args[livePage + 1]
                     : null);
         }
+
+        // "--open-tune <msq> --page Rev" opens a saved tune and one of its
+        // settings pages, which needs no controller.
+        int openTune = Array.IndexOf(e.Args, "--open-tune");
+        if (openTune >= 0 && openTune + 1 < e.Args.Length)
+        {
+            int page = Array.IndexOf(e.Args, "--page");
+
+            window.ShowSavedTune(
+                e.Args[openTune + 1],
+                page >= 0 && page + 1 < e.Args.Length ? e.Args[page + 1] : null);
+        }
+
+        // "--compare-tune <msq>" says what a file and the tune in hand differ
+        // about, and "--save-tune <msq>" writes the tune in hand to one.
+        int compareTune = Array.IndexOf(e.Args, "--compare-tune");
+        if (compareTune >= 0 && compareTune + 1 < e.Args.Length)
+            window.CompareTune(e.Args[compareTune + 1]);
+
+        int saveTune = Array.IndexOf(e.Args, "--save-tune");
+        if (saveTune >= 0 && saveTune + 1 < e.Args.Length)
+            window.SaveTune(e.Args[saveTune + 1]);
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)

@@ -21,7 +21,7 @@ public enum ChannelSort
     Plotted,
 }
 
-public sealed class MainViewModel : ObservableObject
+public sealed partial class MainViewModel : ObservableObject
 {
     /// <summary>
     /// Trace colours, from this view model's own theme rather than the global
@@ -1760,6 +1760,7 @@ public sealed class MainViewModel : ObservableObject
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
             TuneIsPlaceholder = true;
+            TuneIsFromFile = false;
 
             // And everything belonging to the tune that was open until now. A
             // page left on screen stays bound to the edit just thrown away, so
@@ -1806,6 +1807,7 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(CanWriteSettings));
             Raise(nameof(CanBurn));
             Raise(nameof(CanBurnSettings));
+            Raise(nameof(CanSaveTune));
         }
     }
 
@@ -1825,13 +1827,14 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Whether there is something to send, and somewhere to send it.</summary>
     public bool CanWriteSettings =>
         HasSettingChanges && _ecuConnection is not null && _tuneLayout is not null
-        && !TuneIsPlaceholder;
+        && !TuneIsPlaceholder && !TuneIsFromFile;
 
     /// <summary>Pages written since the tune was read, which a burn would commit.</summary>
     private readonly SortedSet<int> _settingsPagesWritten = [];
 
     public bool CanBurnSettings =>
-        _settingsPagesWritten.Count > 0 && _ecuConnection is not null && !TuneIsPlaceholder;
+        _settingsPagesWritten.Count > 0 && _ecuConnection is not null && !TuneIsPlaceholder
+        && !TuneIsFromFile;
 
     /// <summary>What a confirmation needs to say before anything is sent.</summary>
     public int SettingsChangedCount => _settingsEdit?.ChangedCount ?? 0;
@@ -2080,7 +2083,8 @@ public sealed class MainViewModel : ObservableObject
     /// button that looks live with no ECU behind it is an offer this cannot keep.
     /// </summary>
     public bool CanBurn =>
-        _ecuConnection is not null && _tuneLayout is not null && !TuneIsPlaceholder;
+        _ecuConnection is not null && _tuneLayout is not null && !TuneIsPlaceholder
+        && !TuneIsFromFile;
 
     /// <summary>What is selected and what has been changed, for the calibration header.</summary>
     public string TableEditSummary
@@ -2469,6 +2473,8 @@ public sealed class MainViewModel : ObservableObject
         _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _settingsPagesWritten.Clear();
         TuneIsPlaceholder = false;
+        TuneIsFromFile = false;
+        _tuneFile = null;
         EcuTables.Clear();
         SettingsMenu.Clear();
 
@@ -2528,6 +2534,7 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(EcuTableSummary));
             Raise(nameof(HasSettingsPages));
             Raise(nameof(SettingsSummary));
+            Raise(nameof(CanSaveTune));
 
             // The first one is the biggest, which is the one worth opening on.
             SelectedEcuTable = EcuTables.FirstOrDefault();
@@ -3520,6 +3527,12 @@ public sealed class MainViewModel : ObservableObject
         _projectTune = ReadProjectTune(ini.Path);
 
         _ecuConnection = connection;
+
+        // Kept so a tune read off this controller can be written to a file that
+        // says which firmware it belongs to. Without it the file is a list of
+        // numbers nobody — this program included — can place.
+        _ecuSignature = signature;
+
         ReadTuneFromEcu(connection, iniText);
         SeedGauges(iniText, datalog);
 

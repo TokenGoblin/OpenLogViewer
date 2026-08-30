@@ -147,6 +147,15 @@
                           IsChecked="{Binding SingleRequestBlock}"
                           ToolTip="Faster where the firmware allows it, fatal where it does not"/>
                 <Separator/>
+                <MenuItem Header="_Save the tune to a file…" Click="OnSaveTuneFileClick"
+                          IsEnabled="{Binding CanSaveTune}"
+                          ToolTip="Write every setting to a .msq — a backup, and the format TunerStudio reads"/>
+                <MenuItem Header="_Open a saved tune…" Click="OnOpenSavedTuneClick"
+                          ToolTip="Open a .msq and its firmware's settings pages, with no ECU attached"/>
+                <MenuItem Header="Co_mpare with a saved tune…" Click="OnCompareTuneClick"
+                          IsEnabled="{Binding HasEcuTune}"
+                          ToolTip="Says which settings the file and the tune in hand disagree about"/>
+                <Separator/>
                 <MenuItem Header="_ECU definition files…" Click="OnDefinitionsClick"
                           ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
                 <Separator/>
@@ -1471,9 +1480,18 @@
                                             </TextBox.Style>
                                         </TextBox>
 
+                                        <!-- Its own foreground, not the one it would
+                                             inherit: a combo box takes the colour from
+                                             its parent while drawing on the system's own
+                                             control background, so on a dark theme it
+                                             ends up light grey on white and can barely
+                                             be read. The text box beside it does not,
+                                             which is why only one of the two looked
+                                             wrong. -->
                                         <ComboBox Grid.Column="1" FontSize="12"
                                                   ItemsSource="{Binding Options}"
                                                   SelectedItem="{Binding Value}"
+                                                  Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                                                   ToolTip="{Binding Original, StringFormat=In the ECU: {0}}">
                                             <ComboBox.Style>
                                                 <Style TargetType="ComboBox">
