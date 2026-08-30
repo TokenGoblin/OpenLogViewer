@@ -40,6 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
+        "--find",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -270,6 +271,10 @@ public partial class App : Application
                 window.ActivateMark(column, row);
             }
         }
+
+        // "--find \"RPM > 4000\"" opens the find bar and frames the first hit.
+        int find = Array.IndexOf(e.Args, "--find");
+        if (find >= 0 && find + 1 < e.Args.Length) window.FindInLog(e.Args[find + 1]);
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)

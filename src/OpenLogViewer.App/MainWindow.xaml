@@ -98,6 +98,9 @@
                           IsEnabled="{Binding ShowLog}"
                           ToolTip="Each channel gets its own strip — best when several are plotted"/>
                 <Separator/>
+                <MenuItem Header="_Find in the log…" Click="OnFindMenuClick"
+                          IsEnabled="{Binding ShowLog}" InputGestureText="Ctrl+F"
+                          ToolTip="Jump to where a condition held — RPM &gt; 4000 &amp;&amp; TPS &gt; 80"/>
                 <MenuItem Header="_Reset zoom" Click="OnResetZoomClick" IsEnabled="{Binding ShowLog}"/>
                 <MenuItem x:Name="HoldSteadyItem" Header="Draw steady channels as steady"
                           IsCheckable="True" IsChecked="True" Click="OnHoldSteadyClick"
@@ -1017,8 +1020,39 @@
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Background="{DynamicResource Line}"/>
 
-            <local:LogPlot Grid.Column="2" x:Name="Plot" Cursor="Cross"
-                           Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}"/>
+            <!-- The plot, with the find bar above it. Docked rather than put in
+                 the toolbar: it belongs to the recording being read, appears only
+                 when asked for, and takes the width it needs for a condition. -->
+            <DockPanel Grid.Column="2"
+                       Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
+                <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
+                        BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1"
+                        Padding="8,6"
+                        Visibility="{Binding Finding, Converter={StaticResource BoolToVis}}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="Find" FontSize="11"
+                                   Foreground="{DynamicResource Muted}"
+                                   VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <Button DockPanel.Dock="Right" Content="✕" Padding="6,2" FontSize="10"
+                                Margin="6,0,0,0" Click="OnCloseFindClick" ToolTip="Close the find bar"/>
+                        <Button DockPanel.Dock="Right" Content="Next ▸" Padding="8,2" FontSize="11"
+                                Margin="4,0,0,0" Click="OnFindNextClick"
+                                IsEnabled="{Binding CanStepFindings}"/>
+                        <Button DockPanel.Dock="Right" Content="◂ Prev" Padding="8,2" FontSize="11"
+                                Margin="4,0,0,0" Click="OnFindPreviousClick"
+                                IsEnabled="{Binding CanStepFindings}"/>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding FindSummary}" FontSize="10"
+                                   Foreground="{DynamicResource Faint}" VerticalAlignment="Center"
+                                   Margin="10,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                        <TextBox x:Name="FindBox" MinWidth="180"
+                                 Text="{Binding FindCondition, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="OnFindBoxKeyDown"
+                                 ToolTip="A condition, in the same syntax as a calculated channel — RPM &gt; 4000 &amp;&amp; TPS &gt; 80"/>
+                    </DockPanel>
+                </Border>
+
+                <local:LogPlot x:Name="Plot" Cursor="Cross"/>
+            </DockPanel>
             <local:HistogramView Grid.Column="2" x:Name="Histogram"
                                  Visibility="{Binding ShowHistogram, Converter={StaticResource BoolToVis}}"/>
             <local:ScatterView Grid.Column="2" x:Name="Scatter" Cursor="Cross"
