@@ -1559,6 +1559,13 @@ public sealed class MainViewModel : ObservableObject
 
     private TuneInterface? _ecuInterface;
     private TuneSettingsEdit? _settingsEdit;
+
+    /// <summary>
+    /// Values the firmware defines as expressions over other values, which its
+    /// dialogs are then written against.
+    /// </summary>
+    private IReadOnlyDictionary<string, string> _derived =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private SettingsMenuEntry? _openMenuEntry;
 
     /// <summary>Everything the firmware offers, flattened into one list.</summary>
@@ -1670,7 +1677,7 @@ public sealed class MainViewModel : ObservableObject
 
         if (OpenDialog is { } dialog)
         {
-            dialog.Refresh(Setting);
+            dialog.Refresh(Resolver);
 
             // Any edit may reveal or hide other fields on the same page, since
             // conditions are written against the tune's own settings.
@@ -1682,11 +1689,20 @@ public sealed class MainViewModel : ObservableObject
 
     private void OnSettingChanged()
     {
-        OpenDialog?.Refresh(Setting);
+        OpenDialog?.Refresh(Resolver);
 
         Raise(nameof(SettingsSummary));
         Raise(nameof(HasSettingChanges));
     }
+
+    /// <summary>
+    /// The lookup a condition is judged against: settings, then live readings,
+    /// then anything the firmware defines in terms of those.
+    ///
+    /// Built afresh each time rather than kept, because the derived values are
+    /// worked out on demand and a resolver holds the set it is part way through.
+    /// </summary>
+    private Func<string, double> Resolver => DerivedChannels.Resolving(_derived, Setting);
 
     /// <summary>
     /// A setting's value for a condition to be judged against — the edited one,
@@ -1739,6 +1755,7 @@ public sealed class MainViewModel : ObservableObject
             _ecuTune = EcuTune.FromPages(layout, [.. layout.Pages.Select(p => new byte[p.Size])]);
             _ecuTableDefinitions = TableEditorReader.Read(ini);
             _ecuInterface = TuneInterfaceReader.Read(ini);
+            _derived = DerivedChannels.Read(ini);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
             EcuTables.Clear();
@@ -2256,6 +2273,7 @@ public sealed class MainViewModel : ObservableObject
         _tuneLayout = null;
         _ecuInterface = null;
         _settingsEdit = null;
+        _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         EcuTables.Clear();
         SettingsMenu.Clear();
         OpenDialog = null;
@@ -2279,6 +2297,7 @@ public sealed class MainViewModel : ObservableObject
             // hundred-odd constants, which page it belongs on, and when it
             // applies at all.
             _ecuInterface = TuneInterfaceReader.Read(iniText);
+            _derived = DerivedChannels.Read(iniText);
             _settingsEdit = new TuneSettingsEdit(tune);
             BuildSettingsMenu();
 
