@@ -185,11 +185,7 @@ public sealed partial class MainViewModel
             Raise(nameof(OpenDialog));
             Raise(nameof(OpenMenuEntry));
             CurveChanged();
-            Raise(nameof(CanSaveTune));
-            Raise(nameof(TuneIsFromFile));
-            Raise(nameof(CanWriteSettings));
-            Raise(nameof(CanBurn));
-            Raise(nameof(CanBurnSettings));
+            RaiseWriteGates();
         }
     }
 

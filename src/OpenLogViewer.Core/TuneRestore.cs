@@ -31,6 +31,12 @@ namespace OpenLogViewer.Core;
 /// the ECU has them, and counted so the shortfall is visible rather than
 /// discovered later.
 /// </param>
+/// <param name="Rejected">
+/// Settings the file gave a value this firmware could not store — an option name
+/// it no longer offers, a number outside its range. Left exactly as the ECU has
+/// them, and carried here because a plan that did not say so would describe a
+/// restore as complete when part of it was quietly dropped.
+/// </param>
 /// <param name="Unknown">Names in the file this firmware has no constant for.</param>
 /// <param name="FileSignature">Which firmware the file says it is for.</param>
 /// <param name="EcuSignature">Which firmware the controller answered with.</param>
@@ -39,6 +45,7 @@ public sealed record TuneRestorePlan(
     IReadOnlyList<TuneWrite> Writes,
     IReadOnlyList<TuneDifference> Differences,
     IReadOnlyList<MsqComplaint> Missing,
+    IReadOnlyList<MsqComplaint> Rejected,
     IReadOnlyList<string> Unknown,
     string FileSignature,
     string EcuSignature)
@@ -66,13 +73,40 @@ public sealed record TuneRestorePlan(
     /// <summary>One line saying what this would do.</summary>
     public string Summary =>
         IsEmpty
-            ? "The ECU already holds this tune, setting for setting."
+            ? Complete
+                ? "The ECU already holds this tune, setting for setting."
+                : $"Nothing would change. {Shortfall}"
             : $"{Differences.Count:N0} setting{(Differences.Count == 1 ? "" : "s")} would change, "
               + $"{Bytes:N0} bytes across {Pages.Count} page{(Pages.Count == 1 ? "" : "s")}."
-              + (Missing.Count > 0
-                  ? $" {Missing.Count:N0} the firmware declares are not in the file and would be "
-                    + "left as the ECU has them."
-                  : "");
+              + (Complete ? "" : " " + Shortfall);
+
+    /// <summary>True when the file carried every setting, and all of them fitted.</summary>
+    public bool Complete => Missing.Count == 0 && Rejected.Count == 0;
+
+    /// <summary>
+    /// What the file did not manage to say, in words.
+    ///
+    /// Said whether or not anything would change: a file that turns out to carry
+    /// nothing this firmware recognises produces no writes at all, and calling
+    /// that "the ECU already holds this tune" is the opposite of the truth.
+    /// </summary>
+    public string Shortfall =>
+        string.Join(
+            " ",
+            new[]
+            {
+                Missing.Count > 0
+                    ? Missing.Count == 1
+                        ? "1 setting the firmware declares is not in the file and would be left "
+                          + "as the ECU has it."
+                        : $"{Missing.Count:N0} settings the firmware declares are not in the file "
+                          + "and would be left as the ECU has them."
+                    : "",
+                Rejected.Count > 0
+                    ? $"{Rejected.Count:N0} in the file could not be stored and would be left alone "
+                      + "too."
+                    : "",
+            }.Where(s => s.Length > 0));
 }
 
 /// <summary>Working out a restore, without doing any of it.</summary>
@@ -99,6 +133,7 @@ public static class TuneRestore
             Differing(ecu, load.Tune),
             TuneCompare.Compare(load.Tune, ecu),
             load.Missing,
+            load.Rejected,
             load.Unknown,
             file.Signature,
             ecuSignature);

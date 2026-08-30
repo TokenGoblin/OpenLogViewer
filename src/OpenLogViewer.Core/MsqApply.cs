@@ -122,6 +122,25 @@ public static class MsqApply
         var rejected = new List<MsqComplaint>();
         int applied = 0;
 
+        // Twice, where a firmware states any scale in terms of a setting. Those
+        // sums are done when the tune is built, and a tune being filled in from
+        // a file is empty at that moment — so a scale written
+        // {0.01 * (maf_range + 1)} is worked out with the range reading nought,
+        // and every value stored through it is wrong or refused outright. The
+        // first pass puts the settings in, the sums are done again against them,
+        // and the second pass is the one that counts.
+        int passes = tune.HasExpressionScales ? 2 : 1;
+
+        for (int pass = 0; pass < passes; pass++)
+        {
+            if (pass > 0)
+            {
+                tune.Rescale();
+                missing.Clear();
+                rejected.Clear();
+                applied = 0;
+            }
+
         // Where a name is declared twice the later one wins, which is how every
         // other reader resolves it. Spelled exactly: MS2Extra has two different
         // settings called MAFFlow and mafflow, on different pages, and merging
@@ -157,6 +176,7 @@ public static class MsqApply
 
             if (Store(tune, pages, use, written) is { } complaint) rejected.Add(complaint);
             else applied++;
+            }
         }
 
         // Names in the file with nothing to put them in. Counted rather than

@@ -559,6 +559,8 @@ public sealed class Elm327(IEcuTransport transport)
         int digits = 0;
         int first = -1;
         int second = -1;
+        int third = -1;
+        int fourth = -1;
 
         foreach (char c in text)
         {
@@ -571,11 +573,28 @@ public sealed class Elm327(IEcuTransport transport)
 
             if (first < 0) first = c;
             else if (second < 0) second = c;
+            else if (third < 0) third = c;
+            else if (fourth < 0) fourth = c;
 
             digits++;
         }
 
-        return digits == expectedBytes * 2 && first == '4' && second == '1';
+        if (digits != expectedBytes * 2 || first != '4' || second != '1') return false;
+
+        // And the parameter it answers about must be the one that was asked. A
+        // late reply to the previous question is the same length as this one
+        // whenever both parameters are a single byte — 0x04, 0x05, 0x0B, 0x0D
+        // and 0x11 all are, and they are all in the rotation. Taken as complete,
+        // the read returns early, the decoder rejects it for naming the wrong
+        // parameter, and the right answer arriving a moment later is never
+        // collected.
+        if (command.Length >= 4 && third >= 0 && fourth >= 0)
+        {
+            if (Nibble((char)third) != Nibble(command[2]) || Nibble((char)fourth) != Nibble(command[3]))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>Whether anything but line endings and spaces has arrived.</summary>

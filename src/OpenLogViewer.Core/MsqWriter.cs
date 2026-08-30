@@ -159,6 +159,30 @@ public static class MsqWriter
                 xml.Replace("encoding=\"ISO-8859-1\"", "encoding=\"UTF-8\"", StringComparison.Ordinal)));
     }
 
+    /// <summary>
+    /// Whether every value of a constant can actually be read.
+    ///
+    /// One that cannot is left out of the file rather than written as a zero. A
+    /// float sitting in erased flash reads as NaN and a constant whose declared
+    /// offset falls outside its page reads as nothing at all — recording either
+    /// as "0.0" puts a number in the backup the ECU does not hold, and restoring
+    /// that file writes a genuine zero over it. Saying nothing is the truth, and
+    /// the reader already knows what to do with a setting a file does not
+    /// mention: leave the controller's own alone.
+    /// </summary>
+    private static bool Readable(EcuTune tune, TuneConstant constant)
+    {
+        if (constant.IsText) return tune.TextIn(tune.Pages, constant.Name) is not null;
+
+        int cells = Math.Max(1, constant.Columns * constant.Rows);
+
+        for (int i = 0; i < cells; i++)
+            if (tune.ValueIn(tune.Pages, constant.Name, i) is not { } v || !double.IsFinite(v))
+                return false;
+
+        return true;
+    }
+
     /// <summary>One constant, written the way a person reads it.</summary>
     private static void Constant(StringBuilder text, EcuTune tune, TuneConstant declared)
     {
@@ -168,6 +192,8 @@ public static class MsqWriter
         // worked-out one loses the round trip by whatever the expression came
         // to — 120 bytes of 7,168 on a MicroSquirt, all of them the MAF curve.
         TuneConstant constant = tune.Constant(declared.Name) ?? declared;
+
+        if (!Readable(tune, constant)) return;
 
         text.Append("<constant");
 
