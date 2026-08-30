@@ -250,6 +250,159 @@ public sealed partial class MainViewModel
         return best;
     }
 
+    /// <summary>
+    /// A restore that has been worked out and not yet done.
+    ///
+    /// Held between the two halves of the act deliberately: what would change is
+    /// worked out first and put in front of somebody, and only then is it sent.
+    /// "Restore this tune" is not a question anyone can answer; "change 47
+    /// settings, one of them the rev limit, and leave 900 alone" is.
+    /// </summary>
+    public TuneRestorePlan? PendingRestore { get; private set; }
+
+    /// <summary>
+    /// Works out what restoring a saved tune onto the connected ECU would do.
+    ///
+    /// Nothing is sent. The plan is kept so <see cref="ApplyRestore"/> can carry
+    /// out the very thing that was described, rather than working it out a
+    /// second time against bytes that may have moved in between.
+    /// </summary>
+    public string PlanRestore(string path)
+    {
+        PendingRestore = null;
+        Raise(nameof(PendingRestore));
+        Raise(nameof(CanApplyRestore));
+
+        // What the tune is comes before whether there is a link, as it does
+        // everywhere else that writes: the tune in hand has to be the
+        // controller's own. Planning against a placeholder or against another
+        // file's values works out the difference between two things that are
+        // both not the ECU, and says nothing about either.
+        if (TuneIsPlaceholder || TuneIsFromFile)
+            return "Read the ECU's own tune first. A restore is worked out against what the "
+                   + "controller actually holds, and this is not that.";
+
+        if (_ecuConnection is null) return "Not connected to an ECU.";
+        if (_ecuTune is not { } ecu || _tuneLayout is null) return "No tune has been read.";
+
+        try
+        {
+            MsqFile file = MsqFile.ReadFile(path);
+            TuneRestorePlan plan = TuneRestore.Plan(ecu, file, _ecuSignature);
+
+            PendingRestore = plan;
+            Raise(nameof(PendingRestore));
+            Raise(nameof(CanApplyRestore));
+
+            string whose = Path.GetFileName(path);
+
+            if (!plan.SignaturesAgree)
+                return $"{whose} is a tune for \"{plan.FileSignature}\" and this ECU says it is "
+                       + $"\"{plan.EcuSignature}\". {plan.Summary}";
+
+            return $"{whose}: {plan.Summary}";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or LogFormatException)
+        {
+            return $"Could not read {Path.GetFileName(path)}: {e.Message}";
+        }
+    }
+
+    public bool CanApplyRestore =>
+        PendingRestore is { IsEmpty: false } && _ecuConnection is not null
+        && !TuneIsPlaceholder && !TuneIsFromFile;
+
+    /// <summary>Forgets a planned restore without doing any of it.</summary>
+    public void CancelRestore()
+    {
+        PendingRestore = null;
+        Raise(nameof(PendingRestore));
+        Raise(nameof(CanApplyRestore));
+    }
+
+    /// <summary>
+    /// Carries out the restore that was planned.
+    ///
+    /// <para>
+    /// Every page is checked before the first byte goes out, because a restore
+    /// that stops half way is a tune that is neither the old one nor the new
+    /// one — and unlike a single setting there is no reading the result off the
+    /// screen to see which.
+    /// </para>
+    /// <para>
+    /// Nothing is burned. What lands is in the controller's working memory and a
+    /// power cycle undoes all of it, which is the right footing for the largest
+    /// change this can make: it can be tried and walked away from.
+    /// </para>
+    /// </summary>
+    public string ApplyRestore()
+    {
+        if (TuneIsPlaceholder || TuneIsFromFile)
+            return "Read the ECU's own tune first. A restore is worked out against what the "
+                   + "controller actually holds, and this is not that.";
+
+        if (PendingRestore is not { } plan) return "Nothing has been planned.";
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+        if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
+
+        if (plan.IsEmpty) return "The ECU already holds this tune, so nothing was sent.";
+
+        foreach (TuneWrite write in plan.Writes)
+        {
+            TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+
+            if (page is null || page.ChunkWriteCommand.Length == 0)
+                return $"This firmware declares no way to write page {write.Page}, "
+                       + "so nothing was sent.";
+        }
+
+        int settings = plan.Differences.Count;
+        int done = 0;
+
+        try
+        {
+            foreach (TuneWrite write in plan.Writes)
+            {
+                TunePage page = layout.Pages.First(p => p.Index == write.Page);
+
+                connection.WriteTunePage(
+                    page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
+                    layout.InterWriteDelay);
+
+                tune.Accept(write);
+                _settingsEdit?.Accept(write);
+                _settingsPagesWritten.Add(write.Page);
+                done++;
+            }
+
+            return $"Restored {settings:N0} setting{(settings == 1 ? "" : "s")} to the ECU — "
+                   + $"{plan.Bytes:N0} bytes across {plan.Pages.Count} "
+                   + $"page{(plan.Pages.Count == 1 ? "" : "s")}. It is running this now, and will "
+                   + "forget it at the next power cycle unless you burn it.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"The restore stopped after {done} of {plan.Writes.Count} writes: {e.Message} "
+                   + "The ECU is now holding part of this tune and part of the old one. Nothing "
+                   + "has been burned, so a power cycle puts back what was last burned.";
+        }
+        finally
+        {
+            // Done or half done, the plan described bytes that have moved. It is
+            // not something to press again.
+            CancelRestore();
+
+            // Everything a settings write does afterwards. The tables and the
+            // curves on screen came off the controller too, and the controller
+            // has moved.
+            _settingsEdit?.Reconcile();
+            OnSettingChanged();
+            Raise(nameof(CanWriteSettings));
+            Raise(nameof(CanBurnSettings));
+            RefreshOpenTune();
+        }
+    }
+
     /// <summary>What the last comparison found, most recently asked first.</summary>
     public IReadOnlyList<TuneDifference> TuneDifferences { get; private set; } = [];
 

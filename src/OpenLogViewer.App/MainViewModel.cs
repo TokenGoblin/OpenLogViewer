@@ -1871,6 +1871,30 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Reads the tables and curves on screen back out of the tune.
+    ///
+    /// Called after something has changed a great many bytes at once. Whatever
+    /// is being looked at came off the controller, and the controller has moved.
+    /// </summary>
+    private void RefreshOpenTune()
+    {
+        if (_ecuTune is not { } tune) return;
+
+        Rebuild(tune);
+
+        EcuTables.Clear();
+        foreach (TuneTable table in Ordered(tune.Tables(_ecuTableDefinitions))) EcuTables.Add(table);
+        EcuTableChoices.Refresh();
+
+        SelectedEcuTable = EcuTables.FirstOrDefault(
+            t => t.Name.Equals(SelectedEcuTable?.Name, StringComparison.OrdinalIgnoreCase))
+            ?? EcuTables.FirstOrDefault();
+
+        OpenDialog?.Refresh(Resolver);
+        Raise(nameof(OpenDialog));
+    }
+
     /// <summary>Reads the open curves back out of the tune, after a write.</summary>
     private void Rebuild(EcuTune tune)
     {

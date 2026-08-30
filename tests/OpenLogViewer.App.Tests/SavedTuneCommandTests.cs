@@ -232,6 +232,51 @@ public class SavedTuneCommandTests : IDisposable
         Assert.False(File.Exists(path));
     }
 
+    // ----- restoring ----------------------------------------------------------
+
+    [Fact]
+    public void ARestoreNeedsAControllerToRestoreTo()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        Assert.Contains("Not connected", vm.PlanRestore(WriteTune(600)));
+        Assert.Null(vm.PendingRestore);
+        Assert.False(vm.CanApplyRestore);
+    }
+
+    [Fact]
+    public void ARestoreIsRefusedAgainstATuneThatIsNotTheEcus()
+    {
+        // Working out the difference between a file and a placeholder is working
+        // out the difference between two things that are both not the ECU.
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        Assert.Contains("Read the ECU's own tune first", vm.PlanRestore(WriteTune(400)));
+        Assert.Null(vm.PendingRestore);
+    }
+
+    [Fact]
+    public void ApplyingWithNothingPlannedDoesNothing()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        Assert.Contains("Nothing has been planned", vm.ApplyRestore());
+    }
+
+    [Fact]
+    public void APlanIsForgottenWhenItIsCancelled()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        vm.CancelRestore();
+
+        Assert.Null(vm.PendingRestore);
+        Assert.False(vm.CanApplyRestore);
+    }
+
     [Fact]
     public void ThereIsNothingToCompareUntilThereIsATune()
     {

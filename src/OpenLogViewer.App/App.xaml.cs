@@ -41,7 +41,7 @@ public partial class App : Application
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
-        "--open-tune", "--save-tune", "--compare-tune",
+        "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -327,6 +327,14 @@ public partial class App : Application
         int compareTune = Array.IndexOf(e.Args, "--compare-tune");
         if (compareTune >= 0 && compareTune + 1 < e.Args.Length)
             window.CompareTune(e.Args[compareTune + 1]);
+
+        // "--plan-restore <msq>" says what restoring a tune would change, and
+        // does none of it. There is deliberately no flag that carries one out:
+        // this is the largest change the application can make to an engine, and
+        // it is not something to fall out of a command line.
+        int planRestore = Array.IndexOf(e.Args, "--plan-restore");
+        if (planRestore >= 0 && planRestore + 1 < e.Args.Length)
+            window.PlanRestore(e.Args[planRestore + 1]);
 
         int saveTune = Array.IndexOf(e.Args, "--save-tune");
         if (saveTune >= 0 && saveTune + 1 < e.Args.Length)
