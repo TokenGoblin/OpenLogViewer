@@ -155,6 +155,9 @@
                 <MenuItem Header="Co_mpare with a saved tune…" Click="OnCompareTuneClick"
                           IsEnabled="{Binding HasEcuTune}"
                           ToolTip="Says which settings the file and the tune in hand disagree about"/>
+                <MenuItem Header="_Restore a saved tune to the ECU…" Click="OnRestoreTuneClick"
+                          IsEnabled="{Binding CanBurn}"
+                          ToolTip="Writes the settings that differ, leaving alone everything the file does not mention"/>
                 <Separator/>
                 <MenuItem Header="_ECU definition files…" Click="OnDefinitionsClick"
                           ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
@@ -1512,7 +1515,13 @@
                                                  Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
                                                  ToolTip="{Binding Original, StringFormat=In the ECU: {0}}">
                                             <TextBox.Style>
-                                                <Style TargetType="TextBox">
+                                                <!-- BasedOn, or this replaces the
+                                                     application's own TextBox style
+                                                     outright: an explicit style does
+                                                     not inherit the implicit one, and
+                                                     what is lost is the whole theme. -->
+                                                <Style TargetType="TextBox"
+                                                       BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Kind}" Value="Number">
@@ -1530,21 +1539,21 @@
                                             </TextBox.Style>
                                         </TextBox>
 
-                                        <!-- Its own foreground, not the one it would
-                                             inherit: a combo box takes the colour from
-                                             its parent while drawing on the system's own
-                                             control background, so on a dark theme it
-                                             ends up light grey on white and can barely
-                                             be read. The text box beside it does not,
-                                             which is why only one of the two looked
-                                             wrong. -->
                                         <ComboBox Grid.Column="1" FontSize="12"
                                                   ItemsSource="{Binding Options}"
                                                   SelectedItem="{Binding Value}"
-                                                  Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                                                   ToolTip="{Binding Original, StringFormat=In the ECU: {0}}">
                                             <ComboBox.Style>
-                                                <Style TargetType="ComboBox">
+                                                <!-- The same: without BasedOn this drops
+                                                     the application's ComboBox style and
+                                                     with it the template, so the control
+                                                     falls back to the system's own — a
+                                                     white box wearing the theme's light
+                                                     text, which is why these two were
+                                                     the only unreadable things on the
+                                                     page. -->
+                                                <Style TargetType="ComboBox"
+                                                       BasedOn="{StaticResource {x:Type ComboBox}}">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Kind}" Value="Choice">

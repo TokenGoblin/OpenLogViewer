@@ -675,6 +675,16 @@ public partial class MainWindow : Window
     public void SaveTune(string msqPath) => Report(_vm.SaveTuneToFile(msqPath));
 
     /// <summary>
+    /// Says what restoring a tune would change, for a scripted run. Plans only:
+    /// carrying one out is a thing somebody agrees to on screen.
+    /// </summary>
+    public void PlanRestore(string msqPath)
+    {
+        Report(_vm.PlanRestore(msqPath));
+        _vm.CancelRestore();
+    }
+
+    /// <summary>
     /// Opens a settings page of whatever tune is loaded, live or otherwise, for
     /// a scripted run.
     /// </summary>
@@ -2616,6 +2626,76 @@ public partial class MainWindow : Window
         };
 
         if (dialog.ShowDialog(this) == true) Report(_vm.CompareWithSavedTune(dialog.FileName));
+    }
+
+    /// <summary>
+    /// Restores a saved tune to the controller, in two halves.
+    ///
+    /// What it would change is worked out and put in front of the person first,
+    /// naming the settings rather than the file. This is the largest change the
+    /// application can make to an engine and the only honest way to ask for it
+    /// is to say what it does.
+    /// </summary>
+    private void OnRestoreTuneClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Restore a saved tune to the ECU",
+            Filter = "TunerStudio tune|*.msq|All files|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        Report(_vm.PlanRestore(dialog.FileName));
+
+        if (_vm.PendingRestore is not { } plan) return;
+
+        if (plan.IsEmpty)
+        {
+            _vm.CancelRestore();
+            return;
+        }
+
+        // The settings themselves, not a count. Somebody about to change the rev
+        // limit on a running engine should read the words "rev limit".
+        string listed = string.Join(
+            "\n", plan.Differences.Take(12).Select(d => "    " + d.Summary));
+
+        if (plan.Differences.Count > 12)
+            listed += $"\n    …and {plan.Differences.Count - 12:N0} more";
+
+        string warning = plan.SignaturesAgree
+            ? ""
+            : $"\n\nTHIS FILE IS FOR ANOTHER FIRMWARE.\nThe file says \"{plan.FileSignature}\" and the "
+              + $"ECU says \"{plan.EcuSignature}\". Settings may not mean the same thing in both.";
+
+        string leftAlone = plan.Missing.Count > 0
+            ? $"\n\n{plan.Missing.Count:N0} settings this firmware has are not in the file. They are "
+              + "left exactly as the ECU holds them."
+            : "";
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Restore {Path.GetFileName(dialog.FileName)} to the ECU?\n\n"
+            + $"{plan.Differences.Count:N0} settings would change:\n{listed}\n\n"
+            + $"{plan.Bytes:N0} bytes across {plan.Pages.Count} page(s)."
+            + leftAlone
+            + warning
+            + "\n\nNothing is burned, so a power cycle undoes all of it.\n"
+            + "Do this with the engine stopped.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK)
+        {
+            _vm.CancelRestore();
+            return;
+        }
+
+        Report(_vm.ApplyRestore());
     }
 
     private void OnOpenTuneClick(object sender, RoutedEventArgs e)
