@@ -191,14 +191,19 @@ public static partial class TuneInterfaceReader
     [GeneratedRegex(@"^\s*\[(?<name>[^\]]+)\]")]
     private static partial Regex Section { get; }
 
-    public static TuneInterface Read(string iniText)
+    /// <param name="symbols">
+    /// The firmware's compile-time symbols, deciding which side of each
+    /// <c>#if</c> is real. Defaults to the same set every other reader here
+    /// uses.
+    /// </param>
+    public static TuneInterface Read(string iniText, IReadOnlySet<string>? symbols = null)
     {
         ArgumentNullException.ThrowIfNull(iniText);
 
+        symbols ??= MsqIni.DefaultSymbols;
+
         var menus = new List<TuneMenu>();
         var dialogs = new Dictionary<string, TuneDialog>(StringComparer.OrdinalIgnoreCase);
-
-        string section = "";
 
         // The dialog or menu currently being filled, since both are declared by a
         // line and then extended by the lines beneath it.
@@ -232,20 +237,31 @@ public static partial class TuneInterfaceReader
             items = [];
         }
 
-        foreach (string raw in iniText.Split('\n'))
+        // Both sections, through the shared reader so that #if is resolved
+        // against this firmware's symbols the way every other reader here does
+        // it. Splitting the raw text merges both branches of every conditional —
+        // and since a redeclared dialog replaces the earlier one, a dialog
+        // written differently under #if and #else would always come out as the
+        // #else version whatever the tune actually is. MS3 has 102 conditionals
+        // inside its menus and dialogs; Speeduino has 86.
+        IEnumerable<string> lines =
+            MsqIni.Section(iniText, "Menu", symbols)
+                .Concat(["[end of menu]"])
+                .Concat(MsqIni.Section(iniText, "UserDefined", symbols));
+
+        foreach (string raw in lines)
         {
             string line = Strip(raw);
             if (line.Length == 0) continue;
 
-            if (Section.Match(line) is { Success: true } header)
+            // The marker between the two, since the reader yields a section's
+            // own lines and never its header.
+            if (Section.IsMatch(line))
             {
                 CloseMenu();
                 CloseDialog();
-                section = header.Groups["name"].Value;
                 continue;
             }
-
-            if (section is not ("Menu" or "UserDefined")) continue;
 
             Match match = Directive.Match(line);
             if (!match.Success) continue;
@@ -410,6 +426,8 @@ public static partial class TuneInterfaceReader
     /// A semicolon inside quotes is part of a label rather than the start of a
     /// comment — "Set the timing; carefully" is a caption, not a truncated one.
     /// </summary>
+    internal static string StripComment(string line) => Strip(line);
+
     private static string Strip(string line)
     {
         bool quoted = false;
@@ -590,15 +608,18 @@ public sealed record TuneCurve(
 /// <summary>Reads <c>[CurveEditor]</c>.</summary>
 public static class TuneCurveReader
 {
-    public static IReadOnlyDictionary<string, TuneCurve> Read(string iniText)
+    public static IReadOnlyDictionary<string, TuneCurve> Read(
+        string iniText, IReadOnlySet<string>? symbols = null)
     {
         ArgumentNullException.ThrowIfNull(iniText);
+
+        symbols ??= MsqIni.DefaultSymbols;
 
         var curves = new Dictionary<string, TuneCurve>(StringComparer.OrdinalIgnoreCase);
 
         string name = "", title = "", xBins = "", yBins = "", xLabel = "", yLabel = "";
         string xLow = "", xHigh = "", yLow = "", yHigh = "", help = "";
-        bool inside = false, open = false;
+        bool open = false;
 
         void Close()
         {
@@ -617,17 +638,11 @@ public static class TuneCurveReader
 
         foreach (string raw in iniText.Split('\n'))
         {
-            string line = MsqIni.Strip(raw);
+            // The quote-aware stripper, not MsqIni's: that one cuts at the first
+            // semicolon whatever is around it, which truncates a curve title
+            // containing one.
+            string line = TuneInterfaceReader.StripComment(raw);
             if (line.Length == 0) continue;
-
-            if (line.TrimStart().StartsWith('['))
-            {
-                Close();
-                inside = line.TrimStart().StartsWith("[CurveEditor]", StringComparison.OrdinalIgnoreCase);
-                continue;
-            }
-
-            if (!inside) continue;
 
             int equals = line.IndexOf('=', StringComparison.Ordinal);
             if (equals < 0) continue;

@@ -70,7 +70,7 @@ public static class DialogCondition
 
             return result != 0 ? ConditionVerdict.Shown : ConditionVerdict.Hidden;
         }
-        catch (FormatException)
+        catch (Exception e) when (e is FormatException or OverflowException)
         {
             // Malformed, or using something not understood. Either way this
             // cannot say, and saying so is better than guessing at it.
@@ -298,7 +298,13 @@ public static class DialogCondition
 
                 if (_at == digits) throw new FormatException("empty hex literal");
 
-                return (double)Convert.ToInt64(text[digits.._at], 16);
+                // Too wide to hold is malformed rather than fatal: the third
+                // verdict exists so that anything unparseable shows the field.
+                return ulong.TryParse(
+                    text[digits.._at], System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture, out ulong hex)
+                    ? hex
+                    : throw new FormatException("hex literal too wide");
             }
 
             while (_at < text.Length && (char.IsAsciiDigit(text[_at]) || text[_at] == '.')) _at++;

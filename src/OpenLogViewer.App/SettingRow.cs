@@ -57,8 +57,9 @@ public sealed class SettingRow : ObservableObject
         {
             // The firmware pads a bit field's names out to the full width of the
             // field, so a two-bit option declares four names whether or not it
-            // does four things. The padding is spelled INVALID and must not be
-            // offered as a choice.
+            // does four things. The padding is spelled INVALID or left empty and
+            // must not be offered as a choice — but it stays in the constant's
+            // own list, because a position there is the number the ECU stores.
             Options = [.. constant.Options.Where((_, i) => constant.IsValidOption(i))];
         }
     }
@@ -88,10 +89,22 @@ public sealed class SettingRow : ObservableObject
         Kind is SettingKind.Number or SettingKind.Choice or SettingKind.Text
         && _constant?.OnController == true;
 
-    /// <summary>What the ECU holds, formatted the way the firmware asks.</summary>
-    public string Original => _constant is null || _edit is null
-        ? ""
-        : Format(_edit.Value(_constant.Name, _element));
+    /// <summary>
+    /// What the ECU holds, formatted the way the firmware asks — as against
+    /// <see cref="Value"/>, which is what it would become.
+    /// </summary>
+    public string Original
+    {
+        get
+        {
+            if (_constant is null || _edit is null) return "";
+            if (_constant.IsText) return _edit.OriginalText(_constant.Name);
+
+            double value = _edit.Original(_constant.Name, _element);
+
+            return _constant.HasOptions ? _constant.OptionName(value) : Format(value);
+        }
+    }
 
     /// <summary>True when this would be changed by sending.</summary>
     public bool IsChanged =>

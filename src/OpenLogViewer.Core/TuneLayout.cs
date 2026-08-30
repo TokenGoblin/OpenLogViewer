@@ -123,9 +123,14 @@ public sealed record TuneConstant
     /// without the names the setting is a number between nought and three with
     /// nothing to say which is which.
     ///
-    /// A slot the firmware has not used is spelled "INVALID", which is a value
-    /// the user must not be offered: it is padding to fill the bit width out to
-    /// a power of two, not a choice.
+    /// A slot the firmware has not used is spelled "INVALID", or left empty, and
+    /// is a value the user must not be offered: it is padding to fill the bit
+    /// width out to a power of two, not a choice.
+    ///
+    /// Every slot is kept, empty ones included, because the position in this list
+    /// <em>is</em> the number the ECU stores. Dropping the unused ones would
+    /// renumber every option after the gap — offering "On" and writing the value
+    /// that means something else.
     /// </summary>
     public IReadOnlyList<string> Options { get; init; } = [];
 
@@ -134,6 +139,7 @@ public sealed record TuneConstant
     /// <summary>Whether a value names something the firmware actually does.</summary>
     public bool IsValidOption(int value) =>
         value >= 0 && value < Options.Count
+        && Options[value].Length > 0
         && !Options[value].Equals("INVALID", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>What this value is called, or the number where it has no name.</summary>
@@ -277,7 +283,7 @@ public static class TuneLayoutReader
 
             if (Text.Match(line) is { Success: true } text)
             {
-                constants.Add(FromText(text, page));
+                if (FromText(text, page) is { } constant) constants.Add(constant);
                 continue;
             }
 
@@ -389,7 +395,7 @@ public static class TuneLayoutReader
                     Type = bitType,
                     BitLow = Math.Min(low, high),
                     BitHigh = Math.Max(low, high),
-                    Options = [.. Fields(bits.Groups["rest"].Value).Select(Unquote).Where(o => o.Length > 0)],
+                    Options = [.. Fields(bits.Groups["rest"].Value).Select(Unquote)],
                 });
 
                 continue;
@@ -397,7 +403,7 @@ public static class TuneLayoutReader
 
             if (Text.Match(line) is { Success: true } text)
             {
-                variables.Add(FromText(text, -1));
+                if (FromText(text, -1) is { } variable) variables.Add(variable);
                 continue;
             }
 
@@ -505,9 +511,14 @@ public static class TuneLayoutReader
     /// on this machine there is no offset, so the one number present is the
     /// length.
     /// </summary>
-    private static TuneConstant FromText(Match match, int page)
+    private static TuneConstant? FromText(Match match, int page)
     {
-        bool hasOffset = page >= 0 && match.Groups["second"].Success;
+        bool hasOffset = match.Groups["second"].Success;
+
+        // On the controller an offset is not optional. Defaulting it to zero
+        // would read and write the first bytes of the page, which belong to
+        // whichever constants really live there.
+        if (page >= 0 && !hasOffset) return null;
 
         return new TuneConstant
         {
@@ -535,7 +546,7 @@ public static class TuneLayoutReader
             Type = type,
             BitLow = Math.Min(low, high),
             BitHigh = Math.Max(low, high),
-            Options = [.. Fields(match.Groups["rest"].Value).Select(Unquote).Where(o => o.Length > 0)],
+            Options = [.. Fields(match.Groups["rest"].Value).Select(Unquote)],
         };
     }
 
