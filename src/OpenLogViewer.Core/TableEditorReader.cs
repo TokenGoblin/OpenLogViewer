@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace OpenLogViewer.Core;
 
@@ -17,6 +17,13 @@ public sealed record TableDefinition
     public required string Id { get; init; }
 
     public required string Title { get; init; }
+
+    /// <summary>
+    /// The name of the same table's three-dimensional view, where it declares
+    /// one. A menu may point at either — "VE Table" opens the grid and "VE Table
+    /// 3D" the surface — so both names have to lead back to this.
+    /// </summary>
+    public string Map { get; init; } = "";
 
     /// <summary>Constant holding the values.</summary>
     public required string Values { get; init; }
@@ -59,6 +66,7 @@ public static class TableEditorReader
         var tables = new List<TableDefinition>();
 
         string id = "";
+        string map = "";
         string title = "";
         string values = "";
         string xBins = "";
@@ -76,6 +84,7 @@ public static class TableEditorReader
                 Flush();
 
                 id = start.Groups["id"].Value;
+                map = start.Groups["map"].Value;
                 title = start.Groups["title"].Value.Trim();
                 values = xBins = yBins = xChannel = yChannel = "";
                 continue;
@@ -111,6 +120,7 @@ public static class TableEditorReader
                 Values = values,
                 XBins = xBins,
                 YBins = yBins,
+                Map = map,
                 XChannel = xChannel,
                 YChannel = yChannel,
             });
