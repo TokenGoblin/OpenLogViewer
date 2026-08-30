@@ -40,7 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
-        "--find", "--guide", "--settings", "--page",
+        "--find", "--guide", "--settings", "--page", "--live-page",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -296,6 +296,17 @@ public partial class App : Application
             window.ShowSettings(
                 e.Args[settings + 1],
                 page >= 0 && page + 1 < e.Args.Length ? e.Args[page + 1] : null);
+        }
+
+        // "--live-page Rev" opens a settings page of the tune already loaded,
+        // which on a live session is the one read off the controller.
+        int livePage = Array.IndexOf(e.Args, "--live-page");
+        if (livePage >= 0)
+        {
+            window.ShowSettingsPage(
+                livePage + 1 < e.Args.Length && !e.Args[livePage + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[livePage + 1]
+                    : null);
         }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");

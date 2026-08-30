@@ -1672,7 +1672,7 @@ public sealed class MainViewModel : ObservableObject
     private void OpenPage(SettingsMenuEntry? entry)
     {
         OpenDialog = entry is { IsHeading: false } && _ecuInterface is { } ui && _ecuTune is { } tune
-            ? SettingsDialog.Build(entry.Dialog, ui, tune.Constant, _settingsEdit)
+            ? SettingsDialog.Build(entry.Dialog, ui, tune.Constant, _settingsEdit, entry.Title)
             : null;
 
         if (OpenDialog is { } dialog)

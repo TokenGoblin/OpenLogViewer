@@ -53,18 +53,26 @@ public sealed class SettingsDialog
     /// <param name="ui">Everything the firmware described.</param>
     /// <param name="constants">Looks a constant up by name.</param>
     /// <param name="edit">The edit in progress, or null to show without editing.</param>
+    /// <param name="title">
+    /// What to head the page with when the dialog does not name itself, which is
+    /// common: a dialog reached from a menu is titled by the menu entry, and its
+    /// own title is left empty because TunerStudio puts that in the window's
+    /// caption instead.
+    /// </param>
     public static SettingsDialog? Build(
         string name,
         TuneInterface ui,
         Func<string, TuneConstant?> constants,
-        TuneSettingsEdit? edit)
+        TuneSettingsEdit? edit,
+        string? title = null)
     {
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(constants);
 
         if (ui.Find(name) is not { } root) return null;
 
-        var built = new SettingsDialog(root.Title, root.Help);
+        var built = new SettingsDialog(
+            root.Title.Length > 0 ? root.Title : title ?? "", root.Help);
         built.Fill(root, ui, constants, edit, []);
 
         return built;

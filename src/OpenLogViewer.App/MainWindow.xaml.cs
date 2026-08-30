@@ -611,6 +611,22 @@ public partial class MainWindow : Window
             : _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading);
     }
 
+    /// <summary>
+    /// Opens a settings page of whatever tune is loaded, live or otherwise, for
+    /// a scripted run.
+    /// </summary>
+    public void ShowSettingsPage(string? page)
+    {
+        _vm.Mode = WorkspaceMode.Calibration;
+        _vm.ShowSettingsPages = true;
+
+        _vm.OpenMenuEntry = page is { Length: > 0 }
+            ? _vm.SettingsMenu.FirstOrDefault(
+                  m => !m.IsHeading && m.Title.Contains(page, StringComparison.OrdinalIgnoreCase))
+              ?? _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading)
+            : _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading);
+    }
+
     public void ShowCalibration(string? table)
     {
         _vm.Mode = WorkspaceMode.Calibration;
