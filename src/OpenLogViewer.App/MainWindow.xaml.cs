@@ -2260,6 +2260,12 @@ public partial class MainWindow : Window
         if (ChannelFrom(sender) is { } item) _vm.ClearStyle(item);
     }
 
+    private void OnFindDelayClick(object sender, RoutedEventArgs e)
+    {
+        _vm.FindVeDelay();
+        RebuildAnalysis();
+    }
+
     private void OnConfirmStyleClick(object sender, RoutedEventArgs e) => _vm.CommitStyleEdit();
 
     private void OnCancelStyleClick(object sender, RoutedEventArgs e) => _vm.CancelStyleEdit();

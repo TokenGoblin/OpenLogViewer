@@ -9,8 +9,12 @@ namespace OpenLogViewer.App.Tests;
 /// up to it is where a mistake is silent — a wrong cell looks exactly like a
 /// right one until an engine runs on it.
 /// </summary>
-public class TableEditWorkflowTests
+public class TableEditWorkflowTests : IDisposable
 {
+    private readonly ViewModelHarness _harness = new();
+
+    public void Dispose() => _harness.Dispose();
+
     private static TuneTable Fuel()
     {
         var values = new double[4, 3];
@@ -26,9 +30,9 @@ public class TableEditWorkflowTests
             "%");
     }
 
-    private static MainViewModel WithTable(out TuneTable table)
+    private MainViewModel WithTable(out TuneTable table)
     {
-        var vm = new MainViewModel();
+        MainViewModel vm = _harness.NewViewModel();
         table = Fuel();
         vm.SelectedEcuTable = table;
 
@@ -237,7 +241,7 @@ public class TableEditWorkflowTests
     {
         // Anything finer than the firmware's resolution is rounded away by the
         // ECU, which reads as the write having been ignored.
-        var vm = new MainViewModel();
+        MainViewModel vm = _harness.NewViewModel();
 
         vm.SelectedEcuTable = Fuel();
 

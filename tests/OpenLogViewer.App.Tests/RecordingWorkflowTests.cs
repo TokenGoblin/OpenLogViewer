@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.Core;
 using OpenLogViewer.Tests;
 
@@ -45,6 +45,14 @@ public class RecordingWorkflowTests : IDisposable
         _folder = Path.Combine(Path.GetTempPath(), $"olv-rec-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_folder);
         _temp.Add(_folder);
+
+        // Devices remembered from a previous connection live in SerialPortNames,
+        // which is static and therefore shared with every other test in the run.
+        // A test that connects a fake ELM327 leaves it remembered, and a test
+        // that asks what a fresh install looks like would then see it — so each
+        // starts from the blank slate it is describing rather than from whatever
+        // ran before it.
+        SerialPortNames.Forget();
 
         var settings = new SettingsStore(Path.Combine(_folder, "settings.json"));
         settings.SetDataFolder(Path.Combine(_folder, "workspace"));

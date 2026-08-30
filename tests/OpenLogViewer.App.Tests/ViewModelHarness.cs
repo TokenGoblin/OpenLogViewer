@@ -65,6 +65,18 @@ public sealed class ViewModelHarness : IDisposable
     /// A view model with settings stored in a temporary directory, so tests never
     /// read or write the user's real presets and filters.
     /// </summary>
+    /// <summary>
+    /// A view model whose stores are all temporary, for a test that does not
+    /// care where they point.
+    ///
+    /// Constructing one with no arguments at all resolves every store to
+    /// %APPDATA%, which reads the user's own presets, filters and remembered
+    /// ECUs — and the last of those is recalled into <c>SerialPortNames</c>,
+    /// which is static, so a single such view model leaves them visible to every
+    /// other test in the run.
+    /// </summary>
+    public MainViewModel NewViewModel() => NewViewModel(out _);
+
     public MainViewModel NewViewModel(out string settingsDirectory)
     {
         settingsDirectory = Path.Combine(Path.GetTempPath(), $"olv-settings-{Guid.NewGuid():N}");

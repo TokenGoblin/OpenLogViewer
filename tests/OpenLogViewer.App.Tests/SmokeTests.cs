@@ -12,7 +12,8 @@ public class SmokeTests
     [Fact]
     public void AViewModelCanBeConstructed()
     {
-        var vm = new MainViewModel();
+        using var harness = new ViewModelHarness();
+        MainViewModel vm = harness.NewViewModel();
 
         Assert.NotNull(vm.Channels);
         Assert.NotNull(vm.ChannelView);
@@ -23,7 +24,7 @@ public class SmokeTests
     public void ALogCanBeLoadedAndPopulatesTheChannelList()
     {
         using var harness = new ViewModelHarness();
-        var vm = new MainViewModel();
+        MainViewModel vm = harness.NewViewModel();
 
         vm.Load(harness.WriteTypicalLog());
 
@@ -40,7 +41,7 @@ public class SmokeTests
         // stays clickable with none open and nothing reports it. This is the
         // property those bindings need to exist.
         using var harness = new ViewModelHarness();
-        var vm = new MainViewModel();
+        MainViewModel vm = harness.NewViewModel();
 
         Assert.False(vm.HasDocument);
 

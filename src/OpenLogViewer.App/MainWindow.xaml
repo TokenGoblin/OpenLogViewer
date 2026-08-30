@@ -541,10 +541,20 @@
                                  Nothing here can know by how much, since it depends
                                  on where the sensor is fitted, so it is asked for
                                  rather than assumed. -->
-                            <TextBlock Text="Wideband delay, s" FontSize="10" Margin="0,6,0,0"
-                                       Foreground="{DynamicResource Faint}"/>
+                            <DockPanel Margin="0,6,0,0">
+                                <Button DockPanel.Dock="Right" Content="Find it" Padding="7,2" FontSize="10"
+                                        Click="OnFindDelayClick" VerticalAlignment="Bottom"
+                                        ToolTip="Work the delay out from this log, by finding the one that makes the readings in each cell agree best"/>
+                                <TextBlock Text="Wideband delay, s" FontSize="10"
+                                           Foreground="{DynamicResource Faint}"
+                                           VerticalAlignment="Bottom"/>
+                            </DockPanel>
                             <TextBox Text="{Binding VeDelaySeconds, UpdateSourceTrigger=LostFocus}"
                                      ToolTip="How long the sensor takes to see the mixture metered now. It depends on where it is fitted — 0.2 to 0.4 s is typical."/>
+                            <TextBlock Text="{Binding VeDelayFinding}" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource Muted}" Margin="0,3,0,0"
+                                       Visibility="{Binding HasVeDelayFinding,
+                                                    Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="{Binding VeDelayNote}" FontSize="10" TextWrapping="Wrap"
                                        Foreground="{DynamicResource Faint}" Margin="0,2,0,0"/>
                         </StackPanel>

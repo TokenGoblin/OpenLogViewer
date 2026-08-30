@@ -3260,6 +3260,83 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private string _veDelayFinding = "";
+
+    /// <summary>What the last search of the log concluded, or nothing.</summary>
+    public string VeDelayFinding
+    {
+        get => _veDelayFinding;
+        private set
+        {
+            if (Set(ref _veDelayFinding, value)) Raise(nameof(HasVeDelayFinding));
+        }
+    }
+
+    public bool HasVeDelayFinding => _veDelayFinding.Length > 0;
+
+    /// <summary>
+    /// Asks the log how long the sensor takes, and takes the answer.
+    ///
+    /// The value is applied only when the search is prepared to stand behind it;
+    /// a search that cannot say leaves the setting exactly as it was and says
+    /// why. Answering with a number anyway would be the one outcome worse than
+    /// not offering this at all, since a made-up delay is indistinguishable from
+    /// a measured one once it is sitting in the box.
+    /// </summary>
+    public void FindVeDelay()
+    {
+        if (Document is not { SampleCount: > 0 } doc)
+        {
+            VeDelayFinding = "Open a log first.";
+            return;
+        }
+
+        if (XAxis is null || YAxis is null || ZAxis is null || _zCompare.Channel is null)
+        {
+            VeDelayFinding = "Pick the axes and a target channel first.";
+            return;
+        }
+
+        SampleMask mask = SampleFilter.Build(doc, Filters.Select(f => f.Filter));
+
+        // The same grid the analysis uses, so a delay found here is a delay
+        // measured against the cells it will be applied to.
+        TuneTable grid = _axisSource.Table
+            ?? VeAnalysis.GridFrom(
+                XAxis.Channel, YAxis.Channel, _columns, _rows, 0, doc.SampleCount - 1, mask);
+
+        DelaySearchResult found = WidebandDelay.Find(
+            grid, XAxis.Channel, YAxis.Channel, ZAxis.Channel, _zCompare.Channel.Channel,
+            0, doc.SampleCount - 1, doc.MedianSampleInterval, mask);
+
+        if (found.HasProblem)
+        {
+            VeDelayFinding = found.Problem!;
+            return;
+        }
+
+        VeDelaySeconds = found.BestSeconds;
+
+        // The band, not just the winner. Several neighbouring candidates
+        // routinely sit within the noise of each other, and reporting only the
+        // lowest would claim a precision the log does not carry.
+        string over = $"over {found.SamplesScored:N0} samples";
+
+        if (found.IsPrecise)
+        {
+            VeDelayFinding = found.BestSamples == 0
+                ? $"No delay — the readings already line up, {over}."
+                : $"{found.BestSeconds:F2} s, {over}.";
+            return;
+        }
+
+        VeDelayFinding = found.NoneIsPlausible
+            ? $"Somewhere between none and {found.HighSeconds:F2} s; {found.BestSeconds:F2} s fits "
+              + $"best, but not by enough to tell them apart {over}. Anything longer is worse."
+            : $"Between {found.LowSeconds:F2} and {found.HighSeconds:F2} s; {found.BestSeconds:F2} s "
+              + $"fits best, {over}.";
+    }
+
     /// <summary>What the delay setting actually came to, for saying so.</summary>
     public string VeDelayNote
     {

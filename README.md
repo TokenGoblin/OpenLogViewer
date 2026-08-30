@@ -657,12 +657,32 @@ the target is what the ECU was aiming for when it metered the fuel, so it belong
 to the same moment as the cell.
 
 It defaults to none, because the right figure depends on where the sensor is
-fitted and how long its pipe is, and nothing here can know that. **You can find
-it from the log**: raise the delay a little at a time and watch the suggested
-corrections tighten, then loosen again once you go past it. On the sample log
-here the spread of per-cell corrections falls from 10.67 at no delay to 10.16 at
-0.3 s and rises to 10.91 by 1.0 s — a minimum where the physics says it should
-be.
+fitted and how long its pipe is, and nothing here can know that. **But the log
+does — press *Find it*.**
+
+Samples landing in one cell were taken at about the same operating point, so the
+mixtures they measured ought to agree with each other. Pair a cell with readings
+taken too early or too late and readings from neighbouring conditions leak in,
+and its samples start to disagree. So the delay is swept, the disagreement within
+each cell measured, and the delay where they agree best is the answer. It is
+signal alignment rather than tuning — every cell is judged against its own
+readings and never against a target, so a badly mistuned engine aligns exactly as
+well as a well tuned one.
+
+**It reports a band, not a point.** A sweep does not come to a point: several
+neighbouring candidates routinely sit within their own sampling error, and
+naming the lowest of those claims a precision the log does not carry. What comes
+back is the range that cannot be told apart from the best — on the sample log
+here, *somewhere between none and 0.27 s, 0.20 s fits best*, while everything
+beyond 0.27 s is ruled out. Narrower with more data or a cleaner sensor, wider
+with less.
+
+And it refuses to answer when it should. **It needs the engine to have changed**:
+held at one operating point every delay pairs a cell with readings from the same
+conditions, they all score alike, and there is nothing in the log to find the
+answer with. That is the absence of evidence rather than a small delay, and it
+says so — as it does for too few samples, or for a fit still improving at the
+edge of the search, which is not a minimum but the end of where it looked.
 
 What makes it usable is what it refuses to do:
 
