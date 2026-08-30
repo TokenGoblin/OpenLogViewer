@@ -1693,6 +1693,7 @@ public sealed class MainViewModel : ObservableObject
 
         Raise(nameof(SettingsSummary));
         Raise(nameof(HasSettingChanges));
+        Raise(nameof(CanWriteSettings));
     }
 
     /// <summary>
@@ -1785,6 +1786,149 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(EcuTuneSummary));
             Raise(nameof(HasSettingsPages));
             Raise(nameof(SettingsSummary));
+        }
+    }
+
+    /// <summary>Whether there is something to send, and somewhere to send it.</summary>
+    public bool CanWriteSettings =>
+        HasSettingChanges && _ecuConnection is not null && _tuneLayout is not null;
+
+    /// <summary>Pages written since the tune was read, which a burn would commit.</summary>
+    private readonly SortedSet<int> _settingsPagesWritten = [];
+
+    public bool CanBurnSettings => _settingsPagesWritten.Count > 0 && _ecuConnection is not null;
+
+    /// <summary>What a confirmation needs to say before anything is sent.</summary>
+    public int SettingsChangedCount => _settingsEdit?.ChangedCount ?? 0;
+
+    public int SettingsBytesToWrite => _settingsEdit?.BytesToWrite ?? 0;
+
+    public int SettingsPagesToWrite => _settingsEdit?.PagesToWrite.Count ?? 0;
+
+    public int SettingsPagesWritten => _settingsPagesWritten.Count;
+
+    /// <summary>
+    /// Sends the changed settings to the controller.
+    ///
+    /// <para>
+    /// Unlike a table, this is several writes and they may span pages — so a
+    /// failure part way through leaves some of them applied. That is reported as
+    /// what it is rather than as "the write failed", because the two call for
+    /// different things: one means try again, the other means find out what the
+    /// ECU is now running before doing anything else.
+    /// </para>
+    /// <para>
+    /// Each write is read back and compared by the connection before it counts,
+    /// and nothing is burned, so a power cycle undoes all of it.
+    /// </para>
+    /// </summary>
+    public string WriteSettingsToEcu()
+    {
+        if (_settingsEdit is not { } edit) return "No tune has been read.";
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+        if (_tuneLayout is not { } layout || _ecuTune is not { } tune) return "No tune has been read.";
+        if (!edit.HasChanges) return "Nothing has been changed.";
+
+        IReadOnlyList<TuneWrite> writes = edit.Writes();
+        if (writes.Count == 0) return "Nothing has been changed.";
+
+        int settings = edit.ChangedCount;
+        int bytes = 0, done = 0;
+
+        try
+        {
+            foreach (TuneWrite write in writes)
+            {
+                TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+
+                if (page is null)
+                    throw new EcuProtocolException($"The firmware declares no page {write.Page}.");
+
+                if (page.ChunkWriteCommand.Length == 0)
+                    throw new EcuProtocolException(
+                        $"This firmware declares no way to write page {write.Page}.");
+
+                connection.WriteTunePage(
+                    page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
+                    layout.InterWriteDelay);
+
+                // The copy held here has to move with the controller, or the
+                // next read-modify-write is against stale bytes.
+                tune.Accept(write);
+                _settingsPagesWritten.Add(write.Page);
+
+                bytes += write.Data.Length;
+                done++;
+            }
+
+            return $"Sent {settings} setting{(settings == 1 ? "" : "s")} "
+                   + $"({bytes:N0} bytes) to the ECU. It is running them now, and will forget them "
+                   + "at the next power cycle unless you burn them.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return done == 0
+                ? $"Nothing was sent: {e.Message}"
+                : $"{done} of {writes.Count} writes reached the ECU ({bytes:N0} bytes) and then "
+                  + $"this failed: {e.Message} Some settings have changed and some have not. "
+                  + "Nothing was burned, so turning the key off restores all of it.";
+        }
+        finally
+        {
+            // What the ECU took stops being a pending change; what it did not
+            // stays one. Which is which is answered by comparing, not by
+            // counting the writes that got through.
+            edit.Reconcile();
+            OnSettingChanged();
+            Raise(nameof(CanWriteSettings));
+            Raise(nameof(CanBurnSettings));
+        }
+    }
+
+    /// <summary>
+    /// Commits the pages that were written to the controller's flash.
+    ///
+    /// Only those pages. A tune is several pages and burning one that was not
+    /// touched is a flash write for no reason — flash wears, and a burn stops
+    /// the controller answering while it happens.
+    /// </summary>
+    public string BurnSettingsToEcu()
+    {
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+        if (_tuneLayout is not { } layout) return "No tune has been read.";
+
+        if (_settingsPagesWritten.Count == 0)
+            return "Nothing has been sent, so there is nothing to burn.";
+
+        var burned = new List<int>();
+
+        try
+        {
+            foreach (int index in _settingsPagesWritten)
+            {
+                TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == index);
+                if (page is null || page.BurnCommand.Length == 0) continue;
+
+                connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
+                burned.Add(index);
+            }
+
+            if (burned.Count == 0)
+                return "This firmware declares no way to burn the pages that were written.";
+
+            _settingsPagesWritten.Clear();
+            Raise(nameof(CanBurnSettings));
+
+            return $"Burned {burned.Count} page{(burned.Count == 1 ? "" : "s")} to flash. "
+                   + "These settings now survive a power cycle.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return burned.Count == 0
+                ? $"The burn failed: {e.Message}"
+                : $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then this "
+                  + $"failed: {e.Message} The rest are in working memory and will be lost at the "
+                  + "next power cycle.";
         }
     }
 
@@ -2274,6 +2418,7 @@ public sealed class MainViewModel : ObservableObject
         _ecuInterface = null;
         _settingsEdit = null;
         _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        _settingsPagesWritten.Clear();
         EcuTables.Clear();
         SettingsMenu.Clear();
         OpenDialog = null;

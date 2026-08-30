@@ -1283,6 +1283,18 @@
 
                     <!-- And the settings half, which sends different bytes and so
                          has its own buttons rather than sharing these. -->
+                    <Button DockPanel.Dock="Left" Content="Send to ECU" Margin="0,0,8,0"
+                            Click="OnWriteSettingsClick"
+                            IsEnabled="{Binding CanWriteSettings}"
+                            Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Writes the changed settings into the ECU's working memory. Takes effect immediately; lost at the next power cycle unless burned."/>
+
+                    <Button DockPanel.Dock="Left" Content="Burn" Margin="0,0,8,0"
+                            Click="OnBurnSettingsClick"
+                            IsEnabled="{Binding CanBurnSettings}"
+                            Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Commits the pages that were written to the ECU's flash. This survives a power cycle."/>
+
                     <Button DockPanel.Dock="Left" Content="Revert settings" Margin="0,0,14,0"
                             Click="OnRevertSettingsClick"
                             IsEnabled="{Binding HasSettingChanges}"

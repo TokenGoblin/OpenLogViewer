@@ -457,6 +457,59 @@ public partial class MainWindow : Window
         Report(_vm.BurnTableToEcu());
     }
 
+    /// <summary>
+    /// Sends the changed settings, after saying how many and how much.
+    ///
+    /// The byte count is stated because it is the thing that is not obvious: a
+    /// handful of settings can be one write or a dozen depending on where they
+    /// sit, and several hundred bytes going into a running controller is worth
+    /// seeing before it happens.
+    /// </summary>
+    private void OnWriteSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanWriteSettings) return;
+
+        int settings = _vm.SettingsChangedCount;
+        int bytes = _vm.SettingsBytesToWrite;
+        int pages = _vm.SettingsPagesToWrite;
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Send {settings} changed setting{(settings == 1 ? "" : "s")} to the ECU?\n\n"
+            + $"{bytes:N0} bytes across {pages} page{(pages == 1 ? "" : "s")}.\n\n"
+            + "This takes effect immediately on a running engine.\n\n"
+            + "It is not permanent: the ECU forgets it at the next power cycle unless you burn it.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.WriteSettingsToEcu());
+    }
+
+    private void OnBurnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanBurnSettings) return;
+
+        int pages = _vm.SettingsPagesWritten;
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Burn {pages} page{(pages == 1 ? "" : "s")} of settings to the ECU's flash?\n\n"
+            + "This is permanent. A power cycle will not undo it.\n\n"
+            + "Burn with the engine stopped: the ECU pauses while it writes flash.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.BurnSettingsToEcu());
+    }
+
     private void OnRevertSettingsClick(object sender, RoutedEventArgs e) => _vm.RevertSettings();
 
     private void OnRevertTableClick(object sender, RoutedEventArgs e) => _vm.RevertTable();

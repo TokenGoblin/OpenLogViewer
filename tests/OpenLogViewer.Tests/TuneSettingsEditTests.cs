@@ -492,4 +492,106 @@ public class TuneSettingsEditTests
 
         Assert.DoesNotContain(TuneLayoutReader.Read(ini).Constants, c => c.Name == "noOffset");
     }
+
+    // ----- what is left after a send --------------------------------------
+
+    [Fact]
+    public void WhatTheEcuTookStopsBeingAPendingChange()
+    {
+        var tune = Tune();
+        var edit = new TuneSettingsEdit(tune);
+
+        edit.Set("crankingRPM", 300);
+        edit.Set("dwell", 6.0);
+
+        // The controller takes both, which the tune records the way a send does.
+        foreach (TuneWrite write in edit.Writes()) tune.Accept(write);
+        edit.Reconcile();
+
+        Assert.False(edit.HasChanges);
+        Assert.Empty(edit.Writes());
+    }
+
+    [Fact]
+    public void WhatItDidNotTakeStaysAPendingChange()
+    {
+        // A send is several writes, and one failing leaves the earlier ones
+        // applied. What is still outstanding is neither all of it nor none.
+        var tune = Tune();
+        var edit = new TuneSettingsEdit(tune);
+
+        edit.Set("crankingRPM", 300);
+        edit.Set("trims", 9, element: 0);
+
+        IReadOnlyList<TuneWrite> writes = edit.Writes();
+        Assert.Equal(2, writes.Count);
+
+        // Only the first one reaches the ECU.
+        tune.Accept(writes[0]);
+        edit.Reconcile();
+
+        Assert.True(edit.HasChanges);
+        Assert.Equal(1, edit.ChangedCount);
+        Assert.Equal("trims", edit.Changes[0].Name);
+
+        TuneWrite left = Assert.Single(edit.Writes());
+        Assert.Equal(6, left.Offset);
+    }
+
+    [Fact]
+    public void ReconcilingATextSettingComparesItsCharacters()
+    {
+        var tune = Tune();
+        var edit = new TuneSettingsEdit(tune);
+
+        edit.SetText("alias", "CLT");
+        Assert.True(edit.HasChanges);
+
+        foreach (TuneWrite write in edit.Writes()) tune.Accept(write);
+        edit.Reconcile();
+
+        Assert.False(edit.HasChanges);
+    }
+
+    [Fact]
+    public void ReconcilingAnArrayElementLooksAtThatElement()
+    {
+        var tune = Tune();
+        var edit = new TuneSettingsEdit(tune);
+
+        edit.Set("trims", 3, element: 1);
+        edit.Set("trims", 4, element: 3);
+
+        // Both are in one run of bytes, so both go or neither does.
+        foreach (TuneWrite write in edit.Writes()) tune.Accept(write);
+        edit.Reconcile();
+
+        Assert.False(edit.HasChanges);
+    }
+
+    [Fact]
+    public void ReconcilingWithNothingSentChangesNothing()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        edit.Set("crankingRPM", 300);
+        edit.Reconcile();
+
+        Assert.True(edit.HasChanges);
+        Assert.Single(edit.Writes());
+    }
+
+    [Fact]
+    public void ThePagesToWriteAreTheOnesABurnWouldHaveToCommit()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        Assert.Empty(edit.PagesToWrite);
+
+        edit.Set("crankingRPM", 300);
+        edit.Set("dwell", 6.0);
+
+        // One page here, however many writes it takes.
+        Assert.Equal([0], edit.PagesToWrite);
+    }
 }
