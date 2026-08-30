@@ -58,16 +58,24 @@ public class MlgReaderTests : IDisposable
     }
 
     [Fact]
-    public void AppliesTransformOffset()
+    public void ATransformIsAddedBeforeTheScaleAndNotAfter()
     {
+        // The declaration is MS2's VE trim, copied out of one of the user's own
+        // logs: scale 0.009765625, transform 10240, in per cent. A trim that is
+        // doing nothing sits at a raw zero and must read 100%.
+        //
+        // Adding after the scale instead reads 10,240% — which is what this log
+        // really did show before, and what made the ordering worth settling.
+        // See TuneConstant.Transform for the four firmwares that settle it.
         var b = new MlgBuilder()
             .Add(MlgDataType.F32, "Time", "s")
-            .Add(MlgDataType.U16, "Temp", "F", scale: 2f, transform: -40f);
+            .Add(MlgDataType.S16, "VE Trim 1", "%", scale: 0.009765625f, transform: 10240f);
 
-        string path = File_(b, 3, (f, s) => f == 1 ? 100 : s);
+        string path = File_(b, 3, (f, s) => f == 1 ? 0 : s);
 
-        LogChannel temp = LogReaderFactory.Load(path).FindChannel("Temp")!;
-        Assert.Equal(160.0, temp.At(0), 3);   // 100 * 2 - 40
+        LogChannel trim = LogReaderFactory.Load(path).FindChannel("VE Trim 1")!;
+
+        Assert.Equal(100.0, trim.At(0), 3);
     }
 
     [Fact]

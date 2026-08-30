@@ -23,6 +23,7 @@ public sealed record TuneWrite(int Page, int Offset, byte[] Data);
 public sealed class EcuTune
 {
     private readonly Dictionary<string, TuneConstant> _byName;
+    private readonly Dictionary<string, TuneConstant> _exact;
     private readonly byte[][] _pages;
     private readonly bool _little;
 
@@ -33,9 +34,14 @@ public sealed class EcuTune
         _little = layout.LittleEndian;
 
         _byName = new Dictionary<string, TuneConstant>(StringComparer.OrdinalIgnoreCase);
+        _exact = new Dictionary<string, TuneConstant>(StringComparer.Ordinal);
 
         // Later definitions win, matching how the rest of an INI is read.
-        foreach (TuneConstant constant in layout.Constants) _byName[constant.Name] = constant;
+        foreach (TuneConstant constant in layout.Constants)
+        {
+            _byName[constant.Name] = constant;
+            _exact[constant.Name] = constant;
+        }
     }
 
     public TuneLayout Layout { get; }
@@ -80,6 +86,31 @@ public sealed class EcuTune
     /// <summary>Builds one from page images already in hand, for a test or a saved capture.</summary>
     public static EcuTune FromPages(TuneLayout layout, params byte[][] pages) => new(layout, pages);
 
+    /// <summary>
+    /// The constant of that name: the one spelled exactly so, or failing that
+    /// one spelled the same but cased differently.
+    ///
+    /// <b>Exact first, and it matters.</b> MS2Extra declares two different
+    /// settings whose names differ only in case — <c>MAFFlow</c> is a
+    /// twelve-point flow curve on page 4 and <c>mafflow</c> a sixty-four-point
+    /// one on page 6, and its own saved tunes store both. Matching without
+    /// regard to case merges them, so one of the two curves cannot be read at
+    /// all and editing it would write to the other's bytes on another page
+    /// entirely, which nothing downstream would catch.
+    ///
+    /// The loose match is kept as a fallback because the rest of an INI is not
+    /// careful about case: a dialog or a table editor may spell a constant
+    /// differently from its declaration, and those have always resolved.
+    /// </summary>
+    private TuneConstant? Find(string name)
+    {
+        if (name is null) return null;
+
+        return _exact.TryGetValue(name, out TuneConstant? exact) ? exact
+            : _byName.TryGetValue(name, out TuneConstant? loose) ? loose
+            : null;
+    }
+
     /// <summary>Every scalar and bit field, by name — what an expression resolves against.</summary>
     public IReadOnlyDictionary<string, double> Scalars()
     {
@@ -96,14 +127,14 @@ public sealed class EcuTune
 
     /// <summary>One setting by name, or NaN when this firmware has no such thing.</summary>
     public double Scalar(string name) =>
-        _byName.TryGetValue(name, out TuneConstant? constant) && !constant.IsArray
+        Find(name) is { IsArray: false } constant
             ? Value(constant, 0) ?? double.NaN
             : double.NaN;
 
     /// <summary>An array's values in declaration order, or null when there is no such array.</summary>
     public double[]? Array(string name)
     {
-        if (!_byName.TryGetValue(name, out TuneConstant? constant)) return null;
+        if (Find(name) is not { } constant) return null;
 
         int count = constant.Columns * constant.Rows;
         var values = new double[count];
@@ -126,7 +157,7 @@ public sealed class EcuTune
     /// </summary>
     public TuneTable? Table(string name, string valuesConstant, string xConstant, string yConstant)
     {
-        if (!_byName.TryGetValue(valuesConstant, out TuneConstant? values)) return null;
+        if (Find(valuesConstant) is not { } values) return null;
 
         double[]? cells = Array(valuesConstant);
         double[]? x = Array(xConstant);
@@ -140,8 +171,8 @@ public sealed class EcuTune
             for (int column = 0; column < values.Columns; column++)
                 grid[column, row] = cells[row * values.Columns + column];
 
-        _byName.TryGetValue(xConstant, out TuneConstant? xc);
-        _byName.TryGetValue(yConstant, out TuneConstant? yc);
+        TuneConstant? xc = Find(xConstant);
+        TuneConstant? yc = Find(yConstant);
 
         return new TuneTable(
             name,
@@ -210,7 +241,7 @@ public sealed class EcuTune
     {
         ArgumentNullException.ThrowIfNull(values);
 
-        if (!_byName.TryGetValue(name, out TuneConstant? constant)) return null;
+        if (Find(name) is not { } constant) return null;
         if (constant.IsBitField) return null;
         if (values.Count != constant.Columns * constant.Rows) return null;
 
@@ -218,7 +249,7 @@ public sealed class EcuTune
 
         for (int i = 0; i < values.Count; i++)
         {
-            double scaled = (values[i] - constant.Transform) / constant.Scale;
+            double scaled = (values[i] / constant.Scale) - constant.Transform;
             if (double.IsNaN(scaled) || double.IsInfinity(scaled)) return null;
 
             Span<byte> at = data.AsSpan(i * constant.ElementSize);
@@ -236,7 +267,7 @@ public sealed class EcuTune
     {
         ArgumentNullException.ThrowIfNull(cells);
 
-        if (!_byName.TryGetValue(valuesConstant, out TuneConstant? constant)) return null;
+        if (Find(valuesConstant) is not { } constant) return null;
 
         int columns = cells.GetLength(0);
         int rows = cells.GetLength(1);
@@ -319,7 +350,7 @@ public sealed class EcuTune
 
     /// <summary>The constant by that name, or null where this firmware has none.</summary>
     public TuneConstant? Constant(string name) =>
-        name is not null && _byName.TryGetValue(name, out TuneConstant? constant) ? constant : null;
+        name is not null ? Find(name) : null;
 
     /// <summary>
     /// One setting's value, read out of the given page images rather than this
@@ -329,12 +360,12 @@ public sealed class EcuTune
     /// decoding is identical; only where the bytes come from differs.
     /// </summary>
     public double? ValueIn(IReadOnlyList<byte[]> pages, string name, int element = 0) =>
-        _byName.TryGetValue(name, out TuneConstant? constant) ? Value(pages, constant, element) : null;
+        Find(name) is { } constant ? Value(pages, constant, element) : null;
 
     /// <summary>A text setting, trimmed of the padding the ECU stores it with.</summary>
     public string? TextIn(IReadOnlyList<byte[]> pages, string name)
     {
-        if (!_byName.TryGetValue(name, out TuneConstant? constant) || !constant.IsText) return null;
+        if (Find(name) is not { IsText: true } constant) return null;
         if (constant.Page < 0 || constant.Page >= pages.Count) return null;
 
         byte[] page = pages[constant.Page];
@@ -389,7 +420,7 @@ public sealed class EcuTune
 
         if (!constant.IsBitField)
         {
-            double scaled = constant.Scale != 0 ? (value - constant.Transform) / constant.Scale : value;
+            double scaled = constant.Scale != 0 ? (value / constant.Scale) - constant.Transform : value;
             return TryWrite(bytes, constant.Type, scaled, _little);
         }
 
@@ -512,7 +543,7 @@ public sealed class EcuTune
                 : double.NaN;
         }
 
-        if (!constant.IsBitField) return (raw * constant.Scale) + constant.Transform;
+        if (!constant.IsBitField) return (raw + constant.Transform) * constant.Scale;
 
         int width = constant.BitHigh - constant.BitLow + 1;
         long mask = (1L << width) - 1;

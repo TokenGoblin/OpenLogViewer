@@ -156,7 +156,7 @@ public sealed class RealtimeDecoder
             _ => double.NaN,
         };
 
-        if (!field.IsBitField) return raw * field.Scale + field.Transform;
+        if (!field.IsBitField) return (raw + field.Transform) * field.Scale;
 
         // Packed flags: the INI names each run of bits separately, so the value
         // is the run shifted down to zero rather than the byte it came from.

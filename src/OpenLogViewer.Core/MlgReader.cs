@@ -150,7 +150,7 @@ public sealed class MlgReader : ILogReader
             for (int f = 0; f < fields.Length; f++)
             {
                 MlgField fd = fields[f];
-                columns[f][row] = (float)(ReadRaw(data, payload + fd.Offset, fd.Type) * fd.Scale + fd.Transform);
+                columns[f][row] = (float)((ReadRaw(data, payload + fd.Offset, fd.Type) + fd.Transform) * fd.Scale);
             }
 
             // Repeated rather than branched on inside the loop above: one extra
@@ -158,7 +158,7 @@ public sealed class MlgReader : ILogReader
             if (preciseTime is not null)
             {
                 MlgField tf = fields[timeField];
-                preciseTime[row] = ReadRaw(data, payload + tf.Offset, tf.Type) * tf.Scale + tf.Transform;
+                preciseTime[row] = (ReadRaw(data, payload + tf.Offset, tf.Type) + tf.Transform) * tf.Scale;
             }
 
             row++;
