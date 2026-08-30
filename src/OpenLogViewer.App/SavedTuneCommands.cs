@@ -145,6 +145,7 @@ public sealed partial class MainViewModel
             TuneIsFromFile = true;
             _settingsPagesWritten.Clear();
             OpenDialog = null;
+            OpenCurves = [];
             _openMenuEntry = null;
 
             EcuTables.Clear();
@@ -183,6 +184,7 @@ public sealed partial class MainViewModel
             Raise(nameof(SettingsSummary));
             Raise(nameof(OpenDialog));
             Raise(nameof(OpenMenuEntry));
+            CurveChanged();
             Raise(nameof(CanSaveTune));
             Raise(nameof(TuneIsFromFile));
             Raise(nameof(CanWriteSettings));

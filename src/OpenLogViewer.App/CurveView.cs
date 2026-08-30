@@ -52,11 +52,31 @@ public sealed class CurveView : FrameworkElement
         ApplyTheme(ThemeManager.Current);
         ThemeManager.Changed += ApplyTheme;
 
+        // Let go when the element does. The event is static, so without this it
+        // holds a detached view alive for the life of the process and re-renders
+        // it on every theme change — which every other view here already avoids.
+        Unloaded += (_, _) => ThemeManager.Changed -= ApplyTheme;
+
         Focusable = true;
     }
 
-    /// <summary>Raised after a drag has moved something, so the header keeps up.</summary>
-    public event Action? Edited;
+    /// <summary>
+    /// Raised after a drag has moved something, so the header keeps up.
+    ///
+    /// A routed event rather than a plain one, because these are made by a
+    /// template now — a page may hold several curves — and there is nothing to
+    /// attach a handler to one by one.
+    /// </summary>
+    public static readonly RoutedEvent EditedEvent = EventManager.RegisterRoutedEvent(
+        nameof(Edited), RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(CurveView));
+
+    public event RoutedEventHandler Edited
+    {
+        add => AddHandler(EditedEvent, value);
+        remove => RemoveHandler(EditedEvent, value);
+    }
+
+    private void RaiseEdited() => RaiseEvent(new RoutedEventArgs(EditedEvent, this));
 
     /// <summary>The curve being changed, bound from the view model.</summary>
     public static readonly DependencyProperty CurveProperty = DependencyProperty.Register(
@@ -292,7 +312,11 @@ public sealed class CurveView : FrameworkElement
         string up = curve.YUnits.Length > 0 ? $"{curve.YLabel} ({curve.YUnits})" : curve.YLabel;
 
         Label(dc, across, plot.Left + (plot.Width / 2), plot.Bottom + 28, centre: true, title: true);
-        Label(dc, up, LeftGutter - 6, plot.Top - 10, right: true, title: true);
+
+        // From the left edge rather than ending at the gutter: right-aligned, a
+        // name any longer than the gutter is wide starts at a negative x and its
+        // first characters are simply not drawn.
+        Label(dc, up, 2, plot.Top - 10, title: true);
     }
 
     /// <summary>The point under the pointer, spelled out where it cannot be misread.</summary>
@@ -364,7 +388,7 @@ public sealed class CurveView : FrameworkElement
             else curve.SetY(_dragging, ValueAt(pointer.Y));
 
             InvalidateVisual();
-            Edited?.Invoke();
+            RaiseEdited();
             return;
         }
 
@@ -404,7 +428,7 @@ public sealed class CurveView : FrameworkElement
         _dragging = -1;
         ReleaseMouseCapture();
         InvalidateVisual();
-        Edited?.Invoke();
+        RaiseEdited();
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
@@ -442,6 +466,6 @@ public sealed class CurveView : FrameworkElement
 
         e.Handled = true;
         InvalidateVisual();
-        Edited?.Invoke();
+        RaiseEdited();
     }
 }

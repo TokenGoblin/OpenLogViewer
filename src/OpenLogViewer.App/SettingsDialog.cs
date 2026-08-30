@@ -110,18 +110,23 @@ public sealed class SettingsDialog
         {
             if (item.Kind == DialogItemKind.Panel)
             {
-                // A panel naming a curve rather than a dialog. Noted and carried
-                // up rather than drawn here, because a curve is a plot and these
-                // rows are a list of fields.
-                if (curves is not null && curves.Contains(item.Target))
+                // A dialog of that name first, then a curve — the same order
+                // the settings menu resolves a name in. Asking the other way
+                // round would mean a firmware declaring both got its fields on
+                // one route and its plot on the other.
+                if (ui.Find(item.Target) is not { } panel)
                 {
-                    if (!_curves.Contains(item.Target, StringComparer.OrdinalIgnoreCase))
+                    // A panel naming a curve. Noted and carried up rather than
+                    // drawn here, because a curve is a plot and these rows are a
+                    // list of fields.
+                    if (curves is not null && curves.Contains(item.Target)
+                        && !_curves.Contains(item.Target, StringComparer.OrdinalIgnoreCase))
+                    {
                         _curves.Add(item.Target);
+                    }
 
                     continue;
                 }
-
-                if (ui.Find(item.Target) is not { } panel) continue;
 
                 // A panel carries its own condition, which gates everything it
                 // holds. Rather than track that separately, it is pushed onto
