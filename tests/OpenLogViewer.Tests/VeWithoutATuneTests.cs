@@ -1,4 +1,4 @@
-using OpenLogViewer.Core;
+﻿using OpenLogViewer.Core;
 using Xunit;
 
 namespace OpenLogViewer.Tests;
@@ -14,6 +14,15 @@ namespace OpenLogViewer.Tests;
 /// </summary>
 public class VeWithoutATuneTests
 {
+    /// <summary>
+    /// Confidence weighting off, for the tests below that assert an exact
+    /// correction. They are about the arithmetic and the direction of it; with
+    /// the shrinkage on, each expected number would also encode how many samples
+    /// happened to land in a cell. It has its own tests in
+    /// <see cref="VeAnalysisTests"/>, the default included.
+    /// </summary>
+    private static readonly VeAnalysisSettings Unweighted = new() { ConfidenceSamples = 0 };
+
     /// <summary>
     /// A run where the mixture is ten per cent rich everywhere: lambda 0.9
     /// against a target of 1.0.
@@ -66,7 +75,8 @@ public class VeWithoutATuneTests
         (LogChannel rpm, LogChannel load, LogChannel lambda, LogChannel target) = Rich(measured: 0.9);
 
         TuneTable grid = VeAnalysis.GridFrom(rpm, load, 4, 4, 0, 399);
-        VeAnalysisResult result = VeAnalysis.Analyse(grid, rpm, load, lambda, target, 0, 399);
+        VeAnalysisResult result = VeAnalysis.Analyse(
+            grid, rpm, load, lambda, target, 0, 399, settings: Unweighted);
 
         Assert.False(result.IsEmpty);
 
@@ -83,7 +93,8 @@ public class VeWithoutATuneTests
         (LogChannel rpm, LogChannel load, LogChannel lambda, LogChannel target) = Rich(measured: 1.08);
 
         TuneTable grid = VeAnalysis.GridFrom(rpm, load, 4, 4, 0, 399);
-        VeAnalysisResult result = VeAnalysis.Analyse(grid, rpm, load, lambda, target, 0, 399);
+        VeAnalysisResult result = VeAnalysis.Analyse(
+            grid, rpm, load, lambda, target, 0, 399, settings: Unweighted);
 
         double?[] changes = [.. result.ChangePercent.Cast<double?>().Where(v => v is not null)];
 
@@ -120,7 +131,7 @@ public class VeWithoutATuneTests
                 values[c, r] = 80;
 
         VeAnalysisResult result = VeAnalysis.Analyse(
-            grid with { Values = values }, rpm, load, lambda, target, 0, 399);
+            grid with { Values = values }, rpm, load, lambda, target, 0, 399, settings: Unweighted);
 
         double?[] suggested = [.. result.Suggested.Cast<double?>().Where(v => v is not null)];
 
@@ -161,7 +172,7 @@ public class VeWithoutATuneTests
 
         VeAnalysisResult result = VeAnalysis.Analyse(
             VeAnalysis.GridFrom(rpm, load, 4, 4, 0, 399), rpm, load, lambda, target, 0, 399,
-            settings: new VeAnalysisSettings { MaxChangePercent = 30 });
+            settings: new VeAnalysisSettings { MaxChangePercent = 30, ConfidenceSamples = 0 });
 
         Assert.False(result.HasProblem);
         Assert.False(result.IsEmpty);
@@ -194,7 +205,7 @@ public class VeWithoutATuneTests
 
         VeAnalysisResult result = VeAnalysis.Analyse(
             grid, rpm, load, lambda, target, 0, 399,
-            settings: new VeAnalysisSettings { MaxChangePercent = 15 });
+            settings: new VeAnalysisSettings { MaxChangePercent = 15, ConfidenceSamples = 0 });
 
         Assert.All(
             result.ChangePercent.Cast<double?>().Where(v => v is not null),

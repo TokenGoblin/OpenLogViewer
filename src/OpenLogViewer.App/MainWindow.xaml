@@ -536,6 +536,17 @@
                                              ToolTip="Largest move suggested for one pass"/>
                                 </StackPanel>
                             </Grid>
+
+                            <!-- The reading arrives after the event it describes.
+                                 Nothing here can know by how much, since it depends
+                                 on where the sensor is fitted, so it is asked for
+                                 rather than assumed. -->
+                            <TextBlock Text="Wideband delay, s" FontSize="10" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource Faint}"/>
+                            <TextBox Text="{Binding VeDelaySeconds, UpdateSourceTrigger=LostFocus}"
+                                     ToolTip="How long the sensor takes to see the mixture metered now. It depends on where it is fitted — 0.2 to 0.4 s is typical."/>
+                            <TextBlock Text="{Binding VeDelayNote}" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource Faint}" Margin="0,2,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
