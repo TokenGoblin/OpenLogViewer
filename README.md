@@ -465,6 +465,45 @@ undone by turning the key off. A burn commits it to flash and is permanent; do
 it with the engine stopped, since the ECU pauses while it writes. Every write is
 read back and compared before it is called done.
 
+### Editing the settings
+
+A tune is mostly not tables. *Calibration* has a **Settings** half beside the
+tables, and its pages are built from what the firmware says about itself — the
+menus, dialogs and fields an INI declares, which is the same description
+TunerStudio draws from. An MS3 offers 144 pages, an MS2Extra 55, a Speeduino 49.
+
+Nothing about them is written here. A number gets a box, a bit field gets the
+list of names the firmware gives its values, a name gets a text box, and a
+read-only field gets none of those. Units come from the definition, and a
+changed field is outlined the way a changed table cell is.
+
+**Pages show what applies to your tune, and change as you edit it.** Almost every
+field is conditional — "Window Sample Type" means nothing without knock detection
+on and set to analogue — and the conditions are written against the tune's own
+settings. Turn something on and the fields that configure it appear. Where a
+condition cannot be worked out, the field is shown with a **?** rather than
+hidden: an unexplained setting is better than one you cannot reach, but you
+should be able to tell which you are looking at.
+
+Send and Burn work as they do for a table, and separately from it. The
+confirmation says how many settings, how many bytes and how many pages, because
+a handful of settings is one write or a dozen depending where they sit. A burn
+commits only the pages that were written.
+
+**Verified against a Speeduino 202501.** The tune reads in 424 ms — 3,408 bytes
+across fifteen pages — and two consecutive reads are byte-identical. Values were
+checked against the raw bytes rather than against the display: `0x09` at a scale
+of a tenth is the 0.9 ms injector open time, `0x5F` is the 95 % duty limit,
+`0x61` masked to bits 4–7 is six cylinders.
+
+Writing was checked the same way. Changing one RPM setting sent a single byte,
+the read-back matched, re-reading the whole tune showed that byte changed and
+**no other byte in 3,408 had moved**. The case worth proving is a bit field:
+seven settings share byte 83 of page 14, and flipping one of them moved exactly
+one bit — `01001010` to `01001000` — leaving the other six as they were. That is
+the failure this is built to avoid, since an ECU takes a clobbered byte without
+complaint and the read-back agrees with what was sent.
+
 ### OBD2 through an ELM327
 
 Any standard vehicle, with no definition file and no aftermarket ECU. This is
