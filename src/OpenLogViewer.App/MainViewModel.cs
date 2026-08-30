@@ -1762,6 +1762,12 @@ public sealed partial class MainViewModel : ObservableObject
             TuneIsPlaceholder = true;
             TuneIsFromFile = false;
 
+            // A definition is not a tune and belongs to no saved file, so
+            // nothing about the last one survives into it.
+            _tuneFile = null;
+            _tuneSymbols = null;
+            _ecuSignature = "";
+
             // And everything belonging to the tune that was open until now. A
             // page left on screen stays bound to the edit just thrown away, so
             // what is typed into it lands in an image nothing will ever send;
@@ -2072,7 +2078,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// a firmware that admits to being writable.
     /// </summary>
     public bool CanWriteTable =>
-        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null;
+        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null
+        && !TuneIsPlaceholder && !TuneIsFromFile;
 
     /// <summary>
     /// Whether burning is possible at all, which needs a controller on the other
@@ -2320,6 +2327,20 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public string WriteTableToEcu()
     {
+        // What the tune is comes before what is on screen. The same refusal the
+        // settings and the burn make, and for the same reason: a placeholder
+        // tune is all zeros and a tune from a file belongs to whatever saved it.
+        // Asked first so that the answer does not depend on whether a table
+        // happens to be open — a greyed button is not the whole guard, since
+        // this is reachable from a scripted run as well.
+        if (TuneIsPlaceholder)
+            return "This is a firmware definition rather than a tune — every value in it reads as "
+                   + "zero, so nothing here may be sent to a controller.";
+
+        if (TuneIsFromFile)
+            return "This tune was opened from a file rather than read off the controller, so it "
+                   + "cannot be sent back. Read the ECU's own tune first.";
+
         if (TableEdit is not { } edit) return "No table is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
@@ -2344,6 +2365,14 @@ public sealed partial class MainViewModel : ObservableObject
             // read-modify-write would be against stale bytes and would undo
             // this one.
             tune.Accept(write);
+
+            // And so does the settings edit, which holds a copy of the pages
+            // taken when it was made and works out what to send by comparing the
+            // two. Left behind, those table bytes read as pending settings
+            // changes carrying the values from before this write — so the next
+            // time anything is sent from a settings page it puts the table back,
+            // on a running engine, with nothing reporting an error.
+            _settingsEdit?.Accept(write);
 
             int cells = edit.ChangedCount;
             SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
@@ -2474,7 +2503,14 @@ public sealed partial class MainViewModel : ObservableObject
         _settingsPagesWritten.Clear();
         TuneIsPlaceholder = false;
         TuneIsFromFile = false;
+
+        // Everything that described where the last tune came from. The symbols
+        // especially: they say which build a definition should be read as, and
+        // carrying MS2Extra's over to a Speeduino would write a file whose
+        // signature and whose conditionals disagree — which takes the wrong
+        // branch everywhere it is read back, silently.
         _tuneFile = null;
+        _tuneSymbols = null;
         EcuTables.Clear();
         SettingsMenu.Clear();
 

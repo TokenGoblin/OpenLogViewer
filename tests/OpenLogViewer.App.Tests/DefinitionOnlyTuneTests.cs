@@ -67,6 +67,22 @@ public class DefinitionOnlyTuneTests : IDisposable
         Assert.False(vm.CanWriteSettings);
         Assert.False(vm.CanBurn);
         Assert.False(vm.CanBurnSettings);
+
+        // The table half too. It was the one gate left open, and a table write
+        // reaches the running engine by the same wire as the rest.
+        Assert.False(vm.CanWriteTable);
+    }
+
+    [Fact]
+    public void ATableFromAPlaceholderIsRefusedEvenWhenAskedDirectly()
+    {
+        // A greyed button is not the whole guard: this is reachable from a
+        // scripted run, where nothing consults CanWriteTable at all.
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        Assert.True(vm.OpenDefinition(WriteIni(Firmware)));
+
+        Assert.Contains("definition rather than a tune", vm.WriteTableToEcu());
     }
 
     [Fact]
