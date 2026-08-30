@@ -84,10 +84,23 @@ cell and smeared across a region of the table. *Wideband delay* takes that time
 in seconds and shifts the measurement, and only the measurement: the target is
 what the ECU was aiming for when it metered the fuel, so it belongs to the same
 moment as the cell. It defaults to none, because the figure depends on where the
-sensor is fitted and nothing here can know that — but it can be found from the
-log, by raising it until the suggested corrections stop tightening. On a sample
-log the spread of per-cell corrections bottoms out at 0.3 s, which is where the
-physics puts it.
+sensor is fitted and nothing here can know that.
+
+**But the log knows, and there is a button that asks it.** Samples landing in one
+cell were taken at about the same operating point, so the mixtures they measured
+ought to agree; pair a cell with readings taken too early or too late and
+readings from neighbouring conditions leak in and its samples disagree. *Find it*
+sweeps the delay and takes the one where they agree best. It is alignment rather
+than tuning — every cell is judged against its own readings, never against a
+target — so a badly mistuned engine aligns as well as a well tuned one.
+
+It answers with a band rather than a point, because a sweep does not come to one:
+neighbouring candidates routinely sit within their own sampling error, and naming
+the lowest claims a precision the log does not carry. And it refuses outright
+where it should — an engine held at one operating point gives every delay the
+same score, which is the absence of evidence rather than a small delay, and
+saying so is the only honest answer. Neither MTune nor MegaLogViewer measures
+this; both ask you to guess.
 
 And above the minimum-samples floor, a cell used to get the whole correction the
 instant it cleared the threshold — a cell with twelve samples and one with two

@@ -13,9 +13,18 @@ public class AnalysisWorkflowTests : IDisposable
     private readonly ViewModelHarness _harness = new();
     private readonly string _settings = Path.Combine(Path.GetTempPath(), $"olv-{Guid.NewGuid():N}");
 
+    /// <summary>
+    /// Every store on a temporary path, settings included. A defaulted
+    /// SettingsStore reads the user's own remembered ECUs, and the view model
+    /// recalls those into SerialPortNames — which is static, so one view model
+    /// built that way leaves them visible to every other test in the run.
+    /// </summary>
     private MainViewModel NewViewModel() => new(
         new PresetStore(Path.Combine(_settings, "presets.json")),
-        new FilterStore(Path.Combine(_settings, "filters.json")));
+        new FilterStore(Path.Combine(_settings, "filters.json")),
+        new SettingsStore(Path.Combine(_settings, "settings.json")),
+        new MathChannelStore(Path.Combine(_settings, "math.json")),
+        new ChannelStyleStore(Path.Combine(_settings, "channels.json")));
 
     private MainViewModel Loaded()
     {
