@@ -243,6 +243,10 @@ public static class TuneLayoutReader
         ArgumentNullException.ThrowIfNull(iniText);
         symbols ??= MsqIni.DefaultSymbols;
 
+        // The named option lists, needed before any bit field is read: a great
+        // many of them name their values by pointing at one of these.
+        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText);
+
         var constants = new List<TuneConstant>();
 
         int pages = 0;
@@ -265,7 +269,7 @@ public static class TuneLayoutReader
 
             if (Bits.Match(line) is { Success: true } bits)
             {
-                constants.Add(FromBits(bits, page));
+                constants.Add(FromBits(bits, page, defines));
                 continue;
             }
 
@@ -373,6 +377,7 @@ public static class TuneLayoutReader
     private static IReadOnlyList<TuneConstant> ReadPcVariables(
         string iniText, IReadOnlySet<string> symbols)
     {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText);
         var variables = new List<TuneConstant>();
 
         foreach (string raw in MsqIni.Section(iniText, "PcVariables", symbols))
@@ -395,7 +400,7 @@ public static class TuneLayoutReader
                     Type = bitType,
                     BitLow = Math.Min(low, high),
                     BitHigh = Math.Max(low, high),
-                    Options = [.. Fields(bits.Groups["rest"].Value).Select(Unquote)],
+                    Options = IniDefines.Expand(bits.Groups["rest"].Value, defines),
                 });
 
                 continue;
@@ -531,7 +536,9 @@ public static class TuneLayoutReader
         };
     }
 
-    private static TuneConstant FromBits(Match match, int page)
+    private static TuneConstant FromBits(
+        Match match, int page,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? defines = null)
     {
         Enum.TryParse(match.Groups["type"].Value, ignoreCase: true, out RealtimeType type);
 
@@ -546,7 +553,9 @@ public static class TuneLayoutReader
             Type = type,
             BitLow = Math.Min(low, high),
             BitHigh = Math.Max(low, high),
-            Options = [.. Fields(match.Groups["rest"].Value).Select(Unquote)],
+            Options = defines is null
+                ? [.. Fields(match.Groups["rest"].Value).Select(Unquote)]
+                : IniDefines.Expand(match.Groups["rest"].Value, defines),
         };
     }
 
