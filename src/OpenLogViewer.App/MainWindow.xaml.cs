@@ -67,6 +67,12 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(
             new RelayCommand(() => OnReconnectClick(this, new RoutedEventArgs())),
             Key.K, ModifierKeys.Control));
+
+        // Ctrl+F, where every other program puts it. Only in log view: the two
+        // derived views have no time axis to jump along.
+        InputBindings.Add(new KeyBinding(
+            new RelayCommand(() => { if (_vm.ShowLog) ToggleFind(); }),
+            Key.F, ModifierKeys.Control));
     }
 
     private void OnThemeChanged(Theme theme) => TitleBar.Apply(this, theme);
@@ -1828,6 +1834,14 @@ public partial class MainWindow : Window
         OnScatterBlockActivated((column, row));
     }
 
+    /// <summary>Runs a search and frames its first finding, for a scripted run.</summary>
+    public void FindInLog(string condition)
+    {
+        _vm.Finding = true;
+        _vm.FindCondition = condition;
+        RunFind();
+    }
+
     /// <summary>Turns on VE Calibration, for a scripted run.</summary>
     public void EnableVeAnalyze(bool showSuggested)
     {
@@ -2258,6 +2272,86 @@ public partial class MainWindow : Window
     private void OnClearStyleClick(object sender, RoutedEventArgs e)
     {
         if (ChannelFrom(sender) is { } item) _vm.ClearStyle(item);
+    }
+
+    // ----- finding a moment in the log --------------------------------------
+
+    /// <summary>Opens the find bar and puts the caret in it, or shuts it again.</summary>
+    private void ToggleFind()
+    {
+        _vm.Finding = !_vm.Finding;
+
+        if (_vm.Finding) FindBox.Focus();
+        else Plot.SetOccurrences([]);
+    }
+
+    private void OnFindMenuClick(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.Finding) ToggleFind();
+        else FindBox.Focus();
+    }
+
+    private void OnCloseFindClick(object sender, RoutedEventArgs e)
+    {
+        _vm.Finding = false;
+        Plot.SetOccurrences([]);
+    }
+
+    private void OnFindBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            OnCloseFindClick(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Enter) return;
+
+        // Enter runs it the first time and steps through it afterwards, which is
+        // what the key does in every other find bar.
+        if (_vm.Found is null) RunFind();
+        else StepFinding(forward: (Keyboard.Modifiers & ModifierKeys.Shift) == 0);
+
+        e.Handled = true;
+    }
+
+    private void OnFindNextClick(object sender, RoutedEventArgs e) => StepFinding(forward: true);
+
+    private void OnFindPreviousClick(object sender, RoutedEventArgs e) => StepFinding(forward: false);
+
+    /// <summary>
+    /// Runs the search and shades every stretch it found, so the whole answer is
+    /// on the plot at once rather than one match at a time.
+    /// </summary>
+    private void RunFind()
+    {
+        if (!_vm.RunFind() || _vm.Document is not { } doc)
+        {
+            Plot.SetOccurrences([]);
+            return;
+        }
+
+        Plot.SetOccurrences(
+            [.. _vm.Found!.Runs.Select(r => (doc.Time.At(r.First), doc.Time.At(r.Last)))]);
+
+        StepFinding(forward: true);
+    }
+
+    /// <summary>Frames the next stretch, the way a jump to an extreme frames one.</summary>
+    private void StepFinding(bool forward)
+    {
+        if (_vm.Document is not { } doc) return;
+        if (_vm.StepFinding(forward) is not { } run) return;
+
+        double from = doc.Time.At(run.First);
+        double to = doc.Time.At(run.Last);
+
+        // Room either side, so a one-sample finding is not framed to a hairline.
+        double margin = Math.Max((to - from) * 2, 1.0);
+
+        Plot.ZoomTo(from - margin, to + margin);
+        Plot.SelectRange(from, to);
     }
 
     private void OnFindDelayClick(object sender, RoutedEventArgs e)

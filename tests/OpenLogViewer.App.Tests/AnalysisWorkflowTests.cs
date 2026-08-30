@@ -222,6 +222,128 @@ public class AnalysisWorkflowTests : IDisposable
         Assert.Equal(before, vm.Channels.Where(c => c.IsVisible).Select(c => c.Name));
     }
 
+    // ----- finding a moment in the log --------------------------------------
+
+    [Fact]
+    public void TheFindBarStartsShutAndWithNothingFound()
+    {
+        MainViewModel vm = Loaded();
+
+        Assert.False(vm.Finding);
+        Assert.Null(vm.Found);
+        Assert.False(vm.CanStepFindings);
+    }
+
+    [Fact]
+    public void AConditionFindsTheStretchesItHeldOver()
+    {
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "RPM > 3000";
+
+        Assert.True(vm.RunFind());
+        Assert.NotNull(vm.Found);
+        Assert.False(vm.Found!.IsEmpty);
+        Assert.True(vm.CanStepFindings);
+        Assert.Contains("stretch", vm.FindSummary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AConditionMatchingNothingSaysSoRatherThanFailing()
+    {
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "RPM > 999999";
+
+        Assert.False(vm.RunFind());
+        Assert.False(vm.Found!.HasProblem);
+        Assert.Contains("Nothing matched", vm.FindSummary);
+        Assert.False(vm.CanStepFindings);
+    }
+
+    [Fact]
+    public void AConditionNamingAChannelTheLogLacksReportsTheProblem()
+    {
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "Boost > 10";
+
+        Assert.False(vm.RunFind());
+        Assert.Null(vm.Found);
+        Assert.NotEqual("", vm.FindSummary);
+    }
+
+    [Fact]
+    public void SteppingWrapsAroundInBothDirections()
+    {
+        // MAP cycles in this log, so the condition holds over several separate
+        // stretches — RPM only climbs, and would give one.
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "MAP > 60";
+        vm.RunFind();
+
+        int stretches = vm.Found!.Runs.Count;
+        Assert.True(stretches > 1, "this log should hold more than one stretch");
+
+        // Forward from nothing lands on the first.
+        Assert.Equal(vm.Found.Runs[0], vm.StepFinding(forward: true));
+
+        // Once round the loop comes back to it.
+        for (int i = 0; i < stretches - 1; i++) vm.StepFinding(forward: true);
+
+        Assert.Equal(vm.Found.Runs[0], vm.StepFinding(forward: true));
+
+        // And back the other way wraps to the last.
+        Assert.Equal(vm.Found.Runs[^1], vm.StepFinding(forward: false));
+    }
+
+    [Fact]
+    public void SteppingBackwardsFromNothingStartsAtTheLast()
+    {
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "MAP > 60";
+        vm.RunFind();
+
+        Assert.Equal(vm.Found!.Runs[^1], vm.StepFinding(forward: false));
+    }
+
+    [Fact]
+    public void ThereIsNothingToStepToBeforeASearchHasBeenRun()
+    {
+        MainViewModel vm = Loaded();
+
+        Assert.Null(vm.StepFinding(forward: true));
+    }
+
+    [Fact]
+    public void ChangingTheConditionThrowsAwayTheOldResult()
+    {
+        // Otherwise the summary sits there describing something no longer asked.
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "RPM > 3000";
+        vm.RunFind();
+
+        vm.FindCondition = "RPM > 4000";
+
+        Assert.Null(vm.Found);
+        Assert.False(vm.CanStepFindings);
+        Assert.Equal("", vm.FindSummary);
+    }
+
+    [Fact]
+    public void FiltersNarrowWhatIsSearched()
+    {
+        // The filters say which part of the drive is under consideration, so a
+        // find must not jump to a moment they exclude.
+        MainViewModel vm = Loaded();
+        vm.FindCondition = "RPM > 1000";
+        vm.RunFind();
+        int before = vm.Found!.Matches;
+
+        vm.Filters.First(f => f.Filter.Channel == "CLT").Enabled = true;
+        vm.RunFind();
+
+        Assert.True(vm.Found!.Matches < before);
+        Assert.Contains("excluded by filters", vm.FindSummary);
+    }
+
     // ----- a marked span, read on the table ---------------------------------
 
     [Fact]

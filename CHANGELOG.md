@@ -109,6 +109,23 @@ The correction is scaled by `n / (n + Min samples)` instead, so a thin cell stay
 near the number it already holds. The floor itself is unchanged; this softens the
 cliff above it rather than lowering it.
 
+**Find a moment in the log.** Ctrl+F, a condition in the same syntax as a
+calculated channel — `RPM > 4500 && TPS > 80` — and every stretch of the drive
+that met it is shaded, with Enter and shift-Enter stepping through them.
+
+The same syntax on purpose: anyone who has written a calculated channel already
+knows how to write a search, and a condition that proves useful can be pasted
+into a channel or a filter without translation. What it adds over a filter is
+*where*: a filter answers which samples to count and throws the rest away, this
+answers which moments to go and look at. Filters still narrow it, since they say
+which part of the drive is under consideration.
+
+Consecutive matches are one finding rather than fifty — a signal sitting near its
+threshold crosses it repeatedly, and a brief dip below is bridged the way a
+table cell's visits are. A sample where a named channel has no reading is counted
+as *could not be judged* rather than as a miss, because a comparison against a
+reading that was never taken is unanswerable and not false.
+
 **Mark a pull on the plot, and the table rings the cells it reached.** The other
 direction of the trace-back. Clicking a cell has always framed the samples that
 built it; this answers the question asked first — mark a span, switch to

@@ -157,6 +157,39 @@ Filters are matched to channels by name and persist between sessions in
 `%APPDATA%\OpenLogViewer\filters.json`. A filter naming a channel the log does
 not have is reported and skipped, never applied as "reject everything".
 
+## Finding a moment
+
+**Ctrl+F**, or *View ▸ Find in the log…*. Type a condition and it shades every
+stretch of the drive that met it, then steps through them.
+
+```
+RPM > 4500 && TPS > 80
+AFR > 16 && MAP > 150
+CLT > 210
+```
+
+The same syntax as a calculated channel, deliberately: anyone who has written one
+already knows how to write a search, and a condition that proves useful can be
+pasted into a calculated channel or a filter without translation. Enter runs it
+and then steps forward, shift-Enter steps back, Escape shuts it.
+
+What this adds over a filter is *where*. A filter answers which samples to count
+and throws the rest away; this answers which moments to go and look at, and
+leaves the log alone. Filters still apply — they say which part of the drive is
+under consideration, and a search that jumped to a moment they exclude would be
+answering a question nobody asked.
+
+**Consecutive matches are one finding, not fifty.** A signal sitting near its
+threshold crosses it repeatedly — RPM wandering about 4,000 against `RPM > 4000`
+alternates true and false every few samples — so a brief dip below is bridged,
+the same way a table cell's visits are worked out.
+
+And a sample where one of the named channels has no reading is counted as
+*could not be judged*, separately from the misses. A comparison against a
+reading that was never taken is unanswerable rather than false, and folding those
+into "did not match" would report confidence about a stretch of log that has
+nothing to say.
+
 ## Scatter mode
 
 The third button in the toolbar. Same three channels as the table, same

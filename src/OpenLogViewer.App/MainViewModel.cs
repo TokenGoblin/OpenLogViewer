@@ -139,6 +139,125 @@ public sealed class MainViewModel : ObservableObject
         return true;
     }
 
+    // ----- finding a moment in the log --------------------------------------
+
+    private string _findCondition = "";
+    private LogSearchResult? _found;
+    private int _foundIndex = -1;
+    private bool _finding;
+
+    /// <summary>Whether the find bar is showing.</summary>
+    public bool Finding
+    {
+        get => _finding;
+        set => Set(ref _finding, value);
+    }
+
+    /// <summary>The condition being looked for, in the calculated-channel syntax.</summary>
+    public string FindCondition
+    {
+        get => _findCondition;
+        set
+        {
+            // The result belongs to the old condition, so it goes with it rather
+            // than sitting there describing something no longer being asked.
+            if (Set(ref _findCondition, value)) ClearFound();
+        }
+    }
+
+    /// <summary>What was found, or null when nothing has been looked for.</summary>
+    public LogSearchResult? Found => _found;
+
+    public string FindSummary { get; private set; } = "";
+
+    public bool CanStepFindings => _found is { IsEmpty: false };
+
+    private void ClearFound()
+    {
+        _found = null;
+        _foundIndex = -1;
+        FindSummary = "";
+
+        Raise(nameof(Found));
+        Raise(nameof(FindSummary));
+        Raise(nameof(CanStepFindings));
+    }
+
+    /// <summary>
+    /// Runs the search. Filters apply: they say which part of the drive is under
+    /// consideration, and jumping to a moment they exclude would answer a
+    /// question nobody asked.
+    /// </summary>
+    public bool RunFind()
+    {
+        if (Document is not { SampleCount: > 0 } doc)
+        {
+            FindSummary = "Open a log first.";
+            Raise(nameof(FindSummary));
+            return false;
+        }
+
+        SampleMask mask = SampleFilter.Build(doc, Filters.Select(f => f.Filter));
+        LogSearchResult found = LogSearch.Find(doc, _findCondition, mask);
+
+        if (found.HasProblem)
+        {
+            ClearFound();
+            FindSummary = found.Problem!;
+            Raise(nameof(FindSummary));
+            return false;
+        }
+
+        _found = found;
+        _foundIndex = -1;
+
+        var parts = new List<string>();
+
+        if (found.IsEmpty)
+        {
+            parts.Add("Nothing matched");
+        }
+        else
+        {
+            parts.Add($"{found.Matches:N0} sample{(found.Matches == 1 ? "" : "s")} in "
+                      + $"{found.Runs.Count:N0} stretch{(found.Runs.Count == 1 ? "" : "es")}");
+        }
+
+        // Said rather than folded into the misses: a comparison against a reading
+        // that was never taken is unanswerable, not false.
+        if (found.Unknown > 0)
+            parts.Add($"{found.Unknown:N0} could not be judged");
+
+        if (mask.FiltersApplied)
+            parts.Add($"{mask.Total - mask.PassCount:N0} excluded by filters");
+
+        FindSummary = string.Join("   •   ", parts);
+
+        Raise(nameof(Found));
+        Raise(nameof(FindSummary));
+        Raise(nameof(CanStepFindings));
+        return !found.IsEmpty;
+    }
+
+    /// <summary>
+    /// The next stretch to look at, wrapping at the end, or null when there is
+    /// nothing to step to.
+    /// </summary>
+    public (int First, int Last)? StepFinding(bool forward)
+    {
+        if (_found is not { IsEmpty: false } found) return null;
+
+        _foundIndex = _foundIndex < 0
+            ? forward ? 0 : found.Runs.Count - 1
+            : (_foundIndex + (forward ? 1 : -1) + found.Runs.Count) % found.Runs.Count;
+
+        FindSummary = $"Stretch {_foundIndex + 1:N0} of {found.Runs.Count:N0}"
+                      + $"   •   {found.Matches:N0} samples matched in all";
+
+        Raise(nameof(FindSummary));
+        return found.Runs[_foundIndex];
+    }
+
     // ----- pinned colours and scales ----------------------------------------
 
     /// <summary>The palette of the current scheme, offered as the easy choice.</summary>
