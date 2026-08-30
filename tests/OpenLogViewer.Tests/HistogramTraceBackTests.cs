@@ -135,4 +135,107 @@ public class HistogramTraceBackTests
 
         Assert.Equal([2, 3, 4], table.SamplesIn(1, 0));
     }
+
+    // ----- the other direction: a marked span to the cells it reached --------
+
+    [Fact]
+    public void AMarkedSpanReportsTheCellsItPassedThrough()
+    {
+        HistogramTable table = Table([1000, 1000, 3000, 3000, 1000]);
+
+        CellVisits visits = table.VisitedBy(0, 4);
+
+        Assert.Equal(2, visits.Cells);
+        Assert.Equal(5, visits.Samples);
+        Assert.Equal(3, visits.Counts[0, 0]);
+        Assert.Equal(2, visits.Counts[1, 0]);
+        Assert.True(visits.Visited(0, 0));
+        Assert.True(visits.Visited(1, 0));
+    }
+
+    [Fact]
+    public void ASpanOverOneCellReachesOnlyThatCell()
+    {
+        HistogramTable table = Table([1000, 1000, 3000, 3000, 1000]);
+
+        CellVisits visits = table.VisitedBy(2, 3);
+
+        Assert.Equal(1, visits.Cells);
+        Assert.False(visits.Visited(0, 0));
+        Assert.True(visits.Visited(1, 0));
+    }
+
+    [Fact]
+    public void TheSpanIsReadTheSameWayRoundWhicheverEndIsGivenFirst()
+    {
+        HistogramTable table = Table([1000, 1000, 3000, 3000, 1000]);
+
+        Assert.Equal(table.VisitedBy(0, 4).Cells, table.VisitedBy(4, 0).Cells);
+        Assert.Equal(table.VisitedBy(0, 4).Samples, table.VisitedBy(4, 0).Samples);
+    }
+
+    [Fact]
+    public void SamplesAFilterExcludedAreCountedAsOutsideRatherThanPlaced()
+    {
+        // The table was built without them, so marking their cells would claim
+        // evidence the table does not rest on.
+        var mask = new SampleMask
+        {
+            Accepted = [true, true, false, false, false],
+            FiltersApplied = true,
+            Total = 5,
+            PassCount = 2,
+            UnknownChannels = [],
+        };
+
+        HistogramTable table = Table([1000, 1000, 3000, 3000, 1000], mask);
+
+        CellVisits visits = table.VisitedBy(0, 4);
+
+        Assert.Equal(1, visits.Cells);
+        Assert.Equal(2, visits.Samples);
+        Assert.Equal(3, visits.Outside);
+    }
+
+    [Fact]
+    public void ASpanOutsideTheTablesWindowReachesNothingAndSaysSo()
+    {
+        // The table covers samples 0..2; the span is past its end.
+        HistogramTable table = HistogramTable.Build(
+            Channel("RPM", [1000, 3000, 1000, 3000, 1000]),
+            Channel("MAP", [.. Enumerable.Repeat(50.0, 5)]),
+            Channel("AFR", [.. Enumerable.Repeat(14.0, 5)]),
+            [1000, 3000], [50], 0, 2, HistogramStatistic.Mean);
+
+        CellVisits visits = table.VisitedBy(3, 4);
+
+        Assert.True(visits.IsEmpty);
+        Assert.Equal(0, visits.Samples);
+        Assert.Equal(2, visits.Outside);
+    }
+
+    [Fact]
+    public void ACellTracedBackToTheLogMarksThatSameCellComingForward()
+    {
+        // The round trip: click a cell, get its longest visit, mark that span,
+        // and the span must land back in the cell it came from.
+        HistogramTable table = Table([3000, 3000, 1000, 1000, 1000, 1000, 3000, 3000, 3000]);
+
+        (int First, int Last) longest = table.LongestVisitTo(1, 0)!.Value;
+        CellVisits visits = table.VisitedBy(longest.First, longest.Last);
+
+        Assert.True(visits.Visited(1, 0));
+        Assert.Equal(1, visits.Cells);
+    }
+
+    [Fact]
+    public void VisitedIsFalseOutsideTheTableRatherThanThrowing()
+    {
+        CellVisits visits = Table([1000, 3000]).VisitedBy(0, 1);
+
+        Assert.False(visits.Visited(-1, 0));
+        Assert.False(visits.Visited(0, -1));
+        Assert.False(visits.Visited(99, 0));
+        Assert.False(visits.Visited(0, 99));
+    }
 }

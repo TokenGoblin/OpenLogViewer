@@ -81,6 +81,19 @@ exercised.
 **Click a cell to trace it back to the log.** The view switches to the plot,
 frames the samples that produced that cell and marks them.
 
+**And the other way round: mark a span in the log and the table rings the cells
+it reached.** Shift-drag a pull on the plot, switch to Histogram, and every cell
+that pull passed through is outlined, with the count in the status line. Those
+are the cells the pull is evidence about, and the ones worth editing on the
+strength of it — which is the question a tuner asks before touching a table,
+where "what built this cell" is the one asked after.
+
+The two compose: click a cell to see its longest visit framed on the plot, and
+that visit is itself a marked span, so switching back rings the cell it came
+from. Samples a filter excluded are counted as outside rather than marked, since
+the table does not rest on them; a span landing mostly outside says so rather
+than quietly marking almost nothing.
+
 An engine passes through the same RPM and load many times in a drive, so a cell
 is almost never one stretch of the recording — showing the span from its first
 to its last sample would cover most of the log. The samples are grouped into

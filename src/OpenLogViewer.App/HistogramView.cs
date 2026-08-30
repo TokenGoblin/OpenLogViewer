@@ -43,6 +43,7 @@ public sealed class HistogramView : FrameworkElement
     private Brush LightInk = null!;
     private Pen HoverPen = null!;
     private Pen SelectedCellPen = null!;
+    private Pen VisitedCellPen = null!;
 
     private void ApplyTheme(Theme theme)
     {
@@ -63,12 +64,18 @@ public sealed class HistogramView : FrameworkElement
         HoverPen = Frozen(new Pen(Fill(theme.Text), 1.5));
         SelectedCellPen = Frozen(new Pen(Fill(theme.Marker), 2));
 
+        // The accent, and thinner than the other two. These outline many cells
+        // at once, so they have to read as a region without competing with the
+        // one cell the pointer or a trace-back has singled out.
+        VisitedCellPen = Frozen(new Pen(Fill(theme.Accent), 1.5));
+
         InvalidateVisual();
     }
 
     private static Brush Fill(Color c) => Frozen(new SolidColorBrush(c));
 
     private HistogramTable? _table;
+    private CellVisits? _visited;
     private bool _colorByCount;
     private (int Column, int Row) _hover = (-1, -1);
     private (int Column, int Row) _selected = (-1, -1);
@@ -97,6 +104,17 @@ public sealed class HistogramView : FrameworkElement
         _table = table;
         _colorByCount = colorByCount;
         _hover = (-1, -1);
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Outlines the cells a span marked in the log passed through — the other
+    /// direction of the trace-back, so a pull can be marked on the plot and read
+    /// off the table it is evidence about.
+    /// </summary>
+    public void SetVisitedCells(CellVisits? visited)
+    {
+        _visited = visited;
         InvalidateVisual();
     }
 
@@ -150,6 +168,7 @@ public sealed class HistogramView : FrameworkElement
                 cell.Y + (cell.Height - text.Height) / 2));
         }
 
+        DrawVisited(dc, table, cellWidth, cellHeight);
         DrawAxes(dc, table, cellWidth, cellHeight);
         DrawHover(dc, table, cellWidth, cellHeight);
     }
@@ -305,6 +324,31 @@ public sealed class HistogramView : FrameworkElement
             LeftGutter + (table.Columns * cellWidth - xName.Width) / 2,
             ActualHeight - xName.Height - 2));
     }
+
+    /// <summary>
+    /// Rings every cell the marked span reached. Drawn over the cells rather
+    /// than shading them, so the value each cell holds is still the value it
+    /// holds — tinting them would make a marked region look like different data.
+    /// </summary>
+    private void DrawVisited(DrawingContext dc, HistogramTable table, double cellWidth, double cellHeight)
+    {
+        if (_visited is not { IsEmpty: false } visited) return;
+
+        for (int c = 0; c < table.Columns; c++)
+        for (int r = 0; r < table.Rows; r++)
+        {
+            if (!visited.Visited(c, r)) continue;
+
+            Rect cell = CellBounds(table, c, r, cellWidth, cellHeight);
+            dc.DrawRectangle(null, VisitedCellPen, Deflated(cell, 1));
+        }
+    }
+
+    /// <summary>Inside the cell's own bounds, so the ring is not clipped by the gap.</summary>
+    private static Rect Deflated(Rect cell, double by) =>
+        cell.Width > by * 2 && cell.Height > by * 2
+            ? new Rect(cell.X + by, cell.Y + by, cell.Width - by * 2, cell.Height - by * 2)
+            : cell;
 
     private void DrawHover(DrawingContext dc, HistogramTable table, double cellWidth, double cellHeight)
     {

@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text;
 using OpenLogViewer.Core;
 using Xunit;
@@ -22,7 +22,9 @@ public class MaxxLogTests : IDisposable
     }
 
     /// <summary>Builds an archive shaped like the real thing.</summary>
-    private string WriteLog(string body, string? metadata = "LogRate=0.0501985546875", bool withLog = true)
+    private string WriteLog(
+        string body, string? metadata = "LogRate=0.0501985546875",
+        bool withLog = true, bool withTune = true)
     {
         string path = Path.Combine(Path.GetTempPath(), $"olv-maxx-{Guid.NewGuid():N}.MaxxECU-Zip-log");
         _temp.Add(path);
@@ -43,7 +45,7 @@ public class MaxxLogTests : IDisposable
                 writer.Write(metadata);
             }
 
-            archive.CreateEntry("V8 2025-01-16_123744.MaxxECU-save");
+            if (withTune) archive.CreateEntry("V8 2025-01-16_123744.MaxxECU-save");
         }
 
         return path;

@@ -3007,17 +3007,40 @@ public sealed class MainViewModel : ObservableObject
         get
         {
             if (_loadedTune is not null) return _loadedTuneName;
+            if (Document?.EmbeddedTune is { Length: > 0 }) return "from the log";
 
-            return Document?.EmbeddedTune is { Length: > 0 } ? "from the log" : "none";
+            // Named rather than called "none": the log has one and cannot use it,
+            // which is a different situation from having none.
+            return Document?.UnreadableTune is { Length: > 0 } format
+                ? $"{format}, unreadable"
+                : "none";
         }
     }
 
     /// <summary>The longer form, for the tooltip on the toolbar indicator.</summary>
-    public string TuneDetail => _loadedTune is not null
-        ? $"Tables come from {_loadedTuneName}. Right-click to go back to the log's own tune."
-        : Document?.EmbeddedTune is { Length: > 0 }
-            ? "Tables come from the tune stored in this log — the one that was running when it was recorded."
-            : "This log carries no tune. Open a .msq to bin onto its table axes and to use VE Calibration.";
+    public string TuneDetail
+    {
+        get
+        {
+            if (_loadedTune is not null)
+                return $"Tables come from {_loadedTuneName}. Right-click to go back to the log's own tune.";
+
+            if (Document?.EmbeddedTune is { Length: > 0 })
+                return "Tables come from the tune stored in this log — the one that was running "
+                       + "when it was recorded.";
+
+            // Telling a MaxxECU owner to open a .msq sends them after a file
+            // their ECU does not produce. What is true is that the tune is
+            // there and this cannot read it.
+            if (Document?.UnreadableTune is { Length: > 0 } format)
+                return $"This log carries its {format} tune, in a format this cannot read. "
+                       + "Axis breakpoints and VE Calibration need a tune it can, so both are "
+                       + "unavailable for this log.";
+
+            return "This log carries no tune. Open a .msq to bin onto its table axes and to use "
+                   + "VE Calibration.";
+        }
+    }
 
     /// <summary>
     /// Set when an opened tune's fuel table differs from the one in the log.
@@ -3293,6 +3316,37 @@ public sealed class MainViewModel : ObservableObject
         Hint = string.Join("   •   ", parts);
     }
 
+    /// <summary>
+    /// Cells the span marked on the plot passed through, or null when nothing is
+    /// marked. Set by <see cref="RebuildHistogram"/>, since it can only be known
+    /// once there is a table to place the samples in.
+    /// </summary>
+    public CellVisits? VisitedCells { get; private set; }
+
+    /// <summary>
+    /// Adds what the marked span reached to the status line.
+    ///
+    /// Appended to whatever the table already said rather than replacing it: how
+    /// many samples the table rests on and how many a filter excluded are still
+    /// true, and are the numbers that explain a sparse table.
+    /// </summary>
+    private string DescribeVisited(CellVisits visits)
+    {
+        if (visits.IsEmpty)
+            return visits.Outside > 0
+                ? "the marked span falls outside this table"
+                : "the marked span reached no cell";
+
+        string text = $"the marked span reached {visits.Cells:N0} cell{(visits.Cells == 1 ? "" : "s")}";
+
+        // A span mostly outside the table marks almost nothing, and looking
+        // broken is the alternative to saying why.
+        if (visits.Outside > 0)
+            text += $" ({visits.Outside:N0} of its samples fall outside)";
+
+        return text;
+    }
+
     public void RebuildHistogram(int firstSample, int lastSample)
     {
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
@@ -3320,11 +3374,17 @@ public sealed class MainViewModel : ObservableObject
 
         if (Table.IsEmpty)
         {
+            VisitedCells = null;
             Hint = mask.FiltersApplied && mask.PassCount == 0
                 ? "Every sample was filtered out — loosen or switch off a filter."
                 : "No samples fall in this table — try a wider time range.";
             return;
         }
+
+        // Where a span is marked on the plot, the cells it reached. Computed
+        // after the table rather than with it: the cells only exist once the
+        // axes are settled, and a filter or a change of breakpoints moves them.
+        VisitedCells = Selection is { } span ? Table.VisitedBy(span.First, span.Last) : null;
 
         int cells = Table.Columns * Table.Rows;
         var parts = new List<string>
@@ -3339,6 +3399,8 @@ public sealed class MainViewModel : ObservableObject
 
         if (mask.UnknownChannels.Count > 0)
             parts.Add($"not in this log: {string.Join(", ", mask.UnknownChannels.Distinct())}");
+
+        if (VisitedCells is { } visits) parts.Add(DescribeVisited(visits));
 
         if (ApplyComparison()) parts.Insert(0, $"difference against {CompareName}");
 

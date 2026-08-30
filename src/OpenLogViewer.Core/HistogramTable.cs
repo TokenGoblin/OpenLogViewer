@@ -1,5 +1,25 @@
 ﻿namespace OpenLogViewer.Core;
 
+/// <summary>
+/// The cells a stretch of the log passed through.
+/// </summary>
+/// <param name="Counts">Samples of the span in each cell, indexed [column, row].</param>
+/// <param name="Cells">How many cells it reached at all.</param>
+/// <param name="Samples">Samples of the span that landed in one.</param>
+/// <param name="Outside">
+/// Samples of the span that landed in none — outside the window the table was
+/// built over, or excluded by a filter.
+/// </param>
+public sealed record CellVisits(int[,] Counts, int Cells, int Samples, int Outside)
+{
+    public bool IsEmpty => Cells == 0;
+
+    public bool Visited(int column, int row) =>
+        (uint)column < (uint)Counts.GetLength(0)
+        && (uint)row < (uint)Counts.GetLength(1)
+        && Counts[column, row] > 0;
+}
+
 /// <summary>How the samples falling in one cell are reduced to a single number.</summary>
 public enum HistogramStatistic
 {
@@ -185,6 +205,47 @@ public sealed class HistogramTable
         if (double.IsNaN(xv) || double.IsNaN(yv)) return null;
 
         return (Nearest(ColumnCenters, xv), Nearest(RowCenters, yv));
+    }
+
+    /// <summary>
+    /// Which cells a stretch of the log passed through, and how many samples it
+    /// left in each.
+    ///
+    /// The other direction of the trace-back: a cell already knows which samples
+    /// built it, and this answers the question a tuner actually asks first —
+    /// mark a pull, and find out which cells of the table it exercised. Those
+    /// are the cells the pull is evidence about, and the ones worth editing on
+    /// the strength of it.
+    /// </summary>
+    /// <param name="firstSample">Start of the marked span, inclusive.</param>
+    /// <param name="lastSample">End of it, inclusive.</param>
+    public CellVisits VisitedBy(int firstSample, int lastSample)
+    {
+        var counts = new int[Columns, Rows];
+        int from = Math.Min(firstSample, lastSample);
+        int to = Math.Max(firstSample, lastSample);
+
+        int cells = 0, samples = 0, outside = 0;
+
+        for (int i = from; i <= to; i++)
+        {
+            // Outside the window the table was built over, or filtered out of
+            // it. Counted rather than ignored: a span that lands mostly outside
+            // marks almost nothing, and looking like a bug is the alternative to
+            // saying so.
+            if (CellOf(i) is not { } cell)
+            {
+                outside++;
+                continue;
+            }
+
+            if (counts[cell.Column, cell.Row] == 0) cells++;
+
+            counts[cell.Column, cell.Row]++;
+            samples++;
+        }
+
+        return new CellVisits(counts, cells, samples, outside);
     }
 
     /// <summary>

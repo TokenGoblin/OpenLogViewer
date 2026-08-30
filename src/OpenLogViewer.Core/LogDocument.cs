@@ -43,6 +43,18 @@ public sealed class LogDocument
     /// </summary>
     public string? EmbeddedTune { get; init; }
 
+    /// <summary>
+    /// Set when the container carries a tune in a format this cannot read —
+    /// naming the format, for saying so.
+    ///
+    /// Worth distinguishing from carrying no tune at all, because the two want
+    /// opposite things said. A log with no tune can be given one: open a `.msq`
+    /// and the table axes and VE Calibration come back. A log whose tune is
+    /// present but undecodable cannot, and telling its owner to go and find a
+    /// file that does not exist for their ECU is worse than saying nothing.
+    /// </summary>
+    public string? UnreadableTune { get; init; }
+
     /// <summary>ECU signature string, e.g. "MS2Extra comms342a2: MS2/Extra 3.4.2 release".</summary>
     public string? Signature { get; init; }
 
