@@ -40,6 +40,19 @@ public sealed class SettingsDialog
     public ObservableCollection<SettingRow> Visible { get; } = [];
 
     /// <summary>
+    /// Curves this page holds, in the order they appear.
+    ///
+    /// A firmware puts a curve on a page the same way it puts a group of fields
+    /// there — <c>panel = warmup_curve</c> — and the file gives no hint which of
+    /// the two a name turns out to be. A panel naming something that is not a
+    /// dialog used to be skipped in silence, which is why 14 of a MicroSquirt's
+    /// pages and 88 of an MS3's opened with nothing but their help text on them.
+    /// </summary>
+    public IReadOnlyList<string> Curves => _curves;
+
+    private readonly List<string> _curves = [];
+
+    /// <summary>
     /// True when the firmware described something here that this cannot draw —
     /// a live graph or a status lamp. Said out loud rather than left out, so a
     /// partial page is not presented as the whole of it.
@@ -59,12 +72,17 @@ public sealed class SettingsDialog
     /// own title is left empty because TunerStudio puts that in the window's
     /// caption instead.
     /// </param>
+    /// <param name="curves">
+    /// The curves this firmware declares, so that a panel naming one is
+    /// recognised as a curve rather than dropped as a dialog that is not there.
+    /// </param>
     public static SettingsDialog? Build(
         string name,
         TuneInterface ui,
         Func<string, TuneConstant?> constants,
         TuneSettingsEdit? edit,
-        string? title = null)
+        string? title = null,
+        IReadOnlySet<string>? curves = null)
     {
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(constants);
@@ -73,7 +91,7 @@ public sealed class SettingsDialog
 
         var built = new SettingsDialog(
             root.Title.Length > 0 ? root.Title : title ?? "", root.Help);
-        built.Fill(root, ui, constants, edit, []);
+        built.Fill(root, ui, constants, edit, [], curves);
 
         return built;
     }
@@ -83,7 +101,8 @@ public sealed class SettingsDialog
         TuneInterface ui,
         Func<string, TuneConstant?> constants,
         TuneSettingsEdit? edit,
-        HashSet<string> visiting)
+        HashSet<string> visiting,
+        IReadOnlySet<string>? curves)
     {
         if (!visiting.Add(dialog.Name)) return;
 
@@ -91,6 +110,17 @@ public sealed class SettingsDialog
         {
             if (item.Kind == DialogItemKind.Panel)
             {
+                // A panel naming a curve rather than a dialog. Noted and carried
+                // up rather than drawn here, because a curve is a plot and these
+                // rows are a list of fields.
+                if (curves is not null && curves.Contains(item.Target))
+                {
+                    if (!_curves.Contains(item.Target, StringComparer.OrdinalIgnoreCase))
+                        _curves.Add(item.Target);
+
+                    continue;
+                }
+
                 if (ui.Find(item.Target) is not { } panel) continue;
 
                 // A panel carries its own condition, which gates everything it
@@ -98,7 +128,7 @@ public sealed class SettingsDialog
                 // each row the panel contributes — so hiding a panel hides its
                 // contents and nothing else has to know about panels at all.
                 int before = _rows.Count;
-                Fill(panel, ui, constants, edit, visiting);
+                Fill(panel, ui, constants, edit, visiting, curves);
 
                 if (item.HasCondition)
                 {

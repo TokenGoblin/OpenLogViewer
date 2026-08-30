@@ -15,6 +15,16 @@ public sealed record SettingsMenuEntry(string Dialog, string Title, string Condi
     /// <summary>A group name rather than something to open.</summary>
     public static SettingsMenuEntry Heading(string title) => new("", title);
 
+    /// <summary>
+    /// True when this opens a curve rather than a page of fields.
+    ///
+    /// A firmware's menu makes no distinction — an entry names something and
+    /// the something is a dialog, a table or a curve — so the difference is
+    /// worked out when the menu is built and carried here, rather than looked
+    /// up again every time a line is clicked.
+    /// </summary>
+    public bool IsCurve { get; init; }
+
     public bool IsHeading => Dialog.Length == 0;
 
     public bool HasCondition => Condition.Length > 0;

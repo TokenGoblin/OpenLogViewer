@@ -126,6 +126,8 @@ public sealed partial class MainViewModel
             _ecuTune = load.Tune;
             _ecuTableDefinitions = TableEditorReader.Read(iniText);
             _ecuInterface = TuneInterfaceReader.Read(iniText, symbols);
+            _ecuCurves = TuneCurveReader.Read(iniText, symbols);
+            _curveNames = Named(_ecuCurves);
             _derived = DerivedChannels.Read(iniText);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 

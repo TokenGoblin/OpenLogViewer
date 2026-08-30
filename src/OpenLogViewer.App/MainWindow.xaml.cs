@@ -36,6 +36,10 @@ public partial class MainWindow : Window
         // table may become is the view model's business.
         TuneTable.SelectionChanged += cells => _vm.SelectedCells = cells;
         TuneTable.EditRequested += _vm.EditTable;
+
+        // A drag changes the curve in place, so the header and the buttons have
+        // to be told; the view already knows.
+        Curve.Edited += _vm.CurveChanged;
         Plot.ViewChangedByUser += () => _follow = false;
 
         // The title bar belongs to Windows, so it has to be coloured by hand —
@@ -487,6 +491,41 @@ public partial class MainWindow : Window
         if (answer != MessageBoxResult.OK) return;
 
         Report(_vm.WriteSettingsToEcu());
+    }
+
+    /// <summary>
+    /// Sends the curve on screen, once it has been confirmed.
+    ///
+    /// Confirmed like every other write to a controller, and for the same
+    /// reason: a curve is fuelling or timing against a temperature or a voltage,
+    /// and the engine may be running while it lands.
+    /// </summary>
+    private void OnSendCurveClick(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanWriteCurve || _vm.OpenCurve is not { } curve) return;
+
+        int moved = curve.ChangedCount;
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            $"Send {moved} moved point{(moved == 1 ? "" : "s")} of \"{curve.Title}\" to the ECU?\n\n"
+            + "It takes effect at once. Nothing is burned, so a power cycle undoes it.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.WriteCurveToEcu());
+        Curve.Curve = _vm.OpenCurve;
+    }
+
+    private void OnRevertCurveClick(object sender, RoutedEventArgs e)
+    {
+        _vm.RevertCurve();
+        Curve.Curve = _vm.OpenCurve;
+        Curve.InvalidateVisual();
     }
 
     private void OnBurnSettingsClick(object sender, RoutedEventArgs e)

@@ -1427,11 +1427,46 @@
                                      Selection="{Binding SelectedCells, Mode=TwoWay}"
                                      Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"/>
 
+                <!--
+                    A curve: warmup enrichment, cranking pulsewidth, injector
+                    dead time. The firmware calls these curves rather than tables
+                    because that is how they are read and changed — a lump in a
+                    warmup line is a stumble at one coolant temperature, and it
+                    is the shape that says so. A grid of ten cells would hide
+                    exactly what a person opens this to see.
+                -->
+                <DockPanel DockPanel.Dock="Top" MinHeight="340"
+                           Visibility="{Binding HasOpenCurve, Converter={StaticResource BoolToVis}}">
+                    <TextBlock DockPanel.Dock="Top" Margin="18,6,18,2" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}" TextWrapping="Wrap"
+                               Text="{Binding OpenCurve.Title}"/>
+
+                    <TextBlock DockPanel.Dock="Top" Margin="18,0,18,6" FontSize="10"
+                               Foreground="{DynamicResource Muted}" TextWrapping="Wrap"
+                               Text="Drag a point to move it · shift-drag moves the breakpoint · arrows nudge by one step, ctrl for ten"/>
+
+                    <DockPanel DockPanel.Dock="Bottom" Margin="18,6,18,10" LastChildFill="False">
+                        <Button DockPanel.Dock="Left" Content="Send curve to ECU" Padding="12,5" Margin="0,0,8,0"
+                                Click="OnSendCurveClick" IsEnabled="{Binding CanWriteCurve}"
+                                ToolTip="Writes the moved points to the controller's working memory"/>
+                        <Button DockPanel.Dock="Left" Content="Burn" Padding="12,5" Margin="0,0,8,0"
+                                Click="OnBurnSettingsClick" IsEnabled="{Binding CanBurnSettings}"
+                                ToolTip="Commits what has been sent to flash, so it survives a power cycle"/>
+                        <Button DockPanel.Dock="Left" Content="Revert curve" Padding="12,5" Margin="0,0,14,0"
+                                Click="OnRevertCurveClick" IsEnabled="{Binding HasCurveChanges}"
+                                ToolTip="Puts every point back to what the ECU holds"/>
+                        <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                                   Foreground="{DynamicResource Muted}" Text="{Binding CurveSummary}"/>
+                    </DockPanel>
+
+                    <local:CurveView x:Name="Curve" Margin="12,0,12,0" Curve="{Binding OpenCurve}"/>
+                </DockPanel>
+
                 <!-- A settings page, laid out from the firmware's description of
                      it. One row per field, with the control chosen by what the
                      constant behind it turns out to be. -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}">
+                              Visibility="{Binding ShowSettingsFields, Converter={StaticResource BoolToVis}}">
                     <StackPanel Margin="18,4,18,20" MaxWidth="640" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding OpenDialog.Title}" FontSize="16" FontWeight="SemiBold"
                                    Foreground="{DynamicResource Text}" TextWrapping="Wrap" Margin="0,0,0,10"/>
