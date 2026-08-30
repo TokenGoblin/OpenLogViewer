@@ -334,9 +334,22 @@ public static class MsqIni
     /// arrives in Celsius or Fahrenheit, and picking the wrong branch scales
     /// every reading of it wrongly while still looking like a number.
     /// </summary>
-    internal static IEnumerable<string> Section(string text, string name, IReadOnlySet<string> symbols)
+    internal static IEnumerable<string> Section(string text, string name, IReadOnlySet<string> symbols) =>
+        Resolve(text, name, symbols);
+
+    /// <summary>
+    /// The same, for the whole file rather than one section of it.
+    ///
+    /// A firmware's <c>#define</c>d option lists sit above the first heading and
+    /// so belong to no section at all, while still being written once per build
+    /// inside <c>#if</c> — which <see cref="Section"/> cannot reach.
+    /// </summary>
+    internal static IEnumerable<string> Live(string text, IReadOnlySet<string> symbols) =>
+        Resolve(text, null, symbols);
+
+    private static IEnumerable<string> Resolve(string text, string? name, IReadOnlySet<string> symbols)
     {
-        bool inside = false;
+        bool inside = name is null;
 
         // One entry per open #if: whether this branch is live, and whether any
         // branch of it has been taken yet.
@@ -346,7 +359,7 @@ public static class MsqIni
         {
             string trimmed = line.Trim();
 
-            if (trimmed.StartsWith('['))
+            if (name is not null && trimmed.StartsWith('['))
             {
                 inside = trimmed.StartsWith($"[{name}]", StringComparison.OrdinalIgnoreCase);
                 if (!inside && branches.Count > 0) branches.Clear();
@@ -400,10 +413,28 @@ public static class MsqIni
         return symbols.Contains(symbol) ^ negated;
     }
 
+    /// <summary>
+    /// The line without its trailing comment.
+    ///
+    /// A semicolon inside quotes is part of a label rather than the start of a
+    /// comment. Speeduino's log separator is spelled
+    /// <c>= bits, U08, 116, [0:1], ";", ",", "tab", "space"</c> — cutting at the
+    /// first semicolon whatever is around it leaves that setting with a single
+    /// option consisting of one quote mark, which is neither readable nor
+    /// settable. Being quote-aware can only ever keep more of a line, and only
+    /// where the file itself opened a quote.
+    /// </summary>
     internal static string Strip(string line)
     {
-        int comment = line.IndexOf(';');
-        return (comment >= 0 ? line[..comment] : line).TrimEnd();
+        bool quoted = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            if (line[i] == '"') quoted = !quoted;
+            else if (line[i] == ';' && !quoted) return line[..i].TrimEnd();
+        }
+
+        return line.TrimEnd();
     }
 
     private static RealtimeField FromBits(Match match)

@@ -664,7 +664,12 @@ public static class TuneCurveReader
             open = false;
         }
 
-        foreach (string raw in iniText.Split('\n'))
+        // Only this section. Reading the whole file leaves the last curve open
+        // past the end of it, and [TableEditor] — which normally follows —
+        // spells its bin constants with the very same keys, so xBins, yBins and
+        // columnLabel from every table after it overwrite the curve's until what
+        // comes out points at the last table's axes.
+        foreach (string raw in MsqIni.Section(iniText, "CurveEditor", symbols))
         {
             // The quote-aware stripper, not MsqIni's: that one cuts at the first
             // semicolon whatever is around it, which truncates a curve title

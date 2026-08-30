@@ -438,6 +438,35 @@ public sealed class EcuTune
         return true;
     }
 
+    /// <summary>
+    /// Puts a text field back to the bytes the controller holds, exactly.
+    ///
+    /// Not the same as reading it and writing it again: reading trims the
+    /// padding off and writing pads with nulls, so a name a firmware stores
+    /// padded with spaces would come back differing from the one on the ECU
+    /// while claiming to be identical to it.
+    /// </summary>
+    public bool RestoreTextInto(IReadOnlyList<byte[]> pages, TuneConstant constant)
+    {
+        ArgumentNullException.ThrowIfNull(constant);
+        ArgumentNullException.ThrowIfNull(pages);
+
+        if (!constant.IsText || constant.Page < 0 || constant.Page >= pages.Count) return false;
+        if (constant.Page >= Pages.Count) return false;
+
+        byte[] page = pages[constant.Page];
+        byte[] source = Pages[constant.Page];
+
+        int at = constant.Offset;
+        int length = Math.Max(0, constant.Columns);
+
+        if (at < 0 || at + length > page.Length || at + length > source.Length) return false;
+
+        source.AsSpan(at, length).CopyTo(page.AsSpan(at));
+
+        return true;
+    }
+
     /// <summary>The undecoded number in these bytes, before scale or bit masking.</summary>
     private static double? Raw(ReadOnlySpan<byte> bytes, RealtimeType type, bool little) => type switch
     {

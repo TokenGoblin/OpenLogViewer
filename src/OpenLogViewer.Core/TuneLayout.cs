@@ -245,7 +245,7 @@ public static class TuneLayoutReader
 
         // The named option lists, needed before any bit field is read: a great
         // many of them name their values by pointing at one of these.
-        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText, symbols);
 
         var constants = new List<TuneConstant>();
 
@@ -377,7 +377,7 @@ public static class TuneLayoutReader
     private static IReadOnlyList<TuneConstant> ReadPcVariables(
         string iniText, IReadOnlySet<string> symbols)
     {
-        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> defines = IniDefines.Read(iniText, symbols);
         var variables = new List<TuneConstant>();
 
         foreach (string raw in MsqIni.Section(iniText, "PcVariables", symbols))
@@ -400,7 +400,7 @@ public static class TuneLayoutReader
                     Type = bitType,
                     BitLow = Math.Min(low, high),
                     BitHigh = Math.Max(low, high),
-                    Options = IniDefines.Expand(bits.Groups["rest"].Value, defines),
+                    Options = Named(bits.Groups["rest"].Value, defines),
                 });
 
                 continue;
@@ -553,10 +553,36 @@ public static class TuneLayoutReader
             Type = type,
             BitLow = Math.Min(low, high),
             BitHigh = Math.Max(low, high),
-            Options = defines is null
-                ? [.. Fields(match.Groups["rest"].Value).Select(Unquote)]
-                : IniDefines.Expand(match.Groups["rest"].Value, defines),
+            Options = Named(match.Groups["rest"].Value, defines),
         };
+    }
+
+    /// <summary>
+    /// The labels for a bit field's values, or none where it has none.
+    ///
+    /// A great many bit fields name nothing — every reserved bit, and every flag
+    /// a firmware leaves as a plain number. Both splitters end by yielding
+    /// whatever follows the last comma, so an empty list comes back as one blank
+    /// label rather than as nothing, and a setting with one blank option is
+    /// drawn as a list to pick from with nothing in it: unreadable and
+    /// unsettable, where a number box would have worked. Blank labels *within* a
+    /// list are kept, because the position of a label is the value it stands for.
+    ///
+    /// A list of nothing but blanks goes the same way — Speeduino spells one
+    /// reserved field <c>[1:7], ""</c>, which is a seven-bit number with one
+    /// empty label. Nothing in such a list names a value, so there is nothing to
+    /// lose by having none.
+    /// </summary>
+    private static IReadOnlyList<string> Named(
+        string rest, IReadOnlyDictionary<string, IReadOnlyList<string>>? defines)
+    {
+        if (string.IsNullOrWhiteSpace(rest)) return [];
+
+        IReadOnlyList<string> named = defines is null
+            ? [.. Fields(rest).Select(Unquote)]
+            : IniDefines.Expand(rest, defines);
+
+        return named.All(string.IsNullOrEmpty) ? [] : named;
     }
 
     /// <summary>Splits a comma list, respecting quotes and braces.</summary>

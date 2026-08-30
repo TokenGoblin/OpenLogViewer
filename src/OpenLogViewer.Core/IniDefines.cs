@@ -38,25 +38,45 @@ public static partial class IniDefines
     private static partial Regex Define { get; }
 
     /// <summary>Reads them, with references between them worked out.</summary>
-    public static IReadOnlyDictionary<string, IReadOnlyList<string>> Read(string iniText)
+    /// <param name="iniText">The definition file.</param>
+    /// <param name="symbols">
+    /// Which build this is. A firmware commonly defines the same list twice —
+    /// one set of pin names per board — inside <c>#if</c>, and the last one wins
+    /// where the preprocessor is ignored. That gives correctly numbered options
+    /// carrying the wrong labels, which is worse than none: the page looks right
+    /// and reads wrong.
+    /// </param>
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> Read(
+        string iniText, IReadOnlySet<string>? symbols = null)
     {
         ArgumentNullException.ThrowIfNull(iniText);
 
-        var raw = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        symbols ??= MsqIni.DefaultSymbols;
 
-        foreach (string line in iniText.Split('\n'))
+        var expanded = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+        // Expanded as each one is met, against the lists that already stand.
+        //
+        // A firmware grows a list by redefining it in terms of itself:
+        //
+        //   #define PIN_DIGOUT_CANPWM = "CANPWM1", … "CANPWM8"
+        //   #define PIN_DIGOUT_CANPWM = "INVALID", $PIN_DIGOUT1, $PIN_DIGOUT_CANPWM, …
+        //
+        // — the second meaning the eight names just declared, exactly as a
+        // preprocessor would read it. Collecting every definition first and
+        // resolving afterwards makes the second one refer to itself, which the
+        // loop guard then leaves as the literal "$PIN_DIGOUT_CANPWM": one bogus
+        // label where eight real ones belong, so every pin after it is numbered
+        // seven short. On an MS3 thirteen output-pin settings read that list,
+        // and picking a pin from one of them would have set a different pin.
+        foreach (string line in MsqIni.Live(iniText, symbols))
         {
             // Not MsqIni.Strip: a label may contain a semicolon, and cutting at
             // the first one would take half the list with it.
             if (Define.Match(line.TrimEnd('\r')) is not { Success: true } match) continue;
 
-            raw[match.Groups["name"].Value] = match.Groups["values"].Value;
+            expanded[match.Groups["name"].Value] = Expand(match.Groups["values"].Value, expanded);
         }
-
-        var expanded = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (string name in raw.Keys)
-            expanded[name] = Expand(raw[name], raw, [name]);
 
         return expanded;
     }
@@ -86,35 +106,6 @@ public static partial class IniDefines
             // an unknown reference is better shown than silently dropped, since
             // dropping it would renumber everything after it.
             built.Add(Unquote(part));
-        }
-
-        return built;
-    }
-
-    private static IReadOnlyList<string> Expand(
-        string values, IReadOnlyDictionary<string, string> raw, HashSet<string> visiting)
-    {
-        var built = new List<string>();
-
-        foreach (string part in Split(values))
-        {
-            if (Reference(part) is not { } name || !raw.TryGetValue(name, out string? nested))
-            {
-                built.Add(Unquote(part));
-                continue;
-            }
-
-            // One that refers to itself, directly or round a loop. Left as
-            // written rather than expanded, which is visible in the interface
-            // and finishes.
-            if (!visiting.Add(name))
-            {
-                built.Add(part.Trim());
-                continue;
-            }
-
-            built.AddRange(Expand(nested, raw, visiting));
-            visiting.Remove(name);
         }
 
         return built;

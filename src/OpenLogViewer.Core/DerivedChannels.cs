@@ -96,12 +96,11 @@ public static partial class DerivedChannels
 
             try
             {
-                return DialogCondition.Evaluate(expression, Resolve) switch
-                {
-                    ConditionVerdict.Shown => 1,
-                    ConditionVerdict.Hidden => 0,
-                    _ => double.NaN,
-                };
+                // As a number, not as a verdict. Most of these are arithmetic
+                // rather than tests, and one worth 63 answering 1 is worse than
+                // it answering nothing: a condition comparing it against a
+                // threshold then hides a field the tuner needs.
+                return DialogCondition.Number(expression, Resolve);
             }
             finally
             {
