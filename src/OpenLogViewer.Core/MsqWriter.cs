@@ -160,8 +160,15 @@ public static class MsqWriter
     }
 
     /// <summary>One constant, written the way a person reads it.</summary>
-    private static void Constant(StringBuilder text, EcuTune tune, TuneConstant constant)
+    private static void Constant(StringBuilder text, EcuTune tune, TuneConstant declared)
     {
+        // The tune's copy, not the definition's. A scale the firmware wrote as
+        // an expression is worked out from the values, and writing a number
+        // against the declared fallback while reading it back against the
+        // worked-out one loses the round trip by whatever the expression came
+        // to — 120 bytes of 7,168 on a MicroSquirt, all of them the MAF curve.
+        TuneConstant constant = tune.Constant(declared.Name) ?? declared;
+
         text.Append("<constant");
 
         if (constant.IsText)

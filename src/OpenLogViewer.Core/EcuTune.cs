@@ -42,6 +42,118 @@ public sealed class EcuTune
             _byName[constant.Name] = constant;
             _exact[constant.Name] = constant;
         }
+
+        Resolve();
+    }
+
+    /// <summary>
+    /// Works out the scales a firmware wrote as expressions rather than numbers.
+    ///
+    /// <para>
+    /// A scale sometimes depends on a setting. MS2's MAF curve is scaled
+    /// <c>{0.01 * (maf_range + 1)}</c> grammes a second, because the same 128
+    /// bytes have to cover a 650 g/s sensor and a 2,600 g/s one, and which it is
+    /// is a setting three pages away. That cannot be worked out from the
+    /// definition alone, so the layout keeps the text and this does the sum once
+    /// the values exist to do it from. Left alone, the fallback is a scale of 1,
+    /// which is out by a factor of the range and looks like an ordinary number
+    /// the whole way — found by comparing a saved tune against the MicroSquirt
+    /// it came off, where 63 of 64 cells of the MAF curve disagreed.
+    /// </para>
+    /// <para>
+    /// Resolved against constants whose own scale is a plain number, which
+    /// settles the circularity rather than iterating at it: an expression naming
+    /// something that is itself unresolved keeps the fallback. Every case seen
+    /// rests on a bit field, which has no scale at all.
+    /// </para>
+    /// <para>
+    /// Done once, when the tune is built. The scale is a property of the tune as
+    /// it was read, so changing the setting behind one does not rescale a table
+    /// under the person editing it — reading the tune again does.
+    /// </para>
+    /// </summary>
+    private void Resolve()
+    {
+        List<TuneConstant> pending =
+            [.. _exact.Values.Where(c => c.ScaleExpression.Length > 0 || c.TransformExpression.Length > 0)];
+
+        if (pending.Count == 0) return;
+
+        double Plain(string name)
+        {
+            if (Find(name) is not { } constant) return double.NaN;
+            if (constant.ScaleExpression.Length > 0 || constant.TransformExpression.Length > 0) return double.NaN;
+
+            return Value(constant, 0) ?? double.NaN;
+        }
+
+        foreach (TuneConstant constant in pending)
+        {
+            // An expression naming something that shares these very bytes is not
+            // a scale at all — it is a second way of reading one setting. MS2
+            // gives its injector test an "approximate equivalent RPM" whose
+            // translate is {(120000/testint) - (testint/0.128)}, over the same
+            // two bytes as testint, so that the pair displays as a period and as
+            // a speed. Working that out reads correctly and then writes
+            // nonsense: storing a value through it moves the bytes, which moves
+            // the constant the translate was worked out from, which moves the
+            // translate. The tune stops surviving a round trip — 122 bytes of
+            // 7,168 on the MicroSquirt this was found on. Left as declared.
+            if (Overlapping(constant, constant.ScaleExpression + constant.TransformExpression)) continue;
+
+            double scale = Sum(constant.ScaleExpression, Plain, constant.Scale);
+            double transform = Sum(constant.TransformExpression, Plain, constant.Transform);
+
+            if (scale == constant.Scale && transform == constant.Transform) continue;
+
+            TuneConstant resolved = constant with { Scale = scale, Transform = transform };
+
+            if (ReferenceEquals(_exact.GetValueOrDefault(constant.Name), constant))
+                _exact[constant.Name] = resolved;
+
+            if (ReferenceEquals(_byName.GetValueOrDefault(constant.Name), constant))
+                _byName[constant.Name] = resolved;
+        }
+    }
+
+    /// <summary>
+    /// Whether an expression names a constant occupying any of the same bytes.
+    ///
+    /// Matched on words rather than parsed, which is enough: a name that appears
+    /// in the text and turns out to overlap is exactly the case being avoided,
+    /// and one that appears without overlapping costs nothing to check.
+    /// </summary>
+    private bool Overlapping(TuneConstant constant, string expression)
+    {
+        foreach (System.Text.RegularExpressions.Match word in
+                 System.Text.RegularExpressions.Regex.Matches(expression, @"[A-Za-z_]\w*"))
+        {
+            if (Find(word.Value) is not { } other || other.Page != constant.Page) continue;
+            if (ReferenceEquals(other, constant)) continue;
+
+            if (other.Offset < constant.Offset + constant.Size
+                && constant.Offset < other.Offset + other.Size)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// What an expression comes to, or the fallback where it cannot be worked
+    /// out. A scale of nought is refused: it would divide by zero on the way
+    /// back and make every value in the table unwritable.
+    /// </summary>
+    private static double Sum(string expression, Func<string, double> lookup, double fallback)
+    {
+        if (expression.Length == 0) return fallback;
+
+        string body = expression.TrimStart('{').TrimEnd('}');
+        double value = DialogCondition.Number(body, lookup);
+
+        return double.IsFinite(value) && value != 0 ? value : fallback;
     }
 
     public TuneLayout Layout { get; }

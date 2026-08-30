@@ -30,6 +30,10 @@ public class SavedTuneTests
            fanOn       = bits,   U08, 4, [2:2], "No", "Yes"
            alias       = string, ASCII, 8, 6
            veTable     = array,  U08, 16, [2x2], "%", 0.5, 0, 0, 120, 1
+           mafRange    = bits,   U08, 7, [0:1], "650g/s", "1300g/s", "1950g/s", "2600g/s"
+           mafFlow     = array,  U16, 24, [2], "g/sec", {0.01 * (mafRange + 1)}, 0, 0, {655 * (mafRange + 1)}, 2
+           period      = scalar, U16, 28, "ms", 0.128, 0, 0, 8388, 1
+           equivRpm    = scalar, U16, 28, "RPM", 1.0, { (120000/period) - (period/0.128) }, 0, 937500, 0
         """;
 
     private static TuneLayout Layout() => TuneLayoutReader.Read(Ini);
@@ -127,6 +131,10 @@ public class SavedTuneTests
             <constant name="fanOn">"Yes"</constant>
             <constant name="alias">"CLT"</constant>
             <constant name="pulseWidth">1.12</constant>
+            <constant name="mafRange">"650g/s"</constant>
+            <constant cols="2" name="mafFlow" rows="1"> 1.50 3.00 </constant>
+            <constant name="period">1.024</constant>
+            <constant name="equivRpm">8.0</constant>
             <constant cols="2" name="veTable" rows="2"> 40.0 41.0
              42.0 43.0 </constant>
             </page>
@@ -347,5 +355,65 @@ public class SavedTuneTests
 
         Assert.Equal("Yes", difference.MineShown);
         Assert.Equal("No", difference.TheirsShown);
+    }
+
+    // ----- a scale the firmware wrote as an expression ------------------------
+
+    [Fact]
+    public void AScaleWrittenAsAnExpressionIsWorkedOutFromTheTune()
+    {
+        // MS2 scales its MAF curve {0.01 * (maf_range + 1)}, because the same
+        // bytes cover a 650 g/s sensor and a 2,600 g/s one and which it is is a
+        // setting three pages away. Read with the fallback of 1 the curve is out
+        // by a factor of a hundred, and looks like an ordinary number the whole
+        // way. Found by comparing a saved tune against the MicroSquirt it came
+        // off, where 63 of 64 cells disagreed.
+        TuneLayout layout = Layout();
+        TuneConstant flow = layout.Constants.Single(c => c.Name == "mafFlow");
+
+        Assert.Equal("{0.01 * (mafRange + 1)}", flow.ScaleExpression);
+        Assert.Equal(1, flow.Scale);                       // the fallback, until there is a tune
+
+        // Set before the tune is built, because the sum is done once when it is:
+        // the scale is a property of the tune as read, and a setting changed
+        // afterwards does not rescale a table under the person editing it.
+        var page = new byte[64];
+        page[7] = 1;
+
+        EcuTune tune = EcuTune.FromPages(layout, page);
+
+        Assert.Equal(0.02, tune.Constant("mafFlow")!.Scale, 6);   // 0.01 × (1 + 1)
+    }
+
+    [Fact]
+    public void AnExpressionRestingOnTheSameBytesIsLeftAsDeclared()
+    {
+        // MS2 shows its injector test period a second way, as an "approximate
+        // equivalent RPM" whose translate is worked out from the very bytes it
+        // reads. Resolving that reads correctly and then writes nonsense:
+        // storing a value through it moves the bytes, which moves the constant
+        // the translate came from, which moves the translate — and the tune
+        // stops surviving a round trip.
+        TuneLayout layout = Layout();
+        var tune = EcuTune.FromPages(layout, new byte[64]);
+
+        tune.PokeInto(tune.Pages, layout.Constants.Single(c => c.Name == "period"), 0, 100);
+
+        Assert.Equal(0, tune.Constant("equivRpm")!.Transform);
+    }
+
+    [Fact]
+    public void ATuneWithAnExpressionScaleStillSurvivesAWriteAndAReadBack()
+    {
+        TuneLayout layout = Layout();
+        var before = EcuTune.FromPages(layout, new byte[64]);
+
+        before.PokeInto(before.Pages, before.Constant("mafFlow")!, 0, 1.5);
+        before.PokeInto(before.Pages, before.Constant("mafFlow")!, 1, 300);
+
+        MsqLoad after = MsqApply.Load(layout, MsqFile.Read(MsqWriter.Write(before, "test firmware")));
+
+        Assert.Equal(before.Pages[0], after.Tune.Pages[0]);
+        Assert.Equal([1.5, 300], after.Tune.Array("mafFlow"));
     }
 }
