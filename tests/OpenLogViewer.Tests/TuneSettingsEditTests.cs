@@ -662,4 +662,57 @@ public class TuneSettingsEditTests
         Assert.Equal("C", edit.Text("alias"));
         Assert.Equal(1, edit.ChangedCount);
     }
+
+    // ----- keeping step with writes made elsewhere ---------------------------
+
+    [Fact]
+    public void ATableWriteDoesNotBecomeAPendingSettingsChange()
+    {
+        // A table is edited through TuneEdit, not through this, but both work on
+        // the same pages. When a table write lands the controller moves and the
+        // copy held here does not, so those bytes read as settings waiting to be
+        // sent — carrying the values from before the write. Sending anything
+        // from a settings page would then put the table back, on a running
+        // engine, with nothing reporting an error.
+        EcuTune tune = Tune((6, 40), (7, 41), (8, 42), (9, 43));
+        var edit = new TuneSettingsEdit(tune);
+
+        var write = new TuneWrite(0, 6, [50, 51, 52, 53]);
+        tune.Accept(write);
+        edit.Accept(write);
+
+        Assert.False(edit.HasChanges);
+        Assert.Empty(edit.Writes());
+        Assert.Equal(0, edit.BytesToWrite);
+    }
+
+    [Fact]
+    public void ASettingChangedBeforeATableWriteIsStillSentAfterIt()
+    {
+        EcuTune tune = Tune((6, 40), (7, 41), (8, 42), (9, 43));
+        var edit = new TuneSettingsEdit(tune);
+
+        Assert.True(edit.Set("crankingRPM", 500));
+
+        var write = new TuneWrite(0, 6, [50, 51, 52, 53]);
+        tune.Accept(write);
+        edit.Accept(write);
+
+        // The setting is still pending and the table is not.
+        Assert.Equal(1, edit.ChangedCount);
+        TuneWrite only = Assert.Single(edit.Writes());
+        Assert.Equal(0, only.Offset);
+        Assert.Equal(500, edit.Value("crankingRPM"));
+    }
+
+    [Fact]
+    public void AWriteOutsideThePagesIsIgnoredRatherThanThrowing()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        edit.Accept(new TuneWrite(9, 0, [1]));
+        edit.Accept(new TuneWrite(0, 30, [1, 2, 3, 4, 5, 6]));
+
+        Assert.Empty(edit.Writes());
+    }
 }

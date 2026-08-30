@@ -168,6 +168,35 @@ public sealed class TuneSettingsEdit
         _order.Remove(key);
     }
 
+    /// <summary>
+    /// Takes a write the controller has already accepted from somewhere else.
+    ///
+    /// <para>
+    /// A table is edited through <see cref="TuneEdit"/>, not through this, but
+    /// both work on the same pages. When a table write lands, the controller and
+    /// <see cref="EcuTune"/> both move and the copy held here does not — so the
+    /// bytes it still holds differ from the ECU's, and <see cref="Writes"/>
+    /// reports them as settings waiting to be sent. They carry the values from
+    /// before the table write, so sending them would put the table back.
+    /// </para>
+    /// <para>
+    /// Called after the write is acknowledged, never before: this records what
+    /// happened rather than predicting it, exactly as
+    /// <see cref="EcuTune.Accept"/> does.
+    /// </para>
+    /// </summary>
+    public void Accept(TuneWrite write)
+    {
+        ArgumentNullException.ThrowIfNull(write);
+
+        if (write.Page < 0 || write.Page >= _working.Length) return;
+
+        byte[] page = _working[write.Page];
+        if (write.Offset < 0 || write.Offset + write.Data.Length > page.Length) return;
+
+        write.Data.CopyTo(page.AsSpan(write.Offset));
+    }
+
     /// <summary>Puts everything back.</summary>
     public void RevertAll()
     {

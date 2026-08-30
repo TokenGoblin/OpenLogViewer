@@ -455,6 +455,8 @@ public sealed class Elm327(IEcuTransport transport)
                 ? IdleGap
                 : remaining;
 
+            DateTime asked = DateTime.UtcNow;
+
             if (_transport.Read(_one, wait) != 1)
             {
                 if (DateTime.UtcNow >= deadline) break;
@@ -470,7 +472,16 @@ public sealed class Elm327(IEcuTransport transport)
                 // it is a core spun flat out until the deadline, two seconds a
                 // command and five on a reset, on exactly the failure these
                 // adapters are known for.
+                //
+                // The same is true once an echo has arrived, and that case is
+                // not caught by comparing the window: the wait is the idle gap
+                // by then rather than the whole of what is left. So the test is
+                // whether the read spent the time it was given. One that came
+                // back in a fraction of it was not waiting on anything — a
+                // closed socket returns instantly for ever — and going round
+                // again only spins faster.
                 if (wait == remaining) break;
+                if (DateTime.UtcNow - asked < TimeSpan.FromTicks(wait.Ticks / 2)) break;
 
                 continue;
             }

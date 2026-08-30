@@ -196,6 +196,43 @@ public class SavedTuneCommandTests : IDisposable
     }
 
     [Fact]
+    public void ATuneOpenedFromAFileMayNotBeSentBackAnyWhichWay()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        Assert.True(vm.TuneIsFromFile);
+        Assert.False(vm.CanWriteSettings);
+        Assert.False(vm.CanWriteTable);
+        Assert.False(vm.CanBurn);
+        Assert.Contains("opened from a file", vm.WriteTableToEcu());
+    }
+
+    [Fact]
+    public void ADefinitionOpenedAfterATuneKeepsNothingOfIt()
+    {
+        // The symbols especially. They say which build a definition should be
+        // read as, and carrying one firmware's over to another writes a file
+        // whose signature and whose conditionals disagree — which takes the
+        // wrong branch everywhere it is read back, and says nothing.
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+        Assert.True(vm.OpenDefinition(WriteIni()));
+
+        Assert.False(vm.TuneIsFromFile);
+        Assert.True(vm.TuneIsPlaceholder);
+
+        // Nothing of the file's is left to leak into a later save.
+        string path = Temp(".msq");
+        Assert.Contains("definition rather than a tune", vm.SaveTuneToFile(path));
+        Assert.False(File.Exists(path));
+    }
+
+    [Fact]
     public void ThereIsNothingToCompareUntilThereIsATune()
     {
         MainViewModel vm = _harness.NewViewModel(out _);

@@ -60,7 +60,19 @@ public sealed class SettingRow : ObservableObject
             // does four things. The padding is spelled INVALID or left empty and
             // must not be offered as a choice — but it stays in the constant's
             // own list, because a position there is the number the ECU stores.
-            Options = [.. constant.Options.Where((_, i) => constant.IsValidOption(i))];
+            // Offered once each. A firmware that names two positions the same
+            // way gives a list two of whose entries cannot be told apart — and
+            // choosing the later one resolves back to the first, writing the
+            // other value to the ECU while the row reads as though it worked.
+            // The first is kept, which is the same rule the file writer follows.
+            Options =
+            [
+                .. constant.Options
+                    .Select((name, index) => (name, index))
+                    .Where(o => constant.IsValidOption(o.index))
+                    .DistinctBy(o => o.name, StringComparer.Ordinal)
+                    .Select(o => o.name),
+            ];
         }
     }
 
