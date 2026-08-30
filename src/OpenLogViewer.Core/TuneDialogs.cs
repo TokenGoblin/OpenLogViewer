@@ -281,7 +281,7 @@ public static partial class TuneInterfaceReader
 
                 case "menu":
                     CloseMenu();
-                    menuTitle = Unquote(Split(rest).FirstOrDefault() ?? "");
+                    menuTitle = Caption(Unquote(Split(rest).FirstOrDefault() ?? ""));
                     break;
 
                 case "submenu":
@@ -290,7 +290,7 @@ public static partial class TuneInterfaceReader
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     menuEntries.Add(new MenuEntry(
-                        parts[0], parts.Length > 1 ? Unquote(parts[1]) : "", condition));
+                        parts[0], parts.Length > 1 ? Caption(Unquote(parts[1])) : "", condition));
                     break;
                 }
 
@@ -304,7 +304,7 @@ public static partial class TuneInterfaceReader
                     if (parts.Length == 0 || parts[0].Length == 0) break;
 
                     dialogName = parts[0];
-                    dialogTitle = parts.Length > 1 ? Unquote(parts[1]) : "";
+                    dialogTitle = parts.Length > 1 ? Caption(Unquote(parts[1])) : "";
 
                     // The axis is optional and yAxis is what TunerStudio assumes,
                     // so a dialog that does not say lays its items out downwards.
@@ -320,7 +320,7 @@ public static partial class TuneInterfaceReader
                 case "displayonlyfield":
                 {
                     (string[] parts, string condition, int conditionAt) = Arguments(rest);
-                    string label = parts.Length > 0 ? Unquote(parts[0]) : "";
+                    string label = parts.Length > 0 ? Caption(Unquote(parts[0])) : "";
                     string constant = parts.Length > 1 ? parts[1] : "";
 
                     // An expression standing alone where the constant belongs is
@@ -371,7 +371,7 @@ public static partial class TuneInterfaceReader
                     if (parts.Length < 2 || parts[1].Length == 0) break;
 
                     items.Add(new DialogItem(
-                        DialogItemKind.Command, Unquote(parts[0]), parts[1], condition));
+                        DialogItemKind.Command, Caption(Unquote(parts[0])), parts[1], condition));
                     break;
                 }
 
@@ -381,7 +381,7 @@ public static partial class TuneInterfaceReader
                     if (parts.Length < 2 || parts[1].Length == 0) break;
 
                     items.Add(new DialogItem(
-                        DialogItemKind.Slider, Unquote(parts[0]), parts[1], condition));
+                        DialogItemKind.Slider, Caption(Unquote(parts[0])), parts[1], condition));
                     break;
                 }
 
@@ -566,6 +566,34 @@ public static partial class TuneInterfaceReader
             ? trimmed[1..^1]
             : trimmed;
     }
+
+    /// <summary>
+    /// A caption without the markers the format puts in front of it.
+    ///
+    /// <c>&amp;</c> marks the letter a menu would underline, so "F&amp;uel
+    /// Settings" is Fuel Settings with the u as its shortcut; a doubled one is a
+    /// literal ampersand. A leading <c>!</c> marks a warning and <c>#</c> a note,
+    /// both of which are about how to draw the line rather than part of what it
+    /// says.
+    /// </summary>
+    internal static string Caption(string text)
+    {
+        string trimmed = text.TrimStart('!', '#').Trim();
+
+        if (!trimmed.Contains('&', StringComparison.Ordinal)) return trimmed;
+
+        var built = new System.Text.StringBuilder(trimmed.Length);
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            if (trimmed[i] != '&') { built.Append(trimmed[i]); continue; }
+
+            // A doubled ampersand is one real ampersand.
+            if (i + 1 < trimmed.Length && trimmed[i + 1] == '&') { built.Append('&'); i++; }
+        }
+
+        return built.ToString();
+    }
 }
 
 /// <summary>
@@ -733,5 +761,33 @@ public static class TuneCurveReader
         return trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"'
             ? trimmed[1..^1]
             : trimmed;
+    }
+
+    /// <summary>
+    /// A caption without the markers the format puts in front of it.
+    ///
+    /// <c>&amp;</c> marks the letter a menu would underline, so "F&amp;uel
+    /// Settings" is Fuel Settings with the u as its shortcut; a doubled one is a
+    /// literal ampersand. A leading <c>!</c> marks a warning and <c>#</c> a note,
+    /// both of which are about how to draw the line rather than part of what it
+    /// says.
+    /// </summary>
+    internal static string Caption(string text)
+    {
+        string trimmed = text.TrimStart('!', '#').Trim();
+
+        if (!trimmed.Contains('&', StringComparison.Ordinal)) return trimmed;
+
+        var built = new System.Text.StringBuilder(trimmed.Length);
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            if (trimmed[i] != '&') { built.Append(trimmed[i]); continue; }
+
+            // A doubled ampersand is one real ampersand.
+            if (i + 1 < trimmed.Length && trimmed[i + 1] == '&') { built.Append('&'); i++; }
+        }
+
+        return built.ToString();
     }
 }

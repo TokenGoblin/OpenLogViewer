@@ -457,6 +457,8 @@ public partial class MainWindow : Window
         Report(_vm.BurnTableToEcu());
     }
 
+    private void OnRevertSettingsClick(object sender, RoutedEventArgs e) => _vm.RevertSettings();
+
     private void OnRevertTableClick(object sender, RoutedEventArgs e) => _vm.RevertTable();
 
     // ----- the table tools ------------------------------------------------------
@@ -540,6 +542,22 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Switches to calibration, optionally on a named table, for a scripted run.</summary>
+    /// <summary>Opens a firmware definition's settings pages, for a scripted run.</summary>
+    public void ShowSettings(string iniPath, string? page = null)
+    {
+        _vm.Mode = WorkspaceMode.Calibration;
+
+        if (!_vm.OpenDefinition(iniPath)) return;
+
+        _vm.ShowSettingsPages = true;
+
+        _vm.OpenMenuEntry = page is { Length: > 0 }
+            ? _vm.SettingsMenu.FirstOrDefault(
+                  m => !m.IsHeading && m.Title.Contains(page, StringComparison.OrdinalIgnoreCase))
+              ?? _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading)
+            : _vm.SettingsMenu.FirstOrDefault(m => !m.IsHeading);
+    }
+
     public void ShowCalibration(string? table)
     {
         _vm.Mode = WorkspaceMode.Calibration;
