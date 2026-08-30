@@ -40,7 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
-        "--find", "--guide",
+        "--find", "--guide", "--settings", "--page",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -284,6 +284,18 @@ public partial class App : Application
                 guide + 1 < e.Args.Length && !e.Args[guide + 1].StartsWith("--", StringComparison.Ordinal)
                     ? e.Args[guide + 1]
                     : null);
+        }
+
+        // "--settings <ini> --page Rev" opens a definition's settings pages with
+        // no controller behind them, for a capture.
+        int settings = Array.IndexOf(e.Args, "--settings");
+        if (settings >= 0 && settings + 1 < e.Args.Length)
+        {
+            int page = Array.IndexOf(e.Args, "--page");
+
+            window.ShowSettings(
+                e.Args[settings + 1],
+                page >= 0 && page + 1 < e.Args.Length ? e.Args[page + 1] : null);
         }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");

@@ -1535,6 +1535,8 @@ public sealed class MainViewModel : ObservableObject
 
             EcuTableChoices.Refresh();
             Raise(nameof(EcuTableSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
         }
     }
 
@@ -1551,6 +1553,229 @@ public sealed class MainViewModel : ObservableObject
                 ? $"{EcuTables.Count} tables"
                 : $"{shown} of {EcuTables.Count} tables";
         }
+    }
+
+    // ----- settings pages ---------------------------------------------------
+
+    private TuneInterface? _ecuInterface;
+    private TuneSettingsEdit? _settingsEdit;
+    private SettingsMenuEntry? _openMenuEntry;
+
+    /// <summary>Everything the firmware offers, flattened into one list.</summary>
+    public ObservableCollection<SettingsMenuEntry> SettingsMenu { get; } = [];
+
+    public bool HasSettingsPages => SettingsMenu.Count > 0;
+
+    /// <summary>The page on screen, or null when none is open.</summary>
+    public SettingsDialog? OpenDialog { get; private set; }
+
+    /// <summary>
+    /// Whether the left-hand list is offering settings pages rather than tables.
+    /// </summary>
+    private bool _showSettings;
+
+    public bool ShowSettingsPages
+    {
+        get => _showSettings;
+        set
+        {
+            if (!Set(ref _showSettings, value)) return;
+
+            Raise(nameof(ShowEcuTables));
+            Raise(nameof(SettingsSummary));
+        }
+    }
+
+    public bool ShowEcuTables
+    {
+        get => !_showSettings;
+        set { if (value) ShowSettingsPages = false; }
+    }
+
+    public SettingsMenuEntry? OpenMenuEntry
+    {
+        get => _openMenuEntry;
+        set
+        {
+            if (!Set(ref _openMenuEntry, value)) return;
+
+            OpenPage(value);
+        }
+    }
+
+    public string SettingsSummary
+    {
+        get
+        {
+            if (_settingsEdit is not { } edit) return "";
+
+            int changed = edit.ChangedCount;
+
+            return changed == 0
+                ? $"{SettingsMenu.Count(m => !m.IsHeading):N0} pages · nothing changed"
+                : $"{changed:N0} setting{(changed == 1 ? "" : "s")} changed · "
+                  + $"{edit.BytesToWrite:N0} bytes to send";
+        }
+    }
+
+    public bool HasSettingChanges => _settingsEdit?.HasChanges == true;
+
+    /// <summary>
+    /// Builds the list of pages from the firmware's menus.
+    ///
+    /// Flattened, with the menu names left in as headings. A tree would mirror
+    /// the file more closely, but a tuner looking for "Rev Limiter" wants to find
+    /// it by typing, and there are only a few hundred of them.
+    /// </summary>
+    private void BuildSettingsMenu()
+    {
+        SettingsMenu.Clear();
+
+        if (_ecuInterface is not { } ui) return;
+
+        foreach (TuneMenu menu in ui.Menus)
+        {
+            var entries = new List<SettingsMenuEntry>();
+
+            foreach (MenuEntry entry in menu.Entries)
+            {
+                // Separators are a rule in a drop-down and have nothing to open;
+                // the tool's own editors are not this firmware's to describe.
+                if (entry.IsSeparator || entry.IsBuiltIn) continue;
+                if (ui.Find(entry.Dialog) is null) continue;
+
+                entries.Add(new SettingsMenuEntry(
+                    entry.Dialog,
+                    entry.Title.Length > 0 ? entry.Title : entry.Dialog,
+                    entry.Condition));
+            }
+
+            // A menu whose every entry was a separator or a built-in is not a
+            // heading over nothing.
+            if (entries.Count == 0) continue;
+
+            SettingsMenu.Add(SettingsMenuEntry.Heading(menu.Title));
+            foreach (SettingsMenuEntry entry in entries) SettingsMenu.Add(entry);
+        }
+
+        Raise(nameof(HasSettingsPages));
+        Raise(nameof(SettingsSummary));
+    }
+
+    private void OpenPage(SettingsMenuEntry? entry)
+    {
+        OpenDialog = entry is { IsHeading: false } && _ecuInterface is { } ui && _ecuTune is { } tune
+            ? SettingsDialog.Build(entry.Dialog, ui, tune.Constant, _settingsEdit)
+            : null;
+
+        if (OpenDialog is { } dialog)
+        {
+            dialog.Refresh(Setting);
+
+            // Any edit may reveal or hide other fields on the same page, since
+            // conditions are written against the tune's own settings.
+            foreach (SettingRow row in dialog.Rows) row.Changed += OnSettingChanged;
+        }
+
+        Raise(nameof(OpenDialog));
+    }
+
+    private void OnSettingChanged()
+    {
+        OpenDialog?.Refresh(Setting);
+
+        Raise(nameof(SettingsSummary));
+        Raise(nameof(HasSettingChanges));
+    }
+
+    /// <summary>
+    /// A setting's value for a condition to be judged against — the edited one,
+    /// so turning something on reveals what it configures at once.
+    ///
+    /// Falls back to the live readings, because a good many conditions are
+    /// written against those rather than against settings: a button offered only
+    /// with the engine stopped is testing RPM.
+    /// </summary>
+    private double Setting(string name)
+    {
+        if (_settingsEdit is { } edit)
+        {
+            double value = edit.Value(name);
+            if (!double.IsNaN(value)) return value;
+        }
+
+        // The newest reading rather than one under a cursor: a condition on a
+        // live channel is asking what the engine is doing now, and a settings
+        // page is not somewhere anybody is scrubbing a log.
+        if (Document is not { SampleCount: > 0 } doc) return double.NaN;
+
+        return doc.FindChannel(name) is { } channel ? channel.At(doc.SampleCount - 1) : double.NaN;
+    }
+
+    /// <summary>
+    /// Opens a firmware definition with no controller behind it, so its settings
+    /// pages can be looked at.
+    ///
+    /// <b>The values are not a tune.</b> Every page reads as nought, because
+    /// there is nothing to read them from — this says what a firmware offers and
+    /// how it is laid out, not what any particular engine is set to. Editing a
+    /// real tune away from the car means loading its saved values, which is a
+    /// different thing and not this.
+    /// </summary>
+    public bool OpenDefinition(string iniPath)
+    {
+        try
+        {
+            string ini = TuningText.Read(iniPath);
+            TuneLayout layout = TuneLayoutReader.Read(ini);
+
+            if (layout.Pages.Count == 0)
+            {
+                EcuTuneSummary = $"{Path.GetFileName(iniPath)} declares no pages of settings.";
+                return false;
+            }
+
+            _tuneLayout = layout;
+            _ecuTune = EcuTune.FromPages(layout, [.. layout.Pages.Select(p => new byte[p.Size])]);
+            _ecuTableDefinitions = TableEditorReader.Read(ini);
+            _ecuInterface = TuneInterfaceReader.Read(ini);
+            _settingsEdit = new TuneSettingsEdit(_ecuTune);
+
+            EcuTables.Clear();
+            foreach (TuneTable table in Ordered(_ecuTune.Tables(_ecuTableDefinitions))) EcuTables.Add(table);
+            EcuTableChoices.Refresh();
+
+            BuildSettingsMenu();
+
+            EcuTuneSummary =
+                $"{Path.GetFileName(iniPath)} — {EcuTables.Count} tables · "
+                + $"{SettingsMenu.Count(m => !m.IsHeading):N0} pages. "
+                + "No ECU is connected, so every value reads as zero.";
+
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or LogFormatException)
+        {
+            EcuTuneSummary = $"Could not read {Path.GetFileName(iniPath)}: {e.Message}";
+            return false;
+        }
+        finally
+        {
+            Raise(nameof(HasEcuTune));
+            Raise(nameof(NoEcuTune));
+            Raise(nameof(ShowNoTuneNotice));
+            Raise(nameof(EcuTableSummary));
+            Raise(nameof(EcuTuneSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
+        }
+    }
+
+    /// <summary>Puts every changed setting back to what the ECU holds.</summary>
+    public void RevertSettings()
+    {
+        _settingsEdit?.RevertAll();
+        OnSettingChanged();
     }
 
     private TuneTable? _selectedEcuTable;
@@ -1636,6 +1861,16 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     public bool CanWriteTable =>
         HasTableChanges && _ecuConnection is not null && _tuneLayout is not null;
+
+    /// <summary>
+    /// Whether burning is possible at all, which needs a controller on the other
+    /// end.
+    ///
+    /// Gated on the connection rather than on having a tune, because a tune can
+    /// now be opened from a definition file with nothing attached — and a Burn
+    /// button that looks live with no ECU behind it is an offer this cannot keep.
+    /// </summary>
+    public bool CanBurn => _ecuConnection is not null && _tuneLayout is not null;
 
     /// <summary>What is selected and what has been changed, for the calibration header.</summary>
     public string TableEditSummary
@@ -2019,7 +2254,11 @@ public sealed class MainViewModel : ObservableObject
     {
         _ecuTune = null;
         _tuneLayout = null;
+        _ecuInterface = null;
+        _settingsEdit = null;
         EcuTables.Clear();
+        SettingsMenu.Clear();
+        OpenDialog = null;
         EcuTuneSummary = "";
 
         try
@@ -2036,6 +2275,13 @@ public sealed class MainViewModel : ObservableObject
             _ecuTune = tune;
             _ecuTableDefinitions = TableEditorReader.Read(iniText);
 
+            // The settings interface: what the firmware calls each of its eight
+            // hundred-odd constants, which page it belongs on, and when it
+            // applies at all.
+            _ecuInterface = TuneInterfaceReader.Read(iniText);
+            _settingsEdit = new TuneSettingsEdit(tune);
+            BuildSettingsMenu();
+
             foreach (TuneTable table in Ordered(tune.Tables(_ecuTableDefinitions)))
                 EcuTables.Add(table);
 
@@ -2043,7 +2289,10 @@ public sealed class MainViewModel : ObservableObject
 
             EcuTuneSummary =
                 $"{layout.TotalSize:N0} bytes read from the ECU in {clock.ElapsedMilliseconds:N0} ms · "
-                + $"{EcuTables.Count} tables · {tune.Scalars().Count:N0} settings";
+                + $"{EcuTables.Count} tables · {tune.Scalars().Count:N0} settings"
+                + (_ecuInterface is { IsEmpty: false } ui
+                    ? $" · {ui.Dialogs.Count:N0} pages"
+                    : "");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2055,6 +2304,8 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(NoEcuTune));
             Raise(nameof(ShowNoTuneNotice));
             Raise(nameof(EcuTableSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
 
             // The first one is the biggest, which is the one worth opening on.
             SelectedEcuTable = EcuTables.FirstOrDefault();

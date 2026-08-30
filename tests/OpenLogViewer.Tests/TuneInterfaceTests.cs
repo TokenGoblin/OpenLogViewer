@@ -499,4 +499,51 @@ public class TuneInterfaceTests
         Assert.Single(ui.Menus[0].Entries);
         Assert.Equal("base", ui.Menus[0].Entries[0].Dialog);
     }
+
+    // ----- captions ---------------------------------------------------------
+
+    [Fact]
+    public void AMenuMnemonicIsNotPartOfItsName()
+    {
+        // "&" marks the letter a menu would underline. Left in, the list reads
+        // "F&uel Settings".
+        TuneInterface ui = Read("""
+            [Menu]
+               menu = "F&uel Settings"
+                 subMenu = ego, "&EGO Control"
+            """);
+
+        Assert.Equal("Fuel Settings", ui.Menus[0].Title);
+        Assert.Equal("EGO Control", ui.Menus[0].Entries[0].Title);
+    }
+
+    [Fact]
+    public void ADoubledAmpersandIsARealOne()
+    {
+        TuneInterface ui = Read("""
+            [Menu]
+               menu = "Nuts && Bolts"
+                 subMenu = a, "A"
+            """);
+
+        Assert.Equal("Nuts & Bolts", ui.Menus[0].Title);
+    }
+
+    [Fact]
+    public void AMarkerInFrontOfALabelIsNotPartOfIt()
+    {
+        // "!" marks a warning and "#" a note. Both are about how to draw the
+        // line rather than part of what it says.
+        TuneInterface ui = Read("""
+            [UserDefined]
+               dialog = d, "D"
+                  field = "!Warning: not enough channels"
+                  field = "#Sequential Siamese Hybrid Mode"
+            """);
+
+        var items = ui.Find("d")!.Items;
+
+        Assert.Equal("Warning: not enough channels", items[0].Label);
+        Assert.Equal("Sequential Siamese Hybrid Mode", items[1].Label);
+    }
 }

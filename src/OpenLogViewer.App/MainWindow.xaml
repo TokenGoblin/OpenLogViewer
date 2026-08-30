@@ -1168,12 +1168,67 @@
                     BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0"
                     Visibility="{Binding HasEcuTune, Converter={StaticResource BoolToVis}}">
                 <DockPanel Margin="10">
+                    <!-- The tune has two halves: the tables, and the several
+                         hundred settings that are not tables. Both come off the
+                         same controller and neither is a mode of the other. -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <RadioButton Style="{StaticResource Chip}" Content="Tables" GroupName="TuneHalf"
+                                     IsChecked="{Binding ShowEcuTables}"
+                                     ToolTip="The maps: VE, ignition, AFR target"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Settings" GroupName="TuneHalf"
+                                     IsChecked="{Binding ShowSettingsPages}"
+                                     IsEnabled="{Binding HasSettingsPages}"
+                                     ToolTip="Everything else the firmware lets you change"/>
+                    </StackPanel>
+
                     <TextBlock DockPanel.Dock="Top" Text="TABLES IN THE ECU" FontSize="10"
                                FontWeight="SemiBold" Foreground="{DynamicResource Muted}"
-                               Margin="0,0,0,6"/>
+                               Margin="0,0,0,6"
+                               Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="TableSearch" DockPanel.Dock="Top" Margin="0,0,0,6"
                              Text="{Binding EcuTableSearch, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                             Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                              ToolTip="Filter by name — try VE, ignition, boost"/>
+
+                    <!-- The settings pages, as the firmware groups them. -->
+                    <ListBox DockPanel.Dock="Top" ItemsSource="{Binding SettingsMenu}"
+                             SelectedItem="{Binding OpenMenuEntry}"
+                             BorderThickness="0" Background="Transparent" MaxHeight="10000"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Style.Triggers>
+                                    <!-- A heading names the group beneath it and is
+                                         not something to open. -->
+                                    <DataTrigger Binding="{Binding IsHeading}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                        <Setter Property="Focusable" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                                           Margin="2,3">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsHeading}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+                                                    <Setter Property="FontSize" Value="10"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="Margin" Value="2,9,2,2"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                     <TextBlock DockPanel.Dock="Bottom" Margin="0,6,0,0" FontSize="11"
                                Foreground="{DynamicResource Muted}" Text="{Binding EcuTableSummary}"/>
 
@@ -1182,7 +1237,8 @@
                          an order that suits the file rather than the reader. -->
                     <ListBox ItemsSource="{Binding EcuTableChoices}" SelectedItem="{Binding SelectedEcuTable}"
                              BorderThickness="0" Background="Transparent"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"
@@ -1206,24 +1262,42 @@
                      separate on the ECU: a write takes effect at once and is
                      forgotten at the next power cycle, a burn is permanent. -->
                 <DockPanel DockPanel.Dock="Bottom" Margin="12,8,12,10" LastChildFill="False">
+                    <!-- The table half. -->
                     <Button DockPanel.Dock="Left" Content="Send to ECU" Margin="0,0,8,0"
                             Click="OnWriteTableClick"
                             IsEnabled="{Binding CanWriteTable}"
+                            Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                             ToolTip="Writes the changed cells into the ECU's working memory. Takes effect immediately; lost at the next power cycle unless burned."/>
 
                     <Button DockPanel.Dock="Left" Content="Burn" Margin="0,0,8,0"
                             Click="OnBurnTableClick"
-                            IsEnabled="{Binding HasEcuTune}"
+                            IsEnabled="{Binding CanBurn}"
+                            Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                             ToolTip="Commits the page to the ECU's flash. This survives a power cycle."/>
 
                     <Button DockPanel.Dock="Left" Content="Revert" Margin="0,0,14,0"
                             Click="OnRevertTableClick"
                             IsEnabled="{Binding HasTableChanges}"
+                            Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                             ToolTip="Puts every cell back to what the ECU said."/>
+
+                    <!-- And the settings half, which sends different bytes and so
+                         has its own buttons rather than sharing these. -->
+                    <Button DockPanel.Dock="Left" Content="Revert settings" Margin="0,0,14,0"
+                            Click="OnRevertSettingsClick"
+                            IsEnabled="{Binding HasSettingChanges}"
+                            Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Puts every changed setting back to what the ECU said."/>
 
                     <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
                                Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                                Text="{Binding TableEditSummary}"/>
+
+                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}"
+                               Text="{Binding SettingsSummary}"/>
                 </DockPanel>
 
                 <!-- The tools, so the table can be worked without knowing the
@@ -1231,7 +1305,8 @@
                      of them sends anything. -->
                 <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="5"
                         Background="{DynamicResource Panel}"
-                        BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                        Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}">
                     <WrapPanel>
                         <TextBlock Text="Add / subtract" VerticalAlignment="Center" FontSize="11"
                                    Foreground="{DynamicResource Muted}" Margin="0,0,6,0"/>
@@ -1290,7 +1365,8 @@
                      asked before anything is sent. -->
                 <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="5"
                         Background="{DynamicResource Panel}"
-                        BorderBrush="{DynamicResource Line}" BorderThickness="1">
+                        BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                        Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}">
                     <DockPanel LastChildFill="False">
                         <TextBlock DockPanel.Dock="Left" Text="{Binding TableChangeWhere}"
                                    VerticalAlignment="Center" FontSize="11"
@@ -1321,12 +1397,121 @@
 
                 <TextBlock DockPanel.Dock="Bottom" Margin="12,0,12,0" FontSize="10"
                            Foreground="{DynamicResource Muted}"
+                           Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                            Text="Click or drag to select · arrows move · shift extends · + − nudge · PgUp/PgDn scale by 1% (shift 5%) · Esc undoes the selection"/>
 
                 <local:TuneTableView x:Name="TuneTable"
                                      Table="{Binding SelectedEcuTable}"
                                      Edit="{Binding TableEdit}"
-                                     Selection="{Binding SelectedCells, Mode=TwoWay}"/>
+                                     Selection="{Binding SelectedCells, Mode=TwoWay}"
+                                     Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"/>
+
+                <!-- A settings page, laid out from the firmware's description of
+                     it. One row per field, with the control chosen by what the
+                     constant behind it turns out to be. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding ShowSettingsPages, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Margin="18,4,18,20" MaxWidth="640" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding OpenDialog.Title}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Part of this page is a live graph or a lamp, which is not drawn here."
+                                   FontSize="10" Foreground="{DynamicResource Marker}" TextWrapping="Wrap"
+                                   Margin="0,0,0,10"
+                                   Visibility="{Binding OpenDialog.IsPartial, Converter={StaticResource BoolToVis}}"/>
+
+                        <ItemsControl ItemsSource="{Binding OpenDialog.Visible}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="250"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="12"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center"
+                                                   Margin="0,0,10,0" Foreground="{DynamicResource Text}"/>
+
+                                        <!-- A changed field is outlined, as a changed
+                                             table cell is: the outline says it is not
+                                             what the ECU holds. -->
+                                        <TextBox Grid.Column="1" FontSize="12"
+                                                 Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                                                 ToolTip="{Binding Original, StringFormat=In the ECU: {0}}">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Number">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Text">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsChanged}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                            <Setter Property="BorderThickness" Value="2"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+
+                                        <ComboBox Grid.Column="1" FontSize="12"
+                                                  ItemsSource="{Binding Options}"
+                                                  SelectedItem="{Binding Value}"
+                                                  ToolTip="{Binding Original, StringFormat=In the ECU: {0}}">
+                                            <ComboBox.Style>
+                                                <Style TargetType="ComboBox">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Choice">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBox.Style>
+                                        </ComboBox>
+
+                                        <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Muted}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="ReadOnly">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                    VerticalAlignment="Center" Margin="7,0,0,0">
+                                            <TextBlock Text="{Binding Units}" FontSize="10"
+                                                       Foreground="{DynamicResource Faint}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <!-- Shown because the firmware did not say
+                                                 whether it applies, rather than because
+                                                 it said that it does. -->
+                                            <TextBlock Text="?" FontSize="11" Margin="5,0,0,0"
+                                                       Foreground="{DynamicResource Marker}"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip="This firmware did not say whether the setting applies to your tune, so it is shown rather than hidden."
+                                                       Visibility="{Binding IsUncertain,
+                                                                    Converter={StaticResource BoolToVis}}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </DockPanel>
 
             <!--
