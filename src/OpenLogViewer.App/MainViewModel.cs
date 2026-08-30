@@ -165,6 +165,25 @@ public sealed class MainViewModel : ObservableObject
 
     public string StyleTargetName => _styleTarget?.Name ?? "";
 
+    private string _styleUnits = "";
+
+    /// <summary>
+    /// The units the boxes are in, shown beside them. Stated rather than left to
+    /// be inferred: the number the editor wants is only unambiguous if it says
+    /// which unit it is in.
+    /// </summary>
+    public string StyleUnits
+    {
+        get => _styleUnits;
+        private set
+        {
+            if (Set(ref _styleUnits, value)) Raise(nameof(HasStyleUnits));
+        }
+    }
+
+    /// <summary>False for a channel the log gave no unit for, where "In " alone would be noise.</summary>
+    public bool HasStyleUnits => _styleUnits.Length > 0;
+
     public string StyleMin
     {
         get => _styleMin;
@@ -189,8 +208,13 @@ public sealed class MainViewModel : ObservableObject
 
         (double min, double range) = item.Scale(LogPlot.HoldSteady);
 
-        StyleMin = Round(min);
-        StyleMax = Round(min + range);
+        // Seeded and read back in the units the row is showing, which are the
+        // units on the axis beside it. The pin itself is stored raw so it means
+        // the same range whichever system is chosen later, but a box seeded with
+        // 80 next to an axis labelled 176 °F invites a number in the wrong one.
+        StyleMin = Round(UnitConvert.Value(min, item.Channel.Units, Units));
+        StyleMax = Round(UnitConvert.Value(min + range, item.Channel.Units, Units));
+        StyleUnits = item.Units;
         StyleTarget = item;
     }
 
@@ -225,7 +249,15 @@ public sealed class MainViewModel : ObservableObject
             return false;
         }
 
-        if (!PinRange(item, min, max)) return false;
+        // Back into the log's own units, since that is what the boxes were
+        // seeded from and what the plot maps samples against.
+        string units = item.Channel.Units;
+
+        if (!PinRange(item, UnitConvert.ToReported(min, units, Units),
+                            UnitConvert.ToReported(max, units, Units)))
+        {
+            return false;
+        }
 
         StyleTarget = null;
         return true;
@@ -3300,10 +3332,20 @@ public sealed class MainViewModel : ObservableObject
 
         var parts = new List<string> { $"{Points.Count:N0} samples" };
 
-        if (Points.IsDelta) parts.Insert(0, $"difference against {CompareName}");
+        // The Z comparison channel, which is a channel of this log. Not
+        // CompareName — that is the second log opened for comparison, an
+        // unrelated feature, and naming it here would be blank whenever no
+        // second log is open and wrong whenever one is.
+        if (Points.ZCompare is { } target) parts.Insert(0, $"difference against {target.Name}");
 
+        // Both figures over the same window. Points.Filtered counts only what
+        // was rejected inside it, so pairing it with the whole log's total would
+        // read as "12 of 50,000" for a pull of five hundred.
         if (mask.FiltersApplied)
-            parts.Add($"{Points.Filtered:N0} of {mask.Total:N0} excluded by filters");
+        {
+            int considered = Points.Count + Points.Dropped + Points.Filtered;
+            parts.Add($"{Points.Filtered:N0} of {considered:N0} excluded by filters");
+        }
 
         // Said rather than absorbed: a scatter quietly missing a third of the
         // log would look like a sparser drive than it was.

@@ -707,6 +707,13 @@
                                 <TextBlock Text="Drawn over this range in every log, so the same channel keeps the same shape."
                                            FontSize="10" Foreground="{DynamicResource Faint}"
                                            TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                <!-- The unit is stated because the boxes take a
+                                     number in whichever system the list is showing,
+                                     not in the log's own. -->
+                                <TextBlock Text="{Binding StyleUnits, StringFormat=In {0}}" FontSize="10"
+                                           Foreground="{DynamicResource Muted}" Margin="0,0,0,4"
+                                           Visibility="{Binding HasStyleUnits,
+                                                        Converter={StaticResource BoolToVis}}"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>

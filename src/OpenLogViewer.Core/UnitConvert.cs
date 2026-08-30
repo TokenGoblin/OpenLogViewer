@@ -52,6 +52,35 @@ public static class UnitConvert
         };
     }
 
+    /// <summary>
+    /// The other way: a number someone typed in the units they are being shown,
+    /// back into the units the log is recorded in.
+    ///
+    /// Needed wherever a value is entered rather than displayed. Everything a
+    /// log holds stays in the ECU's own units — a pinned scale included, so that
+    /// it means the same thing whichever system is being shown — but a person
+    /// reading an axis labelled °F and typing 220 into a box beside it means
+    /// 220 °F, and storing that as 220 °C is a silent factor of two.
+    ///
+    /// Exactly inverts <see cref="Value"/>: same families, same constants, each
+    /// conversion the algebraic reverse of its counterpart.
+    /// </summary>
+    public static double ToReported(double value, string units, UnitSystem from)
+    {
+        if (double.IsNaN(value)) return value;
+
+        return (Identify(units), from) switch
+        {
+            (Measure.Celsius, UnitSystem.Imperial) => (value - 32) * 5 / 9,
+            (Measure.Fahrenheit, UnitSystem.Metric) => (value * 9 / 5) + 32,
+            (Measure.KilometresPerHour, UnitSystem.Imperial) => value * MilesToKilometres,
+            (Measure.MilesPerHour, UnitSystem.Metric) => value / MilesToKilometres,
+            (Measure.Kilopascals, UnitSystem.Imperial) => value * KilopascalsPerPsi,
+            (Measure.PoundsPerSquareInch, UnitSystem.Metric) => value / KilopascalsPerPsi,
+            _ => value,
+        };
+    }
+
     /// <summary>The unit label to show alongside it.</summary>
     public static string Label(string units, UnitSystem to)
     {

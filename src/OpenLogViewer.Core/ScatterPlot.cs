@@ -400,8 +400,17 @@ public sealed class ScatterBins
     /// </summary>
     public const double Trim = 0.02;
 
-    /// <summary>Symmetric limit for a diverging scale, on the same trimmed basis.</summary>
-    public double MeanExtent { get; private set; }
+    /// <summary>
+    /// Symmetric limit for a diverging scale, on whatever basis the bounds ended
+    /// up on.
+    ///
+    /// Derived from <see cref="ColorLow"/> and <see cref="ColorHigh"/> rather
+    /// than assigned beside them. Held as its own field it could be — and was —
+    /// left behind on the paths that settle the bounds early and return, which
+    /// gave a delta scatter a reach of zero and drew every mark on it at the
+    /// neutral end of the scale however far off target it was.
+    /// </summary>
+    public double MeanExtent => Math.Max(Math.Abs(ColorLow), Math.Abs(ColorHigh));
 
     public int Index(int column, int row) => (row * Columns) + column;
 
@@ -472,10 +481,6 @@ public sealed class ScatterBins
 
         ColorLow = trimmedLow;
         ColorHigh = trimmedHigh;
-
-        // A diverging scale is symmetric about zero, so it takes one bound: the
-        // larger deviation the trim leaves standing, either side of it.
-        MeanExtent = Math.Max(Math.Abs(ColorLow), Math.Abs(ColorHigh));
         return this;
     }
 

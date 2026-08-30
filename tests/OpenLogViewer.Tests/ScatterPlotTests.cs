@@ -389,7 +389,10 @@ public class ScatterPlotTests
         ScatterBins bins = BinsHolding([.. means]);
 
         Assert.Equal(20.0, bins.MeanMax, precision: 3);
-        Assert.True(bins.MeanExtent < 3.0, $"reach was {bins.MeanExtent}");
+
+        // Both sides: a reach of zero would also be "less than 3", and is the
+        // one value that draws every mark neutral however far off target it is.
+        Assert.InRange(bins.MeanExtent, 1.0, 3.0);
     }
 
     [Fact]
@@ -420,8 +423,45 @@ public class ScatterPlotTests
 
         Assert.Equal(-9.0, bins.ColorLow, precision: 3);
         Assert.Equal(9.0, bins.ColorHigh, precision: 3);
+        Assert.Equal(9.0, bins.MeanExtent, precision: 3);
         Assert.False(bins.ClipsLow);
         Assert.False(bins.ClipsHigh);
+    }
+
+    [Fact]
+    public void ADivergingScaleHasAReachOnEveryPathThatSettlesTheBounds()
+    {
+        // The bounds are settled and returned early on three different paths.
+        // A reach left behind on any of them draws every mark on a delta
+        // scatter at the neutral end of the scale, target or not.
+        foreach (double[] means in new[]
+        {
+            new[] { -4.0, 4.0 },                                     // too few blocks to trim
+            [.. Enumerable.Repeat(0.5, 98), -9.0, 9.0],               // the trim closes the range
+            [.. Enumerable.Range(0, 100).Select(i => -5.0 + (i / 10.0))], // trimmed normally
+        })
+        {
+            ScatterBins bins = BinsHolding(means);
+
+            Assert.True(bins.MeanExtent > 0, $"reach was {bins.MeanExtent} for {means.Length} blocks");
+            Assert.Equal(
+                Math.Max(Math.Abs(bins.ColorLow), Math.Abs(bins.ColorHigh)),
+                bins.MeanExtent,
+                precision: 6);
+        }
+    }
+
+    [Fact]
+    public void TheReachAlwaysMatchesTheBoundsColourIsScaledOver()
+    {
+        // Whatever the distribution, the diverging scale and the sequential one
+        // must describe the same numbers, or the legend and the marks disagree.
+        ScatterBins bins = BinsHolding([.. Enumerable.Range(0, 60).Select(i => (double)(i - 30))]);
+
+        Assert.Equal(
+            Math.Max(Math.Abs(bins.ColorLow), Math.Abs(bins.ColorHigh)),
+            bins.MeanExtent,
+            precision: 6);
     }
 
     // ----- tracing back -----------------------------------------------------
