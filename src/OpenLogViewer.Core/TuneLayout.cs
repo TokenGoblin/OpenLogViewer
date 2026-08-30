@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace OpenLogViewer.Core;
@@ -103,6 +103,18 @@ public sealed record TuneConstant
 
     /// <summary>Bytes this constant occupies.</summary>
     public int Size => ElementSize * Columns * Rows;
+
+    /// <summary>
+    /// False for a setting that lives on this machine rather than in the ECU,
+    /// which has no page to be written to.
+    /// </summary>
+    public bool OnController => Page >= 0;
+
+    /// <summary>
+    /// True for a setting holding characters rather than a number — a name the
+    /// user gives an input. <see cref="Columns"/> is its length in bytes.
+    /// </summary>
+    public bool IsText { get; init; }
 }
 
 /// <summary>Everything needed to read an ECU's settings and make sense of them.</summary>
@@ -111,6 +123,19 @@ public sealed record TuneLayout
     public required IReadOnlyList<TunePage> Pages { get; init; }
 
     public required IReadOnlyList<TuneConstant> Constants { get; init; }
+
+    /// <summary>
+    /// Settings that live on this machine rather than in the ECU: gauge limits,
+    /// axis maxima, the units a dialog prefers.
+    ///
+    /// Kept apart from <see cref="Constants"/> rather than flagged among them,
+    /// deliberately. Every one of these has a name and a scale exactly like a
+    /// real constant and nothing about it says it is not one — but it has no
+    /// page and no offset, so anything that treated it as one would be writing
+    /// to whatever happens to sit at offset zero of page zero. Two lists cannot
+    /// make that mistake; one list and a flag could.
+    /// </summary>
+    public IReadOnlyList<TuneConstant> PcVariables { get; init; } = [];
 
     public bool LittleEndian { get; init; }
 
@@ -163,6 +188,16 @@ public static class TuneLayoutReader
         """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*(?<offset>\d+)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\]""",
         RegexOptions.Compiled);
 
+    /// <summary>
+    /// A text setting: <c>scriptTableName1 = string, ASCII, 2168, 16</c> on the
+    /// controller, or <c>sensor01Alias = string, ASCII, 20</c> on this machine,
+    /// where there is no offset to give. Names a user assigns to an input, so it
+    /// is a setting like any other even though it holds no number.
+    /// </summary>
+    private static readonly Regex Text = new(
+        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*string\s*,\s*(?<encoding>\w+)\s*,\s*(?<first>\d+)\s*(?:,\s*(?<second>\d+))?""",
+        RegexOptions.Compiled);
+
     private static readonly Regex Setting = new(
         """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*(?<value>.+?)\s*$""",
         RegexOptions.Compiled);
@@ -207,6 +242,12 @@ public static class TuneLayoutReader
             if (Scalar.Match(line) is { Success: true } scalar)
             {
                 if (FromScalar(scalar, page) is { } constant) constants.Add(constant);
+                continue;
+            }
+
+            if (Text.Match(line) is { Success: true } text)
+            {
+                constants.Add(FromText(text, page));
                 continue;
             }
 
@@ -266,11 +307,90 @@ public static class TuneLayoutReader
         {
             Pages = built,
             Constants = constants,
+            PcVariables = ReadPcVariables(iniText, symbols),
             LittleEndian = little,
             BlockingFactor = blocking,
             InterWriteDelay = interWrite,
             AfterBurnDelay = afterBurn,
         };
+    }
+
+    /// <summary>
+    /// A PC variable's scalar form, which is a constant's without the offset —
+    /// there is nowhere in the ECU for it to be at.
+    /// </summary>
+    private static readonly Regex PcScalar = new(
+        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*scalar\s*,\s*(?<type>[A-Z]\d\d)\s*(?:,\s*(?<rest>.*))?$""",
+        RegexOptions.Compiled);
+
+    private static readonly Regex PcBits = new(
+        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\]""",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// The <c>[PcVariables]</c> section, which is written almost like
+    /// <c>[Constants]</c> and means something quite different.
+    ///
+    /// Given a page of −1, so that anything reaching for a page gets an obviously
+    /// wrong answer rather than a plausible one.
+    /// </summary>
+    private static IReadOnlyList<TuneConstant> ReadPcVariables(
+        string iniText, IReadOnlySet<string> symbols)
+    {
+        var variables = new List<TuneConstant>();
+
+        foreach (string raw in MsqIni.Section(iniText, "PcVariables", symbols))
+        {
+            string line = MsqIni.Strip(raw);
+            if (line.Length == 0) continue;
+
+            if (PcBits.Match(line) is { Success: true } bits)
+            {
+                Enum.TryParse(bits.Groups["type"].Value, ignoreCase: true, out RealtimeType bitType);
+
+                int low = Whole(bits.Groups["low"].Value);
+                int high = Whole(bits.Groups["high"].Value);
+
+                variables.Add(new TuneConstant
+                {
+                    Name = bits.Groups["name"].Value,
+                    Page = -1,
+                    Offset = 0,
+                    Type = bitType,
+                    BitLow = Math.Min(low, high),
+                    BitHigh = Math.Max(low, high),
+                });
+
+                continue;
+            }
+
+            if (Text.Match(line) is { Success: true } text)
+            {
+                variables.Add(FromText(text, -1));
+                continue;
+            }
+
+            if (PcScalar.Match(line) is not { Success: true } scalar) continue;
+            if (!Enum.TryParse(scalar.Groups["type"].Value, ignoreCase: true, out RealtimeType type)) continue;
+
+            string[] rest = Fields(scalar.Groups["rest"].Value);
+
+            variables.Add(new TuneConstant
+            {
+                Name = scalar.Groups["name"].Value,
+                Page = -1,
+                Offset = 0,
+                Type = type,
+                Units = rest.Length > 0 ? Unquote(rest[0]) : "",
+                Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
+                Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+                Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
+                High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
+                Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
+            });
+        }
+
+        return variables;
     }
 
     /// <summary>
@@ -346,6 +466,26 @@ public static class TuneLayoutReader
             Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
             High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
             Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
+        };
+    }
+
+    /// <summary>
+    /// A text setting. On the controller both an offset and a length are given;
+    /// on this machine there is no offset, so the one number present is the
+    /// length.
+    /// </summary>
+    private static TuneConstant FromText(Match match, int page)
+    {
+        bool hasOffset = page >= 0 && match.Groups["second"].Success;
+
+        return new TuneConstant
+        {
+            Name = match.Groups["name"].Value,
+            Page = page,
+            Offset = hasOffset ? Whole(match.Groups["first"].Value) : 0,
+            Type = RealtimeType.U08,
+            IsText = true,
+            Columns = Whole(match.Groups[hasOffset ? "second" : "first"].Value),
         };
     }
 
