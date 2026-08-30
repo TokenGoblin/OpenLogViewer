@@ -87,26 +87,31 @@ public sealed class ViewModelHarness : IDisposable
         // defaults they resolve to %APPDATA%, and a test run would read — and
         // save over — the presets, filters and theme the user actually has.
         string directory = settingsDirectory;
-        return new MainViewModel(
+        var viewModel = new MainViewModel(
             new PresetStore(Path.Combine(directory, "presets.json")),
             new FilterStore(Path.Combine(directory, "filters.json")),
             new SettingsStore(Path.Combine(directory, "settings.json")),
             new MathChannelStore(Path.Combine(directory, "math.json")));
+
+        // And the workspace with them. The stores above are pointed at a
+        // temporary directory but the workspace is not, so anything that
+        // creates a folder or leaves a note in one — connecting to an ECU whose
+        // definition is missing rewrites the readme in "ECU definitions",
+        // naming the signature it just failed to match — writes into the
+        // folders the user actually uses. One test doing that left a note in
+        // the real folder claiming the ECU was called "some firmware nobody
+        // has", which is a line out of a test fixture.
+        viewModel.SetDataFolder(Path.Combine(directory, "workspace"));
+
+        return viewModel;
     }
 
     /// <summary>
-    /// Puts a firmware definition where the view model will find it, and points
-    /// the workspace at a temporary folder so it is looking somewhere of its
-    /// own rather than at whatever this machine has installed.
+    /// Puts a firmware definition where the view model will find it. The
+    /// workspace is already temporary; this fills its definitions folder.
     /// </summary>
     public void PutDefinition(MainViewModel viewModel, string iniPath)
     {
-        string root = Path.Combine(Path.GetTempPath(), $"olv-workspace-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(root);
-        _temp.Add(root);
-
-        viewModel.SetDataFolder(root);
-
         string folder = viewModel.Workspace.EnsureDefinitions();
         File.Copy(iniPath, Path.Combine(folder, Path.GetFileName(iniPath)), overwrite: true);
     }
