@@ -1589,6 +1589,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!Set(ref _showSettings, value)) return;
 
             Raise(nameof(ShowEcuTables));
+            Raise(nameof(ShowCurves));
             Raise(nameof(ShowSettingsPagesOnly));
             Raise(nameof(ShowSettingsFields));
             Raise(nameof(SettingsSummary));
@@ -1608,7 +1609,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// distinction between them — an entry names something, and whether it turns
     /// out to be a page of fields or a line to drag is worked out here.
     /// </summary>
-    public bool ShowSettingsPagesOnly => _showSettings && OpenCurve is null;
+    public bool ShowSettingsPagesOnly => _showSettings && !HasOpenCurves;
 
     /// <summary>
     /// The fields half, which is shown whenever the page has any.
@@ -1715,45 +1716,62 @@ public sealed partial class MainViewModel : ObservableObject
     private IReadOnlySet<string> _curveNames =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The curve on screen, or nothing while a page of fields is open.</summary>
-    public TuneCurveEdit? OpenCurve { get; private set; }
+    /// <summary>
+    /// The curves on screen, in the order the page names them.
+    ///
+    /// A list rather than one, because a page routinely holds several: 25 of an
+    /// MS3's pages declare two or more, and showing the first and dropping the
+    /// rest loses settings with nothing to say they are missing.
+    /// </summary>
+    public IReadOnlyList<TuneCurveEdit> OpenCurves { get; private set; } = [];
 
-    public bool HasOpenCurve => OpenCurve is not null;
+    public bool HasOpenCurves => OpenCurves.Count > 0;
 
-    /// <summary>What the curve header says: which curve, and what is pending.</summary>
+    /// <summary>
+    /// Whether the plots belong on screen, which also takes the half the user is
+    /// looking at. Without that a curve stays drawn — buttons and all — over the
+    /// table editor once the Tables chip is clicked.
+    /// </summary>
+    public bool ShowCurves => _showSettings && HasOpenCurves;
+
+    /// <summary>What the curve header says: how much is here, and what is pending.</summary>
     public string CurveSummary
     {
         get
         {
-            if (OpenCurve is not { } curve) return "";
+            if (!HasOpenCurves) return "";
 
-            string what = $"{curve.Title} — {curve.Count} points";
+            int moved = OpenCurves.Sum(c => c.ChangedCount);
+            string what = OpenCurves.Count == 1
+                ? $"{OpenCurves[0].Title} — {OpenCurves[0].Count} points"
+                : $"{OpenCurves.Count} curves";
 
-            return curve.HasChanges
-                ? $"{what} · {curve.ChangedCount} moved, not yet sent"
+            return moved > 0
+                ? $"{what} · {moved} point{(moved == 1 ? "" : "s")} moved, not yet sent"
                 : $"{what} · nothing changed";
         }
     }
 
-    public bool HasCurveChanges => OpenCurve is { HasChanges: true };
+    public bool HasCurveChanges => OpenCurves.Any(c => c.HasChanges);
 
     /// <summary>Whether the curve on screen could be sent.</summary>
     public bool CanWriteCurve =>
         HasCurveChanges && _ecuConnection is not null && _tuneLayout is not null
         && !TuneIsPlaceholder && !TuneIsFromFile;
 
-    /// <summary>Puts the curve back to what the ECU holds.</summary>
+    /// <summary>Puts every curve on the page back to what the ECU holds.</summary>
     public void RevertCurve()
     {
-        OpenCurve?.Revert();
+        foreach (TuneCurveEdit curve in OpenCurves) curve.Revert();
         CurveChanged();
     }
 
     /// <summary>Called after any edit, so the header and the buttons keep up.</summary>
     public void CurveChanged()
     {
-        Raise(nameof(OpenCurve));
-        Raise(nameof(HasOpenCurve));
+        Raise(nameof(OpenCurves));
+        Raise(nameof(HasOpenCurves));
+        Raise(nameof(ShowCurves));
         Raise(nameof(ShowSettingsPagesOnly));
         Raise(nameof(ShowSettingsFields));
         Raise(nameof(CurveSummary));
@@ -1781,27 +1799,47 @@ public sealed partial class MainViewModel : ObservableObject
             return "This tune was opened from a file rather than read off the controller, so it "
                    + "cannot be sent back. Read the ECU's own tune first.";
 
-        if (OpenCurve is not { } curve) return "No curve is open.";
+        if (!HasOpenCurves) return "No curve is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
-        if (!curve.HasChanges) return "Nothing has been changed.";
+        if (!HasCurveChanges) return "Nothing has been changed.";
 
-        if (curve.Encode(tune) is not { } writes)
-            return "This curve cannot be encoded for this firmware, so nothing was sent.";
+        // Every write worked out and every page checked before the first byte
+        // goes out. A curve's two rows have to land together — values sent
+        // without the breakpoints they were drawn against leave the ECU
+        // interpolating new numbers over the old axis — and finding halfway
+        // through that a page cannot be written is exactly the split this is
+        // meant to prevent.
+        var planned = new List<TuneWrite>();
 
-        if (writes.Count == 0) return "Nothing has been changed.";
+        foreach (TuneCurveEdit each in OpenCurves)
+        {
+            if (!each.HasChanges) continue;
 
-        int moved = curve.ChangedCount;
+            if (each.Encode(tune) is not { } writes)
+                return $"\"{each.Title}\" cannot be encoded for this firmware, so nothing was sent.";
+
+            planned.AddRange(writes);
+        }
+
+        if (planned.Count == 0) return "Nothing has been changed.";
+
+        foreach (TuneWrite write in planned)
+        {
+            TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+
+            if (page is null || page.ChunkWriteCommand.Length == 0)
+                return $"This firmware declares no way to write page {write.Page}, "
+                       + "so nothing was sent.";
+        }
+
+        int moved = OpenCurves.Sum(c => c.ChangedCount);
 
         try
         {
-            foreach (TuneWrite write in writes)
+            foreach (TuneWrite write in planned)
             {
-                TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
-
-                if (page is null || page.ChunkWriteCommand.Length == 0)
-                    throw new EcuProtocolException(
-                        $"This firmware declares no way to write page {write.Page}.");
+                TunePage page = layout.Pages.First(p => p.Index == write.Page);
 
                 connection.WriteTunePage(
                     page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
@@ -1816,9 +1854,7 @@ public sealed partial class MainViewModel : ObservableObject
                 _settingsPagesWritten.Add(write.Page);
             }
 
-            OpenCurve = TuneCurveEdit.For(curve.Curve, tune);
-            CurveChanged();
-            Raise(nameof(CanBurnSettings));
+            Rebuild(tune);
 
             return $"Sent {moved} moved point{(moved == 1 ? "" : "s")} to the ECU. "
                    + "It is running this now, and will forget it at the next power cycle "
@@ -1826,39 +1862,59 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
-            OpenCurve = TuneCurveEdit.For(curve.Curve, tune);
-            CurveChanged();
-            Raise(nameof(CanBurnSettings));
+            // Whatever landed is on the controller, so the curves are rebuilt
+            // from its bytes rather than left showing an edit that is now partly
+            // applied and partly not.
+            Rebuild(tune);
 
             return $"The write failed: {e.Message}";
         }
     }
 
+    /// <summary>Reads the open curves back out of the tune, after a write.</summary>
+    private void Rebuild(EcuTune tune)
+    {
+        OpenCurves =
+        [
+            .. OpenCurves
+                .Select(c => TuneCurveEdit.For(c.Curve, tune))
+                .Where(c => c is not null)
+                .Select(c => c!),
+        ];
+
+        CurveChanged();
+        Raise(nameof(CanBurnSettings));
+    }
+
     private void OpenPage(SettingsMenuEntry? entry)
     {
-        // One or the other, never both: opening a curve puts the page away and
-        // opening a page puts the curve away, so what is on screen and what is
-        // being edited cannot drift apart.
-        OpenCurve = entry is { IsHeading: false, IsCurve: true } && _ecuTune is { } forCurve
-                    && _ecuCurves.TryGetValue(entry.Dialog, out TuneCurve? curve)
-            ? TuneCurveEdit.For(curve, forCurve)
-            : null;
-
         OpenDialog = entry is { IsHeading: false, IsCurve: false }
                      && _ecuInterface is { } ui && _ecuTune is { } tune
             ? SettingsDialog.Build(
                 entry.Dialog, ui, tune.Constant, _settingsEdit, entry.Title, _curveNames)
             : null;
 
-        // A page may hold a curve as well as fields — a firmware puts one there
-        // with the same directive it uses for a group of fields — so the curve
-        // comes from the page where the menu entry did not name one directly.
-        if (OpenCurve is null && OpenDialog is { Curves.Count: > 0 } withCurve
-            && _ecuTune is { } holding
-            && _ecuCurves.TryGetValue(withCurve.Curves[0], out TuneCurve? nested))
+        // Curves come either from the menu entry itself or from the page it
+        // opens — a firmware puts one on a page with the same directive a group
+        // of fields uses — and a page may hold several: 25 of an MS3's do.
+        var curves = new List<TuneCurveEdit>();
+
+        if (entry is { IsHeading: false } && _ecuTune is { } holding)
         {
-            OpenCurve = TuneCurveEdit.For(nested, holding);
+            IEnumerable<string> named =
+                entry.IsCurve ? [entry.Dialog] : OpenDialog?.Curves ?? [];
+
+            foreach (string name in named)
+            {
+                if (_ecuCurves.TryGetValue(name, out TuneCurve? curve)
+                    && TuneCurveEdit.For(curve, holding) is { } built)
+                {
+                    curves.Add(built);
+                }
+            }
         }
+
+        OpenCurves = curves;
 
         if (OpenDialog is { } dialog)
         {
@@ -2002,6 +2058,7 @@ public sealed partial class MainViewModel : ObservableObject
             Raise(nameof(CanBurn));
             Raise(nameof(CanBurnSettings));
             Raise(nameof(CanSaveTune));
+            CurveChanged();
         }
     }
 
@@ -2688,7 +2745,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ecuInterface = null;
         _ecuCurves = new Dictionary<string, TuneCurve>(StringComparer.OrdinalIgnoreCase);
         _curveNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        OpenCurve = null;
+        OpenCurves = [];
         _settingsEdit = null;
         _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _settingsPagesWritten.Clear();

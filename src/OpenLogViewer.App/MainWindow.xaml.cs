@@ -37,9 +37,11 @@ public partial class MainWindow : Window
         TuneTable.SelectionChanged += cells => _vm.SelectedCells = cells;
         TuneTable.EditRequested += _vm.EditTable;
 
-        // A drag changes the curve in place, so the header and the buttons have
-        // to be told; the view already knows.
-        Curve.Edited += _vm.CurveChanged;
+        // A drag changes a curve in place, so the header and the buttons have to
+        // be told; the view already knows. Handled on the container because the
+        // views are made by a template — a page may hold several curves.
+        Curves.AddHandler(
+            CurveView.EditedEvent, new RoutedEventHandler((_, _) => _vm.CurveChanged()));
         Plot.ViewChangedByUser += () => _follow = false;
 
         // The title bar belongs to Windows, so it has to be coloured by hand —
@@ -502,13 +504,14 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnSendCurveClick(object sender, RoutedEventArgs e)
     {
-        if (!_vm.CanWriteCurve || _vm.OpenCurve is not { } curve) return;
+        if (!_vm.CanWriteCurve) return;
 
-        int moved = curve.ChangedCount;
+        int moved = _vm.OpenCurves.Sum(c => c.ChangedCount);
+        string what = _vm.OpenCurves.Count == 1 ? $" of \"{_vm.OpenCurves[0].Title}\"" : "";
 
         MessageBoxResult answer = MessageBox.Show(
             this,
-            $"Send {moved} moved point{(moved == 1 ? "" : "s")} of \"{curve.Title}\" to the ECU?\n\n"
+            $"Send {moved} moved point{(moved == 1 ? "" : "s")}{what} to the ECU?\n\n"
             + "It takes effect at once. Nothing is burned, so a power cycle undoes it.",
             "OpenLogViewer",
             MessageBoxButton.OKCancel,
@@ -517,16 +520,13 @@ public partial class MainWindow : Window
 
         if (answer != MessageBoxResult.OK) return;
 
+        // Nothing is assigned to the view here. Setting a dependency property
+        // that XAML binds one way removes the binding, so the plot would go on
+        // showing the curve it had while everything above it moved on.
         Report(_vm.WriteCurveToEcu());
-        Curve.Curve = _vm.OpenCurve;
     }
 
-    private void OnRevertCurveClick(object sender, RoutedEventArgs e)
-    {
-        _vm.RevertCurve();
-        Curve.Curve = _vm.OpenCurve;
-        Curve.InvalidateVisual();
-    }
+    private void OnRevertCurveClick(object sender, RoutedEventArgs e) => _vm.RevertCurve();
 
     private void OnBurnSettingsClick(object sender, RoutedEventArgs e)
     {

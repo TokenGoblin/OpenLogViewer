@@ -199,6 +199,21 @@ public class TuneCurveEditTests
         Assert.Equal(150, edit.Y(1));
     }
 
+    [Fact]
+    public void ARowThatIsNotAscendingDoesNotBringTheApplicationDown()
+    {
+        // A row never configured, or one a firmware writes descending, gives a
+        // lower neighbour above the upper one. Clamping between them throws
+        // rather than doing nothing — and this is called straight from a drag,
+        // so it would be the application going down under the pointer.
+        TuneCurveEdit edit = Edit(Tune([0, 50, 100, 20], [10, 20, 30, 40]));
+
+        edit.SetX(2, 60);
+
+        Assert.Equal(100, edit.X(2));
+        Assert.False(edit.IsChanged(2));
+    }
+
     // ----- sending ----------------------------------------------------------
 
     [Fact]

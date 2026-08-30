@@ -110,14 +110,29 @@ public class CurvePageTests : IDisposable
 
         vm.OpenMenuEntry = Entry(vm, "Warmup Curve");
 
-        Assert.True(vm.HasOpenCurve);
+        Assert.True(vm.HasOpenCurves);
         Assert.Null(vm.OpenDialog);
         Assert.False(vm.ShowSettingsFields);
 
-        TuneCurveEdit curve = vm.OpenCurve!;
+        TuneCurveEdit curve = vm.OpenCurves[0];
         Assert.Equal("Warmup Enrichment", curve.Title);
         Assert.Equal(4, curve.Count);
         Assert.Equal("Coolant", curve.XLabel);
+    }
+
+    [Fact]
+    public void SwitchingToTheTablesHalfPutsTheCurveAway()
+    {
+        // Otherwise the plot and its Send button stay drawn over the table
+        // editor, still willing to write.
+        MainViewModel vm = Opened();
+        vm.OpenMenuEntry = Entry(vm, "Warmup Curve");
+
+        Assert.True(vm.ShowCurves);
+
+        vm.ShowEcuTables = true;
+
+        Assert.False(vm.ShowCurves);
     }
 
     [Fact]
@@ -129,8 +144,8 @@ public class CurvePageTests : IDisposable
 
         vm.OpenMenuEntry = Entry(vm, "Warmup Page");
 
-        Assert.True(vm.HasOpenCurve);
-        Assert.Equal("Warmup Enrichment", vm.OpenCurve!.Title);
+        Assert.True(vm.HasOpenCurves);
+        Assert.Equal("Warmup Enrichment", vm.OpenCurves[0].Title);
 
         Assert.NotNull(vm.OpenDialog);
         Assert.Contains("warmupCurve", vm.OpenDialog!.Curves);
@@ -143,11 +158,11 @@ public class CurvePageTests : IDisposable
         MainViewModel vm = Opened();
 
         vm.OpenMenuEntry = Entry(vm, "Warmup Curve");
-        Assert.True(vm.HasOpenCurve);
+        Assert.True(vm.HasOpenCurves);
 
         vm.OpenMenuEntry = Entry(vm, "Engine");
 
-        Assert.False(vm.HasOpenCurve);
+        Assert.False(vm.HasOpenCurves);
         Assert.NotNull(vm.OpenDialog);
     }
 
@@ -157,11 +172,11 @@ public class CurvePageTests : IDisposable
         MainViewModel vm = Opened();
         vm.OpenMenuEntry = Entry(vm, "Warmup Curve");
 
-        vm.OpenCurve!.SetY(1, 120);
+        vm.OpenCurves[0].SetY(1, 120);
         vm.CurveChanged();
 
         Assert.True(vm.HasCurveChanges);
-        Assert.Contains("1 moved", vm.CurveSummary);
+        Assert.Contains("1 point moved", vm.CurveSummary);
 
         vm.RevertCurve();
 
@@ -178,7 +193,7 @@ public class CurvePageTests : IDisposable
         MainViewModel vm = Opened();
         vm.OpenMenuEntry = Entry(vm, "Warmup Curve");
 
-        vm.OpenCurve!.SetY(1, 120);
+        vm.OpenCurves[0].SetY(1, 120);
         vm.CurveChanged();
 
         Assert.False(vm.CanWriteCurve);
@@ -190,7 +205,7 @@ public class CurvePageTests : IDisposable
     {
         MainViewModel vm = _harness.NewViewModel(out _);
 
-        Assert.False(vm.HasOpenCurve);
+        Assert.False(vm.HasOpenCurves);
         Assert.False(vm.CanWriteCurve);
         Assert.Equal("", vm.CurveSummary);
     }

@@ -146,6 +146,15 @@ public sealed class TuneCurveEdit
         double low = index > 0 ? _x[index - 1] : double.NegativeInfinity;
         double high = index < Count - 1 ? _x[index + 1] : double.PositiveInfinity;
 
+        // The neighbours are not always the right way round. A row that was
+        // never configured, or one a firmware genuinely writes descending, gives
+        // a lower bound above the upper — and Math.Clamp throws on that rather
+        // than doing nothing, which on a drag is the application going down
+        // under the pointer. This class's own doc says such a row is not an
+        // error, so it has to be tolerated: where the bounds are inverted there
+        // is no room between the neighbours to move into, and the point stays.
+        if (low > high) return;
+
         _x[index] = Math.Clamp(Clamp(value, XConstant), low, high);
     }
 

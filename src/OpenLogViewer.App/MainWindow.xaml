@@ -1435,12 +1435,8 @@
                     is the shape that says so. A grid of ten cells would hide
                     exactly what a person opens this to see.
                 -->
-                <DockPanel DockPanel.Dock="Top" MinHeight="340"
-                           Visibility="{Binding HasOpenCurve, Converter={StaticResource BoolToVis}}">
-                    <TextBlock DockPanel.Dock="Top" Margin="18,6,18,2" FontSize="16" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Text}" TextWrapping="Wrap"
-                               Text="{Binding OpenCurve.Title}"/>
-
+                <DockPanel x:Name="Curves" DockPanel.Dock="Top" MinHeight="340"
+                           Visibility="{Binding ShowCurves, Converter={StaticResource BoolToVis}}">
                     <TextBlock DockPanel.Dock="Top" Margin="18,0,18,6" FontSize="10"
                                Foreground="{DynamicResource Muted}" TextWrapping="Wrap"
                                Text="Drag a point to move it · shift-drag moves the breakpoint · arrows nudge by one step, ctrl for ten"/>
@@ -1459,7 +1455,26 @@
                                    Foreground="{DynamicResource Muted}" Text="{Binding CurveSummary}"/>
                     </DockPanel>
 
-                    <local:CurveView x:Name="Curve" Margin="12,0,12,0" Curve="{Binding OpenCurve}"/>
+                    <!-- One plot per curve the page names: an MS3 puts two or
+                         more on 25 of its pages, and two at 300 pixels each do
+                         not fit a window, so they scroll. -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding OpenCurves}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel MinHeight="300">
+                                    <TextBlock DockPanel.Dock="Top" Margin="18,6,18,2"
+                                               FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Text}"
+                                               Text="{Binding Title}"/>
+
+                                    <local:CurveView Margin="12,0,12,0" Curve="{Binding}"/>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    </ScrollViewer>
                 </DockPanel>
 
                 <!-- A settings page, laid out from the firmware's description of
