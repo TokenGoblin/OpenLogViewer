@@ -213,6 +213,73 @@ public class AnalysisWorkflowTests : IDisposable
         Assert.Equal(before, vm.Channels.Where(c => c.IsVisible).Select(c => c.Name));
     }
 
+    // ----- a marked span, read on the table ---------------------------------
+
+    [Fact]
+    public void NothingIsMarkedOnTheTableUntilASpanIsMarkedOnThePlot()
+    {
+        MainViewModel vm = Loaded();
+        vm.RebuildHistogram(0, vm.Document!.SampleCount - 1);
+
+        Assert.Null(vm.VisitedCells);
+    }
+
+    [Fact]
+    public void AMarkedSpanNamesTheCellsItReached()
+    {
+        MainViewModel vm = Loaded();
+        vm.UpdateSelection((0, 9));
+        vm.RebuildHistogram(0, vm.Document!.SampleCount - 1);
+
+        Assert.NotNull(vm.VisitedCells);
+        Assert.False(vm.VisitedCells!.IsEmpty);
+        Assert.Equal(10, vm.VisitedCells.Samples);
+        Assert.Contains("reached", vm.Hint);
+    }
+
+    [Fact]
+    public void AShorterSpanReachesNoMoreCellsThanALongerOne()
+    {
+        MainViewModel vm = Loaded();
+        int last = vm.Document is null ? 0 : vm.Document.SampleCount - 1;
+
+        vm.UpdateSelection((0, last));
+        vm.RebuildHistogram(0, last);
+        int whole = vm.VisitedCells!.Cells;
+
+        vm.UpdateSelection((0, last / 4));
+        vm.RebuildHistogram(0, last);
+
+        Assert.True(vm.VisitedCells!.Cells <= whole);
+    }
+
+    [Fact]
+    public void ClearingTheSpanClearsTheMarking()
+    {
+        MainViewModel vm = Loaded();
+        vm.UpdateSelection((0, 9));
+        vm.RebuildHistogram(0, vm.Document!.SampleCount - 1);
+
+        vm.UpdateSelection(null);
+        vm.RebuildHistogram(0, vm.Document.SampleCount - 1);
+
+        Assert.Null(vm.VisitedCells);
+    }
+
+    [Fact]
+    public void TheStatusLineStillReportsTheTableAsWellAsTheSpan()
+    {
+        // The span is appended to what the table said, not swapped for it: how
+        // many samples the table rests on is still true and still the thing that
+        // explains a sparse table.
+        MainViewModel vm = Loaded();
+        vm.UpdateSelection((0, 9));
+        vm.RebuildHistogram(0, vm.Document!.SampleCount - 1);
+
+        Assert.Contains("samples across", vm.Hint);
+        Assert.Contains("reached", vm.Hint);
+    }
+
     // ----- scatter ----------------------------------------------------------
 
     [Fact]

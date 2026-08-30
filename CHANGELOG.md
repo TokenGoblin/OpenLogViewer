@@ -71,6 +71,28 @@ Clicking a mark traces it back to the log the way a table cell does, grouping
 the samples into visits and framing the longest. Export offers the points as
 CSV, carrying each sample's index in the log, and the scatter as a PNG.
 
+**Mark a pull on the plot, and the table rings the cells it reached.** The other
+direction of the trace-back. Clicking a cell has always framed the samples that
+built it; this answers the question asked first — mark a span, switch to
+Histogram, and every cell that stretch of the drive passed through is outlined,
+with the count in the status line. Those are the cells the pull is evidence
+about, and the ones worth editing on the strength of it.
+
+The two compose, so the round trip closes: a cell traced back to its longest
+visit leaves that visit marked, and switching back rings the cell it came from.
+Samples a filter excluded are counted as outside rather than marked — the table
+does not rest on them — and a span landing mostly outside the table says so
+rather than quietly marking almost nothing.
+
+**A log that carries a tune this cannot read now says so.** A MaxxECU log is a
+zip holding the tune that was running, in MTune's own format. Nothing here can
+read it, and the app used to report the log as carrying no tune at all and
+suggest opening a `.msq` — a file a MaxxECU owner does not have and cannot
+produce. It now says the tune is there, that this cannot read it, and that axis
+breakpoints and VE Calibration are unavailable for the log because of it. The
+format is not decoded and is not guessed at: decoding it wrong would not fail,
+it would produce plausible breakpoints and a VE suggestion resting on them.
+
 **A channel can keep its own colour and its own scale.** Right-click a channel
 row. Both are held by name in `channels.json`, so a choice made on one log
 applies to every other carrying that channel.

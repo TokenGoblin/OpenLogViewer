@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
@@ -93,7 +93,13 @@ public sealed class MaxxLogReader : ILogReader
             Channels = channels,
             Time = new LogChannel("Time", "s", 3, time, preservePrecision: true),
             FormatName = FormatName,
+            // The zip carries the tune that was running, as a `.MaxxECU-save`.
+            // That is MTune's own format and nothing here can read it, so what
+            // is recorded is that it exists rather than a guess at what is in
+            // it. Decoding it wrong would not fail — it would produce plausible
+            // breakpoints and a VE suggestion built on them.
             EmbeddedTune = null,
+            UnreadableTune = FindTune(archive) is null ? null : "MaxxECU",
             RecordedAt = File.GetLastWriteTime(path),
         };
     }
@@ -104,6 +110,11 @@ public sealed class MaxxLogReader : ILogReader
     /// close to this.
     /// </summary>
     private const long MaximumUncompressed = 512L * 1024 * 1024;
+
+    /// <summary>The tune the log was recorded with, which this can see but not read.</summary>
+    private static ZipArchiveEntry? FindTune(ZipArchive archive) =>
+        archive.Entries.FirstOrDefault(
+            e => e.Name.EndsWith(".MaxxECU-save", StringComparison.OrdinalIgnoreCase));
 
     private static ZipArchiveEntry? FindLog(ZipArchive archive) =>
         archive.Entries.FirstOrDefault(

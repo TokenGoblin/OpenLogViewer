@@ -1935,6 +1935,7 @@ public partial class MainWindow : Window
 
         _vm.RebuildHistogram(first, last);
         Histogram.SetTable(_vm.Table, _vm.ColorByCount);
+        Histogram.SetVisitedCells(_vm.VisitedCells);
     }
 
     /// <summary>
