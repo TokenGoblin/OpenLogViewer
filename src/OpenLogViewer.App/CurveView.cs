@@ -47,6 +47,21 @@ public sealed class CurveView : FrameworkElement
     private int _dragging = -1;
     private bool _draggingX;
 
+    /// <summary>
+    /// The axes as they were when a drag began, held for the length of it.
+    ///
+    /// <b>Without this the mapping moves under the drag that is changing it.</b>
+    /// The range is derived from the values, so dragging the topmost point
+    /// upward raises the top of the plot, which lowers where the pointer lands,
+    /// which raises the value again — the point lags the pointer while the
+    /// number climbs about a tenth on every mouse move. On a curve whose values
+    /// declare no range there is nothing to stop it, and that number is what
+    /// Send writes to a running engine.
+    /// </summary>
+    private (double Low, double High)? _heldX;
+
+    private (double Low, double High)? _heldY;
+
     public CurveView()
     {
         ApplyTheme(ThemeManager.Current);
@@ -99,6 +114,8 @@ public sealed class CurveView : FrameworkElement
         view._curve = (TuneCurveEdit?)e.NewValue;
         view._hover = -1;
         view._dragging = -1;
+        view._heldX = null;
+        view._heldY = null;
 
         if (view.IsMouseCaptured) view.ReleaseMouseCapture();
 
@@ -154,6 +171,9 @@ public sealed class CurveView : FrameworkElement
     /// </summary>
     private (double Low, double High) Span(bool horizontal)
     {
+        if (horizontal && _heldX is { } heldX) return heldX;
+        if (!horizontal && _heldY is { } heldY) return heldY;
+
         if (_curve is not { } curve) return (0, 1);
 
         TuneConstant? constant = horizontal ? curve.XConstant : curve.YConstant;
@@ -414,6 +434,11 @@ public sealed class CurveView : FrameworkElement
         // changes what every value on the line means.
         _draggingX = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
 
+        // Fixed for the length of the drag, so the pointer means the same value
+        // at the end of it as at the start.
+        _heldX = Span(horizontal: true);
+        _heldY = Span(horizontal: false);
+
         Focus();
         CaptureMouse();
         InvalidateVisual();
@@ -426,6 +451,8 @@ public sealed class CurveView : FrameworkElement
         if (_dragging < 0) return;
 
         _dragging = -1;
+        _heldX = null;
+        _heldY = null;
         ReleaseMouseCapture();
         InvalidateVisual();
         RaiseEdited();

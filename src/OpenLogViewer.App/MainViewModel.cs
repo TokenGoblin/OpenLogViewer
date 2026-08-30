@@ -2078,12 +2078,36 @@ public sealed partial class MainViewModel : ObservableObject
             Raise(nameof(SettingsSummary));
             Raise(nameof(OpenDialog));
             Raise(nameof(OpenMenuEntry));
-            Raise(nameof(CanWriteSettings));
-            Raise(nameof(CanBurn));
-            Raise(nameof(CanBurnSettings));
-            Raise(nameof(CanSaveTune));
+            RaiseWriteGates();
             CurveChanged();
         }
+    }
+
+    /// <summary>
+    /// Tells the screen that what may be written has changed.
+    ///
+    /// <b>Every one of these depends on the connection, and the connection is
+    /// not a property anything watches.</b> A binding is evaluated once and then
+    /// only when it is told to, so a gate that is never raised is a button
+    /// frozen in whatever state it had at startup — which for all of these is
+    /// disabled, because nothing was connected then. Burn and the whole restore
+    /// menu were unreachable for a session however much was connected, and after
+    /// a disconnect every write button stayed lit over no link at all.
+    ///
+    /// Gathered into one method rather than listed at each call site, because
+    /// the list has grown five times and been forgotten at least twice.
+    /// </summary>
+    private void RaiseWriteGates()
+    {
+        Raise(nameof(CanWriteTable));
+        Raise(nameof(CanWriteSettings));
+        Raise(nameof(CanWriteCurve));
+        Raise(nameof(CanBurn));
+        Raise(nameof(CanBurnSettings));
+        Raise(nameof(CanSaveTune));
+        Raise(nameof(CanApplyRestore));
+        Raise(nameof(TuneIsPlaceholder));
+        Raise(nameof(TuneIsFromFile));
     }
 
     /// <summary>
@@ -2844,7 +2868,7 @@ public sealed partial class MainViewModel : ObservableObject
             Raise(nameof(EcuTableSummary));
             Raise(nameof(HasSettingsPages));
             Raise(nameof(SettingsSummary));
-            Raise(nameof(CanSaveTune));
+            RaiseWriteGates();
 
             // The first one is the biggest, which is the one worth opening on.
             SelectedEcuTable = EcuTables.FirstOrDefault();
@@ -3907,6 +3931,7 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(CanRecord));
         Raise(nameof(CanReconnect));
         Raise(nameof(ReconnectLabel));
+        RaiseWriteGates();
         RaiseRecording();
 
         if (Document is not null)
@@ -4618,6 +4643,13 @@ public sealed partial class MainViewModel : ObservableObject
             CompareOptions.Add(new CompareOption(item.Name, item));
 
         _zCompare = CompareOption.None;
+
+        // And whatever the last log was searched for. The runs are sample
+        // numbers into that log, and stepping to one past the end of a shorter
+        // one asks the plot to go to a time that is NaN — every comparison
+        // against which is false, so the view bounds stay NaN and the plot draws
+        // nothing at all, with nothing to say why.
+        ClearFound();
 
         // Offer the tune's own table axes when a tune is available, carrying the
         // table's values through where they could be read — VE Calibration needs the

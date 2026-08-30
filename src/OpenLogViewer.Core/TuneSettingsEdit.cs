@@ -93,7 +93,15 @@ public sealed class TuneSettingsEdit
 
         if (!_tune.PokeInto(_working, constant, element, value)) return false;
 
-        Remember(Key(name, element), before.Value, value);
+        // What landed, not what was asked for. A byte holding tenths cannot hold
+        // 1.24, and recording the request would put a number in the confirmation
+        // list that will never reach the ECU — and worse, a request of 5.4 onto a
+        // byte already holding 5 moves nothing at all while still counting as a
+        // change, which is the lit-Send-button-that-writes-nothing that text
+        // settings go out of their way to avoid.
+        double stored = _tune.ValueIn(_working, name, element) ?? value;
+
+        Remember(Key(name, element), before.Value, stored);
         return true;
     }
 

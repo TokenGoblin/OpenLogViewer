@@ -75,7 +75,14 @@ public static partial class IniDefines
             // the first one would take half the list with it.
             if (Define.Match(line.TrimEnd('\r')) is not { Success: true } match) continue;
 
-            expanded[match.Groups["name"].Value] = Expand(match.Groups["values"].Value, expanded);
+            // The comment comes off before the list is split, not after. Left
+            // on, a trailing "; every pin we know" makes "$pins" fail the
+            // identifier test and stay a literal, and any comma inside the
+            // comment becomes further labels — either of which renumbers every
+            // option after it, which is the very thing this file exists to get
+            // right.
+            expanded[match.Groups["name"].Value] =
+                Expand(WithoutComment(match.Groups["values"].Value), expanded);
         }
 
         return expanded;
@@ -109,6 +116,16 @@ public static partial class IniDefines
         }
 
         return built;
+    }
+
+    /// <summary>
+    /// The list without any trailing comment, respecting quotes: a label may
+    /// contain a semicolon, and Speeduino's log separator is one.
+    /// </summary>
+    private static string WithoutComment(string values)
+    {
+        int at = IndexOfComment(values);
+        return at >= 0 ? values[..at] : values;
     }
 
     /// <summary>The name a <c>$reference</c> points at, or null for a plain label.</summary>

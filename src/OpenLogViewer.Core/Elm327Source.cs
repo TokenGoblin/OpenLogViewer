@@ -234,7 +234,18 @@ public sealed class Elm327Source : ILiveSource
             Memory = memory,
         };
 
-        source.TryBatching();
+        // The probe here is documented as being enough to kill one of these
+        // dongles outright. Letting that escape leaks the transport and tells
+        // the memory nothing, so the next connection makes the same mistake.
+        try
+        {
+            source.TryBatching();
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            source.Dispose();
+            throw;
+        }
 
         return source;
     }
@@ -297,7 +308,20 @@ public sealed class Elm327Source : ILiveSource
         byte[] probe = [.. Chosen(_hot.Length >= 2 ? _hot : [.. Enumerable.Range(0, _pids.Count)])];
         if (probe.Length < 2) return;
 
-        Batching = _elm.ReadMany(probe, Obd2Pids.DataBytesOf).Count >= 2;
+        // The probe is itself a batched request, so a link that dies during it
+        // died batching — and this is the one place where that is certain rather
+        // than inferred. Recorded before the exception leaves, or the next
+        // connection probes again and dies again.
+        try
+        {
+            Batching = _elm.ReadMany(probe, Obd2Pids.DataBytesOf).Count >= 2;
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            Batching = false;
+            Condemn();
+            throw;
+        }
     }
 
     /// <summary>The parameter numbers behind a set of positions, at most a batch's worth.</summary>
@@ -509,7 +533,9 @@ public sealed class Elm327Source : ILiveSource
     /// fuel level, and that is why the two sets are asked for separately rather
     /// than as one long list.
     /// </summary>
-    public double[] Read()
+    public double[] Read() => Watching(ReadRound);
+
+    private double[] ReadRound()
     {
         bool answered = false;
         bool asked = false;
@@ -552,6 +578,31 @@ public sealed class Elm327Source : ILiveSource
         }
 
         return [.. _values];
+    }
+
+    /// <summary>
+    /// Runs a round, remembering what was in flight if the link dies during it.
+    ///
+    /// <b>A link can die by throwing as well as by falling silent.</b> A socket
+    /// that resets and a serial port that goes away both raise rather than
+    /// answer nothing, and the branch that records the death sits after the read
+    /// — so a dongle killed by a batched request was never blamed for it, the
+    /// recovery kept batching on, and its proving read killed the fresh link
+    /// again. That is the connect-probe-die loop this design exists to prevent.
+    /// </summary>
+    private T Watching<T>(Func<T> round)
+    {
+        bool batching = Batching;
+
+        try
+        {
+            return round();
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            _diedBatching = batching;
+            throw;
+        }
     }
 
     /// <summary>
@@ -633,12 +684,28 @@ public sealed class Elm327Source : ILiveSource
 
     /// <summary>
     /// Counts one demonstrated failure of batching, and gives it up on the third.
+    ///
+    /// <b>Given up for this link only, and not written down.</b> What this
+    /// counts is a batch coming back empty while the singles answer — which is
+    /// the <em>car</em> declining to be asked several things at once, with the
+    /// adapter perfectly healthy. Recording that against the adapter would be
+    /// blaming the wrong party, and the key these are filed under is a Wi-Fi
+    /// address that is the same on every one of these dongles, so two drives in
+    /// such a car would turn batching off for every vehicle thereafter.
+    ///
+    /// A death is different and is recorded: see <see cref="Condemn"/>.
+    ///
+    /// It also counts faster than it reads: a round asks two batched questions,
+    /// so a car that declines them both is two of the three straight away. That
+    /// is deliberate — one round of clear evidence is enough to stop paying for
+    /// something this car does not do.
     /// </summary>
     private void Blame()
     {
         if (++_batchMisses < BatchMissesBeforeGivingUp) return;
 
-        Condemn();
+        Batching = false;
+        _batchGivenUp = true;
     }
 
     /// <summary>

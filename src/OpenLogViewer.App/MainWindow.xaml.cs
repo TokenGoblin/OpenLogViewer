@@ -1702,6 +1702,13 @@ public partial class MainWindow : Window
         // The only thing that pushes readings into the gauges and the plot. The
         // session itself is quite happy without it, which is what makes leaving
         // it out so quiet a failure.
+        // Whatever was ticking, first. Reconnecting while already live used to
+        // orphan a timer that went on calling OnLiveTick at full rate for the
+        // life of the window, and every reconnect added another — the connect
+        // button guards against it, the menu and Ctrl+K do not.
+        _liveTimer?.Stop();
+        _liveTimer = null;
+
         _liveTimer = new DispatcherTimer { Interval = LiveRefresh };
         _liveTimer.Tick += OnLiveTick;
         _liveTimer.Start();

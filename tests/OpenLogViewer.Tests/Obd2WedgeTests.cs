@@ -170,21 +170,27 @@ public class Obd2WedgeTests
     }
 
     [Fact]
-    public void BatchingThatStopsBeingAnsweredIsWrittenDownAgainstTheAdapter()
+    public void ACarThatWillNotBeAskedSeveralThingsAtOnceIsNotBlamedOnTheAdapter()
     {
+        // A batch answered NO DATA while the singles answer is the *car*
+        // declining the request — the adapter is passing it on faithfully. So
+        // batching stops for this drive and nothing is written down.
+        //
+        // The record is keyed on the link's address, and every one of these
+        // Wi-Fi dongles answers at 192.168.0.10:35000. Writing a car's refusal
+        // there would turn batching off for every other vehicle the adapter is
+        // ever plugged into.
         var car = Car();
         var memory = new Remembered();
 
         using Elm327Source source = Elm327Source.Connect(car, "192.168.0.10:35000", memory);
         Assert.True(source.Batching);
 
-        // The session dies the way this dongle's does: it answered the batch,
-        // and now it answers nothing.
         car.Batches = FakeElm.BatchReply.Refuse;
         for (int round = 0; round < 3; round++) source.Read();
 
         Assert.False(source.Batching);
-        Assert.Equal(["192.168.0.10:35000"], memory.Recorded);
+        Assert.Empty(memory.Recorded);
     }
 
     [Fact]

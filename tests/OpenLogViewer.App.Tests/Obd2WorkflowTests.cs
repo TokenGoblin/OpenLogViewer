@@ -199,10 +199,16 @@ public class Obd2WorkflowTests : IDisposable
     }
 
     [Fact]
-    public void ASerialAdapterThatCannotBatchIsWrittenDownForNextTime()
+    public void ACarRefusingABatchStopsItForThisDriveAndIsNotWrittenDown()
     {
-        // The other direction on the same wiring: a verdict reached on this route
-        // has to reach the settings, or it is learnt again on every drive.
+        // A batch answered NO DATA while the singles go on working is the car
+        // declining to be asked several things at once. The adapter passed the
+        // request on faithfully and is in no way at fault, so batching stops for
+        // this drive and the settings are left alone — a permanent verdict here
+        // would follow the adapter into every other vehicle it is plugged into.
+        //
+        // What does get written down is an adapter that dies while batching,
+        // which is a different shape and has its own test.
         MainViewModel vm = NewViewModel(out SettingsStore settings);
 
         var car = Car();
@@ -211,19 +217,15 @@ public class Obd2WorkflowTests : IDisposable
         vm.ConnectObd2(car, "COM3");
         Assert.Empty(settings.Obd2BatchDeaths);
 
-        // It answered the probe and now refuses, which is the shape that counts
-        // as evidence: singles go on working where the batch does not, so the
-        // link is plainly alive and the request is what failed.
         car.Batches = FakeElm.BatchReply.Refuse;
 
-        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-
-        while (DateTime.UtcNow < deadline && settings.Obd2BatchDeaths.Count == 0)
-            Thread.Sleep(10);
+        // Long enough for several rounds, which is more than the three misses it
+        // takes to give up.
+        Thread.Sleep(1500);
 
         vm.Disconnect();
 
-        Assert.Equal(1, settings.Obd2BatchDeaths.GetValueOrDefault(car.Elm327Name));
+        Assert.Empty(settings.Obd2BatchDeaths);
     }
 
     [Fact]

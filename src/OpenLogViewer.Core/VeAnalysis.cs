@@ -343,7 +343,19 @@ public static class VeAnalysis
             // needs nothing from the table. Mixture came out richer than asked
             // for means the ECU thought there was more air than there was, so
             // the number in that cell is too high by this much.
-            double wanted = (ratio - 1) * 100 * settings.Authority * confidence;
+            // Two different numbers, and which one is wanted depends on whether
+            // there is a table to change.
+            //
+            // How far out the fuelling is: mixture richer than asked for means
+            // the ECU thought there was more air than there was, so the number
+            // in that cell is too high by this much.
+            double error = (ratio - 1) * 100;
+
+            // And how much of that to actually move, which is less: some of the
+            // authority the caller allows, and less again where the cell rests
+            // on little evidence.
+            double wanted = error * settings.Authority * confidence;
+
             double percent = Math.Clamp(
                 wanted, -settings.MaxChangePercent, settings.MaxChangePercent);
 
@@ -357,6 +369,17 @@ public static class VeAnalysis
 
                 suggested[c, r] = proposed;
                 percent = (proposed - current) / current * 100;
+            }
+            else
+            {
+                // The error itself, not a share of it. With no table there is
+                // nothing to suggest a change to, so what is reported is the
+                // measurement — and scaling a measurement by an authority that
+                // applies to no table, and by a confidence the caller is handed
+                // separately in Weight, would tell a tuner a cell running six
+                // per cent lean was three.
+                percent = Math.Clamp(
+                    error, -settings.MaxChangePercent, settings.MaxChangePercent);
             }
 
             change[c, r] = percent;

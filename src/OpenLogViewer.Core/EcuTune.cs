@@ -72,6 +72,33 @@ public sealed class EcuTune
     /// under the person editing it — reading the tune again does.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Works the expression scales out again, against the values as they now
+    /// stand.
+    ///
+    /// Needed because the sum is done when the tune is built, and something that
+    /// fills a tune in — laying a saved file over an empty set of pages — has by
+    /// definition not filled it in yet at that moment. The setting a scale is
+    /// written in terms of reads as nought, so the scale comes out wrong and
+    /// every value stored through it with it.
+    /// </summary>
+    public void Rescale()
+    {
+        // From the definition's own constants rather than from the resolved
+        // copies, so a second sum starts where the first one did.
+        foreach (TuneConstant constant in Layout.Constants)
+        {
+            _byName[constant.Name] = constant;
+            _exact[constant.Name] = constant;
+        }
+
+        Resolve();
+    }
+
+    /// <summary>True when this firmware states any scale as an expression.</summary>
+    internal bool HasExpressionScales =>
+        Layout.Constants.Any(c => c.ScaleExpression.Length > 0 || c.TransformExpression.Length > 0);
+
     private void Resolve()
     {
         List<TuneConstant> pending =
