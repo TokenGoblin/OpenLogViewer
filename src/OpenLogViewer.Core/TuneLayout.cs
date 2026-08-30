@@ -58,6 +58,32 @@ public sealed record TuneConstant
 
     public double Scale { get; init; } = 1;
 
+    /// <summary>
+    /// What is added to the stored number <em>before</em> scaling:
+    /// <c>value = (raw + Transform) × Scale</c>, and back the other way
+    /// <c>raw = value ÷ Scale − Transform</c>.
+    ///
+    /// <para>
+    /// That order is not the obvious one and getting it round the wrong way is
+    /// silent, so here is the evidence. Speeduino declares its coolant axis
+    /// <c>U08, 1.8, -22.23, -40, 215, "F"</c> and the controller stores coolant
+    /// as °C + 40. The bytes read off a real one are 0, 30, 60, 70, 85, 100.
+    /// Adding first gives −40.0, 14.0, 68.0, 86.0, 113.0, 140.0 °F — which is
+    /// −40, −10, 20, 30, 45 and 60 °C, every one a round number, and −40 is
+    /// where the two scales meet. Scaling first gives −22.2, 31.8, 85.8 and so
+    /// on: no pattern, and a top end past the 215 the firmware declares.
+    /// </para>
+    /// <para>
+    /// Three more say the same. MS2 declares a VE trim
+    /// <c>S08, 0.09765625, 1024</c> reading 100% at rest — adding first gives
+    /// exactly 100 at a raw zero, scaling first gives 1,024. MS3's second fuel
+    /// temperature is <c>S16, 0.05555, -320, "°C"</c>, where scaling first puts
+    /// a raw zero below absolute zero. rusEFI stores a fuel trim as a ratio,
+    /// <c>F32, 100, -1, "%"</c>, so a ratio of 1.0 is nought per cent added and
+    /// scaling first would call it 99. Across four firmwares not one constant
+    /// is decided the other way.
+    /// </para>
+    /// </summary>
     public double Transform { get; init; }
 
     public int Digits { get; init; }

@@ -47,7 +47,7 @@ public class RealtimeTests
         block[0] = 0x00; block[1] = 0x0A;   // seconds = 10
         block[2] = 0x0B; block[3] = 0xB8;   // rpm = 3000
         block[4] = 0x03; block[5] = 0xE8;   // map raw 1000 → 100.0 kPa
-        block[6] = 0x08; block[7] = 0x34;   // coolant raw 2100 → 210.0 − 40 = 170.0
+        block[6] = 0x08; block[7] = 0x34;   // coolant raw 2100 → (2100 − 40) × 0.1 = 206.0
         block[8] = 0b0000_1011;             // firing1 = 1, mode = bits 1..3 = 0b101 = 5
         return block;
     }
@@ -179,7 +179,11 @@ public class RealtimeTests
 
         Assert.Equal(3000, Value(decoder, values, "rpm"), 4);
         Assert.Equal(100.0, Value(decoder, values, "map"), 4);
-        Assert.Equal(170.0, Value(decoder, values, "coolant"), 4);
+        // The translate is added before the scale, not after: a Speeduino's
+        // coolant axis only comes out in round Celsius numbers that way, and a
+        // rusEFI fuel trim of 1.0 only reads as nought per cent that way. See
+        // TuneConstant.Transform for the four firmwares that settle it.
+        Assert.Equal(206.0, Value(decoder, values, "coolant"), 4);
     }
 
     [Fact]
