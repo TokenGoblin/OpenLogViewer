@@ -229,6 +229,24 @@ public class TuneInterfaceTests
     }
 
     [Fact]
+    public void AnExpressionWhereTheConstantBelongsIsAComputedCaption()
+    {
+        // MS3 builds a label from a lookup rather than naming a constant. Read
+        // as a condition it would hide the field whenever that text happened to
+        // come out as zero.
+        TuneInterface ui = Read("""
+            [UserDefined]
+               dialog = d, ""
+                  displayOnlyField = "Injector A", { bitStringValue( portLabels, portusage_a[0] ) }
+            """);
+
+        DialogItem item = ui.Find("d")!.Items[0];
+
+        Assert.Equal(DialogItemKind.Label, item.Kind);
+        Assert.False(item.HasCondition);
+    }
+
+    [Fact]
     public void AFieldMayAddressOneElementOfAnArray()
     {
         TuneInterface ui = Read("""
