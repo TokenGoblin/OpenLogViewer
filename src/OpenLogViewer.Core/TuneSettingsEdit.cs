@@ -103,12 +103,23 @@ public sealed class TuneSettingsEdit
         if (_tune.Constant(name) is not { } constant || !constant.OnController || !constant.IsText)
             return false;
 
-        string before = _tune.TextIn(_working, name) ?? "";
         if (!_tune.PokeTextInto(_working, constant, value ?? "")) return false;
 
+        // Judged by the bytes, not by comparing the string against the one that
+        // was here a moment ago. Two ways that goes wrong: typing a field back
+        // to what the ECU holds leaves it counted as a pending change that
+        // writes nothing — the Send button lit, then "nothing has been changed"
+        // and the phantom stuck, because the reconcile that would clear it never
+        // runs. And re-setting a field to the value it already has, which a
+        // text box does on every focus change, drops a record whose bytes really
+        // do still differ, so a genuine pending write greys the button out.
+        // Comparing images is also what makes a field the controller pads with
+        // spaces come out right, where reading it back gives a trimmed string
+        // that no longer says what is stored.
+        //
         // Text has no number to record, so the change is noted by name alone and
         // the count is what the header reports.
-        if (before == (value ?? ""))
+        if (!Differs(constant))
         {
             _changed.Remove(name);
             _original.Remove(name);
@@ -135,10 +146,16 @@ public sealed class TuneSettingsEdit
             // From the ECU's own bytes, not from the remembered number: a bit
             // field's neighbours may have been edited since, and they must stay
             // as they now are.
+            //
+            // A text field goes back byte for byte rather than through its
+            // string, because reading one gives it trimmed and writing one pads
+            // with nulls. A name the controller stores padded with spaces would
+            // otherwise come back differing from what is on it — the change
+            // record cleared while the bytes still say otherwise, which is a
+            // write nothing admits to.
             if (constant.IsText)
             {
-                if (_tune.TextIn(_tune.Pages, name) is { } text)
-                    _tune.PokeTextInto(_working, constant, text);
+                _tune.RestoreTextInto(_working, constant);
             }
             else if (_tune.ValueIn(_tune.Pages, name, element) is { } was)
             {
@@ -226,9 +243,9 @@ public sealed class TuneSettingsEdit
             (string name, int element) = Split(key);
 
             // A text setting has no number to compare, so it is judged by its
-            // characters instead.
-            bool settled = _tune.Constant(name) is { IsText: true }
-                ? _tune.TextIn(_working, name) == _tune.TextIn(_tune.Pages, name)
+            // bytes instead — for the reason SetText gives.
+            bool settled = _tune.Constant(name) is { IsText: true } text
+                ? !Differs(text)
                 : Same(_tune.ValueIn(_working, name, element), _tune.ValueIn(_tune.Pages, name, element));
 
             if (!settled) continue;
@@ -237,6 +254,28 @@ public sealed class TuneSettingsEdit
             _original.Remove(key);
             _order.Remove(key);
         }
+    }
+
+    /// <summary>
+    /// Whether a text field's bytes stand apart from the controller's.
+    ///
+    /// The same question <see cref="Writes"/> asks of the whole image, narrowed
+    /// to one field — and the only honest way to ask it of text, since the
+    /// string a field reads back as is not what it holds.
+    /// </summary>
+    private bool Differs(TuneConstant constant)
+    {
+        if (constant.Page < 0 || constant.Page >= _working.Length) return false;
+
+        byte[] now = _working[constant.Page];
+        byte[] was = _tune.Pages[constant.Page];
+
+        int at = constant.Offset;
+        int length = Math.Max(0, constant.Columns);
+
+        if (at < 0 || at + length > now.Length || at + length > was.Length) return false;
+
+        return !now.AsSpan(at, length).SequenceEqual(was.AsSpan(at, length));
     }
 
     private static bool Same(double? a, double? b) =>

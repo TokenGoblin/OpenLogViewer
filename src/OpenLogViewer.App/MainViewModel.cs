@@ -1759,6 +1759,17 @@ public sealed class MainViewModel : ObservableObject
             _derived = DerivedChannels.Read(ini);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
+            TuneIsPlaceholder = true;
+
+            // And everything belonging to the tune that was open until now. A
+            // page left on screen stays bound to the edit just thrown away, so
+            // what is typed into it lands in an image nothing will ever send;
+            // and pages recorded as written are numbered for the other
+            // firmware, which is not what a burn of this one would commit.
+            _settingsPagesWritten.Clear();
+            OpenDialog = null;
+            _openMenuEntry = null;
+
             EcuTables.Clear();
             foreach (TuneTable table in Ordered(_ecuTune.Tables(_ecuTableDefinitions))) EcuTables.Add(table);
             EcuTableChoices.Refresh();
@@ -1768,7 +1779,11 @@ public sealed class MainViewModel : ObservableObject
             EcuTuneSummary =
                 $"{Path.GetFileName(iniPath)} — {EcuTables.Count} tables · "
                 + $"{SettingsMenu.Count(m => !m.IsHeading):N0} pages. "
-                + "No ECU is connected, so every value reads as zero.";
+                + (_ecuConnection is null
+                    ? "No ECU is connected, so every value reads as zero."
+                    : "Every value reads as zero — this is what the firmware "
+                      + "offers, not what the attached ECU is set to, so nothing "
+                      + "here can be sent to it.");
 
             return true;
         }
@@ -1786,17 +1801,37 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(EcuTuneSummary));
             Raise(nameof(HasSettingsPages));
             Raise(nameof(SettingsSummary));
+            Raise(nameof(OpenDialog));
+            Raise(nameof(OpenMenuEntry));
+            Raise(nameof(CanWriteSettings));
+            Raise(nameof(CanBurn));
+            Raise(nameof(CanBurnSettings));
         }
     }
 
+    /// <summary>
+    /// True while the tune on show came from a definition file rather than off a
+    /// controller, so every value in it is a zero standing in for one.
+    ///
+    /// <b>Nothing may be sent while this holds.</b> A definition can be opened
+    /// with an ECU still attached — to read what some other firmware offers, say
+    /// — and the placeholder tune that results is laid out like a real one and
+    /// full of noughts. Sending it would write those noughts to a running
+    /// engine, and burning would commit page indices belonging to the firmware
+    /// that was open before.
+    /// </summary>
+    public bool TuneIsPlaceholder { get; private set; }
+
     /// <summary>Whether there is something to send, and somewhere to send it.</summary>
     public bool CanWriteSettings =>
-        HasSettingChanges && _ecuConnection is not null && _tuneLayout is not null;
+        HasSettingChanges && _ecuConnection is not null && _tuneLayout is not null
+        && !TuneIsPlaceholder;
 
     /// <summary>Pages written since the tune was read, which a burn would commit.</summary>
     private readonly SortedSet<int> _settingsPagesWritten = [];
 
-    public bool CanBurnSettings => _settingsPagesWritten.Count > 0 && _ecuConnection is not null;
+    public bool CanBurnSettings =>
+        _settingsPagesWritten.Count > 0 && _ecuConnection is not null && !TuneIsPlaceholder;
 
     /// <summary>What a confirmation needs to say before anything is sent.</summary>
     public int SettingsChangedCount => _settingsEdit?.ChangedCount ?? 0;
@@ -1904,19 +1939,30 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            foreach (int index in _settingsPagesWritten)
+            // Each page struck off as it lands, rather than the lot at the end.
+            // A burn part way through can fail, and pressing the button again
+            // would then put the pages already committed through flash a second
+            // time — against the whole point of only burning what was touched.
+            foreach (int index in _settingsPagesWritten.ToArray())
             {
                 TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == index);
-                if (page is null || page.BurnCommand.Length == 0) continue;
+
+                if (page is null || page.BurnCommand.Length == 0)
+                {
+                    // Nothing can commit this one, so leaving it on the list
+                    // only offers a burn that will never do anything.
+                    _settingsPagesWritten.Remove(index);
+                    continue;
+                }
 
                 connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
+                _settingsPagesWritten.Remove(index);
                 burned.Add(index);
             }
 
             if (burned.Count == 0)
                 return "This firmware declares no way to burn the pages that were written.";
 
-            _settingsPagesWritten.Clear();
             Raise(nameof(CanBurnSettings));
 
             return $"Burned {burned.Count} page{(burned.Count == 1 ? "" : "s")} to flash. "
@@ -1924,6 +1970,8 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
+            Raise(nameof(CanBurnSettings));
+
             return burned.Count == 0
                 ? $"The burn failed: {e.Message}"
                 : $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then this "
@@ -2031,7 +2079,8 @@ public sealed class MainViewModel : ObservableObject
     /// now be opened from a definition file with nothing attached — and a Burn
     /// button that looks live with no ECU behind it is an offer this cannot keep.
     /// </summary>
-    public bool CanBurn => _ecuConnection is not null && _tuneLayout is not null;
+    public bool CanBurn =>
+        _ecuConnection is not null && _tuneLayout is not null && !TuneIsPlaceholder;
 
     /// <summary>What is selected and what has been changed, for the calibration header.</summary>
     public string TableEditSummary
@@ -2419,9 +2468,18 @@ public sealed class MainViewModel : ObservableObject
         _settingsEdit = null;
         _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _settingsPagesWritten.Clear();
+        TuneIsPlaceholder = false;
         EcuTables.Clear();
         SettingsMenu.Clear();
+
+        // Said out loud rather than left for the list box to notice. Clearing
+        // the menu happens to drive the selection to null and close the page,
+        // but only while that list is on screen — on the tables half it is not
+        // realised, and the page would stay bound to the edit just discarded.
         OpenDialog = null;
+        _openMenuEntry = null;
+        Raise(nameof(OpenDialog));
+        Raise(nameof(OpenMenuEntry));
         EcuTuneSummary = "";
 
         try

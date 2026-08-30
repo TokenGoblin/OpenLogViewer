@@ -79,6 +79,33 @@ public static class DialogCondition
     }
 
     /// <summary>
+    /// The same expression as a number rather than as a verdict.
+    ///
+    /// The two are not interchangeable. An expression in this language need not
+    /// be a test — <c>[OutputChannels]</c> declares arithmetic with it, and
+    /// <c>engineLoad = { fuelingLoad }</c> means the load, not whether there is
+    /// any. Passing that through a yes-or-no answer turns 63 kPa into 1, which
+    /// then fails every comparison a dialog condition makes against it and hides
+    /// settings the tuner is meant to reach.
+    /// </summary>
+    /// <returns>The value, or NaN where it cannot be worked out.</returns>
+    public static double Number(string expression, Func<string, double> value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (string.IsNullOrWhiteSpace(expression)) return double.NaN;
+
+        try
+        {
+            return new Parser(expression, value).ParseAll();
+        }
+        catch (Exception e) when (e is FormatException or OverflowException)
+        {
+            return double.NaN;
+        }
+    }
+
+    /// <summary>
     /// Whether to put the thing on screen. Unknown counts as yes, for the reason
     /// given above.
     /// </summary>

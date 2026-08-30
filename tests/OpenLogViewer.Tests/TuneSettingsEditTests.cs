@@ -594,4 +594,72 @@ public class TuneSettingsEditTests
         // One page here, however many writes it takes.
         Assert.Equal([0], edit.PagesToWrite);
     }
+
+    // ----- text, judged by its bytes ----------------------------------------
+
+    [Fact]
+    public void TypingANameBackToTheOneTheEcuHoldsIsNotAChange()
+    {
+        // Comparing against the working copy rather than against the controller
+        // left this counted as pending while writing nothing. The header offers
+        // to send it, the send says nothing has been changed and returns before
+        // the reconcile that would clear it, and the phantom never goes away.
+        var edit = new TuneSettingsEdit(Tune((12, (byte)'C'), (13, (byte)'L'), (14, (byte)'T')));
+
+        Assert.True(edit.SetText("alias", "EGT"));
+        Assert.True(edit.SetText("alias", "CLT"));
+
+        Assert.False(edit.HasChanges);
+        Assert.Equal(0, edit.BytesToWrite);
+    }
+
+    [Fact]
+    public void SettingANameToWhatItAlreadyReadsKeepsThePendingWrite()
+    {
+        // The same comparison the other way about: a text box pushes its value
+        // again on every focus change, and the second push dropped a record
+        // whose bytes really did still differ. The summary then said nothing was
+        // changed while a genuine write was outstanding, and the button greyed.
+        var edit = new TuneSettingsEdit(Tune((12, (byte)'C'), (13, (byte)'L'), (14, (byte)'T')));
+
+        Assert.True(edit.SetText("alias", "EGT"));
+        Assert.True(edit.SetText("alias", "EGT"));
+
+        Assert.True(edit.HasChanges);
+        Assert.Equal(1, edit.ChangedCount);
+        Assert.NotEmpty(edit.Writes());
+    }
+
+    [Fact]
+    public void ANamePaddedWithSpacesRevertsToExactlyThoseBytes()
+    {
+        // Reading a name trims the padding off and writing one pads with nulls,
+        // so putting a field back through its string left three bytes differing
+        // from the ECU's with nothing admitting to it: no change on the header,
+        // and a write anyway on the next send.
+        var edit = new TuneSettingsEdit(
+            Tune((12, (byte)'C'), (13, (byte)'L'), (14, (byte)'T'),
+                 (15, (byte)' '), (16, (byte)' '), (17, (byte)' ')));
+
+        Assert.True(edit.SetText("alias", "EGT"));
+        edit.Revert("alias");
+
+        Assert.False(edit.HasChanges);
+        Assert.Equal(0, edit.BytesToWrite);
+    }
+
+    [Fact]
+    public void RevertingOneNameLeavesTheSettingsAroundItAlone()
+    {
+        var edit = new TuneSettingsEdit(Tune((12, (byte)'C'), (0, 0x5E), (1, 0x01)));
+
+        Assert.True(edit.SetText("alias", "EGT"));
+        Assert.True(edit.Set("crankingRPM", 500));
+
+        edit.Revert("alias");
+
+        Assert.Equal(500, edit.Value("crankingRPM"));
+        Assert.Equal("C", edit.Text("alias"));
+        Assert.Equal(1, edit.ChangedCount);
+    }
 }
