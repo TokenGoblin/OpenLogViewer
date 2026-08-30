@@ -115,6 +115,36 @@ public sealed record TuneConstant
     /// user gives an input. <see cref="Columns"/> is its length in bytes.
     /// </summary>
     public bool IsText { get; init; }
+
+    /// <summary>
+    /// What each value of a bit field means, in order from zero.
+    ///
+    /// The firmware names them — "Disabled", "Narrow Band", "Wide Band" — and
+    /// without the names the setting is a number between nought and three with
+    /// nothing to say which is which.
+    ///
+    /// A slot the firmware has not used is spelled "INVALID", which is a value
+    /// the user must not be offered: it is padding to fill the bit width out to
+    /// a power of two, not a choice.
+    /// </summary>
+    public IReadOnlyList<string> Options { get; init; } = [];
+
+    public bool HasOptions => Options.Count > 0;
+
+    /// <summary>Whether a value names something the firmware actually does.</summary>
+    public bool IsValidOption(int value) =>
+        value >= 0 && value < Options.Count
+        && !Options[value].Equals("INVALID", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>What this value is called, or the number where it has no name.</summary>
+    public string OptionName(double value)
+    {
+        int index = (int)Math.Round(value);
+
+        return index >= 0 && index < Options.Count
+            ? Options[index]
+            : value.ToString(System.Globalization.CultureInfo.CurrentCulture);
+    }
 }
 
 /// <summary>Everything needed to read an ECU's settings and make sense of them.</summary>
@@ -185,7 +215,7 @@ public static class TuneLayoutReader
         RegexOptions.Compiled);
 
     private static readonly Regex Bits = new(
-        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*(?<offset>\d+)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\]""",
+        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*(?<offset>\d+)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\](?:\s*,\s*(?<rest>.*))?$""",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -324,7 +354,7 @@ public static class TuneLayoutReader
         RegexOptions.Compiled);
 
     private static readonly Regex PcBits = new(
-        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\]""",
+        """^\s*(?<name>[A-Za-z_]\w*)\s*=\s*bits\s*,\s*(?<type>[A-Z]\d\d)\s*,\s*\[\s*(?<low>\d+)\s*:\s*(?<high>\d+)\s*\](?:\s*,\s*(?<rest>.*))?$""",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -359,6 +389,7 @@ public static class TuneLayoutReader
                     Type = bitType,
                     BitLow = Math.Min(low, high),
                     BitHigh = Math.Max(low, high),
+                    Options = [.. Fields(bits.Groups["rest"].Value).Select(Unquote).Where(o => o.Length > 0)],
                 });
 
                 continue;
@@ -504,6 +535,7 @@ public static class TuneLayoutReader
             Type = type,
             BitLow = Math.Min(low, high),
             BitHigh = Math.Max(low, high),
+            Options = [.. Fields(match.Groups["rest"].Value).Select(Unquote).Where(o => o.Length > 0)],
         };
     }
 
