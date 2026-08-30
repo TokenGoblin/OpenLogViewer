@@ -125,6 +125,19 @@ has entries, that no entry is a placeholder or too thin to be an explanation, an
 that every feature this project claims is findable by the name a user would search
 for. That last one is what fails when a feature is added and the guide is not.
 
+**The settings that are not tables can now be edited, and it has been done on a
+real ECU.** Calibration has a Settings half beside the tables, its pages built
+from the menus, dialogs and fields the firmware declares — 144 on an MS3, 55 on
+an MS2Extra, 49 on a Speeduino. Fields appear and disappear as the conditions
+the firmware wrote against its own settings become true.
+
+Verified against a Speeduino 202501 over serial. The tune reads in 424 ms and
+twice identically; decoded values check against the raw bytes on the wire.
+Writing one RPM setting sent a single byte and left the other 3,407 untouched,
+and flipping one of the seven bit fields sharing byte 83 moved exactly one bit
+and left its six neighbours alone — which is the failure the whole design exists
+to avoid, since an ECU takes a clobbered byte without complaint.
+
 **Find a moment in the log.** Ctrl+F, a condition in the same syntax as a
 calculated channel — `RPM > 4500 && TPS > 80` — and every stretch of the drive
 that met it is shaded, with Enter and shift-Enter stepping through them.
