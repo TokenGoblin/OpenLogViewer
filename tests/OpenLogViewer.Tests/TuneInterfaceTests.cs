@@ -439,4 +439,64 @@ public class TuneInterfaceTests
         Assert.NotNull(ui.Find("mydialog"));
         Assert.Null(ui.Find("nosuchdialog"));
     }
+
+    // ----- the preprocessor -------------------------------------------------
+
+    [Fact]
+    public void OnlyTheLiveBranchOfAConditionalIsRead()
+    {
+        // Both branches merged is bad enough; worse is that a redeclared dialog
+        // replaces the earlier one, so a dialog written differently under #if
+        // and #else always came out as the #else version whatever the firmware
+        // actually is. MS3 has 102 of these inside its menus and dialogs.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               #if CELSIUS
+               dialog = temps, "Temperatures in C"
+                  field = "Coolant", cltC
+               #else
+               dialog = temps, "Temperatures in F"
+                  field = "Coolant", cltF
+               #endif
+            """, new HashSet<string> { "CELSIUS" });
+
+        TuneDialog dialog = ui.Find("temps")!;
+
+        Assert.Equal("Temperatures in C", dialog.Title);
+        Assert.Equal("cltC", dialog.Items[0].Target);
+    }
+
+    [Fact]
+    public void TheOtherBranchIsTakenWhenTheSymbolIsAbsent()
+    {
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               #if CELSIUS
+               dialog = temps, "Temperatures in C"
+                  field = "Coolant", cltC
+               #else
+               dialog = temps, "Temperatures in F"
+                  field = "Coolant", cltF
+               #endif
+            """, new HashSet<string>());
+
+        Assert.Equal("Temperatures in F", ui.Find("temps")!.Title);
+        Assert.Equal("cltF", ui.Find("temps")!.Items[0].Target);
+    }
+
+    [Fact]
+    public void ConditionalsInTheMenuAreResolvedToo()
+    {
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [Menu]
+               menu = "Settings"
+                 #if CAN_COMMANDS
+                 subMenu = canSettings, "CAN"
+                 #endif
+                 subMenu = base, "Base"
+            """, new HashSet<string>());
+
+        Assert.Single(ui.Menus[0].Entries);
+        Assert.Equal("base", ui.Menus[0].Entries[0].Dialog);
+    }
 }

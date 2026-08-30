@@ -317,7 +317,6 @@ public sealed class EcuTune
         else BinaryPrimitives.WriteUInt32BigEndian(at, value);
     }
 
-    /// <summary>One element of a constant, scaled; null when it is out of reach.</summary>
     /// <summary>The constant by that name, or null where this firmware has none.</summary>
     public TuneConstant? Constant(string name) =>
         name is not null && _byName.TryGetValue(name, out TuneConstant? constant) ? constant : null;
@@ -376,6 +375,11 @@ public sealed class EcuTune
 
         if (constant.Page < 0 || constant.Page >= pages.Count) return false;
 
+        // Inside this constant, not merely inside the page. Without it an index
+        // past the end walks into whatever setting is declared next, which is
+        // somebody else's and is overwritten in silence.
+        if (element < 0 || element >= Math.Max(1, constant.Columns * constant.Rows)) return false;
+
         byte[] page = pages[constant.Page];
         int at = constant.Offset + (element * constant.ElementSize);
 
@@ -389,14 +393,21 @@ public sealed class EcuTune
             return TryWrite(bytes, constant.Type, scaled, _little);
         }
 
+        int width = constant.BitHigh - constant.BitLow + 1;
+        long limit = (1L << width) - 1;
+        long wanted = (long)Math.Round(value);
+
+        // Refused rather than masked. Masking stores 3 for a 7 and reports
+        // success, so the change list says one thing and the bytes another —
+        // and a bit field carries no declared range, so nothing upstream would
+        // have caught it either.
+        if (wanted < 0 || wanted > limit) return false;
+
         // The storage unit as it stands, so everything but this field survives.
         long current = (long)(Raw(bytes, constant.Type, _little) ?? 0);
+        long mask = limit << constant.BitLow;
 
-        int width = constant.BitHigh - constant.BitLow + 1;
-        long mask = ((1L << width) - 1) << constant.BitLow;
-        long placed = ((long)Math.Round(value) << constant.BitLow) & mask;
-
-        return TryWrite(bytes, constant.Type, (current & ~mask) | placed, _little);
+        return TryWrite(bytes, constant.Type, (current & ~mask) | (wanted << constant.BitLow), _little);
     }
 
     /// <summary>Writes a text setting, padded with nulls and never overrunning its field.</summary>
@@ -413,16 +424,16 @@ public sealed class EcuTune
 
         if (at < 0 || at + length > page.Length) return false;
 
-        for (int i = 0; i < length; i++)
-        {
-            char c = i < value.Length ? value[i] : ' ';
-
-            // The field is ASCII. Anything outside it would be stored as some
-            // other character entirely, so it is refused rather than mangled.
+        // Checked before anything is written. Rejecting half way through leaves
+        // the field partly overwritten while the caller is told nothing changed,
+        // and the bytes go to the ECU on the next send regardless.
+        foreach (char c in value)
             if (c > 0x7F) return false;
 
-            page[at + i] = (byte)c;
-        }
+        // Padded with nulls, which is what the firmware stores and what TextIn
+        // reads back. Padding with spaces would make writing a name back to the
+        // one it already has produce a difference, and so a write.
+        for (int i = 0; i < length; i++) page[at + i] = i < value.Length ? (byte)value[i] : (byte)0;
 
         return true;
     }

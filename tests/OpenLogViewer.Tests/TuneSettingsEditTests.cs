@@ -162,16 +162,43 @@ public class TuneSettingsEditTests
     }
 
     [Fact]
-    public void AValueTooWideForTheFieldDoesNotSpillIntoItsNeighbours()
+    public void AValueTooWideForTheFieldIsRefusedRatherThanTruncated()
     {
-        // mode is three bits. Eight does not fit, and must not become one with a
-        // carry into bit 7.
-        var edit = new TuneSettingsEdit(Tune((2, 0)));
+        // mode is three bits, so eight does not fit. Masking it would store
+        // nought and report success -- the change list saying 8 while the bytes
+        // say 0 -- and a bit field carries no declared range, so nothing else
+        // would have caught it. Started from a non-zero byte, since a zero one
+        // hides a truncation that happens to land on zero.
+        var edit = new TuneSettingsEdit(Tune((2, 0b0101_0111)));
 
-        edit.Set("mode", 8);
+        Assert.False(edit.Set("mode", 8));
+        Assert.False(edit.Set("mode", -1));
 
-        Assert.Equal(0, edit.Value("mode"));
-        Assert.Equal(0, edit.Value("optA"));
+        Assert.Equal(5, edit.Value("mode"));
+        Assert.False(edit.HasChanges);
+        Assert.Empty(edit.Writes());
+    }
+
+    [Fact]
+    public void AnElementPastTheEndOfAnArrayIsRefused()
+    {
+        // trims is four bytes at offset 6, and alias begins at 12. Without a
+        // bound on the element, the seventh trim writes over the first letter
+        // of a name -- inside the page, so no other check catches it.
+        var edit = new TuneSettingsEdit(Tune());
+
+        Assert.False(edit.Set("trims", 5, element: 6));
+        Assert.False(edit.Set("trims", 5, element: -1));
+
+        Assert.Empty(edit.Writes());
+    }
+
+    [Fact]
+    public void AScalarHasOnlyTheOneElement()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        Assert.False(edit.Set("dwell", 5, element: 1));
         Assert.Empty(edit.Writes());
     }
 
@@ -221,6 +248,41 @@ public class TuneSettingsEditTests
         var edit = new TuneSettingsEdit(Tune());
 
         Assert.False(edit.SetText("alias", "Kühlmittel"));
+
+        // And nothing was written on the way to refusing. Rejecting part way
+        // through leaves the field half overwritten while the caller is told
+        // nothing changed, and those bytes go to the ECU on the next send.
+        Assert.Empty(edit.Writes());
+        Assert.Equal(0, edit.BytesToWrite);
+        Assert.False(edit.HasChanges);
+    }
+
+    [Fact]
+    public void WritingANameBackToTheOneItAlreadyHasIsNotAChange()
+    {
+        // The padding has to match what the ECU stores, or an identical name
+        // still differs byte for byte and a write is offered for nothing.
+        var edit = new TuneSettingsEdit(Tune());
+
+        Assert.True(edit.SetText("alias", ""));
+
+        Assert.False(edit.HasChanges);
+        Assert.Empty(edit.Writes());
+    }
+
+    [Fact]
+    public void ATextFieldIsPaddedTheWayTheEcuPadsIt()
+    {
+        var tune = Tune();
+        var edit = new TuneSettingsEdit(tune);
+
+        edit.SetText("alias", "CLT");
+
+        TuneWrite write = Assert.Single(edit.Writes());
+
+        // Three characters and then nulls, not spaces.
+        Assert.Equal((byte)'C', write.Data[0]);
+        Assert.All(write.Data[3..], b => Assert.Equal(0, b));
     }
 
     [Fact]
@@ -283,6 +345,31 @@ public class TuneSettingsEditTests
         edit.Set("trims", 9, element: 0);
 
         Assert.Equal(2, edit.Writes().Count);
+    }
+
+    [Fact]
+    public void TheOriginalIsTheEcusValueNotTheEditedOne()
+    {
+        // The two have to come from different places, or a was-and-now display
+        // shows the same number twice for every row that changed.
+        var edit = new TuneSettingsEdit(Tune((4, 45)));
+
+        edit.Set("dwell", 6.0);
+
+        Assert.Equal(4.5, edit.Original("dwell"), precision: 6);
+        Assert.Equal(6.0, edit.Value("dwell"), precision: 6);
+    }
+
+    [Fact]
+    public void ChangesComeBackInTheOrderTheyWereTouched()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        edit.Set("dwell", 6.0);
+        edit.Set("crankingRPM", 300);
+        edit.Set("optA", 1);
+
+        Assert.Equal(["dwell", "crankingRPM", "optA"], edit.Changes.Select(c => c.Name));
     }
 
     [Fact]
@@ -361,5 +448,48 @@ public class TuneSettingsEditTests
 
         Assert.False(edit.Set("rpmhigh", 8000));
         Assert.Empty(edit.Writes());
+    }
+
+    [Fact]
+    public void AnUnusedOptionSlotDoesNotRenumberTheOnesAfterIt()
+    {
+        // Real definitions leave a retired enum slot as "" rather than INVALID.
+        // Dropping the empties would make "On" the value 1 when the ECU stores
+        // 2 for it -- selecting one option and writing another.
+        const string ini = """
+            [Constants]
+            page = 1
+            nPages = 1
+            pageSize = 8
+               mode = bits, U08, 0, [0:1], "Off", "", "On", "INVALID"
+            """;
+
+        TuneConstant mode = TuneLayoutReader.Read(ini).Constants.Single(c => c.Name == "mode");
+
+        Assert.Equal(4, mode.Options.Count);
+        Assert.Equal("On", mode.Options[2]);
+
+        // And neither the gap nor the padding is a choice to offer.
+        Assert.True(mode.IsValidOption(0));
+        Assert.False(mode.IsValidOption(1));
+        Assert.True(mode.IsValidOption(2));
+        Assert.False(mode.IsValidOption(3));
+    }
+
+    [Fact]
+    public void AControllerStringWithNoOffsetIsNotPlacedAtZero()
+    {
+        // Defaulting it would read and write the first bytes of the page, which
+        // belong to whichever constants really live there.
+        const string ini = """
+            [Constants]
+            page = 1
+            nPages = 1
+            pageSize = 8
+               realOne = scalar, U08, 0, "", 1, 0, 0, 255, 0
+               noOffset = string, ASCII, 16
+            """;
+
+        Assert.DoesNotContain(TuneLayoutReader.Read(ini).Constants, c => c.Name == "noOffset");
     }
 }

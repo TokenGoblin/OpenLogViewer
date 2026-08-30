@@ -1,4 +1,4 @@
-namespace OpenLogViewer.Core;
+﻿namespace OpenLogViewer.Core;
 
 /// <summary>One setting, changed.</summary>
 /// <param name="Name">The constant's name.</param>
@@ -30,6 +30,10 @@ public sealed class TuneSettingsEdit
     private readonly EcuTune _tune;
     private readonly byte[][] _working;
     private readonly Dictionary<string, double> _original = new(StringComparer.OrdinalIgnoreCase);
+
+    // Ordered, because the change list is read back in the order things were
+    // touched and a plain dictionary does not promise that.
+    private readonly List<string> _order = [];
     private readonly Dictionary<string, double> _changed = new(StringComparer.OrdinalIgnoreCase);
 
     public TuneSettingsEdit(EcuTune tune)
@@ -42,7 +46,21 @@ public sealed class TuneSettingsEdit
 
     /// <summary>Settings changed and not yet sent, in the order they were touched.</summary>
     public IReadOnlyList<SettingChange> Changes =>
-        [.. _changed.Select(c => new SettingChange(c.Key, _original[c.Key], c.Value))];
+        [.. _order.Where(_changed.ContainsKey)
+            .Select(k => new SettingChange(k, _original[k], _changed[k]))];
+
+    /// <summary>
+    /// What the ECU holds for a setting, as against what it would become.
+    ///
+    /// Read from the controller's own pages rather than the working copy, which
+    /// is the whole point of it: a caller wanting to show was-and-now needs the
+    /// two to come from different places.
+    /// </summary>
+    public double Original(string name, int element = 0) =>
+        _tune.ValueIn(_tune.Pages, name, element) ?? double.NaN;
+
+    /// <summary>The same, for a text setting.</summary>
+    public string OriginalText(string name) => _tune.TextIn(_tune.Pages, name) ?? "";
 
     public int ChangedCount => _changed.Count;
 
@@ -90,10 +108,16 @@ public sealed class TuneSettingsEdit
 
         // Text has no number to record, so the change is noted by name alone and
         // the count is what the header reports.
-        if (before == (value ?? "")) _changed.Remove(name);
+        if (before == (value ?? ""))
+        {
+            _changed.Remove(name);
+            _original.Remove(name);
+            _order.Remove(name);
+        }
         else
         {
             _original.TryAdd(name, double.NaN);
+            if (!_changed.ContainsKey(name)) _order.Add(name);
             _changed[name] = double.NaN;
         }
 
@@ -124,6 +148,7 @@ public sealed class TuneSettingsEdit
 
         _changed.Remove(key);
         _original.Remove(key);
+        _order.Remove(key);
     }
 
     /// <summary>Puts everything back.</summary>
@@ -133,6 +158,7 @@ public sealed class TuneSettingsEdit
 
         _changed.Clear();
         _original.Clear();
+        _order.Clear();
     }
 
     /// <summary>
@@ -183,8 +209,17 @@ public sealed class TuneSettingsEdit
         // Back to where it started is not a change. Otherwise a value nudged up
         // and down again would still be counted, and the header would offer to
         // send bytes identical to the ones already there.
-        if (Math.Abs(_original[key] - after) < 1e-12) { _changed.Remove(key); _original.Remove(key); }
-        else _changed[key] = after;
+        if (Math.Abs(_original[key] - after) < 1e-12)
+        {
+            _changed.Remove(key);
+            _original.Remove(key);
+            _order.Remove(key);
+        }
+        else
+        {
+            if (!_changed.ContainsKey(key)) _order.Add(key);
+            _changed[key] = after;
+        }
     }
 
     private static string Key(string name, int element) => element == 0 ? name : $"{name}[{element}]";
