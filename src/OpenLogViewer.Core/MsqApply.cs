@@ -148,7 +148,14 @@ public static class MsqApply
                 continue;
             }
 
-            if (Store(tune, pages, constant, written) is { } complaint) rejected.Add(complaint);
+            // Through the tune rather than the layout: a scale the firmware
+            // wrote as an expression is worked out once the values exist, and
+            // encoding with the declared fallback while decoding with the
+            // worked-out one puts the two out by whatever the expression came
+            // to. The tune's copy is the one everything else reads through.
+            TuneConstant use = tune.Constant(constant.Name) ?? constant;
+
+            if (Store(tune, pages, use, written) is { } complaint) rejected.Add(complaint);
             else applied++;
         }
 

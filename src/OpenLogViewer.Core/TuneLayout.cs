@@ -86,6 +86,21 @@ public sealed record TuneConstant
     /// </summary>
     public double Transform { get; init; }
 
+    /// <summary>
+    /// The scale as the firmware wrote it, when it wrote an expression rather
+    /// than a number, and empty otherwise.
+    ///
+    /// Held as text because what it comes to depends on the tune rather than on
+    /// the definition: MS2's MAF curve is scaled
+    /// <c>{0.01 * (maf_range + 1)}</c>, and <c>maf_range</c> is a setting.
+    /// <see cref="EcuTune"/> works it out once it has the values to work it out
+    /// from; until then <see cref="Scale"/> holds the fallback.
+    /// </summary>
+    public string ScaleExpression { get; init; } = "";
+
+    /// <summary>The same for the translate.</summary>
+    public string TransformExpression { get; init; } = "";
+
     public int Digits { get; init; }
 
     /// <summary>
@@ -452,6 +467,8 @@ public static class TuneLayoutReader
                 Units = rest.Length > 0 ? Unquote(rest[0]) : "",
                 Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
                 Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+                ScaleExpression = Expression(rest, 1),
+                TransformExpression = Expression(rest, 2),
                 Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
                 High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
                 Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
@@ -493,6 +510,8 @@ public static class TuneLayoutReader
             Units = rest.Length > 0 ? Unquote(rest[0]) : "",
             Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+            ScaleExpression = Expression(rest, 1),
+            TransformExpression = Expression(rest, 2),
 
             // Fields four and five are the firmware's own limits, in displayed
             // units. Read rather than skipped over: they are what an edit should
@@ -527,6 +546,8 @@ public static class TuneLayoutReader
             Units = rest.Length > 0 ? Unquote(rest[0]) : "",
             Scale = rest.Length > 1 ? Number(rest[1], 1) : 1,
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
+            ScaleExpression = Expression(rest, 1),
+            TransformExpression = Expression(rest, 2),
 
             // Fields four and five are the firmware's own limits, in displayed
             // units. Read rather than skipped over: they are what an edit should
@@ -610,6 +631,20 @@ public static class TuneLayoutReader
 
         return named.All(string.IsNullOrEmpty) ? [] : named;
     }
+
+    /// <summary>
+    /// The field as written, when it was written as an expression rather than a
+    /// number, and nothing otherwise.
+    ///
+    /// A firmware states a scale in terms of another setting where the meaning
+    /// of a table depends on how it is configured — MS2's MAF curve is
+    /// <c>{0.01 * (maf_range + 1)}</c> grammes a second, because the same bytes
+    /// cover a 650 g/s sensor and a 2,600 g/s one. Parsed as a number that
+    /// fails and falls back to a scale of 1, which is out by a factor of the
+    /// range and looks like an ordinary number the whole way.
+    /// </summary>
+    private static string Expression(string[] rest, int index) =>
+        index < rest.Length && rest[index].TrimStart().StartsWith('{') ? rest[index].Trim() : "";
 
     /// <summary>Splits a comma list, respecting quotes and braces.</summary>
     private static string[] Fields(string text)
