@@ -1,4 +1,4 @@
-namespace OpenLogViewer.App;
+﻿namespace OpenLogViewer.App;
 
 /// <summary>What the window is being used for.</summary>
 public enum WorkspaceMode
@@ -11,6 +11,16 @@ public enum WorkspaceMode
 
     /// <summary>Working on the tune itself.</summary>
     Calibration,
+
+    /// <summary>
+    /// How to use the application.
+    ///
+    /// A mode of its own rather than a menu item behind a link, because of where
+    /// this gets used: a laptop plugged into a car in a garage with no internet
+    /// is exactly where somebody needs to look something up, and it is the same
+    /// reasoning that makes the installer self-contained.
+    /// </summary>
+    Guide,
 }
 
 /// <summary>

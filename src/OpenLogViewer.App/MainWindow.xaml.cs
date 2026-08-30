@@ -358,6 +358,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnGuideClick(object sender, RoutedEventArgs e) => _vm.InGuideMode = true;
+
     private void OnDocumentationClick(object sender, RoutedEventArgs e) =>
         Launch("https://github.com/TokenGoblin/OpenLogViewer#readme");
 
@@ -1832,6 +1834,20 @@ public partial class MainWindow : Window
         // been laid out before a block index means anything.
         Scatter.UpdateLayout();
         OnScatterBlockActivated((column, row));
+    }
+
+    /// <summary>Opens the guide at a named section, for a scripted run.</summary>
+    public void ShowGuide(string? section = null)
+    {
+        _vm.InGuideMode = true;
+
+        if (section is not { Length: > 0 }) return;
+
+        GuideSection? match = _vm.GuideSections.FirstOrDefault(
+            s => s.Title.Contains(section, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null) _vm.GuideSection = match;
+        else _vm.GuideSearch = section;   // not a section — treat it as a search
     }
 
     /// <summary>Runs a search and frames its first finding, for a scripted run.</summary>

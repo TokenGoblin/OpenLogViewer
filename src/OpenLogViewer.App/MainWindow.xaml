@@ -81,6 +81,8 @@
                           ToolTip="Live dials, as the firmware defines them"/>
                 <MenuItem Header="_Calibration" IsCheckable="True" IsChecked="{Binding InCalibrationMode}"
                           ToolTip="Work on the tune itself"/>
+                <MenuItem Header="G_uide" IsCheckable="True" IsChecked="{Binding InGuideMode}"
+                          ToolTip="How to use this application"/>
                 <Separator/>
                 <MenuItem Header="_Plot" IsCheckable="True" IsChecked="{Binding ShowLog}"
                           IsEnabled="{Binding InLogMode}" ToolTip="Time-series view"/>
@@ -156,7 +158,10 @@
             </MenuItem>
 
             <MenuItem Header="_Help">
-                <MenuItem Header="_Documentation" Click="OnDocumentationClick"/>
+                <MenuItem Header="How to use _this app" Click="OnGuideClick"
+                          ToolTip="The guide, carried inside the application"/>
+                <Separator/>
+                <MenuItem Header="_Documentation online" Click="OnDocumentationClick"/>
                 <Separator/>
                 <MenuItem Header="_About OpenLogViewer" Click="OnAboutClick"/>
             </MenuItem>
@@ -287,6 +292,9 @@
                     <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
                                  IsChecked="{Binding InCalibrationMode}"
                                  ToolTip="Work on the tune itself"/>
+                    <RadioButton Style="{StaticResource Chip}" Content="Guide" GroupName="Mode"
+                                 IsChecked="{Binding InGuideMode}"
+                                 ToolTip="How to use this application"/>
                 </StackPanel>
 
                 <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
@@ -1342,6 +1350,86 @@
                        Foreground="{DynamicResource Muted}" TextAlignment="Center"
                        Text="Connect to an ECU to read its tune.&#10;Tables come off the controller itself, not from a saved file."
                        Visibility="{Binding ShowNoTuneNotice, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+
+        <!-- Guide mode: how to use the application, carried inside it. -->
+        <Grid Visibility="{Binding InGuideMode, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" MinWidth="160"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*" MinWidth="320"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sections, with a search over all of them above. -->
+            <Border Grid.Column="0" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBox DockPanel.Dock="Top" Margin="8,8,8,6"
+                             Text="{Binding GuideSearch, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                             ToolTip="Search every section"/>
+
+                    <ListBox ItemsSource="{Binding GuideSections}"
+                             SelectedItem="{Binding GuideSection}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Title}" Padding="2,3"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Text}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{DynamicResource Line}"/>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+                <!-- Capped, because a line of prose past about ninety characters
+                     is measurably harder to come back to at the next line. -->
+                <StackPanel Margin="22,18,22,26" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding GuideHeading}" FontSize="19" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding GuideBlurb}" FontSize="12" Margin="0,4,0,16"
+                               Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
+
+                    <ItemsControl ItemsSource="{Binding GuideEntries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,18">
+                                    <!-- The shortcut sits against the heading it
+                                         belongs to. Docked to the right of the row
+                                         it ends up an inch of empty space away from
+                                         the thing it names. Wrapping, so a long
+                                         heading pushes it to the next line rather
+                                         than squeezing it. -->
+                                    <WrapPanel Margin="0,0,0,3">
+                                        <TextBlock Text="{Binding Title}" FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Accent}"/>
+                                        <Border CornerRadius="3" Padding="6,1"
+                                                Margin="9,1,0,0" VerticalAlignment="Center"
+                                                Background="{DynamicResource Bg}"
+                                                BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                                Visibility="{Binding HasKeys,
+                                                             Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="{Binding Keys}" FontSize="10"
+                                                       FontFamily="Consolas, Courier New, monospace"
+                                                       Foreground="{DynamicResource Muted}"/>
+                                        </Border>
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding Body}" FontSize="12.5"
+                                               TextWrapping="Wrap" LineHeight="19"
+                                               Foreground="{DynamicResource Text}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         </Grid>
