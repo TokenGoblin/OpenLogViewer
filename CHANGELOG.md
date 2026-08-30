@@ -109,6 +109,22 @@ The correction is scaled by `n / (n + Min samples)` instead, so a thin cell stay
 near the number it already holds. The floor itself is unchanged; this softens the
 cliff above it rather than lowering it.
 
+**The manual is in the application.** A Guide button beside Log, Gauges and
+Calibration: sixteen sections covering every feature, searchable across all of
+them at once, with keyboard shortcuts shown against the things they do.
+
+In here rather than behind a link because of where this gets used. The people
+this is for plug a laptop into a car, often in a garage with no internet and no
+phone signal, and "open the documentation on the web" is the wrong thing to say
+at that moment — the same reasoning that makes the installer self-contained. Help
+▸ Documentation online is still there for anyone who has a connection.
+
+Written as data rather than as a page of markup, so it is searchable, follows the
+colour scheme, and can be checked by a test: there are tests that every section
+has entries, that no entry is a placeholder or too thin to be an explanation, and
+that every feature this project claims is findable by the name a user would search
+for. That last one is what fails when a feature is added and the guide is not.
+
 **Find a moment in the log.** Ctrl+F, a condition in the same syntax as a
 calculated channel — `RPM > 4500 && TPS > 80` — and every stretch of the drive
 that met it is shaded, with Enter and shift-Enter stepping through them.

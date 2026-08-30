@@ -40,7 +40,7 @@ public partial class App : Application
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
-        "--find",
+        "--find", "--guide",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
 
@@ -275,6 +275,16 @@ public partial class App : Application
         // "--find \"RPM > 4000\"" opens the find bar and frames the first hit.
         int find = Array.IndexOf(e.Args, "--find");
         if (find >= 0 && find + 1 < e.Args.Length) window.FindInLog(e.Args[find + 1]);
+
+        // "--guide Scatter" opens the guide at a section, for a capture.
+        int guide = Array.IndexOf(e.Args, "--guide");
+        if (guide >= 0)
+        {
+            window.ShowGuide(
+                guide + 1 < e.Args.Length && !e.Args[guide + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[guide + 1]
+                    : null);
+        }
 
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)

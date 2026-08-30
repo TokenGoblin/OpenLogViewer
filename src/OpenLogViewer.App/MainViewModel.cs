@@ -989,6 +989,7 @@ public sealed class MainViewModel : ObservableObject
             Raise(nameof(InLogMode));
             Raise(nameof(InGaugeMode));
             Raise(nameof(InCalibrationMode));
+            Raise(nameof(InGuideMode));
         }
     }
 
@@ -1009,6 +1010,89 @@ public sealed class MainViewModel : ObservableObject
         get => _mode == WorkspaceMode.Calibration;
         set { if (value) Mode = WorkspaceMode.Calibration; }
     }
+
+    public bool InGuideMode
+    {
+        get => _mode == WorkspaceMode.Guide;
+        set { if (value) Mode = WorkspaceMode.Guide; }
+    }
+
+    // ----- the guide --------------------------------------------------------
+
+    // The first section, so the pane is never blank and the list never opens
+    // with nothing selected.
+    private GuideSection? _guideSection = Guide.Sections[0];
+    private string _guideSearch = "";
+
+    public IReadOnlyList<GuideSection> GuideSections => Guide.Sections;
+
+    /// <summary>The section on screen. Null only while a search is showing.</summary>
+    public GuideSection? GuideSection
+    {
+        get => _guideSection;
+        set
+        {
+            if (!Set(ref _guideSection, value)) return;
+
+            Raise(nameof(GuideEntries));
+            Raise(nameof(GuideHeading));
+            Raise(nameof(GuideBlurb));
+        }
+    }
+
+    /// <summary>
+    /// Narrows the guide to entries mentioning this, across every section.
+    ///
+    /// Across all of them rather than within the chosen one, because somebody
+    /// searching a manual is looking for the page they cannot find — restricting
+    /// it to the section they happen to be on would answer only when they had
+    /// already guessed right.
+    /// </summary>
+    public string GuideSearch
+    {
+        get => _guideSearch;
+        set
+        {
+            if (!Set(ref _guideSearch, value)) return;
+
+            Raise(nameof(GuideEntries));
+            Raise(nameof(GuideHeading));
+            Raise(nameof(GuideBlurb));
+            Raise(nameof(SearchingGuide));
+        }
+    }
+
+    public bool SearchingGuide => _guideSearch.Trim().Length > 0;
+
+    /// <summary>What is on screen: a section, or whatever the search turned up.</summary>
+    public IReadOnlyList<GuideEntry> GuideEntries
+    {
+        get
+        {
+            string text = _guideSearch.Trim();
+
+            if (text.Length > 0) return [.. Guide.AllEntries.Where(e => e.Matches(text))];
+
+            return _guideSection?.Entries ?? Guide.Sections[0].Entries;
+        }
+    }
+
+    public string GuideHeading
+    {
+        get
+        {
+            if (!SearchingGuide) return (_guideSection ?? Guide.Sections[0]).Title;
+
+            int found = GuideEntries.Count;
+            return found == 1 ? "1 result" : $"{found:N0} results";
+        }
+    }
+
+    public string GuideBlurb => SearchingGuide
+        ? GuideEntries.Count == 0
+            ? "Nothing here mentions that. Try a shorter word — the search covers every section."
+            : $"Mentioning “{_guideSearch.Trim()}”, across every section."
+        : (_guideSection ?? Guide.Sections[0]).Blurb;
 
     public ChannelItem? XAxis
     {

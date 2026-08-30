@@ -21,6 +21,17 @@ Open a `.mlg`, `.msl` or `.csv` log, pick channels, and scrub through them.
 
 ![OpenLogViewer](docs/screenshot.png)
 
+## The guide is in the application
+
+**Guide**, the fourth button in the toolbar, or *Help ▸ How to use this app*.
+Sixteen sections covering everything below, searchable across all of them, with
+the keyboard shortcuts against the things they do.
+
+In the application rather than behind a link because of where this gets used:
+a laptop plugged into a car, often in a garage with no internet and no signal, is
+exactly where somebody needs to look something up. It is the same reasoning that
+makes the installer self-contained.
+
 ## Supported logs
 
 | Source | Format | Status |
