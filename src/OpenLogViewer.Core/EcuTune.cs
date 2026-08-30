@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace OpenLogViewer.Core;
 
@@ -318,30 +318,161 @@ public sealed class EcuTune
     }
 
     /// <summary>One element of a constant, scaled; null when it is out of reach.</summary>
-    private double? Value(TuneConstant constant, int element)
-    {
-        if (constant.Page < 0 || constant.Page >= _pages.Length) return null;
+    /// <summary>The constant by that name, or null where this firmware has none.</summary>
+    public TuneConstant? Constant(string name) =>
+        name is not null && _byName.TryGetValue(name, out TuneConstant? constant) ? constant : null;
 
-        byte[] page = _pages[constant.Page];
-        int at = constant.Offset + element * constant.ElementSize;
+    /// <summary>
+    /// One setting's value, read out of the given page images rather than this
+    /// tune's own.
+    ///
+    /// So that an editor working on a copy can read back what it has changed. The
+    /// decoding is identical; only where the bytes come from differs.
+    /// </summary>
+    public double? ValueIn(IReadOnlyList<byte[]> pages, string name, int element = 0) =>
+        _byName.TryGetValue(name, out TuneConstant? constant) ? Value(pages, constant, element) : null;
+
+    /// <summary>A text setting, trimmed of the padding the ECU stores it with.</summary>
+    public string? TextIn(IReadOnlyList<byte[]> pages, string name)
+    {
+        if (!_byName.TryGetValue(name, out TuneConstant? constant) || !constant.IsText) return null;
+        if (constant.Page < 0 || constant.Page >= pages.Count) return null;
+
+        byte[] page = pages[constant.Page];
+        int at = constant.Offset;
+        int length = Math.Max(0, constant.Columns);
+
+        if (at < 0 || at + length > page.Length) return null;
+
+        // A fixed-width field, padded with nulls or spaces. Stops at the first
+        // null, which is where the firmware stops reading it too.
+        var text = new System.Text.StringBuilder(length);
+
+        for (int i = 0; i < length; i++)
+        {
+            byte b = page[at + i];
+            if (b == 0) break;
+
+            text.Append((char)b);
+        }
+
+        return text.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Writes one setting into the given page images.
+    ///
+    /// <b>A bit field is read, modified and written back.</b> Several settings
+    /// share a byte — an MS3 puts four unrelated options in one — so writing the
+    /// field's value alone would zero its neighbours. Those neighbours are other
+    /// people's settings and the damage is silent: the ECU takes the byte, the
+    /// read-back matches what was sent, and two options nobody touched have
+    /// changed.
+    /// </summary>
+    public bool PokeInto(IReadOnlyList<byte[]> pages, TuneConstant constant, int element, double value)
+    {
+        ArgumentNullException.ThrowIfNull(constant);
+        ArgumentNullException.ThrowIfNull(pages);
+
+        if (constant.Page < 0 || constant.Page >= pages.Count) return false;
+
+        byte[] page = pages[constant.Page];
+        int at = constant.Offset + (element * constant.ElementSize);
+
+        if (at < 0 || at + constant.ElementSize > page.Length) return false;
+
+        Span<byte> bytes = page.AsSpan(at);
+
+        if (!constant.IsBitField)
+        {
+            double scaled = constant.Scale != 0 ? (value - constant.Transform) / constant.Scale : value;
+            return TryWrite(bytes, constant.Type, scaled, _little);
+        }
+
+        // The storage unit as it stands, so everything but this field survives.
+        long current = (long)(Raw(bytes, constant.Type, _little) ?? 0);
+
+        int width = constant.BitHigh - constant.BitLow + 1;
+        long mask = ((1L << width) - 1) << constant.BitLow;
+        long placed = ((long)Math.Round(value) << constant.BitLow) & mask;
+
+        return TryWrite(bytes, constant.Type, (current & ~mask) | placed, _little);
+    }
+
+    /// <summary>Writes a text setting, padded with nulls and never overrunning its field.</summary>
+    public bool PokeTextInto(IReadOnlyList<byte[]> pages, TuneConstant constant, string value)
+    {
+        ArgumentNullException.ThrowIfNull(constant);
+        ArgumentNullException.ThrowIfNull(pages);
+
+        if (!constant.IsText || constant.Page < 0 || constant.Page >= pages.Count) return false;
+
+        byte[] page = pages[constant.Page];
+        int at = constant.Offset;
+        int length = Math.Max(0, constant.Columns);
+
+        if (at < 0 || at + length > page.Length) return false;
+
+        for (int i = 0; i < length; i++)
+        {
+            char c = i < value.Length ? value[i] : ' ';
+
+            // The field is ASCII. Anything outside it would be stored as some
+            // other character entirely, so it is refused rather than mangled.
+            if (c > 0x7F) return false;
+
+            page[at + i] = (byte)c;
+        }
+
+        return true;
+    }
+
+    /// <summary>The undecoded number in these bytes, before scale or bit masking.</summary>
+    private static double? Raw(ReadOnlySpan<byte> bytes, RealtimeType type, bool little) => type switch
+    {
+        RealtimeType.U08 => bytes[0],
+        RealtimeType.S08 => (sbyte)bytes[0],
+        RealtimeType.U16 => little ? BinaryPrimitives.ReadUInt16LittleEndian(bytes) : BinaryPrimitives.ReadUInt16BigEndian(bytes),
+        RealtimeType.S16 => little ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : BinaryPrimitives.ReadInt16BigEndian(bytes),
+        RealtimeType.U32 => little ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes),
+        RealtimeType.S32 => little ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : BinaryPrimitives.ReadInt32BigEndian(bytes),
+        _ => null,
+    };
+
+    private double? Value(IReadOnlyList<byte[]> pages, TuneConstant constant, int element)
+    {
+        if (constant.Page < 0 || constant.Page >= pages.Count) return null;
+
+        byte[] page = pages[constant.Page];
+        int at = constant.Offset + (element * constant.ElementSize);
 
         if (at < 0 || at + constant.ElementSize > page.Length) return null;
 
-        ReadOnlySpan<byte> bytes = page.AsSpan(at);
+        return Decode(page.AsSpan(at), constant);
+    }
 
-        double raw = constant.Type switch
+    private double? Value(TuneConstant constant, int element) =>
+        Value(_pages, constant, element);
+
+    /// <summary>
+    /// The number these bytes hold, scaled and bit-masked as the firmware says.
+    ///
+    /// The one place that is defined, shared by every reader. Two decoders that
+    /// drifted apart would let an editor show one number and write another,
+    /// which is the sort of thing nobody finds until an engine runs on it.
+    /// </summary>
+    private double? Decode(ReadOnlySpan<byte> bytes, TuneConstant constant)
+    {
+        if (Raw(bytes, constant.Type, _little) is not { } raw)
         {
-            RealtimeType.U08 => bytes[0],
-            RealtimeType.S08 => (sbyte)bytes[0],
-            RealtimeType.U16 => _little ? BinaryPrimitives.ReadUInt16LittleEndian(bytes) : BinaryPrimitives.ReadUInt16BigEndian(bytes),
-            RealtimeType.S16 => _little ? BinaryPrimitives.ReadInt16LittleEndian(bytes) : BinaryPrimitives.ReadInt16BigEndian(bytes),
-            RealtimeType.U32 => _little ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes),
-            RealtimeType.S32 => _little ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : BinaryPrimitives.ReadInt32BigEndian(bytes),
-            RealtimeType.F32 => _little ? BinaryPrimitives.ReadSingleLittleEndian(bytes) : BinaryPrimitives.ReadSingleBigEndian(bytes),
-            _ => double.NaN,
-        };
+            raw = constant.Type == RealtimeType.F32
+                ? _little
+                    ? BinaryPrimitives.ReadSingleLittleEndian(bytes)
+                    : BinaryPrimitives.ReadSingleBigEndian(bytes)
+                : double.NaN;
+        }
 
-        if (!constant.IsBitField) return raw * constant.Scale + constant.Transform;
+        if (!constant.IsBitField) return (raw * constant.Scale) + constant.Transform;
 
         int width = constant.BitHigh - constant.BitLow + 1;
         long mask = (1L << width) - 1;
