@@ -3221,6 +3221,60 @@ public sealed class MainViewModel : ObservableObject
         set { if (Set(ref _veMaxChange, Math.Clamp(value, 1, 100))) HistogramInvalidated?.Invoke(); }
     }
 
+    private double _veDelaySeconds;
+
+    /// <summary>
+    /// How long the wideband takes to see the mixture that was metered now, in
+    /// seconds.
+    ///
+    /// Seconds rather than samples because that is the physical quantity — it is
+    /// a pipe length and a sensor, not a log rate — and the same setting then
+    /// means the same thing on a log recorded at 40 Hz and one at 2 Hz.
+    ///
+    /// Capped at two seconds. Beyond that it is no longer a transport delay but
+    /// a way of comparing a reading against an unrelated part of the drive.
+    /// </summary>
+    public double VeDelaySeconds
+    {
+        get => _veDelaySeconds;
+        set { if (Set(ref _veDelaySeconds, Math.Clamp(value, 0, 2))) HistogramInvalidated?.Invoke(); }
+    }
+
+    /// <summary>
+    /// The delay in samples, which is what the analysis works in.
+    ///
+    /// Rounded from the log's own median interval, so a request for 300 ms is
+    /// however many samples that is in this recording. Reported back so the
+    /// panel can say what was actually applied: on a 2 Hz OBD2 log the smallest
+    /// step is half a second, and silently rounding 300 ms to nothing would look
+    /// like the setting doing something when it is doing nothing.
+    /// </summary>
+    public int VeDelaySamples
+    {
+        get
+        {
+            if (Document is not { } doc || _veDelaySeconds <= 0) return 0;
+
+            double interval = doc.MedianSampleInterval;
+            return interval <= 0 ? 0 : (int)Math.Round(_veDelaySeconds / interval);
+        }
+    }
+
+    /// <summary>What the delay setting actually came to, for saying so.</summary>
+    public string VeDelayNote
+    {
+        get
+        {
+            if (_veDelaySeconds <= 0) return "No delay — readings are credited to the moment they arrive.";
+
+            int samples = VeDelaySamples;
+
+            return samples == 0
+                ? "Less than one sample at this log's rate, so nothing is shifted."
+                : $"{samples:N0} sample{(samples == 1 ? "" : "s")} at this log's rate.";
+        }
+    }
+
     /// <summary>
     /// True when the analysis has what it needs, which is an AFR target to
     /// compare against and nothing more.
@@ -3262,7 +3316,17 @@ public sealed class MainViewModel : ObservableObject
         VeAnalysisResult result = VeAnalysis.Analyse(
             tune, XAxis!.Channel, YAxis!.Channel, ZAxis!.Channel, target,
             firstSample, lastSample, mask,
-            new VeAnalysisSettings { MinimumSamples = _veMinimumSamples, MaxChangePercent = _veMaxChange });
+            new VeAnalysisSettings
+            {
+                MinimumSamples = _veMinimumSamples,
+                MaxChangePercent = _veMaxChange,
+                MeasurementDelaySamples = VeDelaySamples,
+
+                // Tied to the trust threshold rather than given a knob of its
+                // own: both answer "how much data before I believe a cell", and
+                // two numbers for one question is two ways to be inconsistent.
+                ConfidenceSamples = _veMinimumSamples,
+            });
 
         // A mismatch is not a thin result, it is a wrong one, and it must not be
         // drawn. Falling back to the ordinary binned table shows the data

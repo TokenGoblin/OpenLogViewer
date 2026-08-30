@@ -24,6 +24,52 @@ public sealed record VeAnalysisSettings
     /// whole of it tends to overshoot and oscillate.
     /// </summary>
     public double Authority { get; init; } = 1.0;
+
+    /// <summary>
+    /// How many samples later the wideband reads the mixture that was metered
+    /// now.
+    ///
+    /// <para>
+    /// The reading at a given moment is not evidence about that moment. Fuel
+    /// metered on this revolution is burned, pushed out of the port, carried
+    /// down the pipe to wherever the sensor is, and only then measured — and the
+    /// sensor itself takes time to respond. Compared without accounting for it,
+    /// every reading is credited to whatever the engine was doing a few hundred
+    /// milliseconds too late.
+    /// </para>
+    /// <para>
+    /// At steady state that costs nothing, because the engine was doing the same
+    /// thing then as now. It bites during exactly the transients the clamps
+    /// already exist to defend against: through a fast ramp the mixture from
+    /// 3,000 rpm is credited to the 4,000 rpm cell, so a correction is not
+    /// merely wrong in size but attributed to the wrong cell, and it smears
+    /// across a region of the table rather than landing anywhere.
+    /// </para>
+    /// <para>
+    /// In samples rather than seconds because this is where the arithmetic
+    /// happens; callers convert from a time using the log's own sample interval.
+    /// Zero by default, which is the old behaviour — the right figure depends on
+    /// where the sensor is fitted and how long its pipe is, and nothing here can
+    /// know that. It is offered rather than guessed at.
+    /// </para>
+    /// </summary>
+    public int MeasurementDelaySamples { get; init; }
+
+    /// <summary>
+    /// How much data a cell needs before its correction is taken at face value.
+    ///
+    /// <see cref="MinimumSamples"/> is a floor: below it a cell is not touched at
+    /// all. Above it the old behaviour was a cliff — a cell with twelve samples
+    /// and a cell with two hundred both got the whole correction, though one is
+    /// a measurement and the other is a glance. The correction is scaled by
+    /// <c>n / (n + this)</c> instead, which is nought at no data, half at this
+    /// many samples, and approaches the whole of it as the evidence mounts.
+    /// A cell backed by little data therefore stays near the number it already
+    /// holds, which carries the weight of however it was arrived at.
+    ///
+    /// Set to zero to take every correction whole, which is what this did before.
+    /// </summary>
+    public int ConfidenceSamples { get; init; } = 12;
 }
 
 /// <summary>
@@ -41,6 +87,14 @@ public sealed record VeAnalysisResult
 
     /// <summary>Samples behind each cell.</summary>
     public required int[,] Counts { get; init; }
+
+    /// <summary>
+    /// How far each cell's own measurement was trusted, 0 to 1 — the factor its
+    /// correction was scaled by for want of data. One where the evidence is
+    /// ample, and reported rather than hidden so that a small suggested change
+    /// can be told from a small measured error.
+    /// </summary>
+    public required double[,] Weight { get; init; }
 
     /// <summary>Cells the analysis is prepared to change.</summary>
     public required int CellsSuggested { get; init; }
@@ -192,13 +246,26 @@ public static class VeAnalysis
         int from = Math.Max(0, Math.Min(firstSample, lastSample));
         int to = Math.Min(length - 1, Math.Max(firstSample, lastSample));
 
+        int delay = Math.Max(0, settings.MeasurementDelaySamples);
+
         int used = 0;
         for (int i = from; i <= to; i++)
         {
             if (mask is not null && !mask[i]) continue;
 
+            // The cell, and what the ECU was aiming for, are read at the moment
+            // the fuel was metered. The wideband's answer to it arrives later,
+            // so that one reading — and only that one — comes from further down
+            // the log.
+            int measuredAt = i + delay;
+            if (measuredAt > to) continue;
+
+            // The delayed sample has to survive the filters too, or a reading
+            // from a stretch the user excluded would be credited to a cell.
+            if (mask is not null && !mask[measuredAt]) continue;
+
             double x = rpm.At(i), y = load.At(i);
-            double measured = afr.At(i), wanted = target.At(i);
+            double measured = afr.At(measuredAt), wanted = target.At(i);
 
             if (double.IsNaN(x) || double.IsNaN(y) || double.IsNaN(measured) || double.IsNaN(wanted))
                 continue;
@@ -235,6 +302,7 @@ public static class VeAnalysis
                     Suggested = new double?[columns, rows],
                     ChangePercent = new double?[columns, rows],
                     Counts = counts,
+                    Weight = new double[columns, rows],
                     CellsSuggested = 0,
                     CellsThin = 0,
                     SamplesUsed = used,
@@ -250,6 +318,7 @@ public static class VeAnalysis
 
         var suggested = new double?[columns, rows];
         var change = new double?[columns, rows];
+        var weight = new double[columns, rows];
         int changed = 0, thin = 0;
         double largest = 0;
 
@@ -263,11 +332,18 @@ public static class VeAnalysis
             double ratio = sums[c, r] / counts[c, r];
             double current = table.Values[c, r];
 
+            // How much this cell's evidence is worth. Half at the confidence
+            // figure, approaching the whole of it as samples accumulate, so a
+            // cell backed by a glance moves less than one backed by a minute of
+            // steady running rather than exactly as much.
+            double confidence = Confidence(counts[c, r], settings.ConfidenceSamples);
+            weight[c, r] = confidence;
+
             // How far out the fuelling is, which is the whole of the answer and
             // needs nothing from the table. Mixture came out richer than asked
             // for means the ECU thought there was more air than there was, so
             // the number in that cell is too high by this much.
-            double wanted = (ratio - 1) * 100 * settings.Authority;
+            double wanted = (ratio - 1) * 100 * settings.Authority * confidence;
             double percent = Math.Clamp(
                 wanted, -settings.MaxChangePercent, settings.MaxChangePercent);
 
@@ -294,12 +370,28 @@ public static class VeAnalysis
             Suggested = suggested,
             ChangePercent = change,
             Counts = counts,
+            Weight = weight,
             CellsSuggested = changed,
             CellsThin = thin,
             SamplesUsed = used,
             LargestChangePercent = largest,
         };
     }
+
+    /// <summary>
+    /// How far a cell's own measurement is trusted against the number already in
+    /// it: <c>n / (n + k)</c>, the usual way of shrinking an estimate towards a
+    /// prior in proportion to how much evidence stands behind it.
+    ///
+    /// A ratio rather than a threshold because the underlying quantity is one.
+    /// The mean of n readings has a standard error that falls off smoothly with
+    /// n; nothing about a cell changes character as it crosses a particular
+    /// count, so nothing here should either.
+    ///
+    /// <paramref name="k"/> of zero means every correction is taken whole.
+    /// </summary>
+    internal static double Confidence(int samples, int k) =>
+        k <= 0 ? 1 : (double)samples / (samples + k);
 
     /// <summary>
     /// The suggestion as a table the heat view can draw: cells hold the change in

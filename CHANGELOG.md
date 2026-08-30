@@ -71,6 +71,31 @@ Clicking a mark traces it back to the log the way a table cell does, grouping
 the samples into visits and framing the longest. Export offers the points as
 CSV, carrying each sample's index in the log, and the scatter as a PNG.
 
+**VE Calibration now accounts for the wideband reading late, and trusts a cell in
+proportion to its evidence.** Two corrections to what the analysis was doing,
+both of which changed the numbers it suggests.
+
+The reading at a given moment was being treated as evidence about that moment.
+It is not: fuel metered on this revolution is burned, pushed down the pipe to
+wherever the sensor is, and only then measured. Every reading was credited to
+whatever the engine was doing a few hundred milliseconds too late — harmless at
+steady state, and through a fast ramp the reason a correction landed in the wrong
+cell and smeared across a region of the table. *Wideband delay* takes that time
+in seconds and shifts the measurement, and only the measurement: the target is
+what the ECU was aiming for when it metered the fuel, so it belongs to the same
+moment as the cell. It defaults to none, because the figure depends on where the
+sensor is fitted and nothing here can know that — but it can be found from the
+log, by raising it until the suggested corrections stop tightening. On a sample
+log the spread of per-cell corrections bottoms out at 0.3 s, which is where the
+physics puts it.
+
+And above the minimum-samples floor, a cell used to get the whole correction the
+instant it cleared the threshold — a cell with twelve samples and one with two
+hundred moved identically, though one is a measurement and the other a glance.
+The correction is scaled by `n / (n + Min samples)` instead, so a thin cell stays
+near the number it already holds. The floor itself is unchanged; this softens the
+cliff above it rather than lowering it.
+
 **Mark a pull on the plot, and the table rings the cells it reached.** The other
 direction of the trace-back. Clicking a cell has always framed the samples that
 built it; this answers the question asked first — mark a span, switch to

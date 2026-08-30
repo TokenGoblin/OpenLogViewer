@@ -639,11 +639,43 @@ the mixture actually came out as. Richer than target means the ECU thought there
 was more air than there was, so the VE number is too high — scale it by measured
 over target.
 
+**The wideband reads late, and that is asked about.** The reading at a given
+moment is not evidence about that moment: fuel metered on this revolution is
+burned, pushed out of the port, carried down the pipe to wherever the sensor is,
+and only then measured — and the sensor takes time to respond. Compared without
+accounting for it, every reading is credited to whatever the engine was doing a
+few hundred milliseconds too late. At steady state that costs nothing. Through a
+fast ramp the mixture from 3,000 rpm is credited to the 4,000 rpm cell, so the
+correction is not merely wrong in size but lands in the wrong cell and smears
+across a region of the table.
+
+*Wideband delay* takes that time in seconds and converts it to samples at the
+log's own rate, so the same setting means the same thing on a 40 Hz tuning cable
+and a 2 Hz OBD2 link; the panel says how many samples it came to, since on a slow
+log a request for 300 ms may round to nothing. Only the measurement is shifted —
+the target is what the ECU was aiming for when it metered the fuel, so it belongs
+to the same moment as the cell.
+
+It defaults to none, because the right figure depends on where the sensor is
+fitted and how long its pipe is, and nothing here can know that. **You can find
+it from the log**: raise the delay a little at a time and watch the suggested
+corrections tighten, then loosen again once you go past it. On the sample log
+here the spread of per-cell corrections falls from 10.67 at no delay to 10.16 at
+0.3 s and rises to 10.91 by 1.0 s — a minimum where the physics says it should
+be.
+
 What makes it usable is what it refuses to do:
 
 - A cell with fewer than **Min samples** is left alone and counted as thin. Two
   crossings on the way somewhere else say more about the transient than about
   the fuelling there.
+- **Above that floor a cell is trusted in proportion to its evidence**, rather
+  than all at once. A cell with twelve samples and one with two hundred used to
+  move identically the moment each cleared the threshold, though one is a
+  measurement and the other a glance. The correction is now scaled by
+  `n / (n + Min samples)` — half at the threshold, approaching the whole of it as
+  samples accumulate — so a thin cell stays near the number it already holds,
+  which carries the weight of however it was arrived at.
 - A correction larger than **Max change %** is clamped, not applied whole. A
   cell read during an accel-enrichment event can imply a change far bigger than
   the table is actually wrong by.
