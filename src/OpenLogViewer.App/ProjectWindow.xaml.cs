@@ -52,7 +52,13 @@ public partial class ProjectWindow : Window, INotifyPropertyChanged
 
         foreach (string vehicle in _vm.Projects.Vehicles()) Vehicles.Items.Add(vehicle);
 
-        Vehicles.Text = _vm.Project?.Vehicle ?? Suggested();
+        // The open project selected, so the box agrees with the line under it.
+        if (_vm.Project is { } open && Vehicles.Items.Contains(open.Vehicle))
+            Vehicles.SelectedItem = open.Vehicle;
+        else if (Vehicles.Items.Count > 0) Vehicles.SelectedIndex = 0;
+
+        // And a name to start from, where the firmware offers one.
+        if (NewVehicle.Text.Length == 0 && _vm.Project is null) NewVehicle.Text = Suggested();
 
         Show(_vm.Project);
     }
@@ -67,8 +73,51 @@ public partial class ProjectWindow : Window, INotifyPropertyChanged
     private string Suggested() =>
         _vm.LiveSignature.Length > 0 ? _vm.LiveSignature : "";
 
+    /// <summary>
+    /// Fills the two version pickers, and hides them until there is a
+    /// comparison to make.
+    ///
+    /// Newest first, and defaulting to the last two — which is the comparison
+    /// somebody almost always wants: what did the change I just made do.
+    /// </summary>
+    private void FillVersions(TuningProject? project)
+    {
+        FromVersion.Items.Clear();
+        ToVersion.Items.Clear();
+
+        TuneVersion[] versions = project is null ? [] : [.. project.Versions.AsEnumerable().Reverse()];
+
+        CompareRow.Visibility = versions.Length >= 2 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (versions.Length < 2) return;
+
+        foreach (TuneVersion version in versions)
+        {
+            FromVersion.Items.Add(version.Id);
+            ToVersion.Items.Add(version.Id);
+        }
+
+        // Newest against the one before it.
+        ToVersion.SelectedIndex = 0;
+        FromVersion.SelectedIndex = 1;
+    }
+
+    private void OnCompareClick(object sender, RoutedEventArgs e)
+    {
+        string from = FromVersion.SelectedItem as string ?? "";
+        string to = ToVersion.SelectedItem as string ?? "";
+
+        if (from.Length == 0 || to.Length == 0) return;
+
+        Brief.Text = _vm.CompareVersions(from, to);
+    }
+
+    private void OnBackClick(object sender, RoutedEventArgs e) => Show(_vm.Project);
+
     private void Show(TuningProject? project)
     {
+        FillVersions(project);
+
         Brief.Text = project is null
             ? "No project open.\n\n"
               + "A project keeps what the insights found on each log, and what you are trying to "
@@ -81,13 +130,29 @@ public partial class ProjectWindow : Window, INotifyPropertyChanged
         Raise(nameof(Summary));
     }
 
-    private void OnOpenClick(object sender, RoutedEventArgs e)
+    private void OnStartClick(object sender, RoutedEventArgs e)
     {
-        string vehicle = Vehicles.Text?.Trim() ?? "";
+        string vehicle = NewVehicle.Text?.Trim() ?? "";
 
         if (vehicle.Length == 0)
         {
-            MessageBox.Show(this, "Name the vehicle first.", "OpenLogViewer",
+            MessageBox.Show(this, "Give the vehicle a name first.", "OpenLogViewer",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _vm.OpenProject(vehicle);
+        NewVehicle.Text = "";
+        Reload();
+    }
+
+    private void OnOpenClick(object sender, RoutedEventArgs e)
+    {
+        string vehicle = Vehicles.SelectedItem as string ?? "";
+
+        if (vehicle.Length == 0)
+        {
+            MessageBox.Show(this, "Pick a project first, or start a new one below.", "OpenLogViewer",
                             MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

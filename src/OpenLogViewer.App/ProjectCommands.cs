@@ -208,7 +208,11 @@ public partial class MainViewModel
     /// wants from a diff is the same thing a person does: which settings moved
     /// and by how much, in the firmware's own units.
     /// </summary>
-    internal string AgentCompareVersions(string from, string to)
+    /// <summary>
+    /// What two versions disagree about, in words — the same answer the window
+    /// and an assistant both get, deliberately.
+    /// </summary>
+    public string CompareVersions(string from, string to)
     {
         if (_project is not { } project) return "No project is open.";
         if (_tuneLayout is not { } layout)

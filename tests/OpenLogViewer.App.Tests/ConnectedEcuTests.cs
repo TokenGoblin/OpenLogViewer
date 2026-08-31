@@ -534,4 +534,48 @@ public class ConnectedEcuTests : IDisposable
         Assert.Single(vm.Project!.Versions);
         Assert.Contains("already", again, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void TwoVersionsCanBeComparedSettingBySetting()
+    {
+        // The same answer the window and an assistant both get. Comparing by
+        // value rather than by byte is the only comparison that means anything
+        // to a person: two tunes can differ in bits no constant declares.
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench5");
+
+        vm.KeepTune("baseline");
+
+        Row(vm, "Cranking RPM").Value = "425";
+        vm.WriteSettingsToEcu();
+        vm.KeepTune("cranking up a bit");
+
+        Assert.Equal(2, vm.Project!.Versions.Count);
+
+        string changed = vm.CompareVersions("v1", "v2");
+
+        Assert.Contains("crankingRPM", changed, StringComparison.Ordinal);
+        Assert.Contains("425", changed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AndSayNothingChangedWhenNothingDid()
+    {
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench6");
+
+        vm.KeepTune("baseline");
+
+        Assert.Contains("same tune", vm.CompareVersions("v1", "v1"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ComparingAVersionThatIsNotThereSaysWhichRatherThanFailing()
+    {
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench7");
+        vm.KeepTune("baseline");
+
+        Assert.Contains("v9", vm.CompareVersions("v1", "v9"), StringComparison.Ordinal);
+    }
 }

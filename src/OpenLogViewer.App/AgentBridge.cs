@@ -141,7 +141,7 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
     public AgentRefusal? KeepTune(string note) => _viewModel.AgentKeepTune(note);
 
     public string CompareVersions(string from, string to) =>
-        _viewModel.AgentCompareVersions(from, to);
+        _viewModel.CompareVersions(from, to);
 
     public AgentRefusal? RecordSitting(string note) => _viewModel.AgentRecordSitting(note);
 
