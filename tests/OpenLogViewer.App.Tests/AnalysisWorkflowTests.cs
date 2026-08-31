@@ -534,4 +534,63 @@ public class AnalysisWorkflowTests : IDisposable
 
         Assert.Equal(before, vm.Channels.Where(c => c.IsVisible).Select(c => c.Name));
     }
+
+    // ----- state that must not outlive what it points at -----------------------
+
+    [Fact]
+    public void MarkedCellsDoNotSurviveARebuildThatProducesNone()
+    {
+        // There are four ways out of RebuildHistogram and two of them used to
+        // leave the last table's rings standing. Mark a span, switch to the
+        // table, turn VE Calibration on, and the old grid's cells were drawn
+        // over the VE table — answering to nothing on the plot and not moving
+        // when it did.
+        using var harness = new ViewModelHarness();
+        MainViewModel vm = harness.NewViewModel(out _);
+        vm.Load(harness.WriteTypicalLog(200));
+
+        vm.UpdateSelection((10, 120));
+        vm.RebuildHistogram(0, 199);
+
+        Assert.NotNull(vm.VisitedCells);
+
+        // Any rebuild that cannot produce a table must take them with it.
+        vm.XAxis = null;
+        vm.RebuildHistogram(0, 199);
+
+        Assert.Null(vm.VisitedCells);
+    }
+
+    [Fact]
+    public void TheAppearanceEditorShutsWhenItsChannelGoesAway()
+    {
+        // It was set only by the three style-edit methods, so opening another
+        // log left the panel up captioned with a channel from the file before —
+        // and Confirm pinned a range on an item nothing was drawing any more.
+        using var harness = new ViewModelHarness();
+        MainViewModel vm = harness.NewViewModel(out _);
+        vm.Load(harness.WriteTypicalLog(50));
+
+        vm.BeginStyleEdit(vm.Channels[0]);
+        Assert.True(vm.EditingStyle);
+
+        vm.Load(harness.WriteTypicalLog(60));
+
+        Assert.False(vm.EditingStyle);
+        Assert.Null(vm.StyleTarget);
+        Assert.Equal("", vm.StyleTargetName);
+    }
+
+    [Fact]
+    public void ButItStaysOpenWhileItsChannelIsStillThere()
+    {
+        using var harness = new ViewModelHarness();
+        MainViewModel vm = harness.NewViewModel(out _);
+        vm.Load(harness.WriteTypicalLog(50));
+
+        vm.BeginStyleEdit(vm.Channels[0]);
+        vm.RebuildHistogram(0, 49);
+
+        Assert.True(vm.EditingStyle);
+    }
 }
