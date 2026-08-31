@@ -866,14 +866,16 @@ public class EcuBurnReplyTests
     {
         // The one message worth getting right. A burn reported as failed sends
         // somebody to burn again, and a controller stops answering while it
-        // writes flash — which looks identical to one that never heard.
-        var board = new Board(0x84);
+        // writes flash — which looks identical to one that never heard. Silence
+        // is the case this is about; a refusal is not, and is tested separately.
+        var board = new SilentBoard();
         using var connection = new EcuConnection(board);
         connection.Open();
 
         EcuProtocolException e = Assert.Throws<EcuProtocolException>(
             () => connection.BurnPage(Page, littleEndian: true));
 
+        Assert.False(e.Refused);
         Assert.Contains("may still have completed", e.Message, StringComparison.Ordinal);
     }
 
@@ -884,11 +886,152 @@ public class EcuBurnReplyTests
         // just a lost reply. A burn is the one where the ECU may well have done
         // the work and gone quiet doing it, and re-sending spends a flash erase
         // to learn nothing.
-        var board = new Board(0x84);
+        var board = new SilentBoard();
         using var connection = new EcuConnection(board);
         connection.Open();
 
         Assert.Throws<EcuProtocolException>(() => connection.BurnPage(Page, littleEndian: true));
         Assert.Equal(1, board.Burns);
+    }
+
+    /// <summary>A board that takes a burn and never answers it.</summary>
+    private sealed class SilentBoard : IEcuTransport
+    {
+        public int Burns { get; private set; }
+
+        public bool IsOpen { get; private set; }
+
+        public TimeSpan WriteTimeout { get; set; } = SerialEcuTransport.DefaultWriteTimeout;
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            byte[] payload = data.Length < 7 ? [] : data.Slice(2, (data[0] << 8) | data[1]).ToArray();
+            if (payload.Length > 0 && payload[0] == (byte)'B') Burns++;
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout) => 0;
+
+        public void DiscardInput()
+        {
+        }
+
+        public void Dispose() => Close();
+    }
+
+    // ----- the allowance a burn gets ------------------------------------------
+
+    /// <summary>A transport that answers only after the erase, and stalls writes meanwhile.</summary>
+    private sealed class SlowBoard(TimeSpan erase) : IEcuTransport
+    {
+        private byte[] _pending = [];
+        private DateTime _answersAt = DateTime.MaxValue;
+
+        public bool IsOpen { get; private set; }
+
+        public TimeSpan WriteTimeout { get; set; } = SerialEcuTransport.DefaultWriteTimeout;
+
+        /// <summary>The longest a write was ever allowed while one was outstanding.</summary>
+        public TimeSpan WidestSeen { get; private set; }
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            if (WriteTimeout > WidestSeen) WidestSeen = WriteTimeout;
+
+            // A port that will not take the bytes for as long as the erase runs.
+            if (WriteTimeout < erase) throw new IOException("The semaphore timeout period has expired.");
+
+            byte[] body = [0x04];
+            uint crc = MsProtocol.Crc32(body);
+            _pending = [0, 1, 0x04, (byte)(crc >> 24), (byte)(crc >> 16), (byte)(crc >> 8), (byte)crc];
+            _answersAt = DateTime.UtcNow + erase;
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout)
+        {
+            // Nothing comes back until the erase is done, and only if the caller
+            // is prepared to wait that long.
+            if (DateTime.UtcNow + timeout < _answersAt) return 0;
+
+            while (DateTime.UtcNow < _answersAt) Thread.Sleep(5);
+
+            int take = Math.Min(buffer.Length, _pending.Length);
+            _pending.AsSpan(0, take).CopyTo(buffer);
+            _pending = _pending[take..];
+
+            return take;
+        }
+
+        public void DiscardInput() => _pending = [];
+
+        public void Dispose() => Close();
+    }
+
+    private static readonly TunePage SlowPage = new()
+    {
+        Index = 0,
+        Size = 64,
+        Identifier = "\"\x01\"",
+        ReadCommand = "\"R%2o%2c\"",
+        ChunkWriteCommand = "\"C%2o%2c%v\"",
+        BurnCommand = "\"B\"",
+    };
+
+    [Fact]
+    public void ABurnIsGivenLongerThanEverythingElseIs()
+    {
+        // Sending a burn once rather than retrying took away the time the retry
+        // loop used to buy. A controller that erases before it answers would
+        // then miss the ordinary 500 ms window every single time, and a burn
+        // that worked would be reported as unconfirmed on every attempt.
+        var board = new SlowBoard(TimeSpan.FromMilliseconds(900));
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        connection.BurnPage(SlowPage, littleEndian: true);
+    }
+
+    [Fact]
+    public void AndTheLongAllowanceIsPutBackAfterwards()
+    {
+        // The port is shared with everything else on the link, and everything
+        // else should fail fast: Windows' incoming Bluetooth port never accepts
+        // a write at all, and waiting five seconds on each one hangs the window
+        // through the whole identify sequence.
+        var board = new SlowBoard(TimeSpan.FromMilliseconds(50));
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        TimeSpan before = board.WriteTimeout;
+        connection.BurnPage(SlowPage, littleEndian: true);
+
+        Assert.Equal(before, board.WriteTimeout);
+        Assert.True(board.WidestSeen >= TimeSpan.FromSeconds(1),
+                    $"the burn should have widened it, but the widest seen was {board.WidestSeen}");
+    }
+
+    [Fact]
+    public void ARefusalIsLeftToSpeakForItself()
+    {
+        // "It may still have completed — turn the ignition off and on" is the
+        // right thing to say about silence and the wrong thing to say about a
+        // controller that answered. 0x83 means it did not recognise the burn
+        // command, so nothing was burned and nobody should be sent to the car.
+        var board = new Board(0x83);
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        EcuProtocolException e = Assert.Throws<EcuProtocolException>(
+            () => connection.BurnPage(SlowPage, littleEndian: true));
+
+        Assert.True(e.Refused);
+        Assert.DoesNotContain("may still have completed", e.Message, StringComparison.Ordinal);
     }
 }

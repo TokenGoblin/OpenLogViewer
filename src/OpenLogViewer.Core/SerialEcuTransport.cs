@@ -92,18 +92,12 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         {
             ReadTimeout = 500,
 
-            // Long, because of what a burn does. A controller writing its flash
-            // stops servicing USB for as long as the erase takes, and the bytes
-            // still sitting in the driver's buffer cannot be handed over until
-            // it comes back — so the write that delivered the burn command is
-            // itself what blocks. At 500 ms a rusEFI threw here on every burn,
-            // and the burn had in fact succeeded: the board rebooted holding the
-            // new value while the application reported a failure.
-            //
-            // Nothing is lost by waiting. A write to a healthy port returns in
-            // microseconds; this bound only decides how long a port with nothing
-            // on the other end takes to say so.
-            WriteTimeout = 5000,
+            // Short by default and widened only around a burn, which is the one
+            // operation that legitimately blocks a write: see WriteTimeout
+            // below. Left long for everything, connecting to a port that never
+            // accepts a write — Windows' incoming Bluetooth port — would hang
+            // the window for the whole identify sequence rather than a moment.
+            WriteTimeout = (int)DefaultWriteTimeout.TotalMilliseconds,
 
             // Some adapters hold the line low until these are asserted, and stay
             // silent rather than reporting anything wrong.
@@ -154,6 +148,24 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         finally
         {
             _port = null;
+        }
+    }
+
+    /// <summary>What a write is given before it is called a dead port.</summary>
+    internal static TimeSpan DefaultWriteTimeout { get; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// How long a write may block, which <see cref="EcuConnection.BurnPage"/>
+    /// widens for the length of a burn and puts back afterwards.
+    /// </summary>
+    public TimeSpan WriteTimeout
+    {
+        get => _port is { } port ? TimeSpan.FromMilliseconds(port.WriteTimeout) : DefaultWriteTimeout;
+
+        set
+        {
+            if (_port is { } port && value > TimeSpan.Zero)
+                port.WriteTimeout = (int)value.TotalMilliseconds;
         }
     }
 

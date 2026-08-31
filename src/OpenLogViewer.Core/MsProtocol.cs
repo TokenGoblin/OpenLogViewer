@@ -26,6 +26,25 @@ public interface IEcuTransport : IDisposable
     void Write(ReadOnlySpan<byte> data);
 
     /// <summary>
+    /// How long a write may block before the transport gives up on it.
+    ///
+    /// Adjustable because one operation needs far longer than the rest: a
+    /// controller writing its flash stops servicing the link, so the bytes still
+    /// buffered for it cannot be handed over and the write that delivered the
+    /// burn command is itself what blocks. Everything else should fail fast —
+    /// Windows' incoming Bluetooth port never accepts a write at all, and
+    /// waiting on it is time spent learning nothing.
+    ///
+    /// Ignored by transports that have no such notion, which is why this has a
+    /// default rather than being forced on every implementation.
+    /// </summary>
+    TimeSpan WriteTimeout
+    {
+        get => TimeSpan.Zero;
+        set { }
+    }
+
+    /// <summary>
     /// Reads until <paramref name="count"/> bytes arrive or the timeout passes.
     /// Returns what it got, which may be short.
     /// </summary>

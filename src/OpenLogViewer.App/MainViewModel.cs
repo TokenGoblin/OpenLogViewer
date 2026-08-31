@@ -2358,7 +2358,24 @@ public sealed partial class MainViewModel : ObservableObject
                     continue;
                 }
 
-                connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
+                try
+                {
+                    connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
+                }
+                catch (EcuProtocolException e) when (!e.Refused)
+                {
+                    // An unconfirmed burn is struck off too. The ECU may well
+                    // have committed the page and gone quiet writing it, and
+                    // leaving it listed keeps the Burn button lit over exactly
+                    // that page — so the obvious next move puts a page that is
+                    // already in flash through a second erase, which is what
+                    // striking each one off as it lands exists to prevent. A
+                    // refusal is different: the controller said no, so it stays
+                    // listed and burning it again is the right answer.
+                    _settingsPagesWritten.Remove(index);
+                    throw;
+                }
+
                 _settingsPagesWritten.Remove(index);
                 burned.Add(index);
             }
@@ -2382,11 +2399,17 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Raise(nameof(CanBurnSettings));
 
-            return burned.Count == 0
-                ? $"The burn failed: {e.Message}"
-                : $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then this "
-                  + $"failed: {e.Message} The rest are in working memory and will be lost at the "
-                  + "next power cycle.";
+            // A burn the ECU never answered is not one that failed. Its own
+            // message says it may have completed and how to find out, and
+            // putting "the burn failed" in front of that contradicts it in a
+            // single sentence.
+            bool unconfirmed = e is EcuProtocolException { Refused: false };
+
+            if (burned.Count == 0) return unconfirmed ? e.Message : $"The burn failed: {e.Message}";
+
+            return $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then "
+                   + (unconfirmed ? "this happened: " : "this failed: ") + e.Message
+                   + " The rest are in working memory and will be lost at the next power cycle.";
         }
     }
 
@@ -2817,7 +2840,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
-            return $"The burn failed: {e.Message}";
+            // Never "the burn failed" over a message that says it may well have
+            // succeeded. Only a refusal is a failure this end can vouch for;
+            // anything else is an unconfirmed burn, and its own message already
+            // says what that means and how to check.
+            return e is EcuProtocolException { Refused: false } ? e.Message : $"The burn failed: {e.Message}";
         }
     }
 
