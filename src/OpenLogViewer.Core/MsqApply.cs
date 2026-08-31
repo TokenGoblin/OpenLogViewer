@@ -200,6 +200,17 @@ public static class MsqApply
     {
         if (constant.IsText)
         {
+            // Left exactly as they are when the field already says this. Reading
+            // a text field trims its padding and writing one pads with nulls, so
+            // a controller that pads with anything else — spaces, or the
+            // newlines a rusEFI leaves after a Lua script — comes out differing
+            // from itself in bytes while agreeing in every value. That phantom
+            // difference is what a restore plans a write for, so restoring a
+            // tune to the ECU it was read from would send bytes and report that
+            // nothing had changed.
+            if (string.Equals(tune.TextIn(pages, constant.Name), Unquote(written), StringComparison.Ordinal))
+                return null;
+
             return tune.PokeTextInto(pages, constant, Unquote(written))
                 ? null
                 : new MsqComplaint(constant.Name, "the name does not fit the field, or is not ASCII");
