@@ -131,4 +131,14 @@ public sealed class ViewModelHarness : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Writes a firmware definition into the view model's own definitions
+    /// folder, so connecting finds it the way a real one is found.
+    /// </summary>
+    public void WriteDefinition(MainViewModel viewModel, string name, string iniText)
+    {
+        string folder = viewModel.Workspace.EnsureDefinitions();
+        File.WriteAllText(Path.Combine(folder, name), iniText);
+    }
 }
