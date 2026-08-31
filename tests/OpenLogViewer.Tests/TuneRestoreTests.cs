@@ -328,4 +328,81 @@ public class TuneRestoreTests
         Assert.Equal("(blank)", d.MineShown);
         Assert.Equal("\"was here\"", d.TheirsShown);
     }
+
+    // ----- a rejected setting must leave nothing behind ------------------------
+
+    private const string ArrayIni = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+        pageChunkWrite  = "w%2o%2c%v"
+        burnCommand     = "b%2i"
+           veTable  = array, U08, 0, [4], "%", 1, 0, 0, 255, 0
+           revLimit = scalar, U16, 8, "rpm", 1, 0, 0, 10000, 0
+        """;
+
+    [Fact]
+    public void ATableTheFileCannotStoreLeavesEveryCellAsItWas()
+    {
+        // Rejected means "not stored", and a restore trusts that when it decides
+        // those bytes need no write. Written cell by cell, a value that will not
+        // fit part way through left the cells before it already changed — so the
+        // plan reported the setting untouched and would have sent half the
+        // file's table and half the controller's to a running engine.
+        TuneLayout layout = TuneLayoutReader.Read(ArrayIni);
+        var ecu = EcuTune.FromPages(layout, new byte[16]);
+
+        for (int i = 0; i < 4; i++)
+            Assert.True(ecu.PokeInto(ecu.Pages, ecu.Constant("veTable")!, i, 50 + i));
+
+        // The last cell is past what a U08 holds, so the constant is refused —
+        // after the first three have already been written.
+        MsqFile file = MsqFile.Read("""
+            <msq xmlns="http://www.msefi.com/:msq">
+            <versionInfo fileFormat="5.0" nPages="1" signature="firmware"/>
+            <page number="0" size="16">
+            <constant name="veTable">80.0 81.0 82.0 900.0</constant>
+            <constant name="revLimit">6500.0</constant>
+            </page>
+            </msq>
+            """);
+
+        MsqLoad loaded = MsqApply.Load(layout, file, ecu);
+
+        Assert.Contains(loaded.Rejected, c => c.Name == "veTable");
+
+        // Every cell still holds what the controller held.
+        double[] cells = loaded.Tune.Array("veTable") ?? [];
+        Assert.Equal([50, 51, 52, 53], cells);
+    }
+
+    [Fact]
+    public void AndTheRestoreThereforePlansNoWriteForIt()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(ArrayIni);
+        var ecu = EcuTune.FromPages(layout, new byte[16]);
+
+        for (int i = 0; i < 4; i++) ecu.PokeInto(ecu.Pages, ecu.Constant("veTable")!, i, 50 + i);
+        ecu.PokeInto(ecu.Pages, ecu.Constant("revLimit")!, 0, 6500);
+
+        MsqFile file = MsqFile.Read("""
+            <msq xmlns="http://www.msefi.com/:msq">
+            <versionInfo fileFormat="5.0" nPages="1" signature="firmware"/>
+            <page number="0" size="16">
+            <constant name="veTable">80.0 81.0 82.0 900.0</constant>
+            <constant name="revLimit">6500.0</constant>
+            </page>
+            </msq>
+            """);
+
+        TuneRestorePlan plan = TuneRestore.Plan(ecu, file, "firmware");
+
+        // Nothing at all: the one setting that could be stored already matches,
+        // and the one that could not was put back.
+        Assert.True(plan.IsEmpty, plan.Summary);
+        Assert.Equal(0, plan.Bytes);
+    }
 }

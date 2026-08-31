@@ -262,6 +262,8 @@ public static class MsqApply
         if (Value(constant, written) is not { } single)
             return new MsqComplaint(constant.Name, $"the firmware does not offer {written.Trim()}");
 
+        // A single value is one poke, which either happens or does not, so there
+        // is nothing part-written to undo.
         return tune.PokeInto(pages, constant, 0, single)
             ? null
             : new MsqComplaint(constant.Name, $"{single} is outside what this setting can hold");

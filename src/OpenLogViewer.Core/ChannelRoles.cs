@@ -161,7 +161,7 @@ public static class ChannelRoles
             // mixture and no target at all. "1" rather than ":1" because
             // Simplify strips the colon, which made that entry unreachable.
             ChannelRole.Mixture or ChannelRole.MixtureTarget =>
-                units is "afr" or "lambda" or "1" or "ratio" or "o2",
+                units is "afr" or "lambda" or ":1" or "1" or "ratio" or "o2",
 
             ChannelRole.IntakeAir => units is "c" or "f" or "degc" or "degf" or "temp" or "k",
 
@@ -179,15 +179,16 @@ public static class ChannelRoles
             // anything, and half this list was inert because of it. "gsec" is
             // what a MegaSquirt declares on its maf channel.
             ChannelRole.MassAirFlow =>
-                units is "gs" or "gsec" or "kgh" or "kghr" or "lbmin" or "gmin" or "kgmin",
+                units is "g/s" or "gs" or "gsec" or "kg/h" or "kgh" or "kghr" or "lb/min" or "lbmin"
+                         or "g/min" or "gmin" or "kg/min" or "kgmin",
 
             // "ratio" among them because that is how a rusEFI labels veValue,
             // which is nonetheless the same 0–120 figure everyone else calls a
             // percentage rather than a fraction of one.
             ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct" or "ratio",
 
-            // Likewise stripped of its slashes: "km/h" and "m/s" never matched.
-            ChannelRole.VehicleSpeed => units is "kmh" or "kph" or "mph" or "ms",
+            // Both spellings: with and without the slashes the name simplifier strips.
+            ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s" or "ms",
 
             ChannelRole.SparkAdvance or ChannelRole.KnockRetard =>
                 units is "deg" or "degrees" or "btdc" or "degbtdc" or "°",
@@ -291,9 +292,19 @@ public static class ChannelRoles
 
         // Bank one where a controller logs each separately, the banks being the
         // same on any engine this could describe.
+        //
+        // Deliberately not "stft" or "shorttermfueltrim". This role is a
+        // multiplier around a hundred — a hundred meaning the loop is leaving
+        // the table alone — while an OBD2 fuel trim is a percentage around
+        // nought, which this repository's own PID table describes as "zero is no
+        // correction, and either sign is meaningful". Read as the other, a 3 %
+        // trim multiplies the measured fuel error by thirty, a negative one is
+        // skipped altogether, and a healthy closed loop is reported as holding
+        // fuelling 98 % down. The same argument kept a rusEFI's warmup
+        // coefficient out of WarmupCorrection.
         ChannelRole.MixtureCorrection =>
             ["egocor1", "egocor", "egocorrection", "closedloopcorrection", "o2correction",
-             "shorttermfueltrim", "stft", "lambdacorrection", "gego"],
+             "lambdacorrection", "gego"],
 
         ChannelRole.WarmupCorrection =>
             // "gwarm" is a Speeduino's label for it, named the way its "Gego"

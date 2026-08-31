@@ -279,4 +279,58 @@ public class ChannelRoleTests
         // cold engine as running 99 % lean of where it is.
         Assert.Equal([ChannelRole.WarmupCorrection, ChannelRole.Boost], unmatched);
     }
+
+    // ----- units, after Simplify has had them ---------------------------------
+
+    /// <summary>
+    /// Every unit spelling this recognises, put through the same reduction the
+    /// comparison uses.
+    ///
+    /// The reduction strips ":" and "/" so that a firmware's channel *names*
+    /// match — "SPK: Knock retard" is invisible to every alias otherwise — but
+    /// it is shared with the *unit* tables, where those characters carry
+    /// meaning. Three entries were left unreachable by it: ":1" for a mixture,
+    /// "g/min" and "kg/min" for a mass flow, and "m/s" for a road speed. Each
+    /// read as a spelling that is accepted and was silently not.
+    /// </summary>
+    [Theory]
+    [InlineData(ChannelRole.Mixture, "AFR", ":1")]
+    [InlineData(ChannelRole.Mixture, "AFR", "ratio")]
+    [InlineData(ChannelRole.MixtureTarget, "AFR Target", ":1")]
+    [InlineData(ChannelRole.MassAirFlow, "MAF", "g/s")]
+    [InlineData(ChannelRole.MassAirFlow, "MAF", "kg/h")]
+    [InlineData(ChannelRole.MassAirFlow, "MAF", "kg/min")]
+    [InlineData(ChannelRole.MassAirFlow, "MAF", "g/min")]
+    [InlineData(ChannelRole.MassAirFlow, "MAF", "lb/min")]
+    [InlineData(ChannelRole.VehicleSpeed, "VSS", "km/h")]
+    [InlineData(ChannelRole.VehicleSpeed, "VSS", "mph")]
+    [InlineData(ChannelRole.VehicleSpeed, "VSS", "m/s")]
+    [InlineData(ChannelRole.ManifoldPressure, "MAP", "kPa")]
+    [InlineData(ChannelRole.InjectorPulseWidth, "PW", "ms")]
+    public void AUnitSpellingThisClaimsToAcceptIsActuallyAccepted(
+        ChannelRole role, string name, string units)
+    {
+        LogDocument doc = Log((name, units, Moving));
+
+        Assert.Equal(name, ChannelRoles.Find(doc, role)?.Name);
+    }
+
+    [Fact]
+    public void AnObd2FuelTrimIsNotTakenForAClosedLoopMultiplier()
+    {
+        // A trim is a percentage around nought and this role is a multiplier
+        // around a hundred. Reading one as the other multiplies a measured fuel
+        // error by thirty and calls a healthy loop 98 % down.
+        LogDocument doc = Log(("STFT", "%", [-1.5, 0, 3.0]));
+
+        Assert.Null(ChannelRoles.Find(doc, ChannelRole.MixtureCorrection));
+    }
+
+    [Fact]
+    public void ButAControllersOwnClosedLoopCorrectionStillIs()
+    {
+        LogDocument doc = Log(("EGO cor1", "%", [98, 100, 102]));
+
+        Assert.Equal("EGO cor1", ChannelRoles.Find(doc, ChannelRole.MixtureCorrection)?.Name);
+    }
 }
