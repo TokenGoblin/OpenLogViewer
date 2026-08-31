@@ -418,21 +418,40 @@ public sealed class EcuConnection : IDisposable
         // spends a flash erase to learn nothing. A burn that cannot be confirmed
         // is reported as exactly that rather than as a failure, because saying
         // it failed when it did not is what sends somebody to write it again.
+        // Widened for the length of the burn and put straight back. The port is
+        // shared by everything else on this link, and everything else should
+        // fail fast: a long write timeout left in place turns a port that never
+        // accepts a write into a window that hangs for the whole identify
+        // sequence rather than a moment.
+        TimeSpan wasAllowed = _transport.WriteTimeout;
+
         try
         {
+            _transport.WriteTimeout = Settings.BurnTimeout;
+
             Request(
                 RealtimeCommand.Parse(page.BurnCommand)
                     .Build(0, 1, Settings.CanId, littleEndian, identifier),
-                attempts: 1);
+                attempts: 1,
+                within: Settings.BurnTimeout);
         }
-        catch (EcuProtocolException e)
+        catch (EcuProtocolException e) when (!e.Refused)
         {
+            // Only where the ECU never answered. A controller that answered with
+            // a refusal has told us it did not burn, and saying it might have
+            // would send somebody to power-cycle a car over a burn that
+            // demonstrably did not happen — so that one is left to speak for
+            // itself, Refused and all.
             throw new EcuProtocolException(
                 $"The ECU did not confirm the burn of page {page.Index}: {e.Message}\n\n"
                 + "It may still have completed — a controller stops answering while it writes "
                 + "its flash, which looks the same from here as one that never got the command. "
                 + "Turn the ignition off and on and read the tune back: if the change is there, "
                 + "it was burned.");
+        }
+        finally
+        {
+            _transport.WriteTimeout = wasAllowed;
         }
 
         // The wait the firmware asks for after a burn, which TunerStudio also
@@ -490,8 +509,11 @@ public sealed class EcuConnection : IDisposable
     /// answer to this one, at offsets it was never read from. That produces
     /// well-formed nonsense: a stationary car reading 230 km/h.
     /// </summary>
+    /// <paramref name="within"/> overrides how long the reply is waited for, for
+    /// the one request that is allowed to take its time.
     private byte[] Request(
-        ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0, int attempts = 0)
+        ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0, int attempts = 0,
+        TimeSpan? within = null)
     {
         byte[] framed = MsProtocol.Frame(payload);
         EcuProtocolException? last = null;
@@ -507,7 +529,7 @@ public sealed class EcuConnection : IDisposable
                 _transport.DiscardInput();
                 _transport.Write(framed);
 
-                byte[] data = MsProtocol.Unframe(ReadFrame());
+                byte[] data = MsProtocol.Unframe(ReadFrame(within ?? Settings.Timeout));
 
                 if (expected > 0 && data.Length != expected)
                     throw new EcuProtocolException(
@@ -578,9 +600,9 @@ public sealed class EcuConnection : IDisposable
     /// bytes arrive. Asking for a fixed guess instead either truncates a long
     /// reply or waits out the timeout on every short one.
     /// </summary>
-    private ReadOnlySpan<byte> ReadFrame()
+    private ReadOnlySpan<byte> ReadFrame(TimeSpan within)
     {
-        int header = _transport.Read(_buffer.AsSpan(0, 2), Settings.Timeout);
+        int header = _transport.Read(_buffer.AsSpan(0, 2), within);
         if (header < 2) throw new EcuProtocolException("The ECU did not reply.");
 
         int length = (_buffer[0] << 8) | _buffer[1];
@@ -588,7 +610,7 @@ public sealed class EcuConnection : IDisposable
             throw new EcuProtocolException($"The ECU declared a {length} byte reply, which is not usable.");
 
         int wanted = length + 4;
-        int body = _transport.Read(_buffer.AsSpan(2, wanted), Settings.Timeout);
+        int body = _transport.Read(_buffer.AsSpan(2, wanted), within);
 
         if (body < wanted)
             throw new EcuProtocolException(
@@ -604,6 +626,19 @@ public sealed record EcuConnectionSettings
 {
     /// <summary>How long to wait for a reply before giving up on it.</summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// The allowance a burn gets instead, in both directions.
+    ///
+    /// A burn is sent once rather than retried, so unlike every other request it
+    /// has no second attempt to fall back on — and it is the request most likely
+    /// to need the time. A controller writing its flash stops answering, and
+    /// stops accepting bytes, for as long as the erase takes: a rusEFI
+    /// acknowledges first and erases afterwards, but one that erases first would
+    /// miss a 500 ms window every time and have a burn that worked reported as
+    /// unconfirmed.
+    /// </summary>
+    public TimeSpan BurnTimeout { get; init; } = TimeSpan.FromSeconds(8);
 
     /// <summary>Extra attempts before a request is considered failed.</summary>
     public int Retries { get; init; } = 3;
