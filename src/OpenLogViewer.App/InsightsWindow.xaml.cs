@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
@@ -73,15 +74,37 @@ public sealed class InsightItem(LogInsight insight)
 public partial class InsightsWindow : Window, INotifyPropertyChanged
 {
     private readonly Func<LogDocument?> _log;
+    private readonly INotifyPropertyChanged? _watching;
 
-    public InsightsWindow(Func<LogDocument?> log)
+    /// <param name="log">The log to measure, read afresh on every refresh.</param>
+    /// <param name="watching">
+    /// Something that says when the log has changed, so this follows it rather
+    /// than waiting to be asked.
+    ///
+    /// The button remains, because a live session grows without ever replacing
+    /// the document — but nobody should have to press it to stop looking at
+    /// findings from a log they closed.
+    /// </param>
+    public InsightsWindow(Func<LogDocument?> log, INotifyPropertyChanged? watching = null)
     {
         _log = log;
+        _watching = watching;
 
         InitializeComponent();
         DataContext = this;
 
+        if (_watching is not null)
+        {
+            _watching.PropertyChanged += OnSourceChanged;
+            Closed += (_, _) => _watching.PropertyChanged -= OnSourceChanged;
+        }
+
         Refresh();
+    }
+
+    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.Document)) Refresh();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -131,8 +154,13 @@ public partial class InsightsWindow : Window, INotifyPropertyChanged
                 ? $"Nothing dangerous, {watch} thing{(watch == 1 ? "" : "s")} worth a look."
                 : "Nothing here looks wrong.";
 
+        // The log's own name, so a window left open beside a different one is
+        // obviously showing the wrong thing rather than quietly showing it.
+        string name = Path.GetFileName(log.FilePath);
+
         Subheading =
-            $"Measured from {log.SampleCount:N0} samples over {minutes:0.#} minutes. "
+            (name.Length > 0 ? $"{name} — " : "")
+            + $"measured from {log.SampleCount:N0} samples over {minutes:0.#} minutes. "
             + "Every finding says what it rests on; where a log cannot answer something, it says "
             + "that rather than guessing.";
 

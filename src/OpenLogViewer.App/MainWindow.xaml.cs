@@ -176,7 +176,7 @@ public partial class MainWindow : Window
     {
         if (_insights is null)
         {
-            _insights = new InsightsWindow(() => _vm.Document) { Owner = this };
+            _insights = new InsightsWindow(() => _vm.Document, _vm) { Owner = this };
             _insights.Closed += (_, _) => _insights = null;
             _insights.Show();
 
