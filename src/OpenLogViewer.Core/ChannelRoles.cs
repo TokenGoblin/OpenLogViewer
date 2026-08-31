@@ -36,6 +36,27 @@ public enum ChannelRole
 
     /// <summary>Road speed.</summary>
     VehicleSpeed,
+
+    /// <summary>Ignition timing as finally commanded, after every correction.</summary>
+    SparkAdvance,
+
+    /// <summary>Timing taken away because knock was heard. Zero when none was.</summary>
+    KnockRetard,
+
+    /// <summary>Supply voltage, which sets how long an injector takes to open.</summary>
+    BatteryVoltage,
+
+    /// <summary>
+    /// The closed-loop trim: how much the controller is moving fuelling to hit
+    /// its target. A hundred per cent means it is leaving the table alone.
+    /// </summary>
+    MixtureCorrection,
+
+    /// <summary>Extra fuel for a cold engine, as a percentage.</summary>
+    WarmupCorrection,
+
+    /// <summary>Manifold pressure above atmospheric, where the controller reports it separately.</summary>
+    Boost,
 }
 
 /// <summary>
@@ -146,6 +167,18 @@ public static class ChannelRoles
 
             ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s",
 
+            ChannelRole.SparkAdvance or ChannelRole.KnockRetard =>
+                units is "deg" or "degrees" or "btdc" or "degbtdc" or "°",
+
+            ChannelRole.BatteryVoltage => units is "v" or "volts" or "volt",
+
+            // Both are multipliers the controller reports as a percentage, and
+            // both sit near a hundred rather than near nought.
+            ChannelRole.MixtureCorrection or ChannelRole.WarmupCorrection =>
+                units is "%" or "percent" or "pct",
+
+            ChannelRole.Boost => units is "psi" or "kpa" or "bar" or "mbar" or "psig",
+
             _ => true,
         };
     }
@@ -166,7 +199,8 @@ public static class ChannelRoles
         // Checked before the plain mixture names would match, since "afrtarget"
         // also starts with "afr".
         ChannelRole.MixtureTarget =>
-            ["afrtarget", "lambdatarget", "targetafr", "targetlambda", "afrtgt", "egotarget"],
+            ["afrtarget", "afrtarget1", "afr1target", "lambdatarget", "targetafr", "targetlambda",
+             "afrtgt", "afrtgt1", "egotarget", "lambdatarget1"],
 
         ChannelRole.ManifoldPressure => ["map", "manifoldpressure", "manifoldabsolutepressure", "mapkpa"],
 
@@ -180,6 +214,35 @@ public static class ChannelRoles
              "airtemp", "manifoldairtemp", "act", "inlettemp"],
 
         ChannelRole.Barometric => ["baro", "barometricpressure", "barometer", "ambientpressure"],
+
+        // What the engine is actually being given, after every correction —
+        // which is the number that decides whether it knocks, rather than what
+        // any one table asked for.
+        ChannelRole.SparkAdvance =>
+            ["sparkadvance", "spksparkadvance", "advance", "ignitionadvance", "timing",
+             "ignadvance", "spkadvance", "sparkangle", "timingadvance", "ignitiontiming"],
+
+        ChannelRole.KnockRetard =>
+            // Deliberately not the bare word "knock": a great many firmwares log
+            // a raw knock-sensor input under that name, and a sensor reading is
+            // not degrees taken away.
+            ["knockretard", "spkknockretard", "knockcorrection", "knockrtd",
+             "totalknockretard"],
+
+        ChannelRole.BatteryVoltage =>
+            ["battv", "batteryvoltage", "batt", "battery", "vbatt", "voltage", "supplyvoltage"],
+
+        // Bank one where a controller logs each separately, the banks being the
+        // same on any engine this could describe.
+        ChannelRole.MixtureCorrection =>
+            ["egocor1", "egocor", "egocorrection", "closedloopcorrection", "o2correction",
+             "shorttermfueltrim", "stft", "lambdacorrection", "gego"],
+
+        ChannelRole.WarmupCorrection =>
+            ["fuelwarmupcor", "warmupcor", "warmupenrichment", "wue", "warmupcorrection",
+             "fuelwarmup", "warmup"],
+
+        ChannelRole.Boost => ["boostpsi", "boost", "boostpressure", "manifoldgaugepressure"],
 
         // "pw" alone is what a MegaSquirt calls it; the rest spell it out. Bank
         // one is taken where a controller logs each bank separately, the two
@@ -215,7 +278,11 @@ public static class ChannelRoles
 
         foreach (char c in text)
         {
-            if (c is ' ' or '_' or '.' or '-' or '\t' or '°') continue;
+            // A colon and a slash among them: firmware groups its channels with
+            // a prefix — "SPK: Knock retard", "Fuel: Warmup cor" — and that
+            // colon is a heading rather than part of the name. Left in, every
+            // one of those channels is invisible to every alias.
+            if (c is ' ' or '_' or '.' or '-' or '\t' or '°' or ':' or '/') continue;
 
             buffer[at++] = char.ToLowerInvariant(c);
         }

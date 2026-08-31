@@ -209,6 +209,16 @@
                         Click="OnCalculatorsClick" Padding="10,3"
                         ToolTip="Plan a build, size a turbo, injectors, fuel pump, octane, gearing — none of it needs a log open"/>
 
+                <!--
+                    Beside the calculators, and for the opposite reason: those
+                    work out what an engine should do, this measures what one
+                    actually did.
+                -->
+                <Button DockPanel.Dock="Right" Content="◈  Insights"
+                        Click="OnInsightsClick" Padding="10,3" Margin="0,0,8,0"
+                        IsEnabled="{Binding HasDocument}"
+                        ToolTip="What this log says about the engine: mixture against target, injector headroom, knock, idle steadiness and more — with the arithmetic behind each"/>
+
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
 
                 <!--
