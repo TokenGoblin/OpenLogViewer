@@ -810,14 +810,19 @@ public class EcuBurnReplyTests
     };
 
     [Theory]
-    [InlineData(0x00)]  // a plain acknowledgement
-    [InlineData(0x04)]  // TS_RESPONSE_BURN_OK, which is what a rusEFI sends
-    [InlineData(0x07)]  // and what it sends for a controller command
+    [InlineData(0x00)]  // a plain acknowledgement, which is what a page read gets
+    [InlineData(0x04)]  // TS_RESPONSE_BURN_OK — measured off both a rusEFI and a Speeduino
+    [InlineData(0x07)]  // and what a controller command is acknowledged with
     public void EveryWayOfSayingYesIsTakenForAYes(byte status)
     {
-        // Insisting on 0x00 made a rusEFI's successful burn read as a refusal:
-        // the flash was written, the board answered 0x04 to say so, and the
-        // application reported that the burn had been declined.
+        // Insisting on 0x00 made a successful burn read as a refusal: the flash
+        // was written, the board answered 0x04 to say so, and the application
+        // reported that the burn had been declined.
+        //
+        // Not one firmware's quirk. Asked the same question directly, a
+        // Speeduino 2025.01.7 answers 0x00 to a page read and 0x04 to a burn,
+        // exactly as a rusEFI does — so every burn either of them was ever asked
+        // for came back looking refused.
         var board = new Board(status);
         using var connection = new EcuConnection(board);
         connection.Open();
