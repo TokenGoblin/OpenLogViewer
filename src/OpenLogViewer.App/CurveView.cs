@@ -404,6 +404,23 @@ public sealed class CurveView : FrameworkElement
 
         if (_dragging >= 0)
         {
+            // A drag is only a drag while the button is down and the mouse is
+            // still ours. Capture can be taken away without warning — a dialog
+            // opens, something steals focus — and the release that would have
+            // ended this never arrives, so _dragging stays set. The next
+            // movement across the plot then rewrites that point with no button
+            // held, and what it writes is what Send Curve puts into a running
+            // engine.
+            //
+            // The table view has had this guard since it was written. This was
+            // the one that did not.
+            if (!IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed)
+            {
+                _dragging = -1;
+                InvalidateVisual();
+                return;
+            }
+
             if (_draggingX) curve.SetX(_dragging, BreakpointAt(pointer.X));
             else curve.SetY(_dragging, ValueAt(pointer.Y));
 

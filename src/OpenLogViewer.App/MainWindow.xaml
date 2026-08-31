@@ -1034,6 +1034,20 @@
                                                    ToolTip="Calculated channel"
                                                    Visibility="{Binding IsCalculated,
                                                                 Converter={StaticResource BoolToVis}}"/>
+
+                                        <!--
+                                            Says so when the trace is a median rather than the log.
+                                            Smoothing is a way of drawing and not a way of measuring,
+                                            and a smoothed line that looks exactly like a recorded one
+                                            is the whole of how that gets forgotten.
+                                        -->
+                                        <TextBlock DockPanel.Dock="Right" Text="∿" FontSize="11"
+                                                   Margin="4,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   ToolTip="{Binding SmoothingNote}"
+                                                   Visibility="{Binding IsSmoothed,
+                                                                Converter={StaticResource BoolToVis}}"/>
+
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">

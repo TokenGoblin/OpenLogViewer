@@ -1141,16 +1141,39 @@ public static class LogInsights
 
         var idle = new List<double>();
 
+        // How long the engine has been below the idle ceiling without leaving
+        // it, in samples.
+        int settled = 0;
+
         for (int i = 0; i < e.Count; i++)
         {
-            if (!e.Running(i)) continue;
-            if (e.Throttle is { } tps && tps.At(i) > 3) continue;
-
             double v = rpm.At(i);
 
-            // Below 1,500 with the throttle shut is idle or the overrun; the
-            // overrun is excluded by requiring the engine not to be dropping.
-            if (!double.IsNaN(v) && v < 1500) idle.Add(v);
+            if (!e.Running(i) || double.IsNaN(v) || v >= 1500
+                || (e.Throttle is { } tps && tps.At(i) > 3))
+            {
+                settled = 0;
+                continue;
+            }
+
+            // Below 1,500 with the throttle shut is idle *or* the tail of an
+            // overrun, and the two are nothing alike. Coming down from 4,000 the
+            // engine sweeps through this band in a second or two, and every one
+            // of those samples used to count as idle — so on any road log the
+            // spread was dominated by decelerations, and a perfectly steady idle
+            // was reported as hunting by a couple of hundred rpm.
+            //
+            // The comment here claimed since it was written that the overrun was
+            // excluded by requiring the engine not to be dropping. It was not.
+            // It is now — by waiting for the engine to have been down here a
+            // while, rather than by discarding falling samples, which would
+            // throw away half of a genuine hunt and hide the thing being looked
+            // for.
+            settled++;
+
+            if (settled * Math.Max(e.Spacing, 0.001) < 2.0) continue;
+
+            idle.Add(v);
         }
 
         if (idle.Count < MinimumSamples * 2)

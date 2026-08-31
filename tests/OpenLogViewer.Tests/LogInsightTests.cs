@@ -622,4 +622,50 @@ public class LogInsightTests
 
         Assert.NotEqual(InsightLevel.Unanswered, loaded.Level);
     }
+
+    [Fact]
+    public void ADecelerationIsNotCountedAsIdleHunting()
+    {
+        // Below 1,500 with the throttle shut is idle *or* the tail of an
+        // overrun, and the two are nothing alike: coming down from 4,000 the
+        // engine sweeps the band in a second or two. Every one of those samples
+        // used to count as idle, so on any road log the spread was dominated by
+        // decelerations and a perfectly steady idle read as hunting.
+        const int n = 600;
+
+        // Half the log: repeated pulls, then closed-throttle decel sweeps down
+        // through the idle band. The other half: a rock-steady 850 rpm idle.
+        double Rpm(int i)
+        {
+            if (i >= n / 2) return 850 + (i % 3 == 0 ? 4 : -4);
+
+            int inCycle = i % 100;
+
+            return inCycle < 50 ? 1200 + (inCycle * 56) : 4000 - ((inCycle - 50) * 64);
+        }
+
+        double Tps(int i) => i >= n / 2 ? 0 : (i % 100 < 50 ? 80 : 0);
+
+        var log = new LogDocument
+        {
+            FormatName = "test",
+            FilePath = "decel.mlg",
+            Time = new LogChannel("Time", "s", 2, [.. Enumerable.Range(0, n).Select(i => i * 0.1)]),
+            Channels =
+            [
+                new LogChannel("RPM", "rpm", 0, [.. Enumerable.Range(0, n).Select(Rpm)]),
+                new LogChannel("TPS", "%", 1, [.. Enumerable.Range(0, n).Select(Tps)]),
+                new LogChannel("CLT", "°F", 1, [.. Enumerable.Repeat(190.0, n)]),
+                new LogChannel("MAP", "kPa", 1,
+                    [.. Enumerable.Range(0, n).Select(i => Tps(i) > 10 ? 160.0 : 35.0)]),
+            ],
+        };
+
+        LogInsight idle = Assert.Single(LogInsights.From(log), f => f.Topic == "Idle");
+
+        // The idle here is steady within a few rpm. Counting the sweeps made it
+        // read as hundreds.
+        Assert.NotEqual(InsightLevel.Watch, idle.Level);
+        Assert.NotEqual(InsightLevel.Warning, idle.Level);
+    }
 }

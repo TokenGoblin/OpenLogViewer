@@ -124,11 +124,19 @@ public sealed partial class MainViewModel
 
             _tuneLayout = layout;
             _ecuTune = load.Tune;
-            _ecuTableDefinitions = TableEditorReader.Read(iniText);
+            // Every reader gets the tune's own build symbols. Two of the five
+            // were given the defaults instead, so a definition declaring its
+            // tables or its derived channels inside an #if — an MS3 has about a
+            // hundred conditionals and a Speeduino most of that — resolved the
+            // wrong branch: a table list and axis constants from a build the
+            // tune was never saved from, decoded through a layout from the
+            // right one. Nothing about that looks wrong on screen. The axes are
+            // simply somebody else's.
+            _ecuTableDefinitions = TableEditorReader.Read(iniText, symbols);
             _ecuInterface = TuneInterfaceReader.Read(iniText, symbols);
             _ecuCurves = TuneCurveReader.Read(iniText, symbols);
             _curveNames = Named(_ecuCurves, _ecuTune);
-            _derived = DerivedChannels.Read(iniText);
+            _derived = DerivedChannels.Read(iniText, symbols);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
             _tuneFile = file;
