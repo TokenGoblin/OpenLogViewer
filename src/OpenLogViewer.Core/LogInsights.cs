@@ -68,6 +68,58 @@ public static class LogInsights
     /// <summary>Below this a mixture reading is not the engine's steady state.</summary>
     private const int MinimumSamples = 30;
 
+    /// <summary>
+    /// How far the fuelling was out, as a fraction: delivered against required.
+    ///
+    /// <para>
+    /// <b>Not the difference between two AFR numbers.</b> A raw difference is in
+    /// units of the target, so a tenth at 12:1 under boost and a tenth at 16:1
+    /// on the overrun are the same number and nothing like the same error. This
+    /// is a ratio, which cancels the target — so cells with different targets
+    /// can be averaged together, and a drive at altitude compares with one at
+    /// sea level.
+    /// </para>
+    /// <para>
+    /// <b>And the closed loop is folded back in, which is the important part.</b>
+    /// Measured mixture is what the map did <em>plus</em> whatever the loop
+    /// rescued. Read without folding that back, a map that is fifteen per cent
+    /// out while the loop quietly covers it reads as perfect — and then misbehaves
+    /// the moment the loop drops out, which is exactly when it is least welcome.
+    /// </para>
+    /// <para>
+    /// The correction is divided out rather than multiplied in. A controller
+    /// scales its pulse width by this percentage, so fuel from the map alone is
+    /// what was delivered divided by that scaling: a loop pulling ten per cent
+    /// out is covering a map ten per cent rich. If a firmware turns out to
+    /// report the reciprocal, this sign flips, so the assumption is stated in the
+    /// evidence rather than buried here.
+    /// </para>
+    /// </summary>
+    /// <returns>Per cent: positive is rich, negative lean. NaN where unusable.</returns>
+    private static double FuelError(Engine e, int at, int mixtureAt)
+    {
+        if (e.Afr is not { } afr || e.Target is not { } target) return double.NaN;
+
+        double measured = afr.At(mixtureAt);
+        double wanted = target.At(at);
+
+        if (double.IsNaN(measured) || double.IsNaN(wanted) || measured <= 0 || wanted <= 0)
+            return double.NaN;
+
+        double ratio = wanted / measured;
+
+        if (e.Correction is { } trim)
+        {
+            double correction = trim.At(at);
+
+            // A correction of nought would be the controller commanding no fuel
+            // at all, which is a channel that is not what it appears to be.
+            if (!double.IsNaN(correction) && correction > 1) ratio *= 100.0 / correction;
+        }
+
+        return (ratio - 1) * 100;
+    }
+
     /// <summary>Throttle movement, per cent a second, above which fuelling is transient.</summary>
     private const double SettledThrottleRate = 20;
 
@@ -85,6 +137,7 @@ public static class LogInsights
         }
 
         var engine = new Engine(log);
+        engine.MeasureDelay();
 
         found.AddRange(MixtureAgainstTarget(engine));
         found.AddRange(MixtureUnderLoad(engine));
@@ -94,6 +147,7 @@ public static class LogInsights
         found.AddRange(Knock(engine));
         found.AddRange(Warmup(engine));
         found.AddRange(ManifoldAgainstAmbient(engine));
+        found.AddRange(PressureReference(engine));
         found.AddRange(IdleSteadiness(engine));
         found.AddRange(StuckChannels(engine));
         found.AddRange(SampleRate(engine));
@@ -153,6 +207,8 @@ public static class LogInsights
 
         public LogChannel? Baro { get; } = ChannelRoles.Find(log, ChannelRole.Barometric);
 
+        public LogChannel? Boost { get; } = ChannelRoles.Find(log, ChannelRole.Boost);
+
         /// <summary>Samples where the engine was turning fast enough to be running.</summary>
         public bool Running(int i) => Rpm is { } rpm && rpm.At(i) > 400;
 
@@ -174,6 +230,97 @@ public static class LogInsights
             double rate = Math.Abs(tps.At(i) - tps.At(i - 1)) / dt;
 
             return !double.IsNaN(rate) && rate < SettledThrottleRate;
+        }
+
+        /// <summary>
+        /// How many samples the mixture reads behind, as whole samples.
+        ///
+        /// The wideband measures the charge that was injected several frames
+        /// ago. Ignoring it smears every conclusion across the boundary between
+        /// one operating point and the next — on a real log, reading a mixture
+        /// without the delay gave 12.3 AFR where applying it gave 10.9, which is
+        /// the difference between "somewhat rich" and "a third rich".
+        /// </summary>
+        public int Delay { get; private set; }
+
+        public void MeasureDelay()
+        {
+            if (Afr is not { } afr || Target is not { } target) return;
+            if (Rpm is not { } rpm || Map is not { } map || Count < 200) return;
+
+            double interval = Spacing;
+            if (interval <= 0) return;
+
+            try
+            {
+                DelaySearchResult found = WidebandDelay.Find(
+                    VeAnalysis.GridFrom(rpm, map, 8, 8, 0, Count - 1),
+                    rpm, map, afr, target, 0, Count - 1, interval);
+
+                if (!found.HasProblem && !found.NoneIsPlausible)
+                    Delay = (int)Math.Round(found.BestSeconds / interval);
+            }
+            catch (ArgumentException)
+            {
+                // A grid the log cannot fill. Nothing to align against.
+            }
+        }
+
+        private double _spacing = -1;
+
+        /// <summary>The usual gap between samples, in seconds.</summary>
+        public double Spacing
+        {
+            get
+            {
+                if (_spacing >= 0) return _spacing;
+
+                var gaps = new List<double>();
+
+                for (int i = 1; i < Count; i++)
+                {
+                    double dt = Log.Time.At(i) - Log.Time.At(i - 1);
+                    if (!double.IsNaN(dt) && dt > 0) gaps.Add(dt);
+                }
+
+                return _spacing = gaps.Count == 0 ? 0 : Percentile(gaps, 50);
+            }
+        }
+
+        /// <summary>
+        /// Whether the engine held still either side of this sample.
+        ///
+        /// A rate of change catches a throttle being moved; it does not catch an
+        /// engine that is oscillating about a point, which is just as unsteady
+        /// and just as poisonous to a fuelling average. Half a second either
+        /// side, which is the shortest window in which "steady" means anything.
+        /// </summary>
+        public bool Still(int i)
+        {
+            int half = Math.Max(1, (int)Math.Round(0.5 / Math.Max(Spacing, 1e-6)));
+
+            return Within(Rpm, i, half, 120) && Within(Map, i, half, 4);
+        }
+
+        private bool Within(LogChannel? channel, int at, int half, double allowed)
+        {
+            if (channel is not { } c) return true;
+
+            int from = Math.Max(0, at - half);
+            int to = Math.Min(Count - 1, at + half);
+
+            double low = double.MaxValue, high = double.MinValue;
+
+            for (int i = from; i <= to; i++)
+            {
+                double v = c.At(i);
+                if (double.IsNaN(v)) continue;
+
+                low = Math.Min(low, v);
+                high = Math.Max(high, v);
+            }
+
+            return low > high || high - low <= allowed * 2;
         }
 
         /// <summary>Warm enough that warmup enrichment is out of the picture.</summary>
@@ -239,15 +386,20 @@ public static class LogInsights
         }
 
         var errors = new List<double>();
+        int running = 0;
 
-        for (int i = 0; i < e.Count; i++)
+        for (int i = 0; i < e.Count - e.Delay; i++)
         {
-            if (!e.Running(i) || !e.Settled(i) || !e.Warm(i)) continue;
+            if (!e.Running(i)) continue;
 
-            double a = afr.At(i), t = target.At(i);
-            if (double.IsNaN(a) || double.IsNaN(t) || t <= 0 || a <= 0) continue;
+            running++;
 
-            errors.Add(a - t);
+            if (!e.Settled(i) || !e.Warm(i) || !e.Still(i)) continue;
+
+            // The mixture is read where the sensor saw it, the conditions where
+            // the fuel was metered.
+            double error = FuelError(e, i, i + e.Delay);
+            if (!double.IsNaN(error)) errors.Add(error);
         }
 
         if (errors.Count < MinimumSamples)
@@ -255,34 +407,44 @@ public static class LogInsights
             yield return Unanswered(
                 "Mixture",
                 "Not enough settled running to judge the mixture.",
-                $"{errors.Count} samples had the engine running, warm and the throttle still. "
-                + $"About {MinimumSamples} are needed before an average means anything.",
+                $"{errors.Count} of {running:N0} running samples had the engine warm, the throttle "
+                + "still and speed and load holding steady either side. About "
+                + $"{MinimumSamples} are needed before an average means anything.",
                 errors.Count);
 
             yield break;
         }
 
-        (double mean, double error) = MeanAndStandardError(errors);
+        (double mean, double error2) = MeanAndStandardError(errors);
+
+        // The median within the settled set rather than the mean: a wideband
+        // throws outliers on transients that survive any filter, and one of them
+        // moves a mean and does not move a median.
         double median = Percentile(errors, 50);
+        double kept = 100.0 * errors.Count / Math.Max(1, running);
 
         string numbers =
-            $"mean {mean:+0.00;−0.00;0.00} AFR ± {error:0.00} (standard error), "
-            + $"median {median:+0.00;−0.00;0.00}, over {errors.Count:N0} settled samples";
+            $"median {median:+0.0;−0.0;0.0}% of required fuel, mean {mean:+0.0;−0.0;0.0} ± "
+            + $"{error2:0.0} (standard error), {errors.Count:N0} of {running:N0} running samples "
+            + $"kept ({kept:0}%)"
+            + (e.Delay > 0 ? $", mixture read {e.Delay} samples late" : "")
+            + (e.Correction is not null ? ", closed-loop correction divided back out" : "");
 
-        // Three standard errors is the threshold for saying a difference is
-        // real; a fifth of an AFR is the threshold for saying it matters.
-        bool real = Math.Abs(mean) > 3 * error;
-        bool matters = Math.Abs(mean) > 0.2;
+        // Three standard errors before a difference is called real, and two per
+        // cent of the fuel required before it is called worth an afternoon.
+        bool real = Math.Abs(median) > 3 * error2;
+        bool matters = Math.Abs(median) > 2;
 
         if (!real || !matters)
         {
             yield return new LogInsight(
                 InsightLevel.Good, "Mixture",
                 "Fuelling is on target overall.",
-                $"Across the log the mixture sits {Math.Abs(mean):0.00} AFR from target, which is "
+                $"The map delivers within {Math.Abs(median):0.0}% of the fuel asked for, which is "
                 + (real
                     ? "a real difference but too small to chase."
-                    : "within what the measurement can resolve."),
+                    : "within what the measurement can resolve.")
+                + Survival(kept),
                 numbers, errors.Count);
 
             yield break;
@@ -290,14 +452,19 @@ public static class LogInsights
 
         yield return new LogInsight(
             InsightLevel.Watch, "Mixture",
-            mean > 0
-                ? $"Running lean of target by {mean:0.00} AFR on average."
-                : $"Running rich of target by {Math.Abs(mean):0.00} AFR on average.",
-            "This is a settled, warm average rather than a transient, so it points at the fuel "
-            + "table rather than at enrichment. "
-            + (mean > 0
-                ? "Lean of target costs power and, held under load, costs pistons."
-                : "Rich of target washes bores and fouls plugs, and hides the real VE error."),
+            median > 0
+                ? $"The map is delivering {median:0.0}% more fuel than asked for."
+                : $"The map is delivering {Math.Abs(median):0.0}% less fuel than asked for.",
+            "Measured as delivered against required rather than as a difference between two AFR "
+            + "numbers, so cells with different targets can be counted together"
+            + (e.Correction is not null
+                ? " — and with the closed loop's correction divided back out, so this is the map's "
+                  + "own error rather than what is left after the loop rescued it."
+                : ".")
+            + (median > 0
+                ? " Rich washes bores and hides the real error."
+                : " Lean costs power and, held under load, costs pistons.")
+            + Survival(kept),
             numbers, errors.Count);
     }
 
@@ -319,17 +486,17 @@ public static class LogInsights
         var errors = new List<double>();
         double highest = double.MinValue;
 
-        for (int i = 0; i < e.Count; i++)
+        for (int i = 0; i < e.Count - e.Delay; i++)
         {
             if (!e.Running(i)) continue;
 
             double load = map.At(i);
             if (double.IsNaN(load) || load < threshold) continue;
 
-            double a = afr.At(i), t = target.At(i);
-            if (double.IsNaN(a) || double.IsNaN(t) || t <= 0 || a <= 0) continue;
+            double short_ = FuelError(e, i, i + e.Delay);
+            if (double.IsNaN(short_)) continue;
 
-            errors.Add(a - t);
+            errors.Add(short_);
             highest = Math.Max(highest, load);
         }
 
@@ -361,48 +528,54 @@ public static class LogInsights
         // Three of them before it is called a warning: one reading can be the
         // wideband catching a gear change or a misfire, and a tool that cries
         // out at every single sample is one nobody reads twice.
-        const double Dangerous = 0.8;
+        // Six per cent short of the fuel asked for. Under load that is the
+        // region where a mixture error stops costing power and starts costing
+        // pistons.
+        const double Dangerous = -6;
 
-        int spikes = errors.Count(v => v > Dangerous);
-        double worst = errors.Max();
+        int spikes = errors.Count(v => v < Dangerous);
+        double worst = errors.Min();
+        double middle = Percentile(errors, 50);
 
         string numbers =
-            $"mean {mean:+0.00;−0.00;0.00} ± {error:0.00}, worst {worst:+0.00;−0.00;0.00}, "
-            + $"{spikes:N0} sample{(spikes == 1 ? "" : "s")} more than {Dangerous:0.0} lean, "
-            + $"{errors.Count:N0} samples, peak {highest:N0} {map.Units}";
+            $"median {middle:+0.0;−0.0;0.0}%, mean {mean:+0.0;−0.0;0.0} ± {error:0.0}, "
+            + $"worst {worst:+0.0;−0.0;0.0}%, {spikes:N0} sample{(spikes == 1 ? "" : "s")} more "
+            + $"than {Math.Abs(Dangerous):0}% short, {errors.Count:N0} samples, "
+            + $"peak {highest:N0} {map.Units}";
 
         if (spikes >= 3)
         {
             yield return new LogInsight(
                 InsightLevel.Warning, "Mixture under load",
-                $"Lean under load on {spikes:N0} samples, the worst {worst:0.00} AFR lean of "
-                + "target.",
+                $"Lean under load on {spikes:N0} samples, the worst {Math.Abs(worst):0.0}% short "
+                + "of the fuel asked for.",
                 // Said with the average beside it, because the two routinely
                 // disagree and a warning that contradicts the mean without
                 // explaining itself gets waved away.
-                (mean < -0.05
-                    ? $"On average this region runs {Math.Abs(mean):0.00} AFR rich, which is "
-                      + "exactly why the average is the wrong statistic here: a"
+                (middle > 0.5
+                    ? $"On average this region runs {middle:0.0}% rich, which is exactly why the "
+                      + "average is the wrong statistic here: a"
                     : "Averages hide this. A")
                 + " single lean excursion at high load is what damages a piston, and it does not "
                 + "need to be common to do it. Look at the highest-load cells of the fuel table, "
                 + "and at whether the fuel system holds pressure there.",
                 numbers, errors.Count);
         }
-        else if (Math.Abs(mean) > 3 * error && mean > 0.2)
+        else if (Math.Abs(middle) > 3 * error && middle < -2)
         {
             yield return new LogInsight(
                 InsightLevel.Warning, "Mixture under load",
-                $"Lean of target by {mean:0.00} AFR where the engine is loaded.",
+                $"Delivering {Math.Abs(middle):0.0}% less fuel than asked for where the engine is "
+                + "loaded.",
                 "Consistently lean under load, rather than a spike. This is the region where a "
                 + "fuelling error turns into heat rather than into a slow car.",
                 numbers, errors.Count);
         }
-        else if (Math.Abs(mean) > 3 * error && mean < -0.2)
+        else if (Math.Abs(middle) > 3 * error && middle > 2)
         {
             yield return new LogInsight(
                 InsightLevel.Note, "Mixture under load",
-                $"Rich of target by {Math.Abs(mean):0.00} AFR where the engine is loaded.",
+                $"Delivering {middle:0.0}% more fuel than asked for where the engine is loaded.",
                 "Safe, and costing power and fuel. Worth leaning out once the rest of the tune is "
                 + "settled, in small steps with the wideband watched.",
                 numbers, errors.Count);
@@ -825,6 +998,98 @@ public static class LogInsights
     }
 
     /// <summary>
+    /// What the boost channel is measured against.
+    ///
+    /// <para>
+    /// A gauge pressure is a difference from something, and firmwares disagree
+    /// about what. Against the barometer, a reading of nought means the throttle
+    /// is open and the engine is breathing; against a fixed 101.3 kPa, the same
+    /// nought means something else entirely — and at 84 kPa of altitude the two
+    /// differ by two and a half psi, quietly, in every number derived from
+    /// either.
+    /// </para>
+    /// <para>
+    /// It does not have to be assumed. Regressing the derived channel against
+    /// the raw one gives the slope, which says the units, and the intercept,
+    /// which says the reference.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<LogInsight> PressureReference(Engine e)
+    {
+        if (e.Map is not { } map || e.Boost is not { } boost) yield break;
+
+        var xs = new List<double>();
+        var ys = new List<double>();
+
+        for (int i = 0; i < e.Count; i++)
+        {
+            double m = map.At(i), b = boost.At(i);
+            if (!double.IsNaN(m) && !double.IsNaN(b)) { xs.Add(m); ys.Add(b); }
+        }
+
+        if (xs.Count < MinimumSamples) yield break;
+
+        double n = xs.Count, sx = xs.Sum(), sy = ys.Sum();
+        double sxx = xs.Sum(v => v * v);
+        double sxy = xs.Zip(ys).Sum(pair => pair.First * pair.Second);
+
+        double denominator = (n * sxx) - (sx * sx);
+        if (Math.Abs(denominator) < 1e-9) yield break;
+
+        double slope = ((n * sxy) - (sx * sy)) / denominator;
+        if (Math.Abs(slope) < 1e-9) yield break;
+
+        double intercept = (sy - (slope * sx)) / n;
+        double reference = -intercept / slope;
+
+        // Plenty of firmware declares no unit for this channel at all, and a
+        // sentence with a hole where the unit should be reads worse than one
+        // written without it.
+        string unit = boost.Units.Length > 0 ? " " + boost.Units : "";
+
+        double ambient = Ambient(e, map);
+        bool againstBaro = ambient > 0 && Math.Abs(reference - ambient) < 2;
+        bool againstSeaLevel = Math.Abs(reference - 101.3) < 2;
+
+        string numbers =
+            $"slope {slope:0.0000}{unit} per {map.Units}, zero at {reference:N1} "
+            + $"{map.Units}, barometer reads {ambient:N1}, {xs.Count:N0} samples";
+
+        if (againstBaro && ambient > 0 && Math.Abs(ambient - 101.3) > 3)
+        {
+            yield return new LogInsight(
+                InsightLevel.Note, "Pressure reference",
+                $"\"{boost.Name}\" is measured against the barometer, not against sea level.",
+                $"Its zero sits at {reference:N1} {map.Units}, which is this log's own ambient "
+                + $"rather than 101.3. Anything read from it assuming sea level is out by "
+                + $"{Math.Abs((101.3 - reference) * slope):0.0}{unit} throughout — a "
+                + "difference that is invisible in the trace and survives every average.",
+                numbers, xs.Count);
+        }
+        else if (againstSeaLevel && ambient > 0 && Math.Abs(ambient - 101.3) > 3)
+        {
+            yield return new LogInsight(
+                InsightLevel.Note, "Pressure reference",
+                $"\"{boost.Name}\" is measured against sea level, not against the barometer.",
+                $"Its zero sits at 101.3 {map.Units} while the barometer reads {ambient:N1}, so at "
+                + "this altitude it reads negative with the throttle wide open. Correct, and worth "
+                + "knowing before comparing it with anything from another day or another place.",
+                numbers, xs.Count);
+        }
+        else
+        {
+            yield return new LogInsight(
+                InsightLevel.Good, "Pressure reference",
+                $"\"{boost.Name}\" is a plain gauge pressure with its zero at {reference:N1} "
+                + $"{map.Units}.",
+                "Checked rather than assumed: the reference is read off the log by regressing the "
+                + "derived channel against the raw one, so nothing here rests on a guess about "
+                + "which convention this firmware uses.",
+                numbers, xs.Count);
+        }
+    }
+
+    /// <summary>
     /// How steady the idle is, as a standard deviation rather than an
     /// impression.
     ///
@@ -1133,6 +1398,23 @@ public static class LogInsights
     }
 
     // ----- the arithmetic ----------------------------------------------------
+
+    /// <summary>
+    /// A word about the filter itself, where it kept an implausible share.
+    ///
+    /// A steady-state stack on a varied drive keeps roughly two frames in five.
+    /// Keeping almost none means it is rejecting the drive rather than the
+    /// transients; keeping almost all means it is not filtering at all. Either
+    /// way the reader should know before believing the number in front of it.
+    /// </summary>
+    private static string Survival(double kept) =>
+        kept < 5
+            ? " Only a twentieth of the running samples survived the steadiness test, so this "
+              + "rests on a narrow slice of the drive."
+            : kept > 90
+                ? " Almost every running sample survived the steadiness test, which suggests the "
+                  + "engine was held at one point throughout rather than driven."
+                : "";
 
     private static LogInsight Unanswered(string topic, string title, string detail, int samples) =>
         new(InsightLevel.Unanswered, topic, title, detail, "", samples);

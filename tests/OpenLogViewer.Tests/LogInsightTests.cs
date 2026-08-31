@@ -95,8 +95,11 @@ public class LogInsightTests
         LogInsight? mixture = Topic(Steady(Repeat(15.7, 200)), "Mixture");
 
         Assert.Equal(InsightLevel.Watch, mixture!.Level);
-        Assert.Contains("lean", mixture.Title);
-        Assert.Contains("1.00", mixture.Title);
+
+        // Reported as a share of the fuel required rather than as a difference
+        // between two AFR numbers, so cells with different targets can be
+        // counted together.
+        Assert.Contains("less fuel than asked for", mixture.Title);
         Assert.Contains("standard error", mixture.Evidence);
     }
 
@@ -106,7 +109,92 @@ public class LogInsightTests
         LogInsight? mixture = Topic(Steady(Repeat(13.2, 200)), "Mixture");
 
         Assert.Equal(InsightLevel.Watch, mixture!.Level);
-        Assert.Contains("rich", mixture.Title);
+        Assert.Contains("more fuel than asked for", mixture.Title);
+    }
+
+    // ----- the map, against what the closed loop rescued ---------------------
+
+    [Fact]
+    public void TheClosedLoopsCorrectionIsFoldedBackIntoTheMapsError()
+    {
+        // The case that matters: the mixture is on target because the loop is
+        // adding fuel, and the map underneath is badly lean. Read without
+        // folding the correction back in, this looks perfect — and then
+        // misbehaves the moment the loop drops out.
+        //
+        // Verified against a real MS3 log, where the mixture read 9% lean while
+        // the loop added 8%, and the map was out by nineteen.
+        LogDocument log = Steady(
+            Repeat(14.7, 200), extra: Repeat(120.0, 200),
+            extraName: "EGO cor1", extraUnits: "%");
+
+        LogInsight? mixture = Topic(log, "Mixture");
+
+        Assert.Equal(InsightLevel.Watch, mixture!.Level);
+        Assert.Contains("less fuel than asked for", mixture.Title);
+
+        // A loop adding a fifth is covering a map that is a sixth short:
+        // 100/120 is 0.833, so 16.7% less than required.
+        Assert.Contains("16.7%", mixture.Title);
+        Assert.Contains("divided back out", mixture.Evidence);
+    }
+
+    [Fact]
+    public void AMixtureOnTargetWithNoCorrectionIsAMapOnTarget()
+    {
+        LogDocument log = Steady(
+            Repeat(14.7, 200), extra: Repeat(100.0, 200),
+            extraName: "EGO cor1", extraUnits: "%");
+
+        Assert.Equal(InsightLevel.Good, Topic(log, "Mixture")!.Level);
+    }
+
+    [Fact]
+    public void ARichMixtureTheLoopIsPullingBackIsStillARichMap()
+    {
+        // Measured on target, loop removing a tenth: the map is a ninth rich.
+        LogDocument log = Steady(
+            Repeat(14.7, 200), extra: Repeat(90.0, 200),
+            extraName: "EGO cor1", extraUnits: "%");
+
+        LogInsight? mixture = Topic(log, "Mixture");
+
+        Assert.Equal(InsightLevel.Watch, mixture!.Level);
+        Assert.Contains("more fuel than asked for", mixture.Title);
+        Assert.Contains("11.1%", mixture.Title);
+    }
+
+    // ----- what the boost channel is measured against ------------------------
+
+    [Fact]
+    public void TheBoostReferenceIsReadOffTheLogRatherThanAssumed()
+    {
+        // A gauge pressure is a difference from something and firmwares
+        // disagree about what. At altitude the two conventions differ by two
+        // and a half psi, silently, in everything derived from either.
+        int n = 200;
+        double[] map = [.. Enumerable.Range(0, n).Select(i => 30.0 + (i % 100))];
+        double[] boost = [.. map.Select(m => (m - 84.0) * 0.145)];
+
+        var log = new LogDocument
+        {
+            FormatName = "test",
+            FilePath = "altitude.mlg",
+            Time = Channel("Time", "s", [.. Enumerable.Range(0, n).Select(i => i * 0.1)]),
+            Channels =
+            [
+                Channel("RPM", "RPM", Repeat(3000.0, n)),
+                Channel("MAP", "kPa", map),
+                Channel("Boost psi", "psi", boost),
+                Channel("Barometer", "kPa", Repeat(84.0, n)),
+            ],
+        };
+
+        LogInsight? reference = Topic(log, "Pressure reference");
+
+        Assert.Equal(InsightLevel.Note, reference!.Level);
+        Assert.Contains("against the barometer", reference.Title);
+        Assert.Contains("2.5", reference.Detail);   // the psi anyone assuming sea level is out by
     }
 
     // ----- where it can hurt -------------------------------------------------
