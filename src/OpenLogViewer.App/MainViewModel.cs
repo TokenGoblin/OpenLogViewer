@@ -1235,9 +1235,40 @@ public sealed partial class MainViewModel : ObservableObject
     // ----- live connection --------------------------------------------------
 
     private LiveSession? _live;
+
+    /// <summary>
+    /// The session, assigned through here so that whatever must happen to every
+    /// session happens once rather than at each of the four places one is made.
+    ///
+    /// There are four: a serial ECU, an OBD2 adapter, a Subaru over SSM and a
+    /// MaxxECU. Attaching the agent stream at the site being worked on and not
+    /// at the other three is the exact shape of defect three code reviews have
+    /// already caught here, so the assignment does it rather than the caller.
+    /// </summary>
+    private LiveSession? Live
+    {
+        get => _live;
+
+        set
+        {
+            if (ReferenceEquals(_live, value)) return;
+
+            if (_live is not null) _live.Frame -= PublishToAgents;
+
+            _live = value;
+
+            // Fed from the poll thread rather than from the repaint, so the
+            // stream runs at the ECU's pace rather than the window's.
+            if (_live is not null) _live.Frame += PublishToAgents;
+        }
+    }
+
     private string _liveStatus = "";
     private string _livePort = "";
     private string _liveSignature = "";
+
+    /// <summary>The firmware on the other end, for anything that reports on the session.</summary>
+    public string LiveSignature => _liveSignature;
     private string _liveVersion = "";
     private string _liveIni = "";
     private string _liveRecording = "";
@@ -3371,13 +3402,13 @@ public sealed partial class MainViewModel : ObservableObject
         var source = new MaxxEcuSource(new SerialEcuTransport(port) { OpenAttempts = 3 });
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
-        _live = new LiveSession(source, new LiveSessionSettings
+        Live = new LiveSession(source, new LiveSessionSettings
         {
             RecordingPath = recording,
             MaximumRate = LiveRate,
         });
 
-        _live.Start();
+        Live.Start();
 
         _livePort = port;
         _liveSignature = "MaxxECU";
@@ -3387,7 +3418,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SeedMaxxGauges();
 
-        Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
+        Status = $"Live — MaxxECU   •   {Live.Names.Count} channels";
         Title = "Live: MaxxECU — OpenLogViewer";
         Hint = $"{Opening(recording)} A MaxxECU sends a fixed set of channels, "
                + "and its tune cannot be read, so calibration is not available for it.";
@@ -3561,7 +3592,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
-        _live = new LiveSession(source, new LiveSessionSettings
+        Live = new LiveSession(source, new LiveSessionSettings
         {
             RecordingPath = recording,
 
@@ -3571,7 +3602,7 @@ public sealed partial class MainViewModel : ObservableObject
             MaximumRate = Math.Min(LiveRate, 5),
         });
 
-        _live.Start();
+        Live.Start();
 
         _livePort = port;
         _liveSignature = source.Adapter.Length > 0 ? $"SSM · {source.Adapter}" : "SSM";
@@ -3587,7 +3618,7 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(ReconnectLabel));
         Raise(nameof(CanReconnect));
 
-        Status = $"Live — SSM   •   {_live.Names.Count} parameters   •   {source.Adapter}";
+        Status = $"Live — SSM   •   {Live.Names.Count} parameters   •   {source.Adapter}";
         Title = "Live: SSM — OpenLogViewer";
 
         Hint = $"{Opening(recording)} Reading {source.Parameters.Count} parameter"
@@ -3789,13 +3820,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
-        _live = new LiveSession(source, new LiveSessionSettings
+        Live = new LiveSession(source, new LiveSessionSettings
         {
             RecordingPath = recording,
             MaximumRate = LiveRate,
         });
 
-        _live.Start();
+        Live.Start();
 
         _obd2 = source;
         _livePort = port;
@@ -3817,7 +3848,7 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(ReconnectLabel));
         Raise(nameof(CanReconnect));
 
-        Status = $"Live — OBD2   •   {_live.Names.Count} channels   •   {_liveSignature}";
+        Status = $"Live — OBD2   •   {Live.Names.Count} channels   •   {_liveSignature}";
         Title = $"Live: OBD2 — OpenLogViewer";
         Hint = $"{Opening(recording)} "
                + (source.Batching
@@ -4031,13 +4062,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
-        _live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
+        Live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
         {
             RecordingPath = recording,
             MaximumRate = LiveRate,
         });
 
-        _live.Start();
+        Live.Start();
 
         _livePort = port;
         _liveSignature = signature;
@@ -4045,12 +4076,12 @@ public sealed partial class MainViewModel : ObservableObject
         _liveIni = ini.Path;
         _liveRecording = recording ?? "";
 
-        Status = $"Live — {signature}   •   {_live.Names.Count} channels   •   {ini.Name}";
+        Status = $"Live — {signature}   •   {Live.Names.Count} channels   •   {ini.Name}";
 
         // Worth saying plainly: on a bench almost nothing moves, and the default
         // filter then hides almost everything. The channels are all being
         // recorded regardless.
-        string quiet = _live.Names.Count > 0
+        string quiet = Live.Names.Count > 0
             ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
             : "";
         Title = $"Live: {signature} — OpenLogViewer";
@@ -4071,10 +4102,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         _live.Stop();
         _live.Dispose();
-        _live = null;
+        Live = null;
         _ecuConnection = null;
         _obd2 = null;
         _obd2Undecoded = [];
+
+        // A permission granted over whatever was just unplugged does not carry
+        // over to whatever is plugged in next. The same laptop meets a bench
+        // engine one afternoon and a car the next.
+        AgentWritesArmed = false;
 
         LiveStatus = "";
         _livePort = _liveSignature = _liveVersion = _liveIni = _liveRecording = "";

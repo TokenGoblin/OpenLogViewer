@@ -183,6 +183,16 @@ public sealed class LiveSession : IDisposable
     /// <summary>Raised after each block, on the polling thread.</summary>
     public event Action<LiveSessionStatus>? Updated;
 
+    /// <summary>
+    /// Every decoded frame, as it arrives: the time, the channel names, and the
+    /// values in that order.
+    ///
+    /// Raised on the poll thread, so a handler that blocks costs a reading. The
+    /// values array is the live one rather than a copy — anything keeping it
+    /// must copy what it needs before returning.
+    /// </summary>
+    public event Action<double, IReadOnlyList<string>, double[]>? Frame;
+
     public LiveSessionStatus Status
     {
         get
@@ -343,6 +353,18 @@ public sealed class LiveSession : IDisposable
                 _failures = 0;
 
                 Record(at, values, row);
+
+                // Handed on at the rate the ECU produces it rather than the rate
+                // a window repaints at. The two differ by a lot — the plot is
+                // redrawn a few times a second while this loop runs at whatever
+                // the link sustains — and anything watching the engine rather
+                // than watching the screen wants the faster of them.
+                //
+                // Whatever is on the other end must not be able to slow this
+                // down; a handler that blocks here delays the next poll, which
+                // is a reading not taken.
+                try { Frame?.Invoke(at, _names, values); }
+                catch (Exception) { /* not this loop's problem to inherit */ }
             }
             catch (Exception)
             {

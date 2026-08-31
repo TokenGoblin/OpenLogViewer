@@ -294,4 +294,152 @@ public class ConnectedEcuTests : IDisposable
         Assert.False(vm.CanWriteSettings);
         Assert.False(vm.CanBurnSettings);
     }
+
+    // ----- the agent API ------------------------------------------------------
+
+    [Fact]
+    public void ConnectingFeedsTheAgentStreamWhateverWasConnectedTo()
+    {
+        // Written because the first attempt at this hooked the stream at one of
+        // the four places a session is created and not the other three — a
+        // serial ECU, an OBD2 adapter, a Subaru over SSM and a MaxxECU. The
+        // assignment now does it, so this asserts against the funnel rather than
+        // against one path through it.
+        MainViewModel vm = Connected(out _);
+
+        Assert.True(vm.IsLive);
+
+        // Every creation goes through the property that attaches the handler;
+        // if any path assigned the field directly this would be the one place
+        // it showed.
+        Assert.Contains(
+            "Live = new LiveSession(",
+            System.IO.File.ReadAllText(SourceOf("MainViewModel.cs")),
+            StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            "_live = new LiveSession(",
+            System.IO.File.ReadAllText(SourceOf("MainViewModel.cs")),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The repository's copy of a source file, for the check above.</summary>
+    private static string SourceOf(string name)
+    {
+        var here = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+
+        while (here is not null && !System.IO.Directory.Exists(System.IO.Path.Combine(here.FullName, "src")))
+            here = here.Parent;
+
+        Assert.NotNull(here);
+
+        return System.IO.Path.Combine(here!.FullName, "src", "OpenLogViewer.App", name);
+    }
+
+    [Fact]
+    public void AgentWritesAreNotArmedUntilSomebodyArmsThem()
+    {
+        MainViewModel vm = Connected(out _);
+
+        Assert.False(vm.AgentWritesArmed);
+
+        AgentRefusal? refused = new AgentBridge(vm).SetSetting("crankingRPM", 400);
+
+        Assert.NotNull(refused);
+        Assert.Contains("not armed", refused!.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnArmedAgentCanChangeASettingAndItReachesTheController()
+    {
+        MainViewModel vm = Connected(out FakeController board);
+        vm.AgentWritesArmed = true;
+
+        Assert.Null(new AgentBridge(vm).SetSetting("crankingRPM", 400));
+
+        // 400 rpm, big-endian, at the offset the firmware declares — the same
+        // bytes a person changing it in the dialog would have sent.
+        Assert.Equal(0x01, board.Page[0]);
+        Assert.Equal(0x90, board.Page[1]);
+    }
+
+    [Fact]
+    public void AndNothingItDoesIsEverBurned()
+    {
+        MainViewModel vm = Connected(out FakeController board);
+        vm.AgentWritesArmed = true;
+
+        new AgentBridge(vm).SetSetting("crankingRPM", 400);
+
+        Assert.Equal(0, board.Burns);
+        Assert.Null(board.Flash);
+    }
+
+    [Fact]
+    public void DisconnectingDisarmsTheAgent()
+    {
+        // The permission belongs to the session, not to the socket. The same
+        // laptop meets a bench engine one afternoon and a car the next.
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = true;
+
+        vm.Disconnect();
+
+        Assert.False(vm.AgentWritesArmed);
+    }
+
+    [Fact]
+    public void TheBridgeReportsWhatIsConnectedAndNamesTheRoles()
+    {
+        MainViewModel vm = Connected(out _);
+        var bridge = new AgentBridge(vm);
+
+        AgentState state = bridge.State();
+
+        Assert.Equal("live", state.Mode);
+        Assert.True(state.HasTune);
+        Assert.False(state.WritesArmed);
+        Assert.Equal("TEST Format 0001.00", state.Signature);
+    }
+
+    [Fact]
+    public void AndNamesTheRoleOfEachChannelSoOneAgentWorksAcrossFirmwares()
+    {
+        // The role is what lets an agent written against one controller work on
+        // another: a rusEFI calls engine speed RPMValue and a MegaSquirt calls
+        // it rpm. Asked over a log, because a headless test has no repaint to
+        // populate the document from a live session.
+        MainViewModel vm = _harness.NewViewModel(out _);
+        vm.Load(_harness.WriteTypicalLog());
+
+        IReadOnlyList<AgentChannel> channels = new AgentBridge(vm).Channels();
+
+        Assert.NotEmpty(channels);
+        Assert.Contains(channels, c => c.Role == "EngineSpeed");
+        Assert.Contains(channels, c => c.Role == "Coolant");
+    }
+
+    [Fact]
+    public void AWriteToASettingTheFirmwareDoesNotHaveIsRefusedByName()
+    {
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = true;
+
+        AgentRefusal? refused = new AgentBridge(vm).SetSetting("noSuchThing", 1);
+
+        Assert.NotNull(refused);
+        Assert.Contains("no such setting", refused!.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ACellOutsideTheTableIsRefusedWithItsSize()
+    {
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = true;
+
+        AgentRefusal? refused = new AgentBridge(vm).SetTableCell("VE Table", 99, 0, 50);
+
+        Assert.NotNull(refused);
+        Assert.Contains("not in the table", refused!.Reason, StringComparison.Ordinal);
+    }
 }
