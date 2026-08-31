@@ -980,6 +980,24 @@ is ticked**, and that clears itself whenever the ECU disconnects. Nothing it doe
 is ever burned, so turning the key off undoes all of it — and there is no burn
 endpoint at all, not even one that refuses.
 
+### Offline, from a command line
+
+`tools/OpenLogViewer.Insights` is the same analysis with no window, no ECU and
+no network — over one log, or every log in a folder:
+
+```
+olv-insights drive.mlg
+olv-insights ~/OpenLogViewer/Logs --project "The E28" --note "after VE +4%"
+olv-insights drive.mlg --json | jq '.findings[] | select(.level=="Warning")'
+```
+
+It exits **0** when nothing is wrong, **1** for something worth watching and **2**
+for a warning, so a script can act on a drive without parsing anything.
+
+Given `--project`, it also records what it found into that vehicle's project:
+keeps the findings, raises a fix for anything newly warned about, and notes a
+repeat against the fix already tracking it.
+
 ### From Claude Code
 
 `tools/OpenLogViewer.Mcp` is an MCP server over the same API, so the tools arrive

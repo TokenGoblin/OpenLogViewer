@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/OpenLogViewer.Dump/OpenLogViewer.Dump.csproj" />
+    <Project Path="tools/OpenLogViewer.Insights/OpenLogViewer.Insights.csproj" />
     <Project Path="tools/OpenLogViewer.Mcp/OpenLogViewer.Mcp.csproj" />
     <Project Path="tools/OpenLogViewer.Probe/OpenLogViewer.Probe.csproj" />
   </Folder>

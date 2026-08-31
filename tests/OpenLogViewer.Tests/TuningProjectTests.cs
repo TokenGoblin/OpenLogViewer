@@ -317,4 +317,34 @@ public class TuningProjectTests : IDisposable
 
         Assert.Contains("9 earlier sittings are in the file.", brief, StringComparison.Ordinal);
     }
+
+    // ----- the shape the command line depends on ------------------------------
+
+    [Fact]
+    public void RecordingTheSameLogTwiceKeepsBothSittingsAndOneFix()
+    {
+        // What the offline tool does when it is run over a folder, or run again
+        // after a change that did not work: the history grows, the tracker does
+        // not.
+        TuningProject project = Project();
+
+        project = TuningProjectRecorder.Record(project, TuningProjectRecorder.Sitting(Log(afr: 16.5)));
+        project = TuningProjectRecorder.Record(project, TuningProjectRecorder.Sitting(Log(afr: 16.5)));
+
+        Assert.Equal(2, project.Sessions.Count);
+        Assert.Single(project.Open);
+
+        // And the second time is written down against the fix, which is the
+        // evidence that whatever was tried has not worked yet.
+        Assert.True(project.Open.First().Evidence.Count >= 2);
+    }
+
+    [Fact]
+    public void ANoteIsKeptWithTheSittingItBelongsTo()
+    {
+        ProjectSession sitting =
+            TuningProjectRecorder.Sitting(Log(afr: 13.0), "MS3", "after VE +4% above 150 kPa");
+
+        Assert.Equal("after VE +4% above 150 kPa", sitting.Note);
+    }
 }
