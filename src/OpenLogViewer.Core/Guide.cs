@@ -230,6 +230,141 @@ public static class Guide
                 "Click a mark"),
         ]),
 
+        new("Insights",
+            "What the log says about the engine that produced it.",
+        [
+            new("Ask it",
+                "The Insights button, beside Calculators. It measures the log and reports what it "
+                + "found: fuelling against target, lean excursions under load, knock retard, "
+                + "closed-loop behaviour, injector duty, charging, warmup, and sensors that never "
+                + "moved. It needs nothing but the log — no ECU and no network."),
+
+            new("Read the levels",
+                "Warning is worth stopping for. Watch is worth a look before the next drive. Note "
+                + "is context. Good means it was checked and is as it should be, which is worth "
+                + "saying: an analysis that only ever complains cannot tell you anything is right. "
+                + "Not measured means the log could not answer, and says why."),
+
+            new("Every finding shows its arithmetic",
+                "The small grey line under each one is what it rests on — how many samples, the "
+                + "median and the spread, where the worst of it was. It is there so a finding can "
+                + "be argued with rather than believed."),
+
+            new("Lean under load is the one to read first",
+                "Averages hide it. A single lean excursion at high load is what damages a piston, "
+                + "and it does not need to be common to do it, so this counts the samples rather "
+                + "than averaging them."),
+
+            new("Some questions need a barometer",
+                "Boost is manifold pressure above atmospheric, and nothing in a log says what "
+                + "atmospheric was unless the controller recorded it. Failing that this reads it "
+                + "off the manifold with the engine stopped, so starting a log before cranking "
+                + "gives it one. With neither it says it cannot tell boost from altitude, rather "
+                + "than guessing."),
+
+            new("Away from the window",
+                "The same analysis runs from a command line as olv-insights, over one log or a "
+                + "folder of them, with no display and no ECU. It exits 0 when nothing is wrong, "
+                + "1 for something to watch and 2 for a warning, so a script can act on a drive "
+                + "without reading anything."),
+        ]),
+
+        new("The tuning project",
+            "What is wrong with this tune, what you tried, and whether it worked.",
+        [
+            new("Why it exists",
+                "The analysis is the easy half. A log tells you the mixture is lean above 150 kPa; "
+                + "what it cannot tell you is that you knew that three weeks ago, put four per cent "
+                + "into the top of the VE table, and it got better but not right. That half "
+                + "normally lives in somebody's head and in a folder of files called claude01 "
+                + "through claude07."),
+
+            new("Open one",
+                "Tools ▸ Tuning project. Name the vehicle, or pick one you have already. "
+                + "Everything below belongs to that car."),
+
+            new("Record a sitting",
+                "Record this log runs the insights and keeps what they found. Put what you changed "
+                + "beforehand in the note box first — \"after VE +4% above 150 kPa\" is the "
+                + "difference between a row of findings and evidence about a change, and it is the "
+                + "thing nobody writes down unless asked while they still know it."),
+
+            new("Fixes",
+                "A warning raises one the first time it is seen. Seeing the same fault again notes "
+                + "it against the fix already open rather than raising a second — and on a fix you "
+                + "have already applied, that note is the evidence the change did not work. Each "
+                + "carries what is wrong, what you changed, and what has been seen since."),
+
+            new("Copy",
+                "Puts the whole project on the clipboard as plain text. That is what to paste to "
+                + "an assistant: it is the part no single log can tell it."),
+        ]),
+
+        new("Tune versions",
+            "Which tune is which, and what changed between them.",
+        [
+            new("What a version is",
+                "A tune kept at a moment worth keeping, with why it was kept. It sits in the "
+                + "project's folder as an ordinary .msq that TunerStudio still opens — a history "
+                + "nothing else can read would be a trap rather than a feature."),
+
+            new("The same tune is not kept twice",
+                "Identity is the bytes. Reading the tune at the start of two sessions that changed "
+                + "nothing gives one version, and burning a version already recorded is news about "
+                + "it rather than a new one."),
+
+            new("What changed",
+                "Two versions are compared setting by setting, not byte by byte — two tunes can "
+                + "differ in bits no constant declares and be the same tune. What you get back is "
+                + "a list of names and values, in the firmware's own units."),
+
+            new("Which tune a log came from",
+                "A sitting records the version the controller was running. That is the join the "
+                + "whole thing turns on: without it, \"still lean\" and \"lean again after the "
+                + "change\" are the same sentence. With it, a clean run recorded on the tune from "
+                + "before the change is correctly not counted as evidence for it."),
+
+            new("Nothing branches",
+                "A tune is one thing on one controller. There is no merge, deliberately — merging "
+                + "two sets of engine settings is not something anyone should be offered."),
+        ]),
+
+        new("Letting an assistant help",
+            "A local API an AI assistant or a script can read the session through.",
+        [
+            new("Turn it on",
+                "Tools ▸ Agent API. It is off until you do, and it asks before opening the socket. "
+                + "It listens on 127.0.0.1 and nowhere else, and there is no setting that changes "
+                + "that."),
+
+            new("The token",
+                "Every request needs one. It is written with the address into agent-api.json in "
+                + "your workspace folder, so a program can find it without you typing anything. "
+                + "Loopback keeps other machines out; it does not keep out other programs on this "
+                + "one, which is what the token is for."),
+
+            new("What it can read",
+                "What is connected, every channel and the job it does, the samples of any channel, "
+                + "the insights, the tune, the tables, and the project. Live data is pushed as the "
+                + "ECU produces it rather than polled, so it arrives at the controller's pace "
+                + "rather than the window's."),
+
+            new("What it can change",
+                "Nothing, unless you tick Allow agent writes — which clears itself the moment the "
+                + "ECU disconnects, because the same laptop meets a bench engine one afternoon and "
+                + "a car the next. Even then it can only move a setting or a table cell in working "
+                + "memory."),
+
+            new("It can never burn",
+                "Not an endpoint that refuses: there is none. Everything an assistant does is "
+                + "undone by turning the key off. Committing to flash stays with whoever can see "
+                + "the engine."),
+
+            new("From Claude Code",
+                "openlogviewer-mcp, in the tools folder, fronts the same API so the tools arrive "
+                + "named rather than as a port and a token. It finds both itself."),
+        ]),
+
         new("VE Calibration",
             "Suggesting a new fuel table from logged mixture against target.",
         [
@@ -306,8 +441,27 @@ public static class Guide
         ]),
 
         new("Colours and scales",
-            "Making a channel look the same in every log.",
+            "Making a channel look the same in every log, and reading a noisy one.",
         [
+            new("Smooth a noisy channel",
+                "Right-click a channel row, then Smoothing: Light, Medium or Strong. A pressure or "
+                + "temperature sensor that arrives as fuzz becomes a line you can read the shape "
+                + "of. The setting is remembered against the channel like a colour is.",
+                "Right-click ▸ Smoothing"),
+
+            new("It is a way of drawing, not of measuring",
+                "Only the line changes. The insights, the VE calibration, the heat table, the "
+                + "statistics and every export read the channel exactly as it was logged — a "
+                + "smoothed mixture hides the single-sample lean excursion that damages a piston, "
+                + "so nothing that judges an engine is ever shown one. A smoothed channel is "
+                + "marked in its row so the two are never confused."),
+
+            new("A median, not an average",
+                "Sensor noise arrives as spikes, and an average smears each spike across its whole "
+                + "window — one bad sample in fifteen moving the line for fifteen samples is worse "
+                + "than the spike was. A median throws the spike away and keeps the level, and "
+                + "keeps edges: a real step from one pressure to another survives it."),
+
             new("Pin a colour",
                 "Right-click a channel row, then Colour. The current scheme's palette is offered "
                 + "because those entries have been checked against this background for contrast "

@@ -24,7 +24,7 @@ Open a `.mlg`, `.msl` or `.csv` log, pick channels, and scrub through them.
 ## The guide is in the application
 
 **Guide**, the fourth button in the toolbar, or *Help ▸ How to use this app*.
-Sixteen sections covering everything below, searchable across all of them, with
+Twenty sections covering everything below, searchable across all of them, with
 the keyboard shortcuts against the things they do.
 
 In the application rather than behind a link because of where this gets used:
@@ -709,6 +709,81 @@ Definitions live in `%APPDATA%\OpenLogViewer\math.json`, are held by name and
 expression, and so apply to any log carrying those channels. One that does not
 fit the open log is reported in the sidebar rather than dropped.
 
+## Insights
+
+**Insights**, beside Calculators, measures the log and says what it found —
+fuelling against target, lean excursions under load, knock retard, closed-loop
+behaviour, injector duty, charging, warmup, and sensors that never moved. It
+needs nothing but the log: no ECU, no network.
+
+Findings come at five levels. **Warning** is worth stopping for, **Watch** worth
+a look before the next drive, **Note** is context, and **Good** means it was
+checked and is as it should be — worth saying, because an analysis that only
+complains cannot tell you anything is right. **Not measured** means the log
+could not answer, and says why rather than guessing.
+
+Each finding carries the arithmetic behind it — sample counts, median and
+spread, where the worst of it was — so it can be argued with rather than
+believed.
+
+Two are worth knowing about in advance:
+
+- **Lean under load** counts samples rather than averaging them. A single lean
+  excursion at high load is what damages a piston and does not need to be common
+  to do it, so an average is exactly the wrong summary.
+- **Manifold pressure** needs to know what atmospheric was. If the controller
+  logs a barometer it uses that; failing that it reads the manifold with the
+  engine stopped, so **starting a log before cranking gives it one**. With
+  neither it says it cannot tell boost from altitude rather than guessing — the
+  alternative is calling a turbo car at 250 kPa a healthy naturally aspirated
+  engine, which is what it used to do.
+
+## The tuning project
+
+The analysis is the easy half. A log tells you the mixture is lean above
+150 kPa. What it cannot tell you is that you knew that three weeks ago, put four
+per cent into the top of the VE table, and it got better but not right — and
+that half normally lives in somebody's head and in a folder of files called
+`claude01.msq` through `claude07.msq`.
+
+**Tools ▸ Tuning project** keeps it instead, one project per vehicle under your
+workspace.
+
+**Sittings.** *Record this log* runs the insights and keeps every finding, the
+good ones included — a clean run is what a fix gets verified against, and a
+record of only bad days cannot show anything improving. Put what you changed
+beforehand in the note box: *"after VE +4% above 150 kPa"* is the difference
+between a row of findings and evidence about a change.
+
+**Fixes.** A warning raises one the first time it is seen. The same fault again
+is noted *against the fix already open* rather than raising a second — matched
+on the kind of fault, not its wording, because the wording carries numbers that
+move every run while the problem stays the same. On a fix you have already
+applied, that note is the evidence the change did not work.
+
+**Copy** puts the whole project on the clipboard as plain text. That is what to
+paste to an assistant.
+
+### Tune versions
+
+A version is a tune kept at a moment worth keeping, *with why it was kept* —
+what it was for, which fixes it addresses, what it came from, and whether it
+reached flash. It sits in the project folder as an ordinary `.msq` TunerStudio
+still opens, because a history nothing else can read is a trap rather than a
+feature.
+
+| | |
+|---|---|
+| **Identity is the bytes** | reading an unchanged tune twice gives one version; burning one already recorded is news about it, not a new one |
+| **Whole copies** | 122 KB on a MegaSquirt, 151 KB on a rusEFI — against a delta chain where one early corruption spoils everything after it |
+| **Compared by setting** | not by byte: two tunes can differ in bits no constant declares and be the same tune |
+| **Nothing branches** | a tune is one thing on one controller, and merging two sets of engine settings is not something anyone should be offered |
+
+**A sitting records which version the ECU was running.** That is the join the
+whole thing turns on — without it, *"still lean"* and *"lean again after the
+change"* are the same sentence. With it, a clean run recorded on the tune from
+*before* a change is correctly not counted as evidence for it.
+
 ## VE Calibration
 
 Suggests a new fuel table from logged AFR against the AFR the tune was asking
@@ -855,6 +930,29 @@ as zero, which would read as a measurement of nothing.
 
 `--export <folder>` writes every export for the current mode without the
 dialogs, for scripted use.
+
+## Smoothing a noisy channel
+
+Right-click a channel row, then **Smoothing** — Light, Medium or Strong. A
+pressure or temperature sensor that arrives as fuzz becomes a line you can read
+the shape of. Remembered against the channel like a colour is, and marked in the
+row so it is never mistaken for the recording.
+
+**It is a way of drawing, not a way of measuring.** Only the line changes. The
+insights, VE calibration, heat table, statistics and every export read the
+channel exactly as logged — a smoothed mixture hides the single-sample lean
+excursion that damages a piston, so nothing that judges an engine is ever shown
+one.
+
+**A median, not an average.** Sensor noise arrives as spikes, and a mean smears
+each one across its whole window: one bad sample in fifteen moving the line for
+fifteen samples is worse than the spike was. A median throws the spike away,
+keeps the level, and keeps edges — a real step from one pressure to another
+survives it where a mean rounds it into a ramp.
+
+Windows are counted in samples (5, 15, 51), not seconds. Noise of this kind is
+per reading, and a window stated in time smooths nothing on a 1 Hz log and
+destroys a 50 Hz one.
 
 ## Pinned colours and scales
 

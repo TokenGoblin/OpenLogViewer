@@ -36,6 +36,52 @@ somebody called it.
 
 ### Added
 
+**Insights — what a datalog says about the engine that produced it.** Thirteen
+findings, measured rather than eyeballed: fuelling against target, lean
+excursions under load, knock retard, closed-loop bias, injector duty, charging,
+warmup, idle steadiness, sensors that never moved. Each carries the arithmetic it
+rests on, so it can be argued with. Levels run Warning, Watch, Note, Good and
+Not measured — the last two on purpose, because an analysis that only ever
+complains cannot tell you anything is right, and one that guesses when a log
+cannot answer is worse than one that says so.
+
+**The tuning project — what you tried and whether it worked.** One project per
+vehicle. Recording a log keeps every finding and raises a fix for anything newly
+warned about; the same fault seen again is noted against the fix already open
+rather than raising a second, so the record shows whether a change is working.
+Copy puts the whole thing on the clipboard as plain text, which is what to paste
+to an assistant. **Tools ▸ Tuning project.**
+
+**Version control for tunes.** A version is a tune kept with *why* — what it was
+for, which fixes it addresses, what it came from, whether it reached flash — as
+an ordinary `.msq` TunerStudio still opens. Identity is the bytes, so reading an
+unchanged tune twice gives one version and burning a recorded one is news about
+it rather than a new one. Versions are compared setting by setting, not byte by
+byte. Nothing branches: a tune is one thing on one controller, and merging two
+sets of engine settings is not something anyone should be offered.
+
+And the join that makes it worth having: **a sitting records which version the
+ECU was running.** Without it "still lean" and "lean again after the change" are
+the same sentence.
+
+**A local API an AI assistant can watch through.** HTTP for questions, one
+WebSocket for live data pushed at the ECU's pace rather than the window's.
+Loopback only, with a token in your workspace. It changes nothing unless you tick
+Allow agent writes — which clears itself on disconnect — and it can never burn:
+not an endpoint that refuses, none at all. `openlogviewer-mcp` fronts the same
+API for Claude Code. **Tools ▸ Agent API.**
+
+**`olv-insights` — the analysis with no window.** One log or a folder, no ECU and
+no network, exit code 0/1/2 for nothing-wrong / worth-watching / warning so a
+script can act on a drive without parsing anything. `--project` records what it
+found.
+
+**Smoothing on the channel menu.** Light, Medium or Strong, a median rather than
+an average so spikes are discarded instead of smeared and real edges survive.
+Display only — the insights, VE calibration, table, statistics and exports all
+read the channel as logged, and a smoothed row says so.
+
+
 **Scatter mode — a third reading of a recording.** The plot orders samples by
 time; the heat table throws time away and bins by two channels. This throws time
 away and does not bin: every sample at its own X and Y, coloured by a third
