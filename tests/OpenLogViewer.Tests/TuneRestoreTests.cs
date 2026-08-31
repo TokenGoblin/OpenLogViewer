@@ -461,4 +461,35 @@ public class TuneRestoreTests
         Assert.Equal(50, tune.Array("veTable")![0], 6);
         Assert.Equal(6500, tune.Scalar("revLimit"), 6);
     }
+
+    [Fact]
+    public void ANameTooLongForTheFieldIsReportedRatherThanQuietlyShortened()
+    {
+        // The complaint MsqApply already had for this was unreachable, because
+        // PokeTextInto truncated and said it had worked. A tune from a build
+        // with a wider field therefore counted the name applied while putting a
+        // different name on the controller.
+        TuneLayout layout = TuneLayoutReader.Read(TextIni);
+        var ecu = EcuTune.FromPages(layout, new byte[32]);
+
+        MsqLoad loaded = MsqApply.Load(layout, TextFile("a name far too long for sixteen"), ecu);
+
+        MsqComplaint refused = Assert.Single(loaded.Rejected, c => c.Name == "label");
+        Assert.Contains("does not fit", refused.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AndTheRestorePlansNoWriteForIt()
+    {
+        // Which is the point: rejected has to mean the bytes were left alone,
+        // or the plan and the bytes disagree and the plan is what gets sent.
+        TuneLayout layout = TuneLayoutReader.Read(TextIni);
+        var ecu = Padded("keep me", (byte)'\n');
+
+        TuneRestorePlan plan =
+            TuneRestore.Plan(ecu, TextFile("a name far too long for sixteen"), "firmware");
+
+        Assert.True(plan.IsEmpty, plan.Summary);
+        Assert.Equal("keep me", plan.Target.TextIn(plan.Target.Pages, "label"));
+    }
 }

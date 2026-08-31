@@ -594,7 +594,13 @@ public sealed class EcuTune
         return TryWrite(bytes, constant.Type, (current & ~mask) | (wanted << constant.BitLow), _little);
     }
 
-    /// <summary>Writes a text setting, padded with nulls and never overrunning its field.</summary>
+    /// <summary>
+    /// Writes a text setting, padded with nulls, or refuses it whole.
+    ///
+    /// Refuses rather than truncates: see below. A caller told "written" when
+    /// half the name was kept has been told something false, and every count of
+    /// what was applied is then wrong in the same direction.
+    /// </summary>
     public bool PokeTextInto(IReadOnlyList<byte[]> pages, TuneConstant constant, string value)
     {
         ArgumentNullException.ThrowIfNull(constant);
@@ -608,11 +614,20 @@ public sealed class EcuTune
 
         if (at < 0 || at + length > page.Length) return false;
 
-        // Checked before anything is written. Rejecting half way through leaves
-        // the field partly overwritten while the caller is told nothing changed,
-        // and the bytes go to the ECU on the next send regardless.
+        // Both checked before anything is written. Rejecting half way through
+        // leaves the field partly overwritten while the caller is told nothing
+        // changed, and the bytes go to the ECU on the next send regardless.
         foreach (char c in value)
             if (c > 0x7F) return false;
+
+        // Too long is refused rather than cut short. Silently keeping the first
+        // sixteen characters and reporting success is worse than refusing: the
+        // caller counts it stored, so a tune restored from a build with a wider
+        // field reports the name applied and puts a different name on the
+        // controller — and a person who types past the end sees it accepted and
+        // finds it shortened afterwards. PokeInto refuses a value its field
+        // cannot hold; this is the same rule for the same reason.
+        if (value.Length > length) return false;
 
         // Padded with nulls, which is what the firmware stores and what TextIn
         // reads back. Padding with spaces would make writing a name back to the

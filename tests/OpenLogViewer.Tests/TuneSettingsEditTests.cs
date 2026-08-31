@@ -230,14 +230,32 @@ public class TuneSettingsEditTests
     }
 
     [Fact]
-    public void TextIsNotAllowedToOverrunItsField()
+    public void TextTooLongForItsFieldIsRefusedRatherThanCutShort()
     {
-        // Eight bytes. A longer name is truncated rather than writing over
-        // whatever setting follows it.
+        // This used to keep the first eight characters and report success,
+        // which is the same shape of lie as an out-of-range number being
+        // stored: the caller counts it applied and something else is on the
+        // controller. Restoring a tune from a build with a wider field reported
+        // the name written and put a different name on the ECU, and a person
+        // typing past the end saw it accepted and found it shortened later.
+        //
+        // The field is eight bytes.
         var edit = new TuneSettingsEdit(Tune());
 
-        Assert.True(edit.SetText("alias", "MuchTooLongToFit"));
-        // Eight characters, filling the field exactly and stopping there.
+        Assert.False(edit.SetText("alias", "MuchTooLongToFit"));
+
+        // And nothing was written on the way to refusing, so no write is left
+        // waiting to carry half a name to the ECU.
+        Assert.Empty(edit.Writes());
+        Assert.False(edit.HasChanges);
+    }
+
+    [Fact]
+    public void ButANameFillingTheFieldExactlyStillFits()
+    {
+        var edit = new TuneSettingsEdit(Tune());
+
+        Assert.True(edit.SetText("alias", "MuchTooL"));
         Assert.Equal("MuchTooL", edit.Text("alias"));
         Assert.All(edit.Writes(), w => Assert.True(w.Offset + w.Data.Length <= 20));
     }
