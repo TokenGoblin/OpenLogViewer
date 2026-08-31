@@ -64,9 +64,19 @@ to their authors — MegaSquirt, rusEFI, Speeduino and others — and the applic
 reads the ones already installed on the machine or placed in its definitions
 folder. Nothing is downloaded and nothing is bundled.
 
-## No network access
+## No internet access, and no telemetry
 
-The application makes no network requests of any kind. There is no HTTP client,
-no socket, and no telemetry. The only outward call in the codebase hands a
-workspace folder or the project's own README URL to the shell, which is what
-opens Explorer or a browser when you ask it to.
+Nothing is sent anywhere, ever. There is no HTTP client, no analytics, no update
+check and no crash reporting, and the application does not know or care whether
+the machine is online — which is the point, because it is mostly used in a garage
+with neither internet nor phone signal.
+
+There is exactly one socket. `WifiEcuTransport` opens a TCP connection to an
+OBD2 adapter that serves its own Wi-Fi network — the address is typed in, is
+never discovered or defaulted to anything off the machine, and is in practice a
+private one such as `192.168.0.10:35000`. It carries the same ELM327 commands
+that go down a serial cable to the same kind of adapter. It talks to a device in
+the car and to nothing else.
+
+The only other outward call hands a workspace folder or the project's own README
+URL to the shell, which is what opens Explorer or a browser when you ask it to.
