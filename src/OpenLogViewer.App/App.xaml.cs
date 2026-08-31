@@ -43,7 +43,7 @@ public partial class App : Application
         "--find", "--guide", "--settings", "--page", "--live-page",
         "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
-        "--faults", "--connect-ssm", "--connect-wifi", "--agent-api",
+        "--faults", "--connect-ssm", "--connect-wifi", "--agent-api", "--tuning-project",
     ];
 
     /// <summary>
@@ -104,6 +104,17 @@ public partial class App : Application
         int connect = Array.IndexOf(e.Args, "--connect");
         if (connect >= 0 && connect + 1 < e.Args.Length)
             window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
+
+        // "--tuning-project [vehicle]" opens the project window, and the vehicle
+        // with it where one is named.
+        int project = Array.IndexOf(e.Args, "--tuning-project");
+        if (project >= 0)
+        {
+            window.ShowProject(
+                project + 1 < e.Args.Length && !e.Args[project + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[project + 1]
+                    : null);
+        }
 
         // "--agent-api [port]" starts the local API without anybody clicking.
         // It still opens read-only: there is deliberately no flag that arms

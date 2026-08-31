@@ -190,6 +190,28 @@ public partial class MainWindow : Window
         Report(_vm.StartAgentApi());
     }
 
+    private ProjectWindow? _project;
+
+    /// <summary>
+    /// The vehicle's project, in a window of its own.
+    ///
+    /// Kept alive rather than made fresh, so recording a sitting and then
+    /// looking at what it did does not lose the vehicle that was picked.
+    /// </summary>
+    private void OnProjectClick(object sender, RoutedEventArgs e)
+    {
+        if (_project is null)
+        {
+            _project = new ProjectWindow(_vm) { Owner = this };
+            _project.Closed += (_, _) => _project = null;
+            _project.Show();
+        }
+        else
+        {
+            _project.Activate();
+        }
+    }
+
     private CalculatorsWindow? _calculators;
 
     /// <summary>
@@ -1214,6 +1236,15 @@ public partial class MainWindow : Window
     /// OBD2's three. Nobody should land on it by accident.
     /// </summary>
     /// <summary>Opens a Subaru over SSM, for a scripted run.</summary>
+    /// <summary>Opens the project window, for a scripted run.</summary>
+    public void ShowProject(string? vehicle)
+    {
+        if (vehicle is { Length: > 0 }) Report(_vm.OpenProject(vehicle));
+
+        OnProjectClick(this, new RoutedEventArgs());
+        Report($"project window opened: {_vm.ProjectSummary}");
+    }
+
     /// <summary>Starts the agent API from the command line, read-only.</summary>
     public void StartAgentApi(int port) => Report(_vm.StartAgentApi(port));
 

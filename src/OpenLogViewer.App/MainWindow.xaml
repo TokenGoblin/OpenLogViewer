@@ -175,6 +175,10 @@
                     agent read, which is harmless, while arming writes is the
                     separate decision that lets one change the engine.
                 -->
+                <MenuItem Header="Tuning _project…" Click="OnProjectClick"
+                          ToolTip="What is wrong with this tune, what has been tried, and whether it worked"/>
+                <Separator/>
+
                 <MenuItem Header="_Agent API…" Click="OnAgentApiClick"
                           ToolTip="A local API an AI assistant or a script can watch this session through"/>
                 <MenuItem Header="Allow agent _writes"
