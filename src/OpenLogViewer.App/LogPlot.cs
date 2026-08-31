@@ -516,7 +516,9 @@ public sealed class LogPlot : FrameworkElement
 
         foreach (ChannelItem item in visible)
         {
-            double value = item.Channel.At(index);
+            // Through the item, so the pointer finds the line that is drawn
+            // rather than the one underneath it.
+            double value = item.ValueAt(index);
             if (double.IsNaN(value)) continue;
 
             double distance = Math.Abs(ChannelY(item, value, area) - pointer.Y);
@@ -559,7 +561,7 @@ public sealed class LogPlot : FrameworkElement
             ]
             :
             [
-                ("now", channel.FormatWithUnits(channel.At(_cursorIndex), hover.System)),
+                ("now", channel.FormatWithUnits(hover.ValueAt(_cursorIndex), hover.System)),
                 ("max", $"{channel.FormatWithUnits(channel.Max, hover.System)}  @ {Clock(doc.Time.At(channel.MaxIndex))}"),
                 ("min", $"{channel.FormatWithUnits(channel.Min, hover.System)}  @ {Clock(doc.Time.At(channel.MinIndex))}"),
             ];
@@ -585,7 +587,7 @@ public sealed class LogPlot : FrameworkElement
 
         // Anchored to the trace, but never allowed outside the plot.
         Rect lane = LaneOf(hover, area);
-        double y = Math.Clamp(ChannelY(hover, channel.At(_cursorIndex), lane) - height / 2,
+        double y = Math.Clamp(ChannelY(hover, hover.ValueAt(_cursorIndex), lane) - height / 2,
                               area.Top, Math.Max(area.Top, area.Bottom - height));
 
         dc.DrawRoundedRectangle(CardBrush, CardPen, new Rect(x, y, width, height), 4, 4);
@@ -635,7 +637,7 @@ public sealed class LogPlot : FrameworkElement
 
             for (int i = i0; i < i1; i++)
             {
-                double v = channel.At(i);
+                double v = item.ValueAt(i);
 
                 // Lift the pen across a pause in logging or a missing sample, so
                 // the trace shows an absence of data rather than a flat line.

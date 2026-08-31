@@ -268,7 +268,7 @@ public class TuneCurveEditTests
         var copy = EcuTune.FromPages(layout, [.. tune.Pages.Select(p => p.ToArray())]);
         foreach (TuneWrite write in edit.Encode(tune)!) copy.Accept(write);
 
-        Assert.Equal([-40, 0, 90, 200], copy.Array("wueBins"));
-        Assert.Equal([180, 150, 120, 100], copy.Array("wuePct"));
+        Assert.Equal([-40, 0, 90, 200], copy.Array("wueBins")!);
+        Assert.Equal([180, 150, 120, 100], copy.Array("wuePct")!);
     }
 }
