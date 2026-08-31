@@ -42,12 +42,19 @@ public class CurvePageTests : IDisposable
            wueBins     = array,  U08, 0, [4], "F", 1.0, -40, -40, 215, 0
            wuePct      = array,  U08, 8, [4], "%", 1.0, 0, 0, 250, 0
            crankingRPM = scalar, U16, 16, "rpm", 1, 0, 0, 10000, 0
+           rpmBins     = array,  U08, 20, [2], "rpm", 100, 0, 0, 25500, 0
+           mapBins     = array,  U08, 24, [2], "kPa", 1, 0, 0, 255, 0
+           veTable     = array,  U08, 28, [2x2], "%", 1, 0, 0, 255, 0
 
         [CurveEditor]
            curve = warmupCurve, "Warmup Enrichment"
               columnLabel = "Coolant", "Enrichment"
               xBins = wueBins, coolant
               yBins = wuePct
+
+           curve = ghostCurve, "Names Bins This Build Has Not"
+              xBins = noSuchBins
+              yBins = alsoNotHere
 
         [UserDefined]
            dialog = wrapped, "Warmup"
@@ -60,11 +67,20 @@ public class CurvePageTests : IDisposable
            dialog = engine, "Engine", yAxis
               field = "Cranking RPM", crankingRPM
 
+        [TableEditor]
+           table = veTableTbl, veTableMap, "VE Table", 2
+              xBins = rpmBins, rpm
+              yBins = mapBins, map
+              zBins = veTable
+
         [Menu]
            menu = "&Settings"
               subMenu = engine, "Engine"
               subMenu = warmupCurve, "Warmup Curve"
               subMenu = wrapped, "Warmup Page"
+              subMenu = veTableTbl, "VE Table"
+              subMenu = veTableMap, "VE Table 3D"
+              subMenu = ghostCurve, "A Curve With No Bins"
         """;
 
     private string Temp(string extension)
@@ -118,6 +134,51 @@ public class CurvePageTests : IDisposable
         Assert.Equal("Warmup Enrichment", curve.Title);
         Assert.Equal(4, curve.Count);
         Assert.Equal("Coolant", curve.XLabel);
+    }
+
+    [Fact]
+    public void AMenuEntryNamingATableOpensThatTable()
+    {
+        // The third thing an entry can name, and the last one that opened
+        // nothing: 51 of a MicroSquirt's entries and 53 of an MS3's.
+        MainViewModel vm = Opened();
+
+        SettingsMenuEntry entry = Entry(vm, "VE Table");
+        Assert.True(entry.IsTable);
+
+        vm.OpenMenuEntry = entry;
+
+        Assert.True(vm.ShowTableView);
+        Assert.Equal("VE Table", vm.SelectedEcuTable?.Name);
+
+        // And the settings list stays where it was, so following a menu into a
+        // table does not lose the reader's place in it.
+        Assert.True(vm.ShowSettingsPages);
+        Assert.False(vm.HasOpenCurves);
+    }
+
+    [Fact]
+    public void TheThreeDimensionalNameLeadsToTheSameTable()
+    {
+        // A firmware declares a table under two names and a menu may point at
+        // either.
+        MainViewModel vm = Opened();
+
+        vm.OpenMenuEntry = Entry(vm, "VE Table 3D");
+
+        Assert.True(vm.ShowTableView);
+        Assert.Equal("VE Table", vm.SelectedEcuTable?.Name);
+    }
+
+    [Fact]
+    public void ACurveNamingBinsThisBuildLacksIsNotOffered()
+    {
+        // Offered and then opening a blank pane is worse than not offered: the
+        // entry looks like every other one and does nothing at all.
+        MainViewModel vm = Opened();
+
+        Assert.DoesNotContain(
+            vm.SettingsMenu, m => !m.IsHeading && m.Title == "A Curve With No Bins");
     }
 
     [Fact]

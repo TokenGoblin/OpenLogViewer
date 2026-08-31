@@ -323,9 +323,24 @@ public static class LogInsights
             return low > high || high - low <= allowed * 2;
         }
 
-        /// <summary>Warm enough that warmup enrichment is out of the picture.</summary>
-        public bool Warm(int i) =>
-            Coolant is not { } clt || double.IsNaN(clt.At(i)) || Hot(clt);
+        /// <summary>
+        /// Whether the engine was warm <em>at this sample</em>.
+        ///
+        /// Per sample, not per log. Asking only whether the log ever got warm
+        /// lets every sample from a cold start onward through — which is most of
+        /// an ordinary drive's opening minutes, all of it carrying warmup
+        /// enrichment on top of the table. Averaged in, that reads as a rich map
+        /// and is nothing of the sort.
+        /// </summary>
+        public bool Warm(int i)
+        {
+            if (Coolant is not { } clt) return true;
+
+            double now = clt.At(i);
+            if (double.IsNaN(now)) return true;
+
+            return now >= (Fahrenheit(clt) ? 160 : 71);
+        }
 
         private bool _hotKnown;
         private bool _hot;

@@ -97,14 +97,16 @@ public sealed class ChannelStyleStore
     /// <summary>
     /// Pins a colour, leaving any pinned scale alone. Null clears it.
     /// </summary>
-    public void SetColor(string channel, int? color) =>
+    /// <returns>False where the store is full and this is a channel it does not
+    /// already hold.</returns>
+    public bool SetColor(string channel, int? color) =>
         Update(channel, existing => existing with { Color = color });
 
     /// <summary>
     /// Pins a scale, leaving any pinned colour alone. Either bound null clears it,
     /// since half a scale is not one.
     /// </summary>
-    public void SetRange(string channel, double? min, double? max) =>
+    public bool SetRange(string channel, double? min, double? max) =>
         Update(channel, existing => existing with { Min = min, Max = max });
 
     /// <summary>Unpins everything for a channel, putting it back to automatic.</summary>
@@ -116,9 +118,17 @@ public sealed class ChannelStyleStore
         Persist();
     }
 
-    private void Update(string channel, Func<ChannelStyle, ChannelStyle> change)
+    /// <summary>
+    /// Applies a change, or reports that the store is full.
+    ///
+    /// Refused rather than thrown. Every call here comes from a menu click, and
+    /// an exception out of a click handler is the application closing — which is
+    /// a great deal worse than a colour not being remembered, and a strange
+    /// thing to have the five hundred and first pinned channel do.
+    /// </summary>
+    private bool Update(string channel, Func<ChannelStyle, ChannelStyle> change)
     {
-        if (string.IsNullOrWhiteSpace(channel)) return;
+        if (string.IsNullOrWhiteSpace(channel)) return false;
 
         ChannelStyle updated = change(For(channel) ?? new ChannelStyle(channel));
 
@@ -126,9 +136,11 @@ public sealed class ChannelStyleStore
         // both halves leaves the file as it was before either was set.
         if (updated.IsEmpty) _styles.Remove(channel);
         else if (_styles.Count < MaxStyles || _styles.ContainsKey(channel)) _styles[channel] = updated;
-        else throw new InvalidOperationException($"There is a limit of {MaxStyles} channel styles.");
+        else return false;
 
         Persist();
+
+        return true;
     }
 
     private void Persist() =>
