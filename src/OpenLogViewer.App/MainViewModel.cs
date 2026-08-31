@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -65,6 +66,10 @@ public sealed partial class MainViewModel : ObservableObject
         ChannelStyleStore? styles = null)
     {
         _store = presets ?? new PresetStore();
+
+        // The appearance editor answers to the list it edits: see StyleTarget.
+        Channels.CollectionChanged += OnChannelsChanged;
+
         _filterStore = filters ?? new FilterStore();
         _settings = settings ?? new SettingsStore();
         _mathStore = math ?? new MathChannelStore();
@@ -267,7 +272,21 @@ public sealed partial class MainViewModel : ObservableObject
     private string _styleMin = "";
     private string _styleMax = "";
 
-    /// <summary>The channel the appearance editor is open on, or null when it is shut.</summary>
+    /// <summary>
+    /// The channel the appearance editor is open on, or null when it is shut.
+    ///
+    /// <para>
+    /// Closed by the channel list itself when the row it was opened on stops
+    /// being in it. Opening the pin-scale editor and then opening another log
+    /// left the panel up, captioned with a channel from the file before — and
+    /// Confirm then pinned a range on a ChannelItem nothing was drawing any
+    /// more, so the edit vanished with no error.
+    /// </para>
+    /// <para>
+    /// Hung off the collection rather than added to the two places that rebuild
+    /// it, because a third will be written eventually and will not remember.
+    /// </para>
+    /// </summary>
     public ChannelItem? StyleTarget
     {
         get => _styleTarget;
@@ -278,6 +297,15 @@ public sealed partial class MainViewModel : ObservableObject
             Raise(nameof(EditingStyle));
             Raise(nameof(StyleTargetName));
         }
+    }
+
+    /// <summary>Shuts the appearance editor if what it was editing has gone.</summary>
+    private void OnChannelsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_styleTarget is null) return;
+        if (Channels.Contains(_styleTarget)) return;
+
+        StyleTarget = null;
     }
 
     public bool EditingStyle => _styleTarget is not null;
@@ -4765,6 +4793,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void RebuildHistogram(int firstSample, int lastSample)
     {
+        // Cleared here rather than on each way out. The rings belong to the
+        // table being rebuilt, and there are four exits from this method: no
+        // document, the VE analysis, an empty table, and the ordinary one. Two
+        // of them left the previous table's rings standing — so marking a span,
+        // switching to the table and turning VE Calibration on drew the old
+        // grid's cells over the VE table, where they answered to nothing on the
+        // plot and did not move when it did.
+        //
+        // Whatever works out a new set says so below. Everything else correctly
+        // ends up with none, without having to remember to.
+        VisitedCells = null;
+
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
         {
             Table = null;
