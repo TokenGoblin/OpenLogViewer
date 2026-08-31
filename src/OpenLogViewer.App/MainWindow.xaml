@@ -238,6 +238,22 @@
                         IsEnabled="{Binding HasDocument}"
                         ToolTip="What this log says about the engine: mixture against target, injector headroom, knock, idle steadiness and more — with the arithmetic behind each"/>
 
+                <!--
+                    Third of the three, and the one that outlives a session.
+                    Calculators say what an engine should do and Insights what
+                    one did; this is the only thing that remembers what was
+                    already tried, which is the question a tuner asks before
+                    every change and the one nothing else here can answer.
+                    A menu is where that gets forgotten.
+
+                    Enabled always, unlike Insights: a project is worth opening
+                    with no log at all, to read what the last sitting concluded
+                    before deciding what to record next.
+                -->
+                <Button DockPanel.Dock="Right" Content="⌸  Project"
+                        Click="OnProjectClick" Padding="10,3" Margin="0,0,8,0"
+                        ToolTip="What is wrong with this tune, what you changed, whether it worked — and which tune each log came from"/>
+
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
 
                 <!--

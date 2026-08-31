@@ -47,7 +47,16 @@
                         Click="OnCopyClick"
                         ToolTip="Puts the whole project on the clipboard, which is what to paste to an assistant"/>
                 <Button DockPanel.Dock="Left" Content="Open the folder" Padding="12,4"
-                        Click="OnFolderClick"/>
+                        Margin="0,0,8,0" Click="OnFolderClick"/>
+
+                <!--
+                    Keeping the tune in hand as a version is the other half of
+                    the project: a sitting says what the log showed, a version
+                    says what the ECU was running while it did.
+                -->
+                <Button DockPanel.Dock="Left" Content="Keep this tune" Padding="12,4"
+                        Click="OnKeepTuneClick"
+                        ToolTip="Records the tune now in hand as a version of this project, with the note above"/>
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11"
                            Foreground="{DynamicResource Muted}"
                            Text="Nothing here is sent anywhere. The file is yours."/>

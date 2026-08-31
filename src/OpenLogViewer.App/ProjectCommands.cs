@@ -86,6 +86,38 @@ public partial class MainViewModel
         return "";
     }
 
+    /// <summary>The folder holding this project's file and its tunes.</summary>
+    private string ProjectFolder =>
+        Path.GetDirectoryName(Projects.PathFor(_project?.Vehicle ?? "")) ?? Projects.Root;
+
+    /// <summary>
+    /// Keeps the tune in hand as a version of the project.
+    ///
+    /// The other half of a sitting: a sitting says what the log showed, a
+    /// version says what the controller was running while it did. Without both,
+    /// a finding belongs to a date rather than to a tune.
+    /// </summary>
+    public string KeepTune(string note = "", bool burned = false)
+    {
+        if (_project is not { } project) return "No project is open.";
+
+        if (_ecuTune is not { } tune || TuneIsPlaceholder)
+        {
+            return "There is no tune to keep. Connect to an ECU and read its tune, or open a "
+                   + "saved one.";
+        }
+
+        (TuningProject updated, TuneVersion version, bool isNew) = TuneHistory.Capture(
+            project, ProjectFolder, tune, _ecuSignature, note, burned: burned);
+
+        if (Keep(updated) is { Length: > 0 } failed) return failed;
+
+        return isNew
+            ? $"Kept as {version.Id}. {updated.Versions.Count} version"
+              + $"{(updated.Versions.Count == 1 ? "" : "s")} in this project."
+            : $"That is already {version.Id} — the tune has not changed since it was kept.";
+    }
+
     /// <summary>
     /// Records the log in hand as a sitting.
     ///
@@ -97,7 +129,12 @@ public partial class MainViewModel
         if (_project is not { } project) return "No project is open.";
         if (Document is not { } log) return "There is no log to record.";
 
-        ProjectSession sitting = TuningProjectRecorder.Sitting(log, LiveSignature, note);
+        // Against the tune the controller is running, where one is known. This
+        // is the join: a finding belongs to a tune rather than to a date, and
+        // without it "still lean" and "lean again after the change" read the
+        // same.
+        ProjectSession sitting = TuningProjectRecorder.Sitting(
+            log, LiveSignature, note, project.Latest?.Id ?? "");
         int before = project.Open.Count();
 
         TuningProject updated = TuningProjectRecorder.Record(project, sitting);

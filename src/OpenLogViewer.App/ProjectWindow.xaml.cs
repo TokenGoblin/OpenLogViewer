@@ -116,6 +116,22 @@ public partial class ProjectWindow : Window, INotifyPropertyChanged
         MessageBox.Show(this, said, "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    private void OnKeepTuneClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.Project is null)
+        {
+            MessageBox.Show(this, "Open a project first.", "OpenLogViewer",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string said = _vm.KeepTune(Note.Text?.Trim() ?? "");
+
+        Show(_vm.Project);
+
+        MessageBox.Show(this, said, "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void OnCopyClick(object sender, RoutedEventArgs e)
     {
         try
