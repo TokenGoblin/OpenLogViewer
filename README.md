@@ -929,6 +929,70 @@ wrong.
 Pass `--theme <id>` to start in a scheme for one run without changing the saved
 preference; ids are the lower-case hyphenated names, e.g. `solarized-dark`.
 
+## Letting an AI assistant watch
+
+There is a local API a program on this machine can read the session through — an
+AI assistant, or a script of your own. **Tools → Agent API** starts it. It is off
+until you do, and it asks before opening the socket.
+
+It listens on `127.0.0.1` and nowhere else, and no setting changes that. Every
+request carries a token, written with the address into `agent-api.json` in your
+workspace folder:
+
+```json
+{ "address": "http://127.0.0.1:8765",
+  "websocket": "ws://127.0.0.1:8765/live/stream",
+  "token": "…" }
+```
+
+Ask it things over HTTP:
+
+| | |
+|---|---|
+| `GET /state` | live or a log, which firmware, how many samples |
+| `GET /channels` | every channel, its units, and the job it does |
+| `GET /values?channel=AFR&seconds=10` | samples and their times, newest last |
+| `GET /insights` | the findings the Insights window shows |
+| `GET /tune`, `/tables`, `/table?name=` | what the controller holds |
+
+Channels come back with a **role** — `EngineSpeed`, `Mixture`,
+`ManifoldPressure` — which is the reliable way to find one, because every
+firmware spells them differently. A rusEFI calls engine speed `RPMValue`; a
+MegaSquirt calls it `rpm`.
+
+For live data, subscribe rather than poll. The socket sends the channel names
+once and then only numbers, pushed as the ECU produces them rather than as the
+window repaints:
+
+```
+→ {"channels":["RPM","AFR"]}
+← {"type":"schema","channels":["RPM","AFR"]}
+← {"type":"frame","t":12.44,"v":[3200,12.8],"skipped":0}
+```
+
+A subscriber that cannot keep up loses frames rather than slowing the poll, and
+each frame says how many it stood in for.
+
+### Writing
+
+An agent can change a setting or a table cell **only while "Allow agent writes"
+is ticked**, and that clears itself whenever the ECU disconnects. Nothing it does
+is ever burned, so turning the key off undoes all of it — and there is no burn
+endpoint at all, not even one that refuses.
+
+### From Claude Code
+
+`tools/OpenLogViewer.Mcp` is an MCP server over the same API, so the tools arrive
+named rather than as a port and a token:
+
+```json
+{ "mcpServers": {
+    "openlogviewer": { "command": "…/openlogviewer-mcp.exe" } } }
+```
+
+It finds the address and token itself. Give it a path as its one argument if your
+workspace is somewhere other than the default.
+
 ## Requirements
 
 - Windows

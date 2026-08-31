@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>openlogviewer-mcp</AssemblyName>
+    <RootNamespace>OpenLogViewer.Mcp</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    No reference to Core, deliberately. This talks to the running application
+    over its own HTTP API and knows nothing about how a log or a tune is
+    represented — so it cannot drift from the application, and cannot be built
+    against a version of Core the running application does not have.
+  -->
+
+</Project>
