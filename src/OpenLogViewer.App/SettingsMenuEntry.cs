@@ -25,6 +25,17 @@ public sealed record SettingsMenuEntry(string Dialog, string Title, string Condi
     /// </summary>
     public bool IsCurve { get; init; }
 
+    /// <summary>
+    /// True when this opens one of the firmware's tables.
+    ///
+    /// The third thing a menu entry can name, and the last one that opened
+    /// nothing: 51 of a MicroSquirt's entries, 53 of an MS3's. A firmware
+    /// declares a table under two names — the grid and its three-dimensional
+    /// view — and a menu may point at either, so both have to lead back to the
+    /// same table.
+    /// </summary>
+    public bool IsTable { get; init; }
+
     public bool IsHeading => Dialog.Length == 0;
 
     public bool HasCondition => Condition.Length > 0;

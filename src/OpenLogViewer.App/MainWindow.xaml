@@ -1434,11 +1434,13 @@
                            Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"
                            Text="Click or drag to select · arrows move · shift extends · + − nudge · PgUp/PgDn scale by 1% (shift 5%) · Esc undoes the selection"/>
 
+                <!-- Shown from either half: the tables list, or a settings
+                     menu entry that names a table. -->
                 <local:TuneTableView x:Name="TuneTable"
                                      Table="{Binding SelectedEcuTable}"
                                      Edit="{Binding TableEdit}"
                                      Selection="{Binding SelectedCells, Mode=TwoWay}"
-                                     Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}"/>
+                                     Visibility="{Binding ShowTableView, Converter={StaticResource BoolToVis}}"/>
 
                 <!--
                     A curve: warmup enrichment, cranking pulsewidth, injector

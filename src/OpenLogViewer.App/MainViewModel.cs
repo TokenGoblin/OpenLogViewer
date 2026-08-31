@@ -406,7 +406,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        _styleStore.SetColor(item.Name, color is { } c ? (c.R << 16) | (c.G << 8) | c.B : null);
+        if (!_styleStore.SetColor(item.Name, color is { } c ? (c.R << 16) | (c.G << 8) | c.B : null))
+        {
+            Hint = "There is no room left to remember another channel's colour. "
+                   + "Clear one that is pinned and try again.";
+            return;
+        }
+
         item.SetFixedColor(color);
 
         if (color is null) RecolorChannels();
@@ -443,7 +449,13 @@ public sealed partial class MainViewModel : ObservableObject
             return false;
         }
 
-        _styleStore.SetRange(item.Name, min, max);
+        if (!_styleStore.SetRange(item.Name, min, max))
+        {
+            Hint = "There is no room left to remember another channel's scale. "
+                   + "Clear one that is pinned and try again.";
+            return false;
+        }
+
         item.SetFixedRange((min.Value, max.Value));
 
         Hint = $"{item.Name} is drawn over {item.Channel.Format(min.Value, Units)}"
@@ -1589,6 +1601,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!Set(ref _showSettings, value)) return;
 
             Raise(nameof(ShowEcuTables));
+            Raise(nameof(ShowTableView));
             Raise(nameof(ShowCurves));
             Raise(nameof(ShowSettingsPagesOnly));
             Raise(nameof(ShowSettingsFields));
@@ -1678,9 +1691,19 @@ public sealed partial class MainViewModel : ObservableObject
                 // 23 of a MicroSquirt's 131 entries and 48 of an MS3's 246
                 // opening nothing — warmup enrichment, cranking pulsewidth,
                 // injector dead time, most of what a tuner actually changes.
-                bool isCurve = ui.Find(entry.Dialog) is null && _ecuCurves.ContainsKey(entry.Dialog);
+                bool isDialog = ui.Find(entry.Dialog) is not null;
 
-                if (!isCurve && ui.Find(entry.Dialog) is null) continue;
+                // Only where a curve can actually be built from it. One naming a
+                // curve whose bins this build does not have would otherwise be
+                // offered and then open a blank pane, which is worse than not
+                // offering it at all.
+                bool isCurve = !isDialog && _curveNames.Contains(entry.Dialog);
+
+                // And a table, which is the third thing an entry can name and
+                // the last one that opened nothing.
+                bool isTable = !isDialog && !isCurve && TableNamed(entry.Dialog) is not null;
+
+                if (!isDialog && !isCurve && !isTable) continue;
 
                 entries.Add(new SettingsMenuEntry(
                     entry.Dialog,
@@ -1688,6 +1711,7 @@ public sealed partial class MainViewModel : ObservableObject
                     entry.Condition)
                 {
                     IsCurve = isCurve,
+                    IsTable = isTable,
                 });
             }
 
@@ -1703,14 +1727,44 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(SettingsSummary));
     }
 
+    /// <summary>
+    /// The table a menu entry names, under either of the two names a firmware
+    /// gives it: the grid and its three-dimensional view.
+    /// </summary>
+    private TuneTable? TableNamed(string name)
+    {
+        if (_ecuTableDefinitions.FirstOrDefault(
+                t => t.Id.Equals(name, StringComparison.OrdinalIgnoreCase)
+                     || t.Map.Equals(name, StringComparison.OrdinalIgnoreCase)) is not { } definition)
+        {
+            return null;
+        }
+
+        return EcuTables.FirstOrDefault(
+            t => t.Name.Equals(definition.Title, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>Every curve this firmware describes, by name.</summary>
     private IReadOnlyDictionary<string, TuneCurve> _ecuCurves =
         new Dictionary<string, TuneCurve>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Only those a curve can actually be built from.</summary>
-    private static IReadOnlySet<string> Named(IReadOnlyDictionary<string, TuneCurve> curves) =>
+    /// <summary>
+    /// Only the curves that can actually be built.
+    ///
+    /// Asked by building one, which is the only question that settles it. A
+    /// curve naming both of its rows passes every cheaper test and still fails
+    /// where this firmware has no constant by those names, or where the two
+    /// rows turn out to be different lengths — and an entry offered on that
+    /// basis opens a blank pane, which is worse than not being offered.
+    /// </summary>
+    private static IReadOnlySet<string> Named(
+        IReadOnlyDictionary<string, TuneCurve> curves, EcuTune? tune) =>
         new HashSet<string>(
-            curves.Where(c => c.Value.IsUsable).Select(c => c.Key), StringComparer.OrdinalIgnoreCase);
+            tune is null
+                ? []
+                : curves.Where(c => TuneCurveEdit.For(c.Value, tune) is not null).Select(c => c.Key),
+            StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Their names, for the page builder to recognise a panel by.</summary>
     private IReadOnlySet<string> _curveNames =
@@ -1733,6 +1787,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// table editor once the Tables chip is clicked.
     /// </summary>
     public bool ShowCurves => _showSettings && HasOpenCurves;
+
+    /// <summary>
+    /// Whether the table editor belongs on screen: because the tables half is
+    /// showing, or because a settings entry named a table.
+    /// </summary>
+    public bool ShowTableView =>
+        ShowEcuTables || (_showSettings && OpenMenuEntry is { IsTable: true });
 
     /// <summary>What the curve header says: how much is here, and what is pending.</summary>
     public string CurveSummary
@@ -1774,6 +1835,7 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(ShowCurves));
         Raise(nameof(ShowSettingsPagesOnly));
         Raise(nameof(ShowSettingsFields));
+        Raise(nameof(ShowTableView));
         Raise(nameof(CurveSummary));
         Raise(nameof(HasCurveChanges));
         Raise(nameof(CanWriteCurve));
@@ -1940,6 +2002,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         OpenCurves = curves;
 
+        // A table opens on the right while the settings list stays where it is,
+        // so following a menu into one does not lose the reader's place in it.
+        if (entry is { IsHeading: false, IsTable: true } && TableNamed(entry.Dialog) is { } table)
+            SelectedEcuTable = table;
+
+        Raise(nameof(ShowTableView));
+
         if (OpenDialog is { } dialog)
         {
             dialog.Refresh(Resolver);
@@ -2023,7 +2092,7 @@ public sealed partial class MainViewModel : ObservableObject
             _ecuTableDefinitions = TableEditorReader.Read(ini);
             _ecuInterface = TuneInterfaceReader.Read(ini);
             _ecuCurves = TuneCurveReader.Read(ini);
-            _curveNames = Named(_ecuCurves);
+            _curveNames = Named(_ecuCurves, _ecuTune);
             _derived = DerivedChannels.Read(ini);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
@@ -2043,6 +2112,7 @@ public sealed partial class MainViewModel : ObservableObject
             // firmware, which is not what a burn of this one would commit.
             _settingsPagesWritten.Clear();
             OpenDialog = null;
+            OpenCurves = [];
             _openMenuEntry = null;
 
             EcuTables.Clear();
@@ -2263,7 +2333,14 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             if (burned.Count == 0)
+            {
+                // The list has just been emptied of pages nothing can commit, so
+                // the button that offers a burn is now offering nothing. Said,
+                // or it stays lit and answers "there is nothing to burn".
+                Raise(nameof(CanBurnSettings));
+
                 return "This firmware declares no way to burn the pages that were written.";
+            }
 
             Raise(nameof(CanBurnSettings));
 
@@ -2839,7 +2916,7 @@ public sealed partial class MainViewModel : ObservableObject
             // applies at all.
             _ecuInterface = TuneInterfaceReader.Read(iniText);
             _ecuCurves = TuneCurveReader.Read(iniText);
-            _curveNames = Named(_ecuCurves);
+            _curveNames = Named(_ecuCurves, _ecuTune);
             _derived = DerivedChannels.Read(iniText);
             _settingsEdit = new TuneSettingsEdit(tune);
             BuildSettingsMenu();
