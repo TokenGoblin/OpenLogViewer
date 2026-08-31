@@ -201,4 +201,99 @@ public class TuneRestoreTests
         Assert.Contains("1 setting would change", plan.Summary);
         Assert.Contains("not in the file", plan.Summary);
     }
+
+    // ----- padding a controller chose for itself ------------------------------
+
+    /// <summary>
+    /// An INI with a text field, which is where a firmware's own padding lives.
+    /// </summary>
+    private const string TextIni = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 32
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+        pageValueWrite  = "w%2o%2c%v"
+        burnCommand     = "b%2i"
+           label = string, ASCII, 0, 16
+           revLimit = scalar, U16, 16, "rpm", 1, 0, 0, 10000, 0
+        """;
+
+    /// <summary>A tune whose text field is padded the way a controller pads it.</summary>
+    private static EcuTune Padded(string text, params byte[] padding)
+    {
+        TuneLayout layout = TuneLayoutReader.Read(TextIni);
+        var page = new byte[32];
+
+        for (int i = 0; i < text.Length; i++) page[i] = (byte)text[i];
+        for (int i = 0; i < padding.Length; i++) page[text.Length + i] = padding[i];
+
+        return EcuTune.FromPages(layout, page);
+    }
+
+    private static MsqFile TextFile(string label) => MsqFile.Read($"""
+        <msq xmlns="http://www.msefi.com/:msq">
+        <versionInfo fileFormat="5.0" nPages="1" signature="firmware"/>
+        <page number="0" size="32">
+        <constant name="label">"{label}"</constant>
+        <constant name="revLimit">0.0</constant>
+        </page>
+        </msq>
+        """);
+
+    [Fact]
+    public void RestoringATuneToTheControllerItCameFromWouldSendNothing()
+    {
+        // Found on a rusEFI, whose 8000-byte Lua script field ends with the
+        // newlines the script was written with. Reading a text field trims its
+        // padding and writing one pads with nulls, so the tune saved off the
+        // controller came back differing from it by exactly those two bytes —
+        // and the plan plainly contradicted itself: "0 settings would change,
+        // 2 bytes across 1 page".
+        EcuTune ecu = Padded("print('hi')", (byte)'\n', (byte)'\n');
+
+        TuneRestorePlan plan = TuneRestore.Plan(ecu, TextFile("print('hi')"), "firmware");
+
+        Assert.Empty(plan.Differences);
+        Assert.True(plan.IsEmpty, plan.Summary);
+        Assert.Equal(0, plan.Bytes);
+    }
+
+    [Theory]
+    [InlineData((byte)' ')]
+    [InlineData((byte)'\n')]
+    [InlineData((byte)'\r')]
+    [InlineData((byte)'\t')]
+    public void WhicheverCharacterAControllerPadsWith(byte pad)
+    {
+        // Trimming is what makes any of these vanish on the way out, so all of
+        // them come back as a phantom write unless the bytes are left alone.
+        EcuTune ecu = Padded("name", pad, pad, pad);
+
+        Assert.True(TuneRestore.Plan(ecu, TextFile("name"), "firmware").IsEmpty);
+    }
+
+    [Fact]
+    public void ButAGenuinelyDifferentNameStillGetsWritten()
+    {
+        // The fix must not turn into "text is never restored".
+        EcuTune ecu = Padded("old name", (byte)'\n');
+
+        TuneRestorePlan plan = TuneRestore.Plan(ecu, TextFile("new name"), "firmware");
+
+        Assert.False(plan.IsEmpty);
+        Assert.Single(plan.Differences);
+        Assert.Equal("label", plan.Differences[0].Name);
+    }
+
+    [Fact]
+    public void AndTheFieldStillEndsUpHoldingWhatTheFileSaid()
+    {
+        EcuTune ecu = Padded("old name", (byte)'\n');
+
+        TuneRestorePlan plan = TuneRestore.Plan(ecu, TextFile("new name"), "firmware");
+
+        Assert.Equal("new name", plan.Target.TextIn(plan.Target.Pages, "label"));
+    }
 }

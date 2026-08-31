@@ -163,7 +163,10 @@ public static class ChannelRoles
             ChannelRole.MassAirFlow =>
                 units is "g/s" or "gs" or "kg/h" or "kgh" or "lb/min" or "lbmin" or "g/min" or "kg/min",
 
-            ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct",
+            // "ratio" among them because that is how a rusEFI labels veValue,
+            // which is nonetheless the same 0–120 figure everyone else calls a
+            // percentage rather than a fraction of one.
+            ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct" or "ratio",
 
             ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s",
 
@@ -183,18 +186,32 @@ public static class ChannelRoles
         };
     }
 
+    /// <summary>
+    /// The names a firmware gives a job, most specific first.
+    ///
+    /// <para>
+    /// rusEFI suffixes its primary sensors with "Value" — RPMValue, MAPValue,
+    /// TPSValue, AFRValue — which no amount of loose matching reaches, since
+    /// "value" is five characters and a bank number is one. Every one of those
+    /// had to be spelled out, and until they were, a rusEFI matched six of these
+    /// twenty-one roles: no engine speed, no throttle, no manifold pressure and
+    /// no mixture, which between them are most of what the insights, the
+    /// suggested filters and the VE calibration are built on.
+    /// </para>
+    /// </summary>
     private static string[] Aliases(ChannelRole role) => role switch
     {
-        ChannelRole.EngineSpeed => ["rpm", "enginespeed", "engspeed", "tachometer"],
+        ChannelRole.EngineSpeed => ["rpm", "rpmvalue", "enginespeed", "engspeed", "tachometer"],
 
         ChannelRole.Coolant =>
             ["clt", "coolant", "coolanttemp", "coolanttemperature", "enginecoolanttemperature",
              "ect", "watertemp", "wt"],
 
         ChannelRole.Throttle =>
-            ["tps", "throttle", "throttleposition", "throttlepos", "tp", "relativethrottle", "pedal"],
+            ["tps", "tpsvalue", "throttle", "throttleposition", "throttlepos", "tp", "relativethrottle",
+             "pedal", "throttlepedalposition"],
 
-        ChannelRole.Mixture => ["afr", "lambda", "afr1", "lambdaa", "wideband", "o2"],
+        ChannelRole.Mixture => ["afr", "afrvalue", "lambda", "lambdavalue", "afr1", "lambdaa", "wideband", "o2"],
 
         // Checked before the plain mixture names would match, since "afrtarget"
         // also starts with "afr".
@@ -202,7 +219,7 @@ public static class ChannelRoles
             ["afrtarget", "afrtarget1", "afr1target", "lambdatarget", "targetafr", "targetlambda",
              "afrtgt", "afrtgt1", "egotarget", "lambdatarget1"],
 
-        ChannelRole.ManifoldPressure => ["map", "manifoldpressure", "manifoldabsolutepressure", "mapkpa"],
+        ChannelRole.ManifoldPressure => ["map", "mapvalue", "manifoldpressure", "manifoldabsolutepressure", "mapkpa"],
 
         // A cut is reported as a percentage on one controller and as a reason
         // code on another. Either way zero means it is not cutting, which is
@@ -210,24 +227,34 @@ public static class ChannelRoles
         ChannelRole.FuelCut => ["fuelcut", "fuelcutreason", "fuelcutcode", "dfco", "decelfuelcut"],
 
         ChannelRole.IntakeAir =>
+            // The bare word last, which is all a rusEFI calls it. Safe only
+            // because the units have to be a temperature: the same board logs
+            // "intake" pressures and valve positions under names starting the
+            // same way, and every one of them is kept out by that guard.
             ["iat", "mat", "intakeairtemperature", "intakeair", "intaketemp", "chargetemp",
-             "airtemp", "manifoldairtemp", "act", "inlettemp"],
+             "airtemp", "manifoldairtemp", "act", "inlettemp", "intake"],
 
-        ChannelRole.Barometric => ["baro", "barometricpressure", "barometer", "ambientpressure"],
+        ChannelRole.Barometric => ["baro", "baropressure", "barometricpressure", "barometer", "ambientpressure"],
 
         // What the engine is actually being given, after every correction —
         // which is the number that decides whether it knocks, rather than what
         // any one table asked for.
         ChannelRole.SparkAdvance =>
-            ["sparkadvance", "spksparkadvance", "advance", "ignitionadvance", "timing",
-             "ignadvance", "spkadvance", "sparkangle", "timingadvance", "ignitiontiming"],
+            // A rusEFI logs the advance twice, before its corrections and after.
+            // This role is the figure actually commanded, so the corrected one
+            // is named and "baseIgnitionAdvance" deliberately is not.
+            ["sparkadvance", "spksparkadvance", "advance", "correctedignitionadvance",
+             "ignitionadvance", "timing", "ignadvance", "spkadvance", "sparkangle",
+             "timingadvance", "ignitiontiming"],
 
         ChannelRole.KnockRetard =>
             // Deliberately not the bare word "knock": a great many firmwares log
             // a raw knock-sensor input under that name, and a sensor reading is
-            // not degrees taken away.
+            // not degrees taken away. rusEFI's own retard is "m_knockRetard",
+            // whose sibling "m_knockLevel" is exactly such a sensor reading and
+            // is kept out by the units having to be degrees.
             ["knockretard", "spkknockretard", "knockcorrection", "knockrtd",
-             "totalknockretard"],
+             "totalknockretard", "mknockretard"],
 
         ChannelRole.BatteryVoltage =>
             ["battv", "batteryvoltage", "batt", "battery", "vbatt", "voltage", "supplyvoltage"],
@@ -249,19 +276,29 @@ public static class ChannelRoles
         // being the same on any engine this could describe.
         ChannelRole.InjectorPulseWidth =>
             ["pw", "pulsewidth", "injpw", "injectorpulsewidth", "injectorpw", "injpulsewidth",
-             "fuelpw", "pulsewidth1"],
+             "fuelpw", "pulsewidth1", "actuallastinjection"],
 
         ChannelRole.InjectorDuty =>
             ["dutycycle", "injectorduty", "injduty", "duty", "idc", "injectordutycycle"],
 
+        // The low-pressure side first: on a port-injected engine that is the
+        // rail, and on a direct-injected one it is still the pump feeding it,
+        // which is the pressure a pulse width can be reasoned about against.
         ChannelRole.FuelPressure =>
-            ["fuelpressure", "fuelpress", "fuelrailpressure", "railpressure", "fp", "fuelp"],
+            ["fuelpressure", "fuelpress", "fuelrailpressure", "railpressure", "fp", "fuelp",
+             "lowfuelpressure", "highfuelpressure"],
 
-        ChannelRole.MassAirFlow => ["maf", "massairflow", "airflow", "airmassflow", "mafflow"],
+        ChannelRole.MassAirFlow =>
+            ["maf", "massairflow", "airflow", "airmassflow", "mafflow", "mafmeasured"],
 
-        ChannelRole.VolumetricEfficiency => ["ve", "volumetricefficiency", "vecurrent", "vetable"],
+        // "vevalue" rather than anything looser: a rusEFI also logs
+        // "veTableYAxis", which is the load the table is looked up on and not a
+        // filling efficiency at all.
+        ChannelRole.VolumetricEfficiency =>
+            ["ve", "vevalue", "volumetricefficiency", "vecurrent", "vetable"],
 
-        ChannelRole.VehicleSpeed => ["vss", "vehiclespeed", "speed", "roadspeed", "gpsspeed"],
+        ChannelRole.VehicleSpeed =>
+            ["vss", "vehiclespeed", "vehiclespeedkph", "speed", "roadspeed", "gpsspeed"],
 
         _ => [],
     };

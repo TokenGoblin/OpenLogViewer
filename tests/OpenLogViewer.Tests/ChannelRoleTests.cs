@@ -174,4 +174,109 @@ public class ChannelRoleTests
 
         Assert.All(SampleFilter.Suggest(doc), f => Assert.False(f.Enabled));
     }
+
+    // ----- rusEFI ------------------------------------------------------------
+
+    /// <summary>
+    /// The real names off a uaEFI board running rusEFI master.2024.11.17, with
+    /// their real units, taken from the 823 channels it actually logs.
+    ///
+    /// Before these were added a rusEFI matched six of the twenty-one roles: no
+    /// engine speed, no throttle, no manifold pressure and no mixture. The
+    /// insights, the suggested filters and the VE calibration are all built on
+    /// those four, so on a rusEFI log they found nothing and said so as though
+    /// the log were the problem.
+    /// </summary>
+    private static LogDocument RusEfi() => Log(
+        ("RPMValue", "RPM", [800, 3000, 5000]),
+        ("coolant", "deg C", [40, 70, 90]),
+        ("TPSValue", "%", [0, 30, 80]),
+        ("AFRValue", "AFR", [14.7, 13.2, 12.6]),
+        ("targetAFR", "ratio", [14.7, 13.0, 12.5]),
+        ("MAPValue", "kPa", [35, 80, 98]),
+        ("intake", "deg C", [20, 30, 40]),
+        ("baroPressure", "kPa", [99, 99, 99]),
+        ("actualLastInjection", "ms", [2.1, 6.4, 9.8]),
+        ("injectorDutyCycle", "%", [8, 30, 60]),
+        ("lowFuelPressure", "kpa", [300, 310, 300]),
+        ("mafMeasured", "kg/h", [8, 90, 250]),
+        ("veValue", "ratio", [45, 85, 96]),
+        ("vehicleSpeedKph", "kph", [0, 40, 90]),
+        ("correctedIgnitionAdvance", "deg", [12, 24, 20]),
+        ("m_knockRetard", "deg", [0, 0, 2]),
+        ("VBatt", "V", [13.8, 14.1, 14.0]),
+        ("Gego", "%", [100, 102, 98]),
+        ("fuelCutReason", "code", [0, 0, 0]),
+
+        // The ones that must not be picked up.
+        ("baseIgnitionAdvance", "deg", [14, 26, 24]),
+        ("veTableYAxis", "%", [30, 70, 95]),
+        ("m_knockLevel", "Volts", [0.2, 0.4, 1.1]),
+        ("rawMap", "V", [0.5, 2.0, 3.9]),
+        ("instantRpm", "rpm", [790, 3010, 4990]));
+
+    [Theory]
+    [InlineData(ChannelRole.EngineSpeed, "RPMValue")]
+    [InlineData(ChannelRole.Coolant, "coolant")]
+    [InlineData(ChannelRole.Throttle, "TPSValue")]
+    [InlineData(ChannelRole.Mixture, "AFRValue")]
+    [InlineData(ChannelRole.MixtureTarget, "targetAFR")]
+    [InlineData(ChannelRole.ManifoldPressure, "MAPValue")]
+    [InlineData(ChannelRole.IntakeAir, "intake")]
+    [InlineData(ChannelRole.Barometric, "baroPressure")]
+    [InlineData(ChannelRole.InjectorPulseWidth, "actualLastInjection")]
+    [InlineData(ChannelRole.InjectorDuty, "injectorDutyCycle")]
+    [InlineData(ChannelRole.FuelPressure, "lowFuelPressure")]
+    [InlineData(ChannelRole.MassAirFlow, "mafMeasured")]
+    [InlineData(ChannelRole.VolumetricEfficiency, "veValue")]
+    [InlineData(ChannelRole.VehicleSpeed, "vehicleSpeedKph")]
+    [InlineData(ChannelRole.KnockRetard, "m_knockRetard")]
+    [InlineData(ChannelRole.BatteryVoltage, "VBatt")]
+    [InlineData(ChannelRole.MixtureCorrection, "Gego")]
+    [InlineData(ChannelRole.FuelCut, "fuelCutReason")]
+    public void ArusEfiChannelIsFoundForItsRole(ChannelRole role, string expected) =>
+        Assert.Equal(expected, ChannelRoles.Find(RusEfi(), role)?.Name);
+
+    [Fact]
+    public void TheSparkTakenIsTheCorrectedOneRatherThanTheBase()
+    {
+        // rusEFI logs both. The role is the timing actually commanded, which is
+        // the number that decides whether it knocks; the base figure is what a
+        // table asked for before any correction.
+        Assert.Equal(
+            "correctedIgnitionAdvance",
+            ChannelRoles.Find(RusEfi(), ChannelRole.SparkAdvance)?.Name);
+    }
+
+    [Fact]
+    public void TheLoadAxisIsNotMistakenForFillingEfficiency()
+    {
+        // "veTableYAxis" is the load a rusEFI looks the table up on, in per
+        // cent, sitting right beside the efficiency itself.
+        Assert.Equal("veValue", ChannelRoles.Find(RusEfi(), ChannelRole.VolumetricEfficiency)?.Name);
+    }
+
+    [Fact]
+    public void AKnockSensorReadingIsNotDegreesTakenAway()
+    {
+        // "m_knockLevel" is volts off the sensor and sits beside the retard.
+        Assert.Equal("m_knockRetard", ChannelRoles.Find(RusEfi(), ChannelRole.KnockRetard)?.Name);
+    }
+
+    [Fact]
+    public void ArusEfiAnswersEveryRoleItActuallyHas()
+    {
+        LogDocument doc = RusEfi();
+
+        var unmatched = Enum.GetValues<ChannelRole>()
+            .Where(r => ChannelRoles.Find(doc, r) is null)
+            .ToList();
+
+        // Boost and the warmup correction, and only those. This board reports no
+        // gauge pressure separately — the manifold pressure is the whole story —
+        // and its warmup figure is a multiplier around one rather than a
+        // percentage around a hundred, so taking it for this role would report a
+        // cold engine as running 99 % lean of where it is.
+        Assert.Equal([ChannelRole.WarmupCorrection, ChannelRole.Boost], unmatched);
+    }
 }
