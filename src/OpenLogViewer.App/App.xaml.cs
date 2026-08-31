@@ -43,7 +43,7 @@ public partial class App : Application
         "--find", "--guide", "--settings", "--page", "--live-page",
         "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
-        "--faults", "--connect-ssm", "--connect-wifi",
+        "--faults", "--connect-ssm", "--connect-wifi", "--agent-api",
     ];
 
     /// <summary>
@@ -104,6 +104,19 @@ public partial class App : Application
         int connect = Array.IndexOf(e.Args, "--connect");
         if (connect >= 0 && connect + 1 < e.Args.Length)
             window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
+
+        // "--agent-api [port]" starts the local API without anybody clicking.
+        // It still opens read-only: there is deliberately no flag that arms
+        // writing, so the decision that lets a program change an engine cannot
+        // be made once in a shortcut and then forgotten about.
+        int agent = Array.IndexOf(e.Args, "--agent-api");
+        if (agent >= 0)
+        {
+            window.StartAgentApi(
+                agent + 1 < e.Args.Length && int.TryParse(e.Args[agent + 1], out int port) && port > 0
+                    ? port
+                    : 8765);
+        }
 
         // "--connect-ssm COM10" opens a Subaru over its own protocol, which is a
         // deliberate choice rather than something guessed from the adapter.

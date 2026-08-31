@@ -154,6 +154,42 @@ public partial class MainWindow : Window
     private void OnDefinitionsClick(object sender, RoutedEventArgs e) =>
         OpenFolder(_vm.Workspace.EnsureDefinitions());
 
+    /// <summary>
+    /// Starts or stops the local API an agent watches the session through.
+    ///
+    /// Asked before starting rather than toggled quietly, because it opens a
+    /// socket — which is the one thing this application does that somebody might
+    /// reasonably want to be told about before it happens rather than after.
+    /// Stopping asks nothing; closing a door never needs confirming.
+    /// </summary>
+    private void OnAgentApiClick(object sender, RoutedEventArgs e)
+    {
+        if (_vm.AgentIsRunning)
+        {
+            _vm.StopAgentApi();
+            Report("The agent API is off and the socket is closed.");
+            return;
+        }
+
+        MessageBoxResult answer = MessageBox.Show(
+            this,
+            "Start the agent API?\n\n"
+            + "This opens a socket on 127.0.0.1 that a program on this machine — an AI "
+            + "assistant, or a script — can read the live session and the log through.\n\n"
+            + "It listens to this machine only, never to the network, and every request "
+            + "needs a token which is written into your workspace folder.\n\n"
+            + "It cannot change anything unless you separately tick \"Allow agent writes\", "
+            + "and it can never burn.",
+            "OpenLogViewer",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question,
+            MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Report(_vm.StartAgentApi());
+    }
+
     private CalculatorsWindow? _calculators;
 
     /// <summary>
@@ -1178,6 +1214,9 @@ public partial class MainWindow : Window
     /// OBD2's three. Nobody should land on it by accident.
     /// </summary>
     /// <summary>Opens a Subaru over SSM, for a scripted run.</summary>
+    /// <summary>Starts the agent API from the command line, read-only.</summary>
+    public void StartAgentApi(int port) => Report(_vm.StartAgentApi(port));
+
     public void ConnectOverSsm(string port) => StartLiveOverSsm(port);
 
     private MenuItem SsmMenu(IReadOnlyList<SerialPortInfo> ports)

@@ -71,12 +71,33 @@ check and no crash reporting, and the application does not know or care whether
 the machine is online — which is the point, because it is mostly used in a garage
 with neither internet nor phone signal.
 
-There is exactly one socket. `WifiEcuTransport` opens a TCP connection to an
+There are two sockets, and neither one leaves the car or this machine.
+
+**Outward, to the adapter.** `WifiEcuTransport` opens a TCP connection to an
 OBD2 adapter that serves its own Wi-Fi network — the address is typed in, is
 never discovered or defaulted to anything off the machine, and is in practice a
 private one such as `192.168.0.10:35000`. It carries the same ELM327 commands
 that go down a serial cable to the same kind of adapter. It talks to a device in
 the car and to nothing else.
+
+**Inward, for an agent, and only once you start it.** `AgentServer` lets a
+program on this machine — an AI assistant, a script — watch the live session,
+read the log, and ask what the tune holds. It is off until switched on, and
+while it is on:
+
+- It listens on `127.0.0.1` and nowhere else. No setting changes that, and that
+  is deliberate: the way this mistake usually happens is a "host" option someone
+  sets to `0.0.0.0` to make something work.
+- Every request carries a token made at startup and left in the workspace.
+  Loopback keeps other machines out; it does not keep out other programs on this
+  one, and a browser tab on any page can reach a local port.
+- It changes nothing unless you tick "Allow agent writes", which clears itself
+  whenever the ECU disconnects.
+- There is no way to burn through it. Not an endpoint that refuses — none at
+  all. Everything an agent can do is undone by turning the key off.
+
+Nothing either socket carries reaches us or anyone else. There is no server
+belonging to this project and nothing to send anything to.
 
 The only other outward call hands a workspace folder or the project's own README
 URL to the shell, which is what opens Explorer or a browser when you ask it to.

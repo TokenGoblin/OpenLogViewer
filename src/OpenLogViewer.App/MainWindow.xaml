@@ -167,6 +167,21 @@
                 <MenuItem Header="Estimate _power…" Click="OnEstimatePowerClick"
                           IsEnabled="{Binding HasDocument}"
                           ToolTip="Calculated channels that estimate horsepower from the log"/>
+                <Separator/>
+
+                <!--
+                    Off until it is asked for, because it opens a socket. The two
+                    entries are deliberately apart: starting the API lets an
+                    agent read, which is harmless, while arming writes is the
+                    separate decision that lets one change the engine.
+                -->
+                <MenuItem Header="_Agent API…" Click="OnAgentApiClick"
+                          ToolTip="A local API an AI assistant or a script can watch this session through"/>
+                <MenuItem Header="Allow agent _writes"
+                          IsCheckable="True"
+                          IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"
+                          IsEnabled="{Binding AgentIsRunning}"
+                          ToolTip="Lets an agent change settings in the ECU's working memory. It never burns, and this clears itself on disconnect"/>
             </MenuItem>
 
             <MenuItem Header="_Help">
