@@ -3933,16 +3933,36 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(NoGauges));
     }
 
-    public void Connect(string port, bool bluetooth = false)
+    public void Connect(string port, bool bluetooth = false) =>
+        Connect(
+            // A Bluetooth link is the same protocol over a virtual COM port, but
+            // it answers in hundreds of milliseconds where a cable answers in
+            // three, so it needs longer to reply and longer to fall quiet
+            // between attempts.
+            new SerialEcuTransport(port) { OpenAttempts = bluetooth ? 3 : 1 },
+            port,
+            bluetooth ? EcuConnectionSettings.Bluetooth : null);
+
+    /// <summary>
+    /// Everything a connection is, over a transport already chosen.
+    ///
+    /// <para>
+    /// Split out for the same reason <see cref="ConnectObd2"/> is: a seam that
+    /// leaves out what the real path includes cannot catch a real path that
+    /// leaves it out. Everything below this line — matching the definition,
+    /// reading the tune, building the settings menu, the gates that decide what
+    /// may be written and burned — had no test of any kind, because the only way
+    /// in built its own serial port. That is where three reviews running have
+    /// found the same defect: state wired into one path and not its siblings.
+    /// </para>
+    /// </summary>
+    public void Connect(IEcuTransport transport, string port, EcuConnectionSettings? settings = null)
     {
+        ArgumentNullException.ThrowIfNull(transport);
+
         Disconnect();
 
-        // A Bluetooth link is the same protocol over a virtual COM port, but it
-        // answers in hundreds of milliseconds where a cable answers in three, so
-        // it needs longer to reply and longer to fall quiet between attempts.
-        var connection = new EcuConnection(
-            new SerialEcuTransport(port) { OpenAttempts = bluetooth ? 3 : 1 },
-            bluetooth ? EcuConnectionSettings.Bluetooth : null);
+        var connection = new EcuConnection(transport, settings);
 
         connection.Open();
 
