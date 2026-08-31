@@ -374,6 +374,20 @@ public sealed class EcuTune
         if (write.Offset < 0 || write.Offset + write.Data.Length > page.Length) return;
 
         write.Data.CopyTo(page.AsSpan(write.Offset));
+
+        // A scale stated as an expression is worked out from the settings, and
+        // this is the moment a setting moved. Left alone, a firmware writing
+        // {0.01 * (maf_range + 1)} keeps the scale it had when the tune was
+        // first read: move maf_range from 0 to 3 and the curve goes on dividing
+        // by 0.01 where the ECU now means 0.04, so it shows a quarter of the
+        // truth — and worse, the next cell edited is *encoded* through the stale
+        // scale and sent to a running engine.
+        //
+        // Here rather than after each kind of write because there are seven
+        // places a write is accepted, across settings, tables, curves and a
+        // restore. Six of them remembering is the shape of defect this codebase
+        // has produced three times already.
+        if (HasExpressionScales) Rescale();
     }
 
     public TuneWrite? EncodeArray(string name, IReadOnlyList<double> values)

@@ -914,13 +914,23 @@ public sealed class Elm327Source : ILiveSource
         // does not change that answer; what is in doubt is the adapter, and the
         // only cheap way to ask about it is to stop.
         bool suspect = _diedBatching;
-        _diedBatching = false;
 
         if (suspect) Batching = false;
 
         // Proves it. Opening and resetting say nothing about whether the car is
         // answering again.
+        //
+        // The suspicion is deliberately still standing while this runs. A
+        // proving read that throws is the ordinary case — the link went down
+        // because the key went off, and it is still off — and clearing the flag
+        // beforehand threw away the only reason to be suspicious: the next
+        // attempt came back with nothing to conclude, so an adapter that really
+        // does die under batching would be reconnected, re-probed and re-killed
+        // every session without ever being written down. That is the loop this
+        // whole mechanism exists to stop. Cleared below, once there is an answer.
         Read();
+
+        _diedBatching = false;
 
         // AND THAT READING IS THE EVIDENCE. Single requests answering on a link
         // that had gone silent under batched ones is the same discrimination

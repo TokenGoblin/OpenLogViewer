@@ -405,4 +405,60 @@ public class TuneRestoreTests
         Assert.True(plan.IsEmpty, plan.Summary);
         Assert.Equal(0, plan.Bytes);
     }
+
+    // ----- a scale written as an expression -----------------------------------
+
+    /// <summary>
+    /// A firmware whose curve is scaled by another setting, which is the case
+    /// the whole rescaling mechanism exists for.
+    /// </summary>
+    private const string ExpressionIni = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+        pageChunkWrite  = "w%2o%2c%v"
+        burnCommand     = "b%2i"
+           maf_range = scalar, U08, 0, "", 1, 0, 0, 7, 0
+           mafFlow   = array,  U08, 4, [4], "g/s", { 0.01 * (maf_range + 1) }, 0, 0, 100, 2
+        """;
+
+    [Fact]
+    public void AWriteThatMovesAScaleReworksTheScalesThatDependOnIt()
+    {
+        // The scale is worked out when the tune is built, and a write is exactly
+        // what moves the setting it is written against. Left alone, the curve
+        // goes on dividing by the old scale — and the next cell edited is
+        // *encoded* through it and sent to a running engine.
+        TuneLayout layout = TuneLayoutReader.Read(ExpressionIni);
+        var tune = EcuTune.FromPages(layout, new byte[16]);
+
+        // maf_range 0, so the scale is 0.01: a raw 100 reads as 1.00.
+        tune.PokeInto(tune.Pages, tune.Constant("mafFlow")!, 0, 1.0);
+        Assert.Equal(1.0, tune.Array("mafFlow")![0], 6);
+
+        // Now move maf_range to 3, the way a settings write would.
+        TuneWrite? write = tune.EncodeArray("maf_range", [3]);
+        Assert.NotNull(write);
+        tune.Accept(write!);
+
+        // The scale is now 0.04, so the same raw byte means four times as much.
+        Assert.Equal(4.0, tune.Array("mafFlow")![0], 6);
+    }
+
+    [Fact]
+    public void AndAFirmwareWithNoExpressionScalesIsLeftAlone()
+    {
+        // The rework is not free, and every write goes through here.
+        TuneLayout layout = TuneLayoutReader.Read(ArrayIni);
+        var tune = EcuTune.FromPages(layout, new byte[16]);
+
+        tune.PokeInto(tune.Pages, tune.Constant("veTable")!, 0, 50);
+        tune.Accept(tune.EncodeArray("revLimit", [6500])!);
+
+        Assert.Equal(50, tune.Array("veTable")![0], 6);
+        Assert.Equal(6500, tune.Scalar("revLimit"), 6);
+    }
 }

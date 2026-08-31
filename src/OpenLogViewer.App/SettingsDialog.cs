@@ -47,10 +47,19 @@ public sealed class SettingsDialog
     /// the two a name turns out to be. A panel naming something that is not a
     /// dialog used to be skipped in silence, which is why 14 of a MicroSquirt's
     /// pages and 88 of an MS3's opened with nothing but their help text on them.
+    ///
+    /// <para>
+    /// Filtered by the panel's condition rather than fixed when the page is
+    /// built, because a condition is a question about the tune and the tune
+    /// moves while the page is open — turning a second fuel table on should
+    /// bring its curve with it, and turning it off should take it away before
+    /// anybody can send it.
+    /// </para>
     /// </summary>
-    public IReadOnlyList<string> Curves => _curves;
+    public IReadOnlyList<string> Curves =>
+        [.. _curves.Where(c => c.Shown).Select(c => c.Name)];
 
-    private readonly List<string> _curves = [];
+    private readonly List<(string Name, string Condition, bool Shown)> _curves = [];
 
     /// <summary>
     /// True when the firmware described something here that this cannot draw —
@@ -120,9 +129,16 @@ public sealed class SettingsDialog
                     // drawn here, because a curve is a plot and these rows are a
                     // list of fields.
                     if (curves is not null && curves.Contains(item.Target)
-                        && !_curves.Contains(item.Target, StringComparer.OrdinalIgnoreCase))
+                        && !_curves.Any(c =>
+                               c.Name.Equals(item.Target, StringComparison.OrdinalIgnoreCase)))
                     {
-                        _curves.Add(item.Target);
+                        // Kept with its condition, which gates a curve exactly as
+                        // it gates a field. Dropped, a curve behind
+                        // { afrTable2Enabled } is drawn and editable while the
+                        // fields beside it are correctly hidden — and can be sent
+                        // to an ECU whose firmware has just said it does not
+                        // apply. Shown until the first Refresh judges it.
+                        _curves.Add((item.Target, item.Condition, true));
                     }
 
                     continue;
@@ -181,6 +197,16 @@ public sealed class SettingsDialog
         ArgumentNullException.ThrowIfNull(lookup);
 
         foreach (SettingRow row in _rows) row.Refresh(lookup);
+
+        // Curves are gated the same way, and re-judged here for the same reason
+        // rows are: the condition asks about the tune, and the tune moves.
+        for (int i = 0; i < _curves.Count; i++)
+        {
+            (string name, string condition, _) = _curves[i];
+
+            _curves[i] = (name, condition,
+                          condition.Length == 0 || DialogCondition.ShouldShow(condition, lookup));
+        }
 
         Visible.Clear();
 
