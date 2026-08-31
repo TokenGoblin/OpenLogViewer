@@ -13,14 +13,30 @@ namespace OpenLogViewer.Core;
 public sealed record TuneDifference(
     string Name, TuneConstant Constant, int Cells, double? Mine, double? Theirs)
 {
-    /// <summary>True for a table or a set of breakpoints.</summary>
-    public bool IsArray => Constant.Columns * Constant.Rows > 1;
+    /// <summary>
+    /// What each side holds where the setting is text rather than a number.
+    ///
+    /// Kept, because throwing it away left the one kind of setting whose value a
+    /// person recognises on sight reading "1 of 32 cells differ, first — against
+    /// —". A name is a name; it should say which name.
+    /// </summary>
+    public string? MineText { get; init; }
+
+    public string? TheirsText { get; init; }
+
+    /// <summary>
+    /// True for a table or a set of breakpoints — never for text, whose width is
+    /// how many characters fit rather than how many values it holds.
+    /// </summary>
+    public bool IsArray => !Constant.IsText && Constant.Columns * Constant.Rows > 1;
 
     /// <summary>What the first tune holds, named where the firmware names it.</summary>
-    public string MineShown => Shown(Mine);
+    public string MineShown => MineText is { } t ? Quoted(t) : Shown(Mine);
 
     /// <summary>What the second holds.</summary>
-    public string TheirsShown => Shown(Theirs);
+    public string TheirsShown => TheirsText is { } t ? Quoted(t) : Shown(Theirs);
+
+    private static string Quoted(string text) => text.Length == 0 ? "(blank)" : $"\"{text}\"";
 
     /// <summary>One line describing the disagreement.</summary>
     public string Summary =>
@@ -89,7 +105,15 @@ public static class TuneCompare
                 string a = mine.TextIn(mine.Pages, constant.Name) ?? "";
                 string b = theirs.TextIn(theirs.Pages, constant.Name) ?? "";
 
-                if (a != b) differences.Add(new TuneDifference(constant.Name, constant, 1, null, null));
+                if (a != b)
+                {
+                    differences.Add(new TuneDifference(constant.Name, constant, 1, null, null)
+                    {
+                        MineText = a,
+                        TheirsText = b,
+                    });
+                }
+
                 continue;
             }
 

@@ -91,7 +91,19 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         _port = new SerialPort(PortName, BaudRate, Parity.None, 8, StopBits.One)
         {
             ReadTimeout = 500,
-            WriteTimeout = 500,
+
+            // Long, because of what a burn does. A controller writing its flash
+            // stops servicing USB for as long as the erase takes, and the bytes
+            // still sitting in the driver's buffer cannot be handed over until
+            // it comes back — so the write that delivered the burn command is
+            // itself what blocks. At 500 ms a rusEFI threw here on every burn,
+            // and the burn had in fact succeeded: the board rebooted holding the
+            // new value while the application reported a failure.
+            //
+            // Nothing is lost by waiting. A write to a healthy port returns in
+            // microseconds; this bound only decides how long a port with nothing
+            // on the other end takes to say so.
+            WriteTimeout = 5000,
 
             // Some adapters hold the line low until these are asserted, and stay
             // silent rather than reporting anything wrong.

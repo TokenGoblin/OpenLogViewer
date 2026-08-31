@@ -296,4 +296,36 @@ public class TuneRestoreTests
 
         Assert.Equal("new name", plan.Target.TextIn(plan.Target.Pages, "label"));
     }
+
+    // ----- saying which name changed ------------------------------------------
+
+    [Fact]
+    public void ATextDifferenceNamesBothStringsRatherThanCountingCells()
+    {
+        // It used to read "label: 1 of 32 cells differ, first — against —",
+        // because the strings were dropped and the field's width was taken for a
+        // number of values. A name is the one setting whose value a person
+        // recognises on sight; it should say which name.
+        EcuTune ecu = Padded("old name", (byte)'\n');
+
+        TuneDifference d = Assert.Single(
+            TuneRestore.Plan(ecu, TextFile("new name"), "firmware").Differences);
+
+        Assert.False(d.IsArray);
+        Assert.Equal("\"new name\"", d.MineShown);
+        Assert.Equal("\"old name\"", d.TheirsShown);
+        Assert.Equal("label: \"new name\" against \"old name\"", d.Summary);
+    }
+
+    [Fact]
+    public void AnEmptiedNameSaysSoRatherThanShowingNothing()
+    {
+        EcuTune ecu = Padded("was here");
+
+        TuneDifference d = Assert.Single(
+            TuneRestore.Plan(ecu, TextFile(""), "firmware").Differences);
+
+        Assert.Equal("(blank)", d.MineShown);
+        Assert.Equal("\"was here\"", d.TheirsShown);
+    }
 }

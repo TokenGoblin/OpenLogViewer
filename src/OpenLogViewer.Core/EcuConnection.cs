@@ -412,8 +412,28 @@ public sealed class EcuConnection : IDisposable
 
         byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
 
-        Request(RealtimeCommand.Parse(page.BurnCommand)
-            .Build(0, 1, Settings.CanId, littleEndian, identifier));
+        // Once, deliberately. Every other request may be repeated freely because
+        // a lost reply means a lost reply; a burn is the one where the ECU may
+        // well have done the work and gone quiet doing it, and re-sending then
+        // spends a flash erase to learn nothing. A burn that cannot be confirmed
+        // is reported as exactly that rather than as a failure, because saying
+        // it failed when it did not is what sends somebody to write it again.
+        try
+        {
+            Request(
+                RealtimeCommand.Parse(page.BurnCommand)
+                    .Build(0, 1, Settings.CanId, littleEndian, identifier),
+                attempts: 1);
+        }
+        catch (EcuProtocolException e)
+        {
+            throw new EcuProtocolException(
+                $"The ECU did not confirm the burn of page {page.Index}: {e.Message}\n\n"
+                + "It may still have completed — a controller stops answering while it writes "
+                + "its flash, which looks the same from here as one that never got the command. "
+                + "Turn the ignition off and on and read the tune back: if the change is there, "
+                + "it was burned.");
+        }
 
         // The wait the firmware asks for after a burn, which TunerStudio also
         // observes. Writing flash stops the controller answering for as long as
@@ -496,9 +516,16 @@ public sealed class EcuConnection : IDisposable
 
                 return data;
             }
-            catch (EcuProtocolException e)
+            // An IOException among them: the transport raises one where the port
+            // itself misbehaves rather than the ECU, and catching only the
+            // protocol exception let that escape the retry loop unwrapped. It
+            // reached the application as an unhandled "The semaphore timeout
+            // period has expired", which is both a crash and a lie — the request
+            // it was raised for had gone through.
+            catch (Exception e) when (e is EcuProtocolException or IOException)
             {
-                last = e;
+                last = e as EcuProtocolException
+                       ?? new EcuProtocolException($"The link to the ECU failed: {e.Message}");
 
                 // Wait for the link to fall silent before trying again. A fixed
                 // pause is not enough: over Bluetooth a reply can still be on its
@@ -508,7 +535,7 @@ public sealed class EcuConnection : IDisposable
                 // the ECU back. Never more than one request outstanding.
                 Settle();
 
-                if (e.Refused && !retryRefusals) break;
+                if (last.Refused && !retryRefusals) break;
             }
         }
 
