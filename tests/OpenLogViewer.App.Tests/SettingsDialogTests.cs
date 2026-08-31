@@ -326,4 +326,68 @@ public class SettingsDialogTests
         Assert.Equal(SettingKind.ReadOnly, row.Kind);
         Assert.False(row.IsEditable);
     }
+
+    // ----- an edit that will not go in ----------------------------------------
+
+    [Fact]
+    public void ARefusedEditPutsTheStoredValueBackOnScreen()
+    {
+        // Without this the box keeps what was typed and looks accepted: Send
+        // writes nothing, and the tune does not hold the number the person is
+        // reading off their own screen.
+        SettingRow rpm = Open("engine").Dialog.Rows.First(r => r.Label == "Cranking RPM");
+
+        string before = rpm.Value;
+        var raised = new List<string>();
+        rpm.PropertyChanged += (_, e) => raised.Add(e.PropertyName ?? "");
+
+        rpm.Value = "999999";
+
+        Assert.Equal(before, rpm.Value);
+        Assert.Contains("Value", raised);
+    }
+
+    [Fact]
+    public void AndSaysWhyInTermsOfTheFirmwaresOwnLimits()
+    {
+        // "Invalid" tells a person nothing they can act on; the range tells them
+        // exactly what to type instead.
+        SettingRow rpm = Open("engine").Dialog.Rows.First(r => r.Label == "Cranking RPM");
+
+        string? why = null;
+        rpm.Refused += reason => why = reason;
+
+        rpm.Value = "999999";
+
+        Assert.NotNull(why);
+        Assert.True(rpm.HasProblem);
+        Assert.Contains("outside", why!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SomethingThatIsNotANumberSaysThatRatherThanARange()
+    {
+        SettingRow rpm = Open("engine").Dialog.Rows.First(r => r.Label == "Cranking RPM");
+
+        string? why = null;
+        rpm.Refused += reason => why = reason;
+
+        rpm.Value = "quite fast";
+
+        Assert.Equal("That is not a number.", why);
+    }
+
+    [Fact]
+    public void AndTheComplaintClearsOnceSomethingValidIsTyped()
+    {
+        SettingRow rpm = Open("engine").Dialog.Rows.First(r => r.Label == "Cranking RPM");
+
+        rpm.Value = "999999";
+        Assert.True(rpm.HasProblem);
+
+        rpm.Value = "400";
+
+        Assert.False(rpm.HasProblem);
+        Assert.Equal("400", rpm.Value);
+    }
 }

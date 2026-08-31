@@ -2077,7 +2077,15 @@ public sealed partial class MainViewModel : ObservableObject
 
             // Any edit may reveal or hide other fields on the same page, since
             // conditions are written against the tune's own settings.
-            foreach (SettingRow row in dialog.Rows) row.Changed += OnSettingChanged;
+            foreach (SettingRow row in dialog.Rows)
+            {
+                row.Changed += OnSettingChanged;
+
+                // A refusal has to reach somebody. The box putting the stored
+                // value back says the edit did not take; this says why, which
+                // is the half that lets them type something that will.
+                row.Refused += why => Hint = why;
+            }
         }
 
         Raise(nameof(OpenDialog));

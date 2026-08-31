@@ -138,7 +138,33 @@ public sealed class SettingRow : ObservableObject
 
         set
         {
-            if (!TrySet(value)) return;
+            if (!TrySet(value))
+            {
+                // Refused, and the box is still showing what was typed. Raising
+                // the property puts the stored value back on screen, which is
+                // the only thing that says it did not take: without it a
+                // rejected edit sits there looking accepted, Send writes
+                // nothing, and the tune quietly does not hold the number the
+                // person is reading off their own screen.
+                //
+                // More important since a name too long for its field started
+                // being refused rather than silently shortened.
+                Problem = Why(value);
+
+                Raise(nameof(Value));
+                Raise(nameof(Problem));
+                Raise(nameof(HasProblem));
+
+                Refused?.Invoke(Problem);
+                return;
+            }
+
+            if (Problem.Length > 0)
+            {
+                Problem = "";
+                Raise(nameof(Problem));
+                Raise(nameof(HasProblem));
+            }
 
             Raise(nameof(Value));
             Raise(nameof(IsChanged));
@@ -146,8 +172,47 @@ public sealed class SettingRow : ObservableObject
         }
     }
 
+    /// <summary>Why the last edit was refused, or nothing when it was not.</summary>
+    public string Problem { get; private set; } = "";
+
+    public bool HasProblem => Problem.Length > 0;
+
+    /// <summary>
+    /// What to tell somebody whose edit was turned down.
+    ///
+    /// Said in terms of the firmware's own limits, because "invalid" tells a
+    /// person nothing they can act on and "outside 0 to 8,000 rpm" tells them
+    /// exactly what to type instead.
+    /// </summary>
+    private string Why(string text)
+    {
+        if (_constant is null || _edit is null) return "That cannot be set here.";
+        if (!IsEditable) return "This setting is not editable.";
+
+        if (_constant.IsText)
+        {
+            foreach (char c in text ?? "")
+                if (c > 0x7F) return "The firmware stores this as plain ASCII.";
+
+            return $"That is longer than the {_constant.Columns} characters this field holds.";
+        }
+
+        if (_constant.HasOptions) return "That is not one of the choices this firmware offers.";
+
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out double number))
+            return "That is not a number.";
+
+        return _constant.HasRange
+            ? $"{Format(number)} is outside {Format(_constant.Low)} to {Format(_constant.High)} "
+              + _constant.Units
+            : "The firmware will not hold that value.";
+    }
+
     /// <summary>Raised when the row has changed the tune.</summary>
     public event Action? Changed;
+
+    /// <summary>Raised with the reason when an edit was refused.</summary>
+    public event Action<string>? Refused;
 
     /// <summary>
     /// Re-reads whether this applies, and what it says.
