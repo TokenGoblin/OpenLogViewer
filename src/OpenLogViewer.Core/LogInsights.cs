@@ -495,8 +495,14 @@ public static class LogInsights
     {
         if (e.Afr is not { } afr || e.Target is not { } target || e.Map is not { } map) yield break;
 
-        double ambient = Ambient(e, map);
-        double threshold = ambient * 0.9;
+        (double ambient, bool measured) = Atmosphere(e, map);
+
+        // Nine tenths of atmospheric is the right line when atmospheric is
+        // known. When it was assumed from the highest reading in the log, that
+        // line lands at nine tenths of *peak boost* and throws away nearly all
+        // the loaded running this exists to judge — so the load is taken
+        // relatively instead, from the log's own spread.
+        double threshold = measured ? ambient * 0.9 : LoadedFrom(e, map);
 
         var errors = new List<double>();
         double highest = double.MinValue;
@@ -956,7 +962,7 @@ public static class LogInsights
     {
         if (e.Map is not { } map) yield break;
 
-        double ambient = Ambient(e, map);
+        (double ambient, bool measured) = Atmosphere(e, map);
         if (ambient <= 0) yield break;
 
         double lowest = double.MaxValue, highest = double.MinValue;
@@ -999,6 +1005,23 @@ public static class LogInsights
                 $"The engine saw boost, peaking {highest - ambient:N0} {map.Units} above ambient.",
                 "Load above atmospheric is where fuelling and timing errors stop being academic. "
                 + "The mixture-under-load finding above covers this region.",
+                numbers, running);
+        }
+        else if (!measured)
+        {
+            // Ambient was taken from the highest reading here, so "the top of
+            // the range is ambient" is not an observation — it is the
+            // assumption, restated. On a boosted engine it is also wrong, and
+            // this is exactly the log where it would be believed.
+            yield return new LogInsight(
+                InsightLevel.Unanswered, "Manifold pressure",
+                $"Manifold pressure spans {lowest:N0} to {highest:N0} {map.Units}, and this log "
+                + "cannot say whether any of that is boost.",
+                "Nothing here records atmospheric pressure: there is no barometer channel, and "
+                + "the engine is never stopped with the key on, which is the other way to read "
+                + "one. Without it the highest reading and ambient are indistinguishable — a "
+                + "turbo at 250 kPa and a naturally aspirated engine at sea level look identical. "
+                + "Log the controller's barometer, or start the next log before cranking.",
                 numbers, running);
         }
         else
@@ -1481,15 +1504,101 @@ public static class LogInsights
     /// is used at 84 kPa as readily as at sea level, and a boost threshold set
     /// at 101 would call every altitude engine boosted.
     /// </summary>
-    private static double Ambient(Engine e, LogChannel map)
+    private static double Ambient(Engine e, LogChannel map) => Atmosphere(e, map).Pressure;
+
+    /// <summary>
+    /// Where "loaded" begins when atmospheric is not known: the upper third of
+    /// the manifold pressure this log actually saw while running.
+    ///
+    /// Relative rather than absolute, because without a real ambient figure
+    /// there is no absolute to be had — and a threshold taken from the log's own
+    /// spread still separates the pulls from the cruising, which is all this
+    /// finding needs it to do.
+    /// </summary>
+    private static double LoadedFrom(Engine e, LogChannel map)
     {
+        double lowest = double.MaxValue, highest = double.MinValue;
+
+        for (int i = 0; i < e.Count; i++)
+        {
+            if (!e.Running(i)) continue;
+
+            double v = map.At(i);
+            if (double.IsNaN(v)) continue;
+
+            lowest = Math.Min(lowest, v);
+            highest = Math.Max(highest, v);
+        }
+
+        if (lowest > highest) return double.MaxValue;
+
+        return lowest + ((highest - lowest) * 2 / 3);
+    }
+
+    /// <summary>
+    /// Atmospheric pressure, and whether it was measured or merely assumed.
+    ///
+    /// <para>
+    /// <b>The assumption is the dangerous half.</b> Falling back to the highest
+    /// manifold pressure is sound on an engine that cannot make boost — at wide
+    /// open throttle a naturally aspirated manifold sits at atmospheric — and
+    /// nonsense on one that can, where the highest reading <em>is</em> the boost.
+    /// Taken for ambient it makes a turbo log test <c>highest &gt; ambient *
+    /// 1.05</c> against itself, which can never be true, so the engine is
+    /// reported as a healthy naturally aspirated one; and it puts the
+    /// loaded-mixture threshold at nine tenths of peak boost, excluding nearly
+    /// all the running that check exists to judge.
+    /// </para>
+    /// <para>
+    /// So it is now marked as an assumption, and whatever cannot be said
+    /// honestly without a real figure declines to say it.
+    /// </para>
+    /// </summary>
+    private static (double Pressure, bool Measured) Atmosphere(Engine e, LogChannel map)
+    {
+        // A barometer, in whatever it was logged in. The old test — greater than
+        // fifty — was a bare-kilopascal assumption that silently threw away any
+        // baro in psi (about 14.7) or bar (about 1.01), which is every log from
+        // a controller set to imperial units.
         if (e.Baro is { } baro)
         {
+            // Converted into the manifold's units rather than left in its own.
+            // Every use of this compares it against manifold pressure, and a
+            // barometer logged in psi beside a manifold logged in kPa reads as
+            // 14.7 against 35 — so the engine is reported as one whose sensor
+            // never sees vacuum, a fault it does not have.
+            double perUnit = KilopascalsPer(baro.Units);
+            double intoMap = perUnit / KilopascalsPer(map.Units);
+
             for (int i = 0; i < e.Count; i++)
             {
                 double v = baro.At(i);
-                if (!double.IsNaN(v) && v > 50) return v;
+                if (double.IsNaN(v)) continue;
+
+                // A plausible atmosphere anywhere a car is driven: the Dead Sea
+                // reads about 106 kPa and the highest road in the world about 45.
+                if (v * perUnit is > 40 and < 115) return (v * intoMap, true);
             }
+        }
+
+        // Failing that, the manifold with the engine stopped. A stationary
+        // engine's manifold is open to the atmosphere through the throttle, so
+        // this is a reading rather than an inference — and most logs start with
+        // the key on before anything is cranked.
+        if (e.Rpm is { } rpm)
+        {
+            double stopped = double.NaN;
+
+            for (int i = 0; i < e.Count; i++)
+            {
+                double turning = rpm.At(i);
+                if (double.IsNaN(turning) || turning > 50) continue;
+
+                double v = map.At(i);
+                if (!double.IsNaN(v) && (double.IsNaN(stopped) || v > stopped)) stopped = v;
+            }
+
+            if (!double.IsNaN(stopped) && stopped > 0) return (stopped, true);
         }
 
         double highest = 0;
@@ -1500,6 +1609,17 @@ public static class LogInsights
             if (!double.IsNaN(v)) highest = Math.Max(highest, v);
         }
 
-        return highest;
+        return (highest, false);
     }
+
+    /// <summary>Kilopascals per unit of whatever a pressure was logged in.</summary>
+    private static double KilopascalsPer(string units) =>
+        ChannelRoles.Simplify(units) switch
+        {
+            "psi" or "psig" or "psia" => TuningMath.KpaPerPsi,
+            "bar" => 100,
+            "mbar" or "hpa" => 0.1,
+            "inhg" => 3.386389,
+            _ => 1,
+        };
 }

@@ -519,4 +519,107 @@ public class LogInsightTests
         InsightLevel.Good => 1,
         _ => 0,
     };
+
+    // ----- knowing atmospheric from guessing it -------------------------------
+
+    /// <summary>A boosted pull, with whatever pressure channels are named.</summary>
+    private static LogDocument Boosted(
+        bool withBaro = false, double baro = 99, string baroUnits = "kPa", bool keyOnFirst = false)
+    {
+        const int n = 300;
+
+        double Load(int i) => i < n / 3 ? 0.0 : i < 2 * n / 3 ? 1.0 : 0.2;
+
+        var channels = new List<LogChannel>
+        {
+            // The first tenth is the key on and the engine stopped, which is
+            // where a manifold reads atmospheric.
+            new("RPM", "rpm", 0,
+                [.. Enumerable.Range(0, n).Select(i =>
+                    keyOnFirst && i < n / 10 ? 0.0 : 900 + (Load(i) * 5100))]),
+
+            new("MAP", "kPa", 1,
+                [.. Enumerable.Range(0, n).Select(i =>
+                    keyOnFirst && i < n / 10 ? 99.0 : 35 + (Load(i) * 215))]),
+
+            new("TPS", "%", 1, [.. Enumerable.Range(0, n).Select(i => Load(i) * 95)]),
+            new("AFR", "AFR", 2, [.. Enumerable.Range(0, n).Select(i => Load(i) > 0.5 ? 12.4 : 14.5)]),
+            new("AFR 1 Target", "AFR", 2, [.. Enumerable.Range(0, n).Select(i => Load(i) > 0.5 ? 11.8 : 14.5)]),
+            new("CLT", "°F", 1, [.. Enumerable.Range(0, n).Select(i => 186 + (i / (double)n * 8))]),
+        };
+
+        if (withBaro)
+            channels.Add(new LogChannel("Barometer", baroUnits, 1, [.. Enumerable.Repeat(baro, n)]));
+
+        return new LogDocument
+        {
+            FormatName = "test",
+            FilePath = "boost.mlg",
+            Time = new LogChannel("Time", "s", 2, [.. Enumerable.Range(0, n).Select(i => i * 0.1)]),
+            Channels = channels,
+        };
+    }
+
+    [Fact]
+    public void ABoostedLogWithNothingToReadAmbientFromSaysSoRatherThanCallingItHealthy()
+    {
+        // Taking the highest reading for ambient makes the boost test compare a
+        // number with itself, which is never true — so a turbo at 250 kPa was
+        // reported as "what a healthy naturally aspirated engine reads".
+        IReadOnlyList<LogInsight> found = LogInsights.From(Boosted());
+
+        LogInsight manifold = Assert.Single(found, f => f.Topic == "Manifold pressure");
+
+        Assert.Equal(InsightLevel.Unanswered, manifold.Level);
+        Assert.DoesNotContain("naturally aspirated engine reads", manifold.Detail,
+                              StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WithABarometerItKnowsTheBoostForWhatItIs()
+    {
+        IReadOnlyList<LogInsight> found = LogInsights.From(Boosted(withBaro: true));
+
+        LogInsight manifold = Assert.Single(found, f => f.Topic == "Manifold pressure");
+
+        Assert.Equal(InsightLevel.Note, manifold.Level);
+        Assert.Contains("boost", manifold.Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(14.4, "psi")]
+    [InlineData(0.99, "bar")]
+    [InlineData(990, "mbar")]
+    public void ABarometerIsReadInWhateverItWasLoggedIn(double reading, string units)
+    {
+        // The old test was "greater than fifty", a bare-kilopascal assumption
+        // that discarded every baro from a controller set to imperial units.
+        IReadOnlyList<LogInsight> found =
+            LogInsights.From(Boosted(withBaro: true, baro: reading, baroUnits: units));
+
+        Assert.Equal(InsightLevel.Note, Assert.Single(found, f => f.Topic == "Manifold pressure").Level);
+    }
+
+    [Fact]
+    public void AndAStoppedEngineIsItselfABarometer()
+    {
+        // A stationary engine's manifold is open to the atmosphere through the
+        // throttle, and most logs begin with the key on before cranking.
+        IReadOnlyList<LogInsight> found = LogInsights.From(Boosted(keyOnFirst: true));
+
+        Assert.Equal(InsightLevel.Note, Assert.Single(found, f => f.Topic == "Manifold pressure").Level);
+    }
+
+    [Fact]
+    public void AndTheLoadedMixtureIsStillJudgedWithoutAnAmbientFigure()
+    {
+        // The threshold was nine tenths of ambient, which without a real figure
+        // is nine tenths of peak boost — excluding almost all the loaded running
+        // the check exists for, and reporting there was not enough of it.
+        IReadOnlyList<LogInsight> found = LogInsights.From(Boosted());
+
+        LogInsight loaded = Assert.Single(found, f => f.Topic == "Mixture under load");
+
+        Assert.NotEqual(InsightLevel.Unanswered, loaded.Level);
+    }
 }
