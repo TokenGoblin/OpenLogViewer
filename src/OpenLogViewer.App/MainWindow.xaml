@@ -956,8 +956,26 @@
                                         <MenuItem Header="Colour" SubmenuOpened="OnColourMenuOpened"/>
                                         <MenuItem Header="Fixed scale…" Click="OnPinScaleClick"
                                                   ToolTip="Draw this channel over a range you choose, in every log"/>
+
+                                        <!-- Drawing only. Everything that judges
+                                             the engine reads the channel as
+                                             logged, which the tooltip says out
+                                             loud because it is the one thing
+                                             somebody might reasonably assume
+                                             otherwise. -->
+                                        <MenuItem Header="Smoothing"
+                                                  ToolTip="Quietens a noisy trace. Only how it is drawn — every measurement still uses the channel as logged">
+                                            <MenuItem Header="None" Click="OnSmoothClick" Tag="None"
+                                                      ToolTip="As logged"/>
+                                            <MenuItem Header="Light" Click="OnSmoothClick" Tag="Light"
+                                                      ToolTip="Median of 5 samples — takes the fuzz off"/>
+                                            <MenuItem Header="Medium" Click="OnSmoothClick" Tag="Medium"
+                                                      ToolTip="Median of 15 — a noisy sensor becomes a readable line"/>
+                                            <MenuItem Header="Strong" Click="OnSmoothClick" Tag="Strong"
+                                                      ToolTip="Median of 51 — the shape only"/>
+                                        </MenuItem>
                                         <MenuItem Header="Back to automatic" Click="OnClearStyleClick"
-                                                  ToolTip="Take the scheme's colour and the channel's own range again"/>
+                                                  ToolTip="Take the scheme's colour, the channel's own range and the trace as logged again"/>
                                     </ContextMenu>
                                 </Border.ContextMenu>
                                 <Grid>

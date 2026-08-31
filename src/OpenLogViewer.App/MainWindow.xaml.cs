@@ -2487,6 +2487,22 @@ public partial class MainWindow : Window
         if (ChannelFrom(sender) is { } item) _vm.ClearStyle(item);
     }
 
+    /// <summary>
+    /// Sets how hard a channel's trace is smoothed.
+    ///
+    /// The level travels on the menu item's tag rather than being parsed out of
+    /// its caption, so renaming "Medium" in the interface cannot quietly change
+    /// what it does.
+    /// </summary>
+    private void OnSmoothClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag }) return;
+        if (!Enum.TryParse(tag, out SmoothingLevel level)) return;
+        if (ChannelFrom(sender) is not { } item) return;
+
+        _vm.SetSmoothing(item, level);
+    }
+
     // ----- finding a moment in the log --------------------------------------
 
     /// <summary>Opens the find bar and puts the caret in it, or shuts it again.</summary>

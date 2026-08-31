@@ -383,6 +383,34 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Puts whatever is pinned for this channel's name onto its row.</summary>
+    /// <summary>
+    /// Sets how hard a channel's trace is smoothed, and remembers it.
+    ///
+    /// Remembered by channel name like a pinned colour, so a sensor that is
+    /// noisy on this car is drawn readably in every log from it rather than
+    /// being set again each time.
+    /// </summary>
+    public void SetSmoothing(ChannelItem item, SmoothingLevel level)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (!_styleStore.SetSmoothing(item.Name, level))
+        {
+            Hint = "There is no room left to remember another channel's settings. "
+                   + "Clear one that is pinned and try again.";
+            return;
+        }
+
+        item.SetSmoothing(level);
+
+        Hint = level == SmoothingLevel.None
+            ? $"{item.Name} is drawn as logged again"
+            : $"{item.Name} is drawn smoothed — a median of {Smoothing.Window(level)} samples. "
+              + "Measurements still use it as logged.";
+
+        PlotInvalidated?.Invoke();
+    }
+
     private void ApplyStyle(ChannelItem item)
     {
         if (_styleStore.For(item.Name) is not { } style) return;
@@ -394,6 +422,8 @@ public sealed partial class MainViewModel : ObservableObject
                 (byte)style.Color.Value));
 
         if (style.HasRange) item.SetFixedRange((style.Min!.Value, style.Max!.Value));
+
+        if (style.HasSmoothing) item.SetSmoothing(style.Smoothing);
     }
 
     /// <summary>
@@ -473,9 +503,10 @@ public sealed partial class MainViewModel : ObservableObject
         _styleStore.Clear(item.Name);
         item.SetFixedColor(null);
         item.SetFixedRange(null);
+        item.SetSmoothing(SmoothingLevel.None);
 
         RecolorChannels();
-        Hint = $"{item.Name} is back to the scheme's colour and its own range";
+        Hint = $"{item.Name} is back to the scheme's colour, its own range and as logged";
         PlotInvalidated?.Invoke();
     }
 

@@ -13,11 +13,16 @@ namespace OpenLogViewer.Core;
 /// </param>
 /// <param name="Min">Bottom of the fixed scale, or null for the channel's own range.</param>
 /// <param name="Max">Top of it.</param>
+/// <param name="Smoothing">
+/// How hard to smooth the trace when it is drawn. A way of drawing rather than
+/// a change to the channel, so nothing that measures the engine sees it.
+/// </param>
 public sealed record ChannelStyle(
     string Channel,
     int? Color = null,
     double? Min = null,
-    double? Max = null)
+    double? Max = null,
+    SmoothingLevel Smoothing = SmoothingLevel.None)
 {
     /// <summary>
     /// Whether the pinned bounds are usable. A pair that is missing an end, or
@@ -31,8 +36,10 @@ public sealed record ChannelStyle(
 
     public bool HasColor => Color is >= 0 and <= 0xFFFFFF;
 
+    public bool HasSmoothing => Smoothing != SmoothingLevel.None;
+
     /// <summary>Nothing pinned, so the entry is not worth keeping.</summary>
-    public bool IsEmpty => !HasRange && !HasColor;
+    public bool IsEmpty => !HasRange && !HasColor && !HasSmoothing;
 }
 
 /// <summary>
@@ -108,6 +115,12 @@ public sealed class ChannelStyleStore
     /// </summary>
     public bool SetRange(string channel, double? min, double? max) =>
         Update(channel, existing => existing with { Min = min, Max = max });
+
+    /// <summary>
+    /// Remembers how hard to smooth this channel's trace, leaving the rest alone.
+    /// </summary>
+    public bool SetSmoothing(string channel, SmoothingLevel level) =>
+        Update(channel, existing => existing with { Smoothing = level });
 
     /// <summary>Unpins everything for a channel, putting it back to automatic.</summary>
     public void Clear(string channel)

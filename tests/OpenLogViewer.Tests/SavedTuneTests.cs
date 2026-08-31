@@ -152,7 +152,7 @@ public class SavedTuneTests
         Assert.Equal(2, tune.Scalar("fanPin"));
         Assert.Equal(1, tune.Scalar("fanOn"));
         Assert.Equal("CLT", tune.TextIn(tune.Pages, "alias"));
-        Assert.Equal([40.0, 41.0, 42.0, 43.0], tune.Array("veTable"));
+        Assert.Equal([40.0, 41.0, 42.0, 43.0], tune.Array("veTable")!);
     }
 
     [Fact]
@@ -414,6 +414,6 @@ public class SavedTuneTests
         MsqLoad after = MsqApply.Load(layout, MsqFile.Read(MsqWriter.Write(before, "test firmware")));
 
         Assert.Equal(before.Pages[0], after.Tune.Pages[0]);
-        Assert.Equal([1.5, 300], after.Tune.Array("mafFlow"));
+        Assert.Equal([1.5, 300], after.Tune.Array("mafFlow")!);
     }
 }

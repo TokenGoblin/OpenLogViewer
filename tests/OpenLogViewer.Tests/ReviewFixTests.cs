@@ -48,7 +48,7 @@ public class ReviewFixTests
 
             Assert.Empty(load.Rejected);
             Assert.Equal(0.04, load.Tune.Constant("mafflow")!.Scale, 6);
-            Assert.Equal([1000, 2000], load.Tune.Array("mafflow"));
+            Assert.Equal([1000, 2000], load.Tune.Array("mafflow")!);
         }
     }
 

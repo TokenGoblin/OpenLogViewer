@@ -96,6 +96,59 @@ public sealed class ChannelItem : ObservableObject
     /// </summary>
     public bool HasFixedColor { get; private set; }
 
+    /// <summary>
+    /// How hard this channel's trace is smoothed when it is drawn.
+    ///
+    /// <b>Drawing only.</b> Nothing that judges the engine reads through this —
+    /// a smoothed AFR hides exactly the single-sample lean excursion that
+    /// damages a piston, so the insights, the calibration, the histogram and
+    /// every export take the channel as logged.
+    /// </summary>
+    public SmoothingLevel Smoothing { get; private set; }
+
+    public bool IsSmoothed => Smoothing != SmoothingLevel.None;
+
+    private double[]? _smoothed;
+
+    /// <summary>Sets the smoothing, throwing away whatever was worked out before.</summary>
+    public void SetSmoothing(SmoothingLevel level)
+    {
+        if (Smoothing == level) return;
+
+        Smoothing = level;
+        _smoothed = null;
+
+        Raise(nameof(Smoothing));
+        Raise(nameof(IsSmoothed));
+        Raise(nameof(SmoothingNote));
+        Raise(nameof(ScaleNote));
+    }
+
+    /// <summary>What the row says about it, or nothing where it is as logged.</summary>
+    public string SmoothingNote =>
+        IsSmoothed
+            ? $"smoothed · median of {Core.Smoothing.Window(Smoothing)}"
+            : "";
+
+    /// <summary>
+    /// The value to draw at a sample: smoothed where this channel is, as logged
+    /// otherwise.
+    ///
+    /// Worked out once for the whole channel and kept, because a plot asks for
+    /// values a great many times over as it is panned and zoomed, and a median
+    /// window recomputed per repaint would be felt.
+    /// </summary>
+    public double ValueAt(int index)
+    {
+        if (!IsSmoothed) return Channel.At(index);
+
+        _smoothed ??= Core.Smoothing.Median(
+            [.. Enumerable.Range(0, Channel.Length).Select(Channel.At)],
+            Core.Smoothing.Window(Smoothing));
+
+        return index >= 0 && index < _smoothed.Length ? _smoothed[index] : double.NaN;
+    }
+
     /// <summary>Pins the vertical range, or clears it with null.</summary>
     public void SetFixedRange((double Min, double Max)? range)
     {
