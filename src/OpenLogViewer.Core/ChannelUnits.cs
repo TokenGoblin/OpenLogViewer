@@ -74,10 +74,10 @@ public static class ChannelUnits
         return Scale(channel, Simplify(channel.Units) switch
         {
             "g/s" or "gs" or "gps" or "" => 1,
-            "kg/h" or "kgh" or "kg/hr" => 1000.0 / 3600,
+            "kg/h" or "kgh" or "kg/hr" or "kghr" => 1000.0 / 3600,
             "kg/min" or "kgmin" => 1000.0 / 60,
             "lb/min" or "lbmin" or "lbsmin" => 453.59237 / 60,
-            "lb/h" or "lbh" or "lb/hr" or "lbhr" => 453.59237 / 3600,
+            "lb/h" or "lbh" or "lb/hr" or "lbhr" or "lbsh" => 453.59237 / 3600,
             "g/min" or "gmin" => 1.0 / 60,
             _ => 1,
         });

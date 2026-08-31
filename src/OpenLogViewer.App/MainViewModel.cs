@@ -2867,6 +2867,16 @@ public sealed partial class MainViewModel : ObservableObject
         {
             connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
 
+            // That page is in flash now, whatever put it there. A settings
+            // change sent to the same page is committed by this burn as surely
+            // as by its own, so leaving it listed keeps the settings Burn button
+            // lit over a page already written — and pressing it spends a second
+            // erase for nothing. Striking each page off as it lands is what the
+            // settings burn documents itself as existing to do; burning from the
+            // table side is the sibling path that was not doing it.
+            _settingsPagesWritten.Remove(page.Index);
+            RaiseWriteGates();
+
             return $"Burned page {page.Index}. This survives a power cycle.";
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)

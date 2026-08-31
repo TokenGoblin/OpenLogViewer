@@ -91,7 +91,7 @@ public static class Smoothing
         }
 
         int half = window / 2;
-        var buffer = new double[window];
+        var buffer = new double[window + 1];
 
         for (int i = 0; i < values.Count; i++)
         {

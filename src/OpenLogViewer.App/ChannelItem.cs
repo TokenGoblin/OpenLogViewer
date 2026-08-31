@@ -29,6 +29,15 @@ public sealed class ChannelItem : ObservableObject
         if (ReferenceEquals(Channel, channel)) return;
 
         Channel = channel;
+
+        // The smoothed copy was made from the channel just replaced, and is
+        // rebuilt lazily from whatever length it finds. On a live session the
+        // new channel is longer every time, so a cache left standing freezes at
+        // the length it had when the trace was first drawn — ValueAt returns NaN
+        // past it, the pen lifts, and a smoothed trace stops growing and scrolls
+        // off the window while the raw ones keep going.
+        _smoothed = null;
+
         Raise(nameof(Channel));
         Raise(nameof(Range));
         Raise(nameof(IsFlat));

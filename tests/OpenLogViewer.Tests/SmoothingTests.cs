@@ -177,4 +177,25 @@ public class SmoothingTests
         // And the log still holds it, so anything measuring finds it.
         Assert.Equal(17.5, log.FindChannel("AFR")!.At(100));
     }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(6)]
+    [InlineData(16)]
+    public void AnEvenWindowDoesNotRunOffTheEndOfItsBuffer(int window)
+    {
+        // The scratch buffer was sized to the window, but the span scanned runs
+        // from i - window/2 to i + window/2, which is window + 1 samples. Every
+        // even window threw on any input long enough to reach a full one. It
+        // never fired in the application because the levels are all odd — but
+        // the method is public and the test above documents even windows as
+        // supported.
+        double[] values = [.. Enumerable.Range(0, 40).Select(i => (double)i)];
+
+        double[] smoothed = Smoothing.Median(values, window);
+
+        Assert.Equal(values.Length, smoothed.Length);
+        Assert.All(smoothed, v => Assert.False(double.IsNaN(v)));
+    }
 }

@@ -226,15 +226,32 @@ public static class MsqApply
                 return new MsqComplaint(
                     constant.Name, $"the file holds {tokens.Length} values where the firmware wants {cells}");
 
+            // All of it or none of it.
+            //
+            // Written cell by cell, a value that will not fit part way through
+            // leaves every cell before it already changed while the constant is
+            // reported as rejected — and rejected means "not stored", which is
+            // exactly what a restore trusts when it decides those bytes need no
+            // write. The bytes disagree, so the restore sends them: half the
+            // file's table and half the controller's, to a running engine, under
+            // a plan that said the setting would be left alone.
+            byte[] before = Keep(pages, constant);
+
             // Row-major, which is how the file writes a grid and how the
             // controller stores one.
             for (int i = 0; i < cells; i++)
             {
                 if (!Number(tokens[i], out double value))
+                {
+                    PutBack(pages, constant, before);
                     return new MsqComplaint(constant.Name, $"\"{tokens[i]}\" is not a number");
+                }
 
                 if (!tune.PokeInto(pages, constant, i, value))
+                {
+                    PutBack(pages, constant, before);
                     return new MsqComplaint(constant.Name, $"{value} will not fit at cell {i}");
+                }
             }
 
             return null;
@@ -243,11 +260,33 @@ public static class MsqApply
         if (Value(constant, written) is not { } single)
             return new MsqComplaint(constant.Name, $"the firmware does not offer {written.Trim()}");
 
+        // A single value is one poke, which either happens or does not, so there
+        // is nothing part-written to undo.
         return tune.PokeInto(pages, constant, 0, single)
             ? null
             : new MsqComplaint(constant.Name, $"{single} is outside what this setting can hold");
     }
 
+
+    /// <summary>The bytes a constant occupies now, so a failed write can undo itself.</summary>
+    private static byte[] Keep(IReadOnlyList<byte[]> pages, TuneConstant constant)
+    {
+        if (constant.Page < 0 || constant.Page >= pages.Count) return [];
+
+        byte[] page = pages[constant.Page];
+        int at = constant.Offset;
+        int size = Math.Min(constant.Size, page.Length - at);
+
+        return at < 0 || size <= 0 ? [] : page.AsSpan(at, size).ToArray();
+    }
+
+    /// <summary>Puts them back, exactly as they were.</summary>
+    private static void PutBack(IReadOnlyList<byte[]> pages, TuneConstant constant, byte[] before)
+    {
+        if (before.Length == 0 || constant.Page < 0 || constant.Page >= pages.Count) return;
+
+        before.CopyTo(pages[constant.Page].AsSpan(constant.Offset));
+    }
     /// <summary>
     /// The number behind a written value: a label's position for a bit field,
     /// the number itself otherwise.

@@ -147,7 +147,7 @@ public static class ChannelRoles
             // A mixture is reported as a bare ratio as often as it is labelled,
             // and "AFR", "lambda" and ":1" are all in use.
             ChannelRole.Mixture or ChannelRole.MixtureTarget =>
-                units is "afr" or "lambda" or ":1" or "ratio",
+                units is "afr" or "lambda" or ":1" or "1" or "ratio",
 
             ChannelRole.IntakeAir => units is "c" or "f" or "degc" or "degf" or "temp" or "k",
 
@@ -161,14 +161,15 @@ public static class ChannelRoles
             ChannelRole.InjectorDuty => units is "%" or "percent" or "pct",
 
             ChannelRole.MassAirFlow =>
-                units is "g/s" or "gs" or "kg/h" or "kgh" or "lb/min" or "lbmin" or "g/min" or "kg/min",
+                units is "g/s" or "gs" or "kg/h" or "kgh" or "lb/min" or "lbmin"
+                         or "g/min" or "gmin" or "kg/min" or "kgmin",
 
             // "ratio" among them because that is how a rusEFI labels veValue,
             // which is nonetheless the same 0–120 figure everyone else calls a
             // percentage rather than a fraction of one.
             ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct" or "ratio",
 
-            ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s",
+            ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s" or "ms",
 
             ChannelRole.SparkAdvance or ChannelRole.KnockRetard =>
                 units is "deg" or "degrees" or "btdc" or "degbtdc" or "°",
@@ -261,9 +262,19 @@ public static class ChannelRoles
 
         // Bank one where a controller logs each separately, the banks being the
         // same on any engine this could describe.
+        //
+        // Deliberately not "stft" or "shorttermfueltrim". This role is a
+        // multiplier around a hundred — a hundred meaning the loop is leaving
+        // the table alone — while an OBD2 fuel trim is a percentage around
+        // nought, which this repository's own PID table describes as "zero is no
+        // correction, and either sign is meaningful". Read as the other, a 3 %
+        // trim multiplies the measured fuel error by thirty, a negative one is
+        // skipped altogether, and a healthy closed loop is reported as holding
+        // fuelling 98 % down. The same argument kept a rusEFI's warmup
+        // coefficient out of WarmupCorrection.
         ChannelRole.MixtureCorrection =>
             ["egocor1", "egocor", "egocorrection", "closedloopcorrection", "o2correction",
-             "shorttermfueltrim", "stft", "lambdacorrection", "gego"],
+             "lambdacorrection", "gego"],
 
         ChannelRole.WarmupCorrection =>
             ["fuelwarmupcor", "warmupcor", "warmupenrichment", "wue", "warmupcorrection",
