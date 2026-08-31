@@ -133,4 +133,13 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
 
     public AgentRefusal? SetTableCell(string table, int column, int row, double value) =>
         _viewModel.AgentSetTableCell(table, column, row, value);
+
+    public string ProjectBrief() => _viewModel.ProjectBrief();
+
+    public IReadOnlyList<string> Projects() => _viewModel.ProjectNames();
+
+    public AgentRefusal? RecordSitting(string note) => _viewModel.AgentRecordSitting(note);
+
+    public AgentRefusal? NoteFix(string id, string title, string detail, string state, string change) =>
+        _viewModel.AgentNoteFix(id, title, detail, state, change);
 }

@@ -92,6 +92,32 @@ public class AgentServerTests : IDisposable
             Cells.Add((table, column, row, value));
             return null;
         }
+
+        public string Brief { get; set; } = "";
+
+        public List<string> Sittings { get; } = [];
+
+        public List<string> Noted { get; } = [];
+
+        public string ProjectBrief() => Brief;
+
+        public IReadOnlyList<string> Projects() => ["The E28"];
+
+        public AgentRefusal? RecordSitting(string note)
+        {
+            if (Brief.Length == 0) return new AgentRefusal("no project is open");
+
+            Sittings.Add(note);
+            return null;
+        }
+
+        public AgentRefusal? NoteFix(string id, string title, string detail, string state, string change)
+        {
+            if (Brief.Length == 0) return new AgentRefusal("no project is open");
+
+            Noted.Add($"{id}/{title}/{state}");
+            return null;
+        }
     }
 
     private (AgentServer Server, Bench Bench, HttpClient Client) Serve()
@@ -460,4 +486,92 @@ public class AgentServerTests : IDisposable
 
     private static StringContent Body(object payload) =>
         new(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+    // ----- the project --------------------------------------------------------
+
+    [Fact]
+    public async Task TheProjectComesBackAsProseRatherThanAsFields()
+    {
+        // It is read the way a scratchpad is read. Handing a model a shape to
+        // reassemble, when the useful thing is a paragraph saying what was tried
+        // and what happened, makes it do work that has already been done.
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Brief = "# The E28\n\n## Still open\n\n### lean-under-load — Lean above 150 kPa\n";
+
+        using JsonDocument answer = JsonDocument.Parse(await client.GetStringAsync("/project"));
+
+        Assert.True(answer.RootElement.GetProperty("open").GetBoolean());
+        Assert.Contains("lean-under-load",
+                        answer.RootElement.GetProperty("brief").GetString()!,
+                        StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithNoProjectOpenItSaysSoRatherThanInventingOne()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument answer = JsonDocument.Parse(await client.GetStringAsync("/project"));
+
+        Assert.False(answer.RootElement.GetProperty("open").GetBoolean());
+    }
+
+    [Fact]
+    public async Task RecordingASittingNeedsAProjectAndSaysWhenThereIsNone()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+
+        HttpResponseMessage refused = await client.PostAsync(
+            "/project/record", Body(new { note = "after the VE change" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Empty(bench.Sittings);
+    }
+
+    [Fact]
+    public async Task AndGoesThroughWithOne()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Brief = "# The E28";
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/project/record", Body(new { note = "after the VE change" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal("after the VE change", bench.Sittings.Single());
+    }
+
+    [Fact]
+    public async Task NotingAFixNeedsNoArmingBecauseItTouchesNoEngine()
+    {
+        // The gate that matters is on writing to the ECU. Recording what is
+        // being worked on cannot hurt anything, and an agent that has to ask
+        // permission to take notes will not take them.
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Brief = "# The E28";
+
+        Assert.False(bench.State().WritesArmed);
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/project/fix",
+            Body(new { title = "Lean above 150 kPa", detail = "46% short", state = "open" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Contains("Lean above 150 kPa", bench.Noted.Single(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AndTheAnswerCarriesTheProjectBackSoAnAgentSeesTheResult()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Brief = "# The E28";
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/project/fix", Body(new { title = "Lean", state = "applied" }));
+
+        using JsonDocument got = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+
+        Assert.Contains("The E28", got.RootElement.GetProperty("brief").GetString()!,
+                        StringComparison.Ordinal);
+    }
 }

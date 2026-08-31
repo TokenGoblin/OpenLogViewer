@@ -92,6 +92,38 @@ public interface IAgentBridge
     /// <summary>The names of every table the firmware declares.</summary>
     IReadOnlyList<string> TableNames();
 
+    // ----- the project ------------------------------------------------------
+
+    /// <summary>
+    /// The vehicle's project as prose, or an empty string when none is open.
+    ///
+    /// The reason this is on the read side rather than being something an agent
+    /// assembles for itself: what is worth knowing at the start of a session is
+    /// what was already tried and what it did, and no amount of reading the
+    /// current log recovers that. It is the same thing a scratchpad does for a
+    /// model working on code.
+    /// </summary>
+    string ProjectBrief();
+
+    /// <summary>Every vehicle that has a project, whether or not one is open.</summary>
+    IReadOnlyList<string> Projects();
+
+    /// <summary>
+    /// Records the log in hand as a sitting, raising a fix for anything newly
+    /// warned about and noting a repeat against the fix already tracking it.
+    /// </summary>
+    AgentRefusal? RecordSitting(string note);
+
+    /// <summary>
+    /// Adds a fix, or moves one already there. <paramref name="id"/> empty
+    /// raises a new one and the id it was given comes back in the brief.
+    ///
+    /// Deliberately not a write to the ECU: this changes the record of what is
+    /// being worked on, which is safe, and is the one thing an agent should be
+    /// able to do freely.
+    /// </summary>
+    AgentRefusal? NoteFix(string id, string title, string detail, string state, string change);
+
     // ----- the guarded half --------------------------------------------------
 
     /// <summary>

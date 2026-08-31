@@ -230,6 +230,7 @@ public sealed class AgentServer : IDisposable
                         "GET /state", "GET /channels", "GET /values?channel=&seconds=",
                         "GET /insights", "GET /tune", "GET /tables", "GET /table?name=",
                         "POST /tune/set", "POST /table/set", "WS /live/stream",
+                        "GET /project", "POST /project/record", "POST /project/fix",
                     },
                 }).ConfigureAwait(false);
                 return;
@@ -276,6 +277,48 @@ public sealed class AgentServer : IDisposable
             case "/tables":
                 await Send(context, _bridge.TableNames()).ConfigureAwait(false);
                 return;
+
+            case "/project":
+                await Send(context, new
+                {
+                    open = _bridge.ProjectBrief().Length > 0,
+                    vehicles = _bridge.Projects(),
+                    brief = _bridge.ProjectBrief(),
+                }).ConfigureAwait(false);
+                return;
+
+            case "/project/record":
+            {
+                if (await ReadBody<RecordSitting>(context).ConfigureAwait(false) is not { } body) return;
+
+                if (_bridge.RecordSitting(body.Note ?? "") is { } refused)
+                {
+                    await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, new { recorded = true, brief = _bridge.ProjectBrief() })
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            case "/project/fix":
+            {
+                if (await ReadBody<NoteFix>(context).ConfigureAwait(false) is not { } body) return;
+
+                AgentRefusal? refused = _bridge.NoteFix(
+                    body.Id ?? "", body.Title ?? "", body.Detail ?? "", body.State ?? "", body.Change ?? "");
+
+                if (refused is not null)
+                {
+                    await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, new { noted = true, brief = _bridge.ProjectBrief() })
+                    .ConfigureAwait(false);
+                return;
+            }
 
             case "/table":
             {
@@ -342,6 +385,10 @@ public sealed class AgentServer : IDisposable
     private sealed record SetSetting(string? Name, double Value);
 
     private sealed record SetCell(string? Table, int Column, int Row, double Value);
+
+    private sealed record RecordSitting(string? Note);
+
+    private sealed record NoteFix(string? Id, string? Title, string? Detail, string? State, string? Change);
 
     private async Task<T?> ReadBody<T>(HttpListenerContext context) where T : class
     {

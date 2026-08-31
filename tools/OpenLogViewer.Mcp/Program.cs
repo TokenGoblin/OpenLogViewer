@@ -190,6 +190,37 @@ internal static class Program
              },
              "name"),
 
+        Tool("olv_project",
+             "The tuning project for this vehicle: what is wrong with the tune, what has already "
+             + "been tried, and what happened. READ THIS FIRST on any tuning question — it is the "
+             + "part no log can tell you, and without it you will re-diagnose problems that were "
+             + "diagnosed weeks ago and re-suggest changes that were already tried and did not work.",
+             new JsonObject()),
+
+        Tool("olv_record_sitting",
+             "Records the log in hand against the project: keeps every finding, raises a fix for "
+             + "anything newly warned about, and notes a repeat against the fix already tracking "
+             + "it. Do this once per log you analyse, so the project shows whether things are "
+             + "getting better.",
+             new JsonObject
+             {
+                 ["note"] = Field("string", "What this sitting was, in your words. What was changed before it, what you were testing."),
+             }),
+
+        Tool("olv_note_fix",
+             "Adds a fix to the project or moves one along. Give an id to change an existing one, "
+             + "or leave it out to raise a new one. This changes the record of what is being "
+             + "worked on and touches no engine, so it needs no arming. Move a fix to applied when "
+             + "a change has been made and to verified only when a later log shows it worked.",
+             new JsonObject
+             {
+                 ["id"] = Field("string", "The fix to change, as olv_project gives it. Omit to raise a new one."),
+                 ["title"] = Field("string", "What is wrong, in one line. Required for a new fix."),
+                 ["detail"] = Field("string", "The reasoning: what was seen and what you think it means."),
+                 ["state"] = Field("string", "open, applied, verified or abandoned."),
+                 ["change"] = Field("string", "What was actually changed in the tune."),
+             }),
+
         Tool("olv_set_setting",
              "Changes one setting in the ECU's WORKING MEMORY. Refused unless the person at the "
              + "machine has ticked \"Allow agent writes\". It is never burned, so turning the key "
@@ -247,6 +278,21 @@ internal static class Program
                 "olv_insights" => await Get("/insights").ConfigureAwait(false),
                 "olv_tune" => await Get("/tune").ConfigureAwait(false),
                 "olv_tables" => await Get("/tables").ConfigureAwait(false),
+                "olv_project" => await Get("/project").ConfigureAwait(false),
+
+                "olv_record_sitting" => await Post("/project/record", new JsonObject
+                {
+                    ["note"] = Text(arguments, "note"),
+                }).ConfigureAwait(false),
+
+                "olv_note_fix" => await Post("/project/fix", new JsonObject
+                {
+                    ["id"] = Text(arguments, "id"),
+                    ["title"] = Text(arguments, "title"),
+                    ["detail"] = Text(arguments, "detail"),
+                    ["state"] = Text(arguments, "state"),
+                    ["change"] = Text(arguments, "change"),
+                }).ConfigureAwait(false),
 
                 "olv_values" => await Get(
                     $"/values?channel={Uri.EscapeDataString(Text(arguments, "channel"))}"
