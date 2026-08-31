@@ -727,3 +727,168 @@ public class EcuWriteTests
         Assert.Equal(data, ecu.Page.AsSpan(0, data.Length).ToArray());
     }
 }
+
+// ----- what a real controller answers -------------------------------------
+
+/// <summary>
+/// The burn path, as a rusEFI actually behaves rather than as a fake was
+/// written to behave.
+///
+/// Every test in this file passed while all three of these were broken, because
+/// the fake answered a burn with 0x00 and never stalled. A real board answers
+/// 0x04 and stops servicing USB while it writes flash.
+/// </summary>
+public class EcuBurnReplyTests
+{
+    /// <summary>A transport answering a burn the way the hardware does.</summary>
+    private sealed class Board(byte burnStatus) : IEcuTransport
+    {
+        private byte[] _pending = [];
+
+        public int Burns { get; private set; }
+
+        /// <summary>Set to make the port refuse the bytes, as one does mid-erase.</summary>
+        public bool RefuseWrites { get; set; }
+
+        public bool IsOpen { get; private set; }
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            if (RefuseWrites)
+                throw new IOException("The semaphore timeout period has expired. : 'COM8'.");
+
+            byte[] payload = data.Length < 7 ? [] : data.Slice(2, (data[0] << 8) | data[1]).ToArray();
+
+            if (payload.Length > 0 && payload[0] == (byte)'B')
+            {
+                Burns++;
+                _pending = Framed(burnStatus);
+                return;
+            }
+
+            _pending = Framed(0x00);
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout)
+        {
+            int take = Math.Min(buffer.Length, _pending.Length);
+            _pending.AsSpan(0, take).CopyTo(buffer);
+            _pending = _pending[take..];
+
+            return take;
+        }
+
+        public void DiscardInput() => _pending = [];
+
+        public void Dispose() => Close();
+
+        private static byte[] Framed(byte status)
+        {
+            byte[] body = [status];
+            uint crc = MsProtocol.Crc32(body);
+
+            return
+            [
+                0, (byte)body.Length, .. body,
+                (byte)(crc >> 24), (byte)(crc >> 16), (byte)(crc >> 8), (byte)crc,
+            ];
+        }
+    }
+
+    private static readonly TunePage Page = new()
+    {
+        Index = 0,
+        Size = 64,
+        Identifier = "\"\x01\"",
+        ReadCommand = "\"R%2o%2c\"",
+        ChunkWriteCommand = "\"C%2o%2c%v\"",
+        BurnCommand = "\"B\"",
+    };
+
+    [Theory]
+    [InlineData(0x00)]  // a plain acknowledgement
+    [InlineData(0x04)]  // TS_RESPONSE_BURN_OK, which is what a rusEFI sends
+    [InlineData(0x07)]  // and what it sends for a controller command
+    public void EveryWayOfSayingYesIsTakenForAYes(byte status)
+    {
+        // Insisting on 0x00 made a rusEFI's successful burn read as a refusal:
+        // the flash was written, the board answered 0x04 to say so, and the
+        // application reported that the burn had been declined.
+        var board = new Board(status);
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        connection.BurnPage(Page, littleEndian: true);
+
+        Assert.Equal(1, board.Burns);
+    }
+
+    [Theory]
+    [InlineData(0x80)]  // underrun
+    [InlineData(0x82)]  // CRC failure
+    [InlineData(0x83)]  // unrecognised command
+    [InlineData(0x84)]  // out of range
+    [InlineData(0x8D)]  // framing error
+    public void AndEveryWayOfSayingNoStillMeansNo(byte status)
+    {
+        using var connection = new EcuConnection(new Board(status));
+        connection.Open();
+
+        EcuProtocolException e = Assert.Throws<EcuProtocolException>(
+            () => connection.BurnPage(Page, littleEndian: true));
+
+        Assert.Contains($"0x{status:X2}", e.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APortThatWillNotTakeTheBytesIsReportedRatherThanThrownRaw()
+    {
+        // The transport raises an IOException where the port misbehaves rather
+        // than the ECU. Catching only EcuProtocolException let it escape the
+        // retry loop and reach the application as an unhandled "The semaphore
+        // timeout period has expired" — a crash, and a misleading one, since the
+        // burn it was raised for had gone through.
+        var board = new Board(0x04) { RefuseWrites = true };
+        using var connection = new EcuConnection(board);
+        board.RefuseWrites = false;
+        connection.Open();
+        board.RefuseWrites = true;
+
+        Assert.Throws<EcuProtocolException>(() => connection.BurnPage(Page, littleEndian: true));
+    }
+
+    [Fact]
+    public void ABurnThatCannotBeConfirmedSaysItMayStillHaveHappened()
+    {
+        // The one message worth getting right. A burn reported as failed sends
+        // somebody to burn again, and a controller stops answering while it
+        // writes flash — which looks identical to one that never heard.
+        var board = new Board(0x84);
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        EcuProtocolException e = Assert.Throws<EcuProtocolException>(
+            () => connection.BurnPage(Page, littleEndian: true));
+
+        Assert.Contains("may still have completed", e.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ABurnIsNeverSentTwice()
+    {
+        // Every other request may be repeated freely, because a lost reply is
+        // just a lost reply. A burn is the one where the ECU may well have done
+        // the work and gone quiet doing it, and re-sending spends a flash erase
+        // to learn nothing.
+        var board = new Board(0x84);
+        using var connection = new EcuConnection(board);
+        connection.Open();
+
+        Assert.Throws<EcuProtocolException>(() => connection.BurnPage(Page, littleEndian: true));
+        Assert.Equal(1, board.Burns);
+    }
+}

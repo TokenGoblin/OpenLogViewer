@@ -74,8 +74,15 @@ public static class MsProtocol
     /// <summary>The page holding the realtime block.</summary>
     private const byte RealtimeTable = 7;
 
-    /// <summary>Reply status byte meaning the request was understood.</summary>
-    private const byte Ok = 0x00;
+    /// <summary>
+    /// The bit a reply's status byte sets to report a failure.
+    ///
+    /// Every error in this protocol carries it — underrun 0x80, CRC 0x82,
+    /// unrecognised 0x83, out of range 0x84, framing 0x8D — and every way of
+    /// saying yes does not: 0x00 acknowledges a request, 0x04 a burn, 0x07 a
+    /// controller command.
+    /// </summary>
+    private const byte Failed = 0x80;
 
     public static byte[] Frame(ReadOnlySpan<byte> payload)
     {
@@ -113,7 +120,18 @@ public static class MsProtocol
             throw new EcuProtocolException(
                 $"Reply failed its checksum ({actual:X8} against {declared:X8}); the link dropped bytes.");
 
-        if (body[0] != Ok)
+        // An error is marked by the high bit, not by being anything other than
+        // zero. There is more than one way for this protocol to say yes: 0x00 is
+        // a plain acknowledgement, 0x04 acknowledges a burn and 0x07 a
+        // controller command, while every failure — underrun 0x80, CRC 0x82,
+        // unrecognised 0x83, out of range 0x84, framing 0x8D — sets it.
+        //
+        // Insisting on 0x00 made a rusEFI's successful burn read as a refusal.
+        // The board had written its flash, answered 0x04 to say so, and was told
+        // the burn had been declined; the value was there after a reboot. A
+        // write reported as failed is the one error worth going out of the way
+        // to avoid, because the answer to it is to write again.
+        if ((body[0] & Failed) != 0)
             throw new EcuProtocolException($"The ECU refused the request (status 0x{body[0]:X2}).")
             {
                 Refused = true,
