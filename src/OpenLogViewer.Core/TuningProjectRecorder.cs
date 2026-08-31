@@ -20,7 +20,8 @@ public static class TuningProjectRecorder
     /// and a project that records only bad days cannot show anything getting
     /// better.
     /// </summary>
-    public static ProjectSession Sitting(LogDocument log, string signature = "", string note = "")
+    public static ProjectSession Sitting(
+        LogDocument log, string signature = "", string note = "", string version = "")
     {
         ArgumentNullException.ThrowIfNull(log);
 
@@ -31,6 +32,7 @@ public static class TuningProjectRecorder
             Samples = log.Time.Length,
             Seconds = log.Time.Length > 0 ? log.Time.At(log.Time.Length - 1) : 0,
             Note = note,
+            Version = version,
             Findings =
             [
                 .. LogInsights.From(log).Select(i =>
@@ -98,6 +100,72 @@ public static class TuningProjectRecorder
     private static TuningFix? Tracking(TuningProject project, string topic) =>
         project.Open.FirstOrDefault(
             f => f.Id.StartsWith(Slug(topic), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether the evidence now says a fix worked.
+    ///
+    /// <para>
+    /// This is what the version on a sitting is for, and the question everybody
+    /// actually asks. A fix is only answered by a log recorded <em>after</em> the
+    /// change and <em>on the tune that carried it</em>: a run on the old version
+    /// that happens to look clean proves nothing, and neither does a run on the
+    /// new one from before it was written.
+    /// </para>
+    /// <para>
+    /// It reports rather than decides. Moving a fix to verified is somebody's
+    /// judgement — one clean run is not always enough, and this cannot know
+    /// whether the drive exercised the part of the map in question. What it can
+    /// do is say plainly what the record supports, which is the half that is
+    /// otherwise reconstructed from memory.
+    /// </para>
+    /// </summary>
+    public static string Verdict(TuningProject project, TuningFix fix)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(fix);
+
+        // The version that claimed to address it, if any did.
+        TuneVersion? change = project.Versions
+            .LastOrDefault(v => v.Addresses.Contains(fix.Id, StringComparer.OrdinalIgnoreCase));
+
+        if (change is null)
+        {
+            return fix.State == FixState.Applied
+                ? "A change was recorded against this, but no tune version claims it — so there "
+                  + "is nothing to say which logs came after it."
+                : "Nothing has been changed for this yet.";
+        }
+
+        // Sittings on that version or later. Ordering by the version's own
+        // position rather than by date, because a log can be imported long
+        // after it was recorded.
+        int madeAt = project.Versions.ToList().FindIndex(v => v.Id == change.Id);
+
+        var after = project.Sessions
+            .Where(s => s.Version.Length > 0)
+            .Where(s => project.Versions.ToList().FindIndex(v => v.Id == s.Version) >= madeAt)
+            .ToList();
+
+        if (after.Count == 0)
+            return $"{change.Id} was made for this and nothing has been recorded on it yet.";
+
+        string topic = Slug(fix.Id);
+
+        var complaining = after
+            .Where(s => s.Findings.Any(f =>
+                f.Level == "Warning" && Slug(f.Topic).StartsWith(topic, StringComparison.Ordinal)))
+            .ToList();
+
+        if (complaining.Count == 0)
+        {
+            return $"{after.Count} sitting{(after.Count == 1 ? "" : "s")} on {change.Id} or later, "
+                   + "and none of them complained about this. That is what verified would rest on.";
+        }
+
+        return $"Still seen on {complaining.Count} of {after.Count} "
+               + $"sitting{(after.Count == 1 ? "" : "s")} since {change.Id}. "
+               + "The change has not settled it.";
+    }
 
     private static string Slug(string topic)
     {

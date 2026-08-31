@@ -80,6 +80,16 @@ public sealed record ProjectSession
     /// <summary>Anything a person or an agent wanted to record about the sitting.</summary>
     public string Note { get; init; } = "";
 
+    /// <summary>
+    /// The tune the controller was running, by version id.
+    ///
+    /// The join the whole thing turns on. A finding belongs to a tune, not just
+    /// to a date — without this, "still lean" and "lean again after the change"
+    /// are the same sentence, and the question everybody actually asks (did the
+    /// change work?) cannot be answered from the record at all.
+    /// </summary>
+    public string Version { get; init; } = "";
+
     /// <summary>The findings worth acting on, which is what a summary leads with.</summary>
     public int Warnings => Findings.Count(f => f.Level is "Warning" or "Watch");
 }
@@ -123,6 +133,9 @@ public sealed record TuningProject
 
     public IReadOnlyList<TuningFix> Fixes { get; init; } = [];
 
+    /// <summary>Every tune this project has been through, oldest first.</summary>
+    public IReadOnlyList<TuneVersion> Versions { get; init; } = [];
+
     public DateTimeOffset Started { get; init; } = DateTimeOffset.Now;
 
     public IEnumerable<TuningFix> Open => Fixes.Where(f => f.IsOpen);
@@ -145,6 +158,44 @@ public sealed record TuningProject
         kept.Add(fix);
 
         return this with { Fixes = kept };
+    }
+
+    /// <summary>Adds a version, or replaces the one with the same id.</summary>
+    public TuningProject With(TuneVersion version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+
+        var kept = Versions
+            .Where(v => !v.Id.Equals(version.Id, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        kept.Add(version);
+
+        return this with { Versions = kept };
+    }
+
+    /// <summary>The version by that id.</summary>
+    public TuneVersion? Version(string id) =>
+        Versions.FirstOrDefault(v => v.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The newest version, which is what the controller most likely holds.</summary>
+    public TuneVersion? Latest => Versions.Count > 0 ? Versions[^1] : null;
+
+    /// <summary>The next id in sequence — v1, v2, and so on.</summary>
+    public string NextVersionId()
+    {
+        int highest = 0;
+
+        foreach (TuneVersion version in Versions)
+        {
+            if (version.Id.Length > 1 && version.Id[0] is 'v' or 'V'
+                && int.TryParse(version.Id[1..], out int n))
+            {
+                highest = Math.Max(highest, n);
+            }
+        }
+
+        return $"v{highest + 1}";
     }
 
     /// <summary>The fix by that id, however it was capitalised.</summary>

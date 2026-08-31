@@ -147,6 +147,32 @@ public sealed class TuningProjectStore(string root)
             }
         }
 
+        if (project.Versions.Count > 0)
+        {
+            text.AppendLine();
+            text.AppendLine("## Tunes");
+            text.AppendLine();
+
+            // Newest first: what the controller is most likely running is what
+            // somebody needs before anything else here.
+            foreach (TuneVersion version in project.Versions.AsEnumerable().Reverse().Take(8))
+            {
+                text.Append("- **").Append(version.Id).Append("** ")
+                   .Append(version.At.ToString("yyyy-MM-dd"));
+
+                if (version.Burned) text.Append(", burned");
+                if (version.Note.Length > 0) text.Append(" — ").Append(version.Note);
+
+                if (version.Addresses.Count > 0)
+                    text.Append(" (for ").Append(string.Join(", ", version.Addresses)).Append(')');
+
+                text.AppendLine();
+            }
+
+            if (project.Versions.Count > 8)
+                text.Append('*').Append(project.Versions.Count - 8).AppendLine(" earlier tunes are in the file.*");
+        }
+
         text.AppendLine();
         text.AppendLine("## Recent sittings");
         text.AppendLine();
@@ -162,6 +188,7 @@ public sealed class TuningProjectStore(string root)
             text.Append("### ").Append(sitting.At.ToString("yyyy-MM-dd HH:mm"));
 
             if (sitting.Log.Length > 0) text.Append(" — ").Append(sitting.Log);
+            if (sitting.Version.Length > 0) text.Append(" · on ").Append(sitting.Version);
 
             text.AppendLine();
             text.Append(sitting.Samples.ToString("N0")).Append(" samples over ")
