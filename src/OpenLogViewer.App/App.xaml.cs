@@ -41,6 +41,7 @@ public partial class App : Application
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
+        "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
@@ -340,6 +341,9 @@ public partial class App : Application
         if (saveTune >= 0 && saveTune + 1 < e.Args.Length)
             window.SaveTune(e.Args[saveTune + 1]);
 
+        // "--insights" opens the findings for whatever log is loaded.
+        if (Array.IndexOf(e.Args, "--insights") >= 0) window.ShowInsights();
+
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)
             CaptureAndExit(window, e.Args[shot + 1]);
@@ -453,6 +457,13 @@ public partial class App : Application
     private void CaptureAndExit(Window window, string path) =>
         RunThenExit(window, () =>
         {
+            // A window opened on top of the main one is what the run was asking
+            // to see — the calculators, the insights, the fault codes. Capturing
+            // the window behind it produces a picture of everything except the
+            // thing under test.
+            if (window.OwnedWindows.OfType<Window>().LastOrDefault(w => w.IsVisible) is { } child)
+                window = child;
+
             window.UpdateLayout();
 
             // Optional "--pointer x,y" (fractions of the plot) so a screenshot can

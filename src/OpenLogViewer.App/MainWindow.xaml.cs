@@ -163,6 +163,36 @@ public partial class MainWindow : Window
     /// still there when it is reopened — sizing an injector and then checking
     /// the pump for the same engine should not mean typing the power twice.
     /// </summary>
+    private InsightsWindow? _insights;
+
+    /// <summary>
+    /// Opens the insights, or brings them forward and measures again.
+    ///
+    /// Re-measured on every open rather than cached: on a live session the log
+    /// grows under it, and a window showing what the engine was doing two
+    /// minutes ago is worse than one showing nothing.
+    /// </summary>
+    private void OnInsightsClick(object sender, RoutedEventArgs e)
+    {
+        if (_insights is null)
+        {
+            _insights = new InsightsWindow(() => _vm.Document) { Owner = this };
+            _insights.Closed += (_, _) => _insights = null;
+            _insights.Show();
+
+            return;
+        }
+
+        if (_insights.WindowState == WindowState.Minimized)
+            _insights.WindowState = WindowState.Normal;
+
+        _insights.Refresh();
+        _insights.Activate();
+    }
+
+    /// <summary>Opens the insights, for a scripted run.</summary>
+    public void ShowInsights() => OnInsightsClick(this, new RoutedEventArgs());
+
     private void OnCalculatorsClick(object sender, RoutedEventArgs e)
     {
         if (_calculators is null)
