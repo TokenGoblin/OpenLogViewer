@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
@@ -104,7 +105,50 @@ public partial class InsightsWindow : Window, INotifyPropertyChanged
 
     private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MainViewModel.Document)) Refresh();
+        if (e.PropertyName is nameof(MainViewModel.Document)) Soon();
+    }
+
+    /// <summary>
+    /// How often the findings are worked out again while a session is running.
+    ///
+    /// <para>
+    /// A live session hands over a whole new document about five times a second
+    /// — the snapshot is rebuilt whenever the sample count moves — and each one
+    /// used to re-measure the entire log on the UI thread: the wideband delay
+    /// search across every sample, and fourteen more full passes behind it. On a
+    /// long recording that is a large fraction of a second's work, five times a
+    /// second, on the thread that draws.
+    /// </para>
+    /// <para>
+    /// Throttled rather than waited out, because a live log never falls quiet.
+    /// Something arranged to run once the data stopped arriving would never run
+    /// at all. Five seconds is far more often than an engine changes its mind
+    /// about anything measured here.
+    /// </para>
+    /// </summary>
+    private static readonly TimeSpan NoOftenerThan = TimeSpan.FromSeconds(5);
+
+    private DateTime _measuredAt = DateTime.MinValue;
+    private DispatcherTimer? _due;
+
+    /// <summary>Measures again, but no more often than is any use.</summary>
+    private void Soon()
+    {
+        if (_due is not null) return;
+
+        TimeSpan since = DateTime.UtcNow - _measuredAt;
+
+        if (since >= NoOftenerThan) { Refresh(); return; }
+
+        _due = new DispatcherTimer { Interval = NoOftenerThan - since };
+        _due.Tick += (_, _) =>
+        {
+            _due?.Stop();
+            _due = null;
+            Refresh();
+        };
+
+        _due.Start();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -138,7 +182,33 @@ public partial class InsightsWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        IReadOnlyList<LogInsight> found = LogInsights.From(log);
+        // Measured off the drawing thread. A snapshot is a fresh, finished
+        // document — a live session builds a new one rather than growing the
+        // old — so nothing here is being read while something else writes it.
+        //
+        // Only the newest answer is kept: a run started before this one is
+        // stale by the time it lands, and applying it would put older findings
+        // on screen than the ones already there.
+        long mine = ++_generation;
+
+        Task.Run(() => LogInsights.From(log)).ContinueWith(
+            done =>
+            {
+                if (mine != Interlocked.Read(ref _generation)) return;
+                if (done.IsFaulted || done.Result is not { } measured) return;
+
+                Dispatcher.Invoke(() => Apply(log, measured));
+            },
+            TaskScheduler.Default);
+    }
+
+    private long _generation;
+
+    /// <summary>Puts a finished measurement on screen. Runs on the UI thread.</summary>
+    private void Apply(LogDocument log, IReadOnlyList<LogInsight> found)
+    {
+        _measuredAt = DateTime.UtcNow;
+
         Findings = [.. found.Select(f => new InsightItem(f))];
 
         double minutes = log.SampleCount > 1
