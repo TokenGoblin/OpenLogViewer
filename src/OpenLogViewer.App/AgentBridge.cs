@@ -138,6 +138,11 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
 
     public IReadOnlyList<string> Projects() => _viewModel.ProjectNames();
 
+    public AgentRefusal? KeepTune(string note) => _viewModel.AgentKeepTune(note);
+
+    public string CompareVersions(string from, string to) =>
+        _viewModel.AgentCompareVersions(from, to);
+
     public AgentRefusal? RecordSitting(string note) => _viewModel.AgentRecordSitting(note);
 
     public AgentRefusal? NoteFix(string id, string title, string detail, string state, string change) =>

@@ -2457,6 +2457,12 @@ public sealed partial class MainViewModel : ObservableObject
                 return "This firmware declares no way to burn the pages that were written.";
             }
 
+            // Both burn paths record a version. There is no single place they
+            // meet — one commits a set of settings pages and the other one
+            // table's page — so this is the pair, with a test over both
+            // rather than over whichever was written last.
+            KeepBurnedTune();
+
             Raise(nameof(CanBurnSettings));
 
             return $"Burned {burned.Count} page{(burned.Count == 1 ? "" : "s")} to flash. "
@@ -2913,6 +2919,7 @@ public sealed partial class MainViewModel : ObservableObject
             _settingsPagesWritten.Remove(page.Index);
             RaiseWriteGates();
 
+KeepBurnedTune();
             return $"Burned page {page.Index}. This survives a power cycle.";
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)

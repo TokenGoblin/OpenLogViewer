@@ -231,6 +231,7 @@ public sealed class AgentServer : IDisposable
                         "GET /insights", "GET /tune", "GET /tables", "GET /table?name=",
                         "POST /tune/set", "POST /table/set", "WS /live/stream",
                         "GET /project", "POST /project/record", "POST /project/fix",
+                        "POST /project/keep", "POST /project/versions/compare",
                     },
                 }).ConfigureAwait(false);
                 return;
@@ -286,6 +287,34 @@ public sealed class AgentServer : IDisposable
                     brief = _bridge.ProjectBrief(),
                 }).ConfigureAwait(false);
                 return;
+
+            case "/project/versions/compare":
+            {
+                if (await ReadBody<CompareVersions>(context).ConfigureAwait(false) is not { } body) return;
+
+                await Send(context, new
+                {
+                    body.From,
+                    body.To,
+                    changed = _bridge.CompareVersions(body.From ?? "", body.To ?? ""),
+                }).ConfigureAwait(false);
+                return;
+            }
+
+            case "/project/keep":
+            {
+                if (await ReadBody<RecordSitting>(context).ConfigureAwait(false) is not { } body) return;
+
+                if (_bridge.KeepTune(body.Note ?? "") is { } refused)
+                {
+                    await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, new { kept = true, brief = _bridge.ProjectBrief() })
+                    .ConfigureAwait(false);
+                return;
+            }
 
             case "/project/record":
             {
@@ -387,6 +416,8 @@ public sealed class AgentServer : IDisposable
     private sealed record SetCell(string? Table, int Column, int Row, double Value);
 
     private sealed record RecordSitting(string? Note);
+
+    private sealed record CompareVersions(string? From, string? To);
 
     private sealed record NoteFix(string? Id, string? Title, string? Detail, string? State, string? Change);
 

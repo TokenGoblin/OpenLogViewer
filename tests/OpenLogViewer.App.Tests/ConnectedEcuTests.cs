@@ -442,4 +442,96 @@ public class ConnectedEcuTests : IDisposable
         Assert.NotNull(refused);
         Assert.Contains("not in the table", refused!.Reason, StringComparison.Ordinal);
     }
+
+    // ----- the project ---------------------------------------------------------
+
+    /// <summary>Opens a project in a temporary workspace and returns its folder.</summary>
+    private static string WithProject(MainViewModel vm, string vehicle = "Bench")
+    {
+        vm.OpenProject(vehicle);
+
+        return System.IO.Path.GetDirectoryName(vm.Projects.PathFor(vehicle))!;
+    }
+
+    [Fact]
+    public void BurningSettingsKeepsTheTuneAsAVersion()
+    {
+        // A burn is the moment a change stops being working memory and becomes
+        // what the ECU runs tomorrow. Left to a button nobody presses, a
+        // project has holes exactly where the important changes were.
+        MainViewModel vm = Connected(out _);
+        WithProject(vm);
+
+        Row(vm, "Cranking RPM").Value = "400";
+        vm.WriteSettingsToEcu();
+        vm.BurnSettingsToEcu();
+
+        TuneVersion kept = Assert.Single(vm.Project!.Versions);
+        Assert.True(kept.Burned);
+    }
+
+    [Fact]
+    public void AndSoDoesBurningATable()
+    {
+        // The sibling path. These two never meet — one commits a set of
+        // settings pages and the other one table's page — so both are checked
+        // rather than whichever was written last.
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench2");
+
+        vm.SelectedEcuTable = vm.EcuTables.First(t => t.Name == "VE Table");
+        vm.TableEdit!.Set(TuneSelection.Cell(0, 0), 55);
+        vm.WriteTableToEcu();
+        vm.BurnTableToEcu();
+
+        TuneVersion kept = Assert.Single(vm.Project!.Versions);
+        Assert.True(kept.Burned);
+    }
+
+    [Fact]
+    public void BurningWithNoProjectOpenIsStillJustABurn()
+    {
+        // Bookkeeping must never turn a successful burn into an error.
+        MainViewModel vm = Connected(out FakeController board);
+
+        Row(vm, "Cranking RPM").Value = "400";
+        vm.WriteSettingsToEcu();
+
+        string said = vm.BurnSettingsToEcu();
+
+        Assert.Equal(1, board.Burns);
+        Assert.Contains("survive a power cycle", said, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(vm.Project);
+    }
+
+    [Fact]
+    public void ASittingIsStampedWithTheTuneTheEcuWasRunning()
+    {
+        // The join the versioning exists for. The model carried the field and
+        // no path in the application ever filled it in, so Verdict could never
+        // have answered anything.
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench3");
+
+        vm.KeepTune("baseline");
+        vm.Load(_harness.WriteTypicalLog(60));
+
+        vm.RecordSitting("after nothing");
+
+        ProjectSession sitting = Assert.Single(vm.Project!.Sessions);
+        Assert.Equal(vm.Project.Latest!.Id, sitting.Version);
+    }
+
+    [Fact]
+    public void KeepingTheSameTuneTwiceDoesNotMakeTwoVersions()
+    {
+        MainViewModel vm = Connected(out _);
+        WithProject(vm, "Bench4");
+
+        vm.KeepTune("baseline");
+        string again = vm.KeepTune("nothing changed");
+
+        Assert.Single(vm.Project!.Versions);
+        Assert.Contains("already", again, StringComparison.OrdinalIgnoreCase);
+    }
 }

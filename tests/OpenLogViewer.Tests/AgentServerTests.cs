@@ -103,6 +103,19 @@ public class AgentServerTests : IDisposable
 
         public IReadOnlyList<string> Projects() => ["The E28"];
 
+        public List<string> Kept { get; } = [];
+
+        public AgentRefusal? KeepTune(string note)
+        {
+            if (Brief.Length == 0) return new AgentRefusal("no project is open");
+
+            Kept.Add(note);
+            return null;
+        }
+
+        public string CompareVersions(string from, string to) =>
+            Brief.Length == 0 ? "No project is open." : $"{from} to {to}: 2 settings differ.";
+
         public AgentRefusal? RecordSitting(string note)
         {
             if (Brief.Length == 0) return new AgentRefusal("no project is open");

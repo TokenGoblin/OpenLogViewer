@@ -91,6 +91,40 @@ public partial class MainViewModel
         Path.GetDirectoryName(Projects.PathFor(_project?.Vehicle ?? "")) ?? Projects.Root;
 
     /// <summary>
+    /// Keeps the tune as a version because it has just been burned.
+    ///
+    /// <para>
+    /// A burn is the natural moment to record one: it is the point at which a
+    /// change stops being something in working memory and becomes what the
+    /// controller will run tomorrow. Left to a button nobody presses, a project
+    /// ends up with a history full of holes exactly where the important changes
+    /// were.
+    /// </para>
+    /// <para>
+    /// Silent when there is no project — this must never turn a successful burn
+    /// into an error message about bookkeeping. It reports through the hint, so
+    /// somebody who has a project open sees the version it was given.
+    /// </para>
+    /// </summary>
+    private void KeepBurnedTune()
+    {
+        if (_project is null || _ecuTune is null || TuneIsPlaceholder) return;
+
+        try
+        {
+            string said = KeepTune("burned to flash", burned: true);
+
+            if (said.StartsWith("Kept", StringComparison.Ordinal)) Hint = said;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The burn happened. Failing to write it down is not a reason to
+            // tell somebody their burn went wrong.
+            Hint = $"Burned, but the project could not record it: {e.Message}";
+        }
+    }
+
+    /// <summary>
     /// Keeps the tune in hand as a version of the project.
     ///
     /// The other half of a sitting: a sitting says what the log showed, a
@@ -154,6 +188,48 @@ public partial class MainViewModel
         _project is { } project ? TuningProjectStore.Brief(project) : "";
 
     internal IReadOnlyList<string> ProjectNames() => Projects.Vehicles();
+
+    internal AgentRefusal? AgentKeepTune(string note)
+    {
+        if (_project is null) return new AgentRefusal("no project is open");
+
+        string said = KeepTune(note);
+
+        return said.StartsWith("Kept", StringComparison.Ordinal)
+               || said.Contains("already", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : new AgentRefusal("the tune was not kept", said);
+    }
+
+    /// <summary>
+    /// What two versions disagree about, in words.
+    ///
+    /// Rendered here rather than handed over as a shape, because what an agent
+    /// wants from a diff is the same thing a person does: which settings moved
+    /// and by how much, in the firmware's own units.
+    /// </summary>
+    internal string AgentCompareVersions(string from, string to)
+    {
+        if (_project is not { } project) return "No project is open.";
+        if (_tuneLayout is not { } layout)
+            return "No firmware definition is loaded to read them through.";
+
+        if (TuneHistory.Compare(project, ProjectFolder, from, to, layout) is not { } diff)
+            return $"One of {from} and {to} is not a version of this project, or its file has gone.";
+
+        if (diff.IsEmpty) return diff.Summary;
+
+        var text = new System.Text.StringBuilder(diff.Summary);
+        text.AppendLine();
+
+        foreach (TuneDifference d in diff.Differences.Take(200))
+            text.Append("- ").AppendLine(d.Summary);
+
+        if (diff.Differences.Count > 200)
+            text.Append("…and ").Append(diff.Differences.Count - 200).AppendLine(" more.");
+
+        return text.ToString();
+    }
 
     internal AgentRefusal? AgentRecordSitting(string note)
     {

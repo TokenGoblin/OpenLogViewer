@@ -207,6 +207,26 @@ internal static class Program
                  ["note"] = Field("string", "What this sitting was, in your words. What was changed before it, what you were testing."),
              }),
 
+        Tool("olv_keep_tune",
+             "Records the tune now in hand as a version of the project, so later logs can be "
+             + "attributed to it. Do this before suggesting a change and after one is burned. "
+             + "Recording an unchanged tune is harmless — it returns the version it already is.",
+             new JsonObject
+             {
+                 ["note"] = Field("string", "Why this tune is worth keeping. What it was for."),
+             }),
+
+        Tool("olv_compare_versions",
+             "What changed between two tune versions, setting by setting, in the firmware's own "
+             + "units. Version ids look like v1, v2 and come from olv_project. This is how to "
+             + "check what a change actually did rather than what it was meant to do.",
+             new JsonObject
+             {
+                 ["from"] = Field("string", "The earlier version, e.g. v3."),
+                 ["to"] = Field("string", "The later one, e.g. v4."),
+             },
+             "from", "to"),
+
         Tool("olv_note_fix",
              "Adds a fix to the project or moves one along. Give an id to change an existing one, "
              + "or leave it out to raise a new one. This changes the record of what is being "
@@ -279,6 +299,17 @@ internal static class Program
                 "olv_tune" => await Get("/tune").ConfigureAwait(false),
                 "olv_tables" => await Get("/tables").ConfigureAwait(false),
                 "olv_project" => await Get("/project").ConfigureAwait(false),
+
+                "olv_keep_tune" => await Post("/project/keep", new JsonObject
+                {
+                    ["note"] = Text(arguments, "note"),
+                }).ConfigureAwait(false),
+
+                "olv_compare_versions" => await Post("/project/versions/compare", new JsonObject
+                {
+                    ["from"] = Text(arguments, "from"),
+                    ["to"] = Text(arguments, "to"),
+                }).ConfigureAwait(false),
 
                 "olv_record_sitting" => await Post("/project/record", new JsonObject
                 {

@@ -109,6 +109,20 @@ public interface IAgentBridge
     IReadOnlyList<string> Projects();
 
     /// <summary>
+    /// Keeps the tune in hand as a version of the open project.
+    ///
+    /// Not a write to the ECU and not gated like one: this records what the
+    /// controller already holds. Nothing about an engine changes.
+    /// </summary>
+    AgentRefusal? KeepTune(string note);
+
+    /// <summary>
+    /// What changed between two versions, setting by setting, or a refusal
+    /// naming which of them could not be read.
+    /// </summary>
+    string CompareVersions(string from, string to);
+
+    /// <summary>
     /// Records the log in hand as a sitting, raising a fix for anything newly
     /// warned about and noting a repeat against the fix already tracking it.
     /// </summary>
