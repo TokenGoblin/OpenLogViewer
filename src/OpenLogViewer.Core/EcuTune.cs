@@ -106,12 +106,41 @@ public sealed class EcuTune
 
         if (pending.Count == 0) return;
 
+        // Guards against a derived value defined in terms of itself, directly or
+        // round a ring. A definition can say anything; this has to survive it.
+        var following = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         double Plain(string name)
         {
-            if (Find(name) is not { } constant) return double.NaN;
-            if (constant.ScaleExpression.Length > 0 || constant.TransformExpression.Length > 0) return double.NaN;
+            if (Find(name) is { } constant)
+            {
+                if (constant.ScaleExpression.Length > 0 || constant.TransformExpression.Length > 0)
+                    return double.NaN;
 
-            return Value(constant, 0) ?? double.NaN;
+                return Value(constant, 0) ?? double.NaN;
+            }
+
+            // Not a setting. It may still be something the firmware works out
+            // for itself: a Speeduino scales every load axis by {fuelLoadRes},
+            // which is a line in [OutputChannels] reading
+            // { ((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500 }.
+            //
+            // Without this the expression cannot be evaluated, the scale falls
+            // back to the declared 1, and the fuel, AFR, VVT and dwell axes are
+            // all read at half — on the way in as much as out, so a tune saved
+            // by TunerStudio and restored through here would have doubled every
+            // one of them on the controller.
+            if (!Layout.Derived.TryGetValue(name, out string? expression)) return double.NaN;
+            if (!following.Add(name)) return double.NaN;
+
+            try
+            {
+                return DialogCondition.Number(expression.Trim('{', '}', ' '), Plain);
+            }
+            finally
+            {
+                following.Remove(name);
+            }
         }
 
         foreach (TuneConstant constant in pending)

@@ -230,4 +230,56 @@ public class DialogConditionTests
         // Unary ! binds tightest.
         Assert.True(Hidden("!knk_option && knk_option"));
     }
+
+    // ----- a ? b : c ----------------------------------------------------------
+
+    [Theory]
+    [InlineData("1 ? 2 : 3", 2)]
+    [InlineData("0 ? 2 : 3", 3)]
+    [InlineData("(2 > 1) ? 10 : 20", 10)]
+    [InlineData("(1 > 2) ? 10 : 20", 20)]
+    public void ATernaryChoosesItsArm(string expression, double expected) =>
+        Assert.Equal(expected, DialogCondition.Number(expression, _ => double.NaN));
+
+    [Fact]
+    public void TheRealOneOffASpeeduino()
+    {
+        // The scale for every load axis on a Speeduino. Without a ternary the
+        // whole expression failed to parse, the scale fell back to the declared
+        // 1, and the axes were read at half.
+        const string expression = "((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500";
+
+        Assert.Equal(2.0, DialogCondition.Number(expression, n => n == "algorithm" ? 0 : double.NaN));
+        Assert.Equal(2.0, DialogCondition.Number(expression, n => n == "algorithm" ? 2 : double.NaN));
+        Assert.Equal(0.5, DialogCondition.Number(expression, n => n == "algorithm" ? 1 : double.NaN));
+    }
+
+    [Fact]
+    public void ItIsRightAssociative()
+    {
+        // a ? b : c ? d : e is a ? b : (c ? d : e), as it is in C.
+        Assert.Equal(3, DialogCondition.Number("0 ? 1 : 1 ? 3 : 4", _ => double.NaN));
+        Assert.Equal(4, DialogCondition.Number("0 ? 1 : 0 ? 3 : 4", _ => double.NaN));
+    }
+
+    [Fact]
+    public void ItBindsLooserThanEverythingElse()
+    {
+        // 1 + 1 ? … reads as (1 + 1) ? …, and the arms take whole expressions.
+        Assert.Equal(7, DialogCondition.Number("1 + 1 ? 3 + 4 : 9", _ => double.NaN));
+    }
+
+    [Fact]
+    public void AConditionNothingCanAnswerStaysUnanswered()
+    {
+        // Rather than quietly settling on the false arm, which would pick a
+        // scale on no evidence.
+        Assert.True(double.IsNaN(DialogCondition.Number("nothing ? 2 : 5", _ => double.NaN)));
+    }
+
+    [Fact]
+    public void AQuestionMarkWithoutItsColonIsMalformedRatherThanGuessed()
+    {
+        Assert.True(double.IsNaN(DialogCondition.Number("1 ? 2", _ => double.NaN)));
+    }
 }

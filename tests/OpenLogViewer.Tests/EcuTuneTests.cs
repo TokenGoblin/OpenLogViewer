@@ -256,4 +256,97 @@ public class EcuTuneTests
 
     private static TuneConstant Named(IReadOnlyList<TuneConstant> constants, string name) =>
         Assert.Single(constants, c => c.Name == name);
+
+    // ----- a scale the firmware works out for itself ---------------------------
+
+    /// <summary>
+    /// A Speeduino, in miniature. Its load axes are scaled by fuelLoadRes, which
+    /// is not a setting at all but a line in [OutputChannels] choosing between
+    /// two numbers depending on the fuel algorithm.
+    /// </summary>
+    private const string DerivedScaleIni = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 32
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+        pageChunkWrite  = "w%2o%2c%v"
+        burnCommand     = "b%2i"
+           algorithm    = bits,  U08, 0, [0:2], "MAP", "TPS", "IMAP", "MAF"
+           fuelLoadBins = array, U08, 4, [4], "kPa", {fuelLoadRes}, 0.0, 0.0, 511, 1
+
+        [OutputChannels]
+        ochBlockSize = 4
+        ochGetCommand = "A"
+           rpm = scalar, U16, 0, "rpm", 1, 0
+           fuelLoadRes = { ((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500 }
+        """;
+
+    [Fact]
+    public void AScaleTheFirmwareDerivesIsWorkedOutRatherThanFallenBackFrom()
+    {
+        // Found on a real Speeduino: every load axis read at half, because the
+        // scale is {fuelLoadRes} and the resolver only knew about settings. It
+        // fell back to the declared 1 and TunerStudio used 2, so the same tune
+        // looked like two — and restoring one would have doubled the axis.
+        TuneLayout layout = TuneLayoutReader.Read(DerivedScaleIni);
+        var tune = EcuTune.FromPages(layout, new byte[32]);
+
+        // algorithm 0 is MAP, so the resolution is 2.
+        tune.PokeInto(tune.Pages, tune.Constant("algorithm")!, 0, 0);
+        tune.Rescale();
+
+        Assert.Equal(2.0, tune.Constant("fuelLoadBins")!.Scale, 6);
+
+        // A raw 5 therefore means 10, which is what TunerStudio shows.
+        tune.Pages[0][4] = 5;
+        Assert.Equal(10, tune.ValueIn(tune.Pages, "fuelLoadBins", 0));
+    }
+
+    [Fact]
+    public void AndFollowsTheSettingItDependsOn()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(DerivedScaleIni);
+        var tune = EcuTune.FromPages(layout, new byte[32]);
+
+        // algorithm 1 is TPS, so the other arm: half.
+        tune.PokeInto(tune.Pages, tune.Constant("algorithm")!, 0, 1);
+        tune.Rescale();
+
+        Assert.Equal(0.5, tune.Constant("fuelLoadBins")!.Scale, 6);
+    }
+
+    [Fact]
+    public void AndEncodesThroughItToo()
+    {
+        // The half that would have corrupted a controller. Writing 10 with the
+        // scale resolved stores raw 5; with the fallback it stored raw 10.
+        TuneLayout layout = TuneLayoutReader.Read(DerivedScaleIni);
+        var tune = EcuTune.FromPages(layout, new byte[32]);
+
+        tune.PokeInto(tune.Pages, tune.Constant("algorithm")!, 0, 0);
+        tune.Rescale();
+
+        Assert.True(tune.PokeInto(tune.Pages, tune.Constant("fuelLoadBins")!, 0, 10));
+        Assert.Equal(5, tune.Pages[0][4]);
+    }
+
+    [Fact]
+    public void ADerivedValueDefinedInTermsOfItselfDoesNotHang()
+    {
+        // A definition can say anything, and this has to survive it.
+        string circular = DerivedScaleIni.Replace(
+            "fuelLoadRes = { ((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500 }",
+            "fuelLoadRes = { fuelLoadRes + 1 }",
+            StringComparison.Ordinal);
+
+        TuneLayout layout = TuneLayoutReader.Read(circular);
+        var tune = EcuTune.FromPages(layout, new byte[32]);
+
+        tune.Rescale();
+
+        // Falls back to the declared scale rather than looping.
+        Assert.Equal(1.0, tune.Constant("fuelLoadBins")!.Scale, 6);
+    }
 }

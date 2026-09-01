@@ -127,7 +127,7 @@ public static class DialogCondition
 
         public double ParseAll()
         {
-            double value = Or();
+            double value = Ternary();
             SkipSpace();
 
             if (_at < text.Length) throw new FormatException($"unexpected '{text[_at]}'");
@@ -136,6 +136,50 @@ public static class DialogCondition
         }
 
         // Lowest precedence first, each level deferring to the next.
+
+        /// <summary>
+        /// <c>a ? b : c</c> — the lowest precedence of all, and
+        /// right-associative, so <c>a ? b : c ? d : e</c> reads as
+        /// <c>a ? b : (c ? d : e)</c>.
+        ///
+        /// <para>
+        /// Needed because a firmware's scale is sometimes a choice rather than a
+        /// number. A Speeduino states its load-axis resolution as
+        /// <c>{ ((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500 }</c>.
+        /// Without this the expression fails to parse, the scale falls back to
+        /// the declared 1, and every load axis is read at half — on the way in
+        /// as well as out, so restoring a tune TunerStudio had written would
+        /// have doubled the fuel, AFR, VVT and dwell axes on the controller.
+        /// </para>
+        /// <para>
+        /// Both arms are parsed whether or not they are taken, for the same
+        /// reason the short-circuits below consume their operands: text left
+        /// unread makes the caller declare the whole expression malformed.
+        /// </para>
+        /// </summary>
+        private double Ternary()
+        {
+            double condition = Or();
+
+            SkipSpace();
+            if (_at >= text.Length || text[_at] != '?') return condition;
+
+            _at++;
+            double whenTrue = Ternary();
+
+            SkipSpace();
+            if (_at >= text.Length || text[_at] != ':')
+                throw new FormatException("a ? without its :");
+
+            _at++;
+            double whenFalse = Ternary();
+
+            // Unknown in, unknown out: a condition nothing could answer must not
+            // quietly settle on the false arm.
+            if (double.IsNaN(condition)) return double.NaN;
+
+            return condition != 0 ? whenTrue : whenFalse;
+        }
 
         /// <summary>
         /// <c>a || b || c</c>, true as soon as any operand is.
