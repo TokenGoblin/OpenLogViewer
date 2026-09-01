@@ -214,6 +214,19 @@ public sealed record TuneLayout
     /// </summary>
     public IReadOnlyList<TuneConstant> PcVariables { get; init; } = [];
 
+    /// <summary>
+    /// Values the firmware derives in <c>[OutputChannels]</c>, by name.
+    ///
+    /// Kept because a scale is sometimes stated in terms of one. A Speeduino
+    /// scales every load axis by <c>{fuelLoadRes}</c>, which is not a setting at
+    /// all but a line in [OutputChannels] reading
+    /// <c>{ ((algorithm == 0) || (algorithm == 2)) ? 2.000 : 0.500 }</c>. A
+    /// resolver that only knows about constants cannot find it, falls back to
+    /// the declared scale of 1, and reads every one of those axes at half.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Derived { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public bool LittleEndian { get; init; }
 
     public int BlockingFactor { get; init; }
@@ -389,6 +402,9 @@ public static class TuneLayoutReader
             Pages = built,
             Constants = constants,
             PcVariables = ReadPcVariables(iniText, symbols),
+            Derived = MsqIni.ReadOutputChannels(iniText, symbols).Expressions
+                .GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Last().Expression, StringComparer.OrdinalIgnoreCase),
             LittleEndian = little,
             BlockingFactor = blocking,
             InterWriteDelay = interWrite,
