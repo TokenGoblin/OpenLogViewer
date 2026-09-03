@@ -75,7 +75,7 @@ this design working, not a misconfiguration.
 
 ## Tool inventory
 
-57 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
+60 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
 answer is no — so a precondition the window has not met yet ("no log is open") comes back
 as something an agent can act on rather than as an opaque error.
 
@@ -145,6 +145,7 @@ whether the car's own count disagrees with the codes it listed.
 | `edit_table` | set / add / scale / interpolate / revert — the same operation the keyboard raises |
 | `revert_table` | Back to what the controller holds |
 | `list_settings_pages`, `open_settings_page`, `set_setting`, `revert_settings` | The settings dialogs |
+| `list_curves`, `set_curve_point`, `revert_curve` | Fuelling or timing against a temperature or a voltage. A curve page has no fields — its points are the editable thing, and `open_settings_page` returns them |
 
 `edit_table` returns a **clamped** count as well as a moved count. A clamped cell is a value
 you did not get, and on an ignition table it can be a value moving the opposite way to the
@@ -242,7 +243,13 @@ read back off the controller, with the pending count dropping to zero. Nothing w
 time the dialog was open — and returned only once a person had answered it. That is the
 gate doing exactly what it is for.
 
-Three defects turned up that the test suite could not have found, all now fixed:
+Since then the settings pages, recording, the analyses over live samples, the saved-tune
+tools and the curves have all been driven against the same board: a setting changed and
+reverted, four seconds captured to a file, the tune saved to a 73 KB `.msq` that then
+compared back **identical, setting for setting**, `plan_restore` against it correctly
+finding nothing to do, and a curve point moved and put back.
+
+Four defects turned up that the test suite could not have found, all now fixed:
 
 - A session connected through MCP never produced a sample. The timer that drives a live
   session belongs to the window, not the view model, so calling the view model directly
@@ -253,6 +260,9 @@ Three defects turned up that the test suite could not have found, all now fixed:
   under the plot's cursor and a live session nobody is hovering has no cursor.
 - `get_tune_summary` reported `source: "none"` for a perfectly good live tune: that field
   named the `.msq` opened to give a log real table axes, which is a different thing.
+- `write_curve_to_ecu` existed with no way to reach it. Curve pages were listed and then
+  refused on opening — "no fields this can show" — because a curve has points rather than
+  fields, so an agent could never legitimately have used the write tool at the end of it.
 
 ### Still to be proven
 
@@ -260,8 +270,8 @@ Three defects turned up that the test suite could not have found, all now fixed:
   tested and have never committed a page. On this board the burn command is per-page and
   opening the port resets it, so anything written and not burned is gone at the next
   connection.
-- **`write_settings_to_ecu` and `write_curve_to_ecu`** — the table path is proven, these
-  two are not.
+- **`write_settings_to_ecu` and `write_curve_to_ecu`** — the table path is proven and both
+  of these can now be reached and staged, but neither has been sent.
 - **rusEFI** — a second protocol through the same tools.
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
   `scan_faults` against a running car.

@@ -11,7 +11,7 @@ rather than by commit.
 local [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude
 or any other MCP client can open logs, build histograms, run the VE analysis,
 connect to a controller, read fault codes, read and edit the tune, and send
-changes to an ECU. 57 tools, and they act on the window in front of you — a table
+changes to an ECU. 60 tools, and they act on the window in front of you — a table
 an agent opens opens on the Calibration tab.
 
 It is **off at every launch and never remembers being on**, binds `127.0.0.1`

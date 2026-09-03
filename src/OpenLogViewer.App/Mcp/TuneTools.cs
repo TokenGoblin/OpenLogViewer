@@ -290,24 +290,134 @@ public static class TuneTools
             vm.Mode = WorkspaceMode.Calibration;
             vm.OpenMenuEntry = entry;
 
-            return vm.OpenDialog is not { } dialog
-                ? new { opened = false, reason = $"'{name}' has no fields this can show." }
+            // A curve page has no rows — it is a graph, and its points are the
+            // editable thing. Reporting "no fields this can show" for one left
+            // every curve unreachable, and write_curve_to_ecu with it.
+            if (vm.OpenDialog is not { } dialog)
+            {
+                return vm.HasOpenCurves
+                    ? (object)new { opened = true, page = entry.Title, curves = Curves(vm) }
+                    : new { opened = false, reason = $"'{name}' has no fields this can show." };
+            }
+
+            return new
+            {
+                opened = true,
+                page = entry.Title,
+                fields = dialog.Rows.Select(r => new
+                {
+                    label = r.Label,
+                    value = r.Value,
+                    original = r.Original,
+                    units = r.Units,
+                    editable = r.IsEditable,
+                    changed = r.IsChanged,
+                    options = r.Options.Count == 0 ? null : r.Options.ToArray(),
+                }).ToArray(),
+
+                // A dialog can carry curves as well as fields.
+                curves = vm.HasOpenCurves ? Curves(vm) : null,
+            };
+        });
+
+    [McpServerTool]
+    [Description(
+        "The curves on the open page, with every point. A curve is a fuelling or timing figure "
+        + "against a temperature or a voltage — open one with open_settings_page first.")]
+    public static Task<object> ListCurves(MainViewModel vm, IUiDispatcher dispatcher) =>
+        dispatcher.InvokeAsync<object>(() =>
+            vm.HasOpenCurves
+                ? new { listed = true, summary = vm.CurveSummary, curves = Curves(vm) }
                 : (object)new
                 {
-                    opened = true,
-                    page = entry.Title,
-                    fields = dialog.Rows.Select(r => new
-                    {
-                        label = r.Label,
-                        value = r.Value,
-                        original = r.Original,
-                        units = r.Units,
-                        editable = r.IsEditable,
-                        changed = r.IsChanged,
-                        options = r.Options.Count == 0 ? null : r.Options.ToArray(),
-                    }).ToArray(),
-                };
+                    listed = false,
+                    reason = "No curve is open. Call list_settings_pages and open_settings_page "
+                             + "on a page that carries one.",
+                });
+
+    [McpServerTool]
+    [Description(
+        "Moves one point of an open curve. In memory only — write_curve_to_ecu sends it, and "
+        + "asks a person first. Both rows of a curve go together or neither does, so a point's "
+        + "X and its Y are sent as one change.")]
+    public static Task<object> SetCurvePoint(
+        [Description("Curve title, as list_curves reports it.")] string curve,
+        [Description("Point index, zero-based.")] int index,
+        [Description("The new Y value.")] double y,
+        // Nullable rather than a NaN sentinel: the SDK writes a parameter's
+        // default into the tool's JSON schema, and NaN is not a JSON number — so
+        // a NaN default does not fail this call, it stops the whole server
+        // arming.
+        [Description("The new X value. Leave it out to move only Y.")] double? x = null,
+        MainViewModel vm = null!,
+        IUiDispatcher dispatcher = null!) =>
+        dispatcher.InvokeAsync<object>(() =>
+        {
+            if (!vm.HasOpenCurves) return new { set = false, reason = "No curve is open." };
+
+            TuneCurveEdit? found = vm.OpenCurves.FirstOrDefault(
+                c => string.Equals(c.Title, curve, StringComparison.OrdinalIgnoreCase));
+
+            if (found is null)
+                return new { set = false, reason = $"No open curve called '{curve}'. Call list_curves." };
+
+            if (index < 0 || index >= found.Count)
+                return new { set = false, reason = $"'{curve}' has {found.Count} points, so {index} is out of range." };
+
+            found.SetY(index, y);
+            if (x is { } alongX) found.SetX(index, alongX);
+
+            // The header and the buttons are told; the view already knows.
+            vm.CurveChanged();
+
+            return new
+            {
+                set = true,
+                curve = found.Title,
+                index,
+
+                // Read back rather than echoed: a firmware's declared range has
+                // the last word on what a point became.
+                x = Math.Round(found.X(index), 6),
+                y = Math.Round(found.Y(index), 6),
+                changed = found.IsChanged(index),
+                changedInCurve = found.ChangedCount,
+                canWriteCurve = vm.CanWriteCurve,
+            };
         });
+
+    [McpServerTool]
+    [Description("Puts every moved point on the open page back to what the controller holds.")]
+    public static Task<object> RevertCurve(MainViewModel vm, IUiDispatcher dispatcher) =>
+        dispatcher.InvokeAsync<object>(() =>
+        {
+            if (!vm.HasOpenCurves) return new { reverted = false, reason = "No curve is open." };
+
+            vm.RevertCurve();
+
+            return new { reverted = true, summary = vm.CurveSummary };
+        });
+
+    /// <summary>Every open curve, points and all.</summary>
+    private static object[] Curves(MainViewModel vm) =>
+    [
+        .. vm.OpenCurves.Select(c => new
+        {
+            title = c.Title,
+            xLabel = c.XLabel,
+            yLabel = c.YLabel,
+            xUnits = c.XUnits,
+            yUnits = c.YUnits,
+            changed = c.ChangedCount,
+            points = Enumerable.Range(0, c.Count).Select(i => new
+            {
+                index = i,
+                x = Math.Round(c.X(i), 6),
+                y = Math.Round(c.Y(i), 6),
+                changed = c.IsChanged(i),
+            }).ToArray(),
+        }),
+    ];
 
     [McpServerTool]
     [Description(
