@@ -86,6 +86,38 @@ public partial class OverviewWindow : Window, INotifyPropertyChanged
     private void OnClearClick(object sender, RoutedEventArgs e) => _vm.ClearOverview();
 
     /// <summary>
+    /// A ready-made analysis request, for pasting into whichever chat the connected
+    /// agent is on the other end of.
+    ///
+    /// <para>
+    /// MCP has no channel for this window to make an agent start working — only the
+    /// human side of a chat can begin a turn, and Claude Code does not implement the
+    /// one protocol feature (sampling) that could act as a workaround. Putting the
+    /// prompt on the clipboard is the honest version of "one click": it removes the
+    /// work of writing the request, not the work of pasting it.
+    /// </para>
+    /// </summary>
+    private void OnAskAiClick(object sender, RoutedEventArgs e)
+    {
+        const string prompt =
+            "Using the OpenLogViewer MCP tools, fully analyze whatever tune and/or log is "
+            + "currently open: review the tune's key settings, check VE/ignition/AFR trends in "
+            + "the log, scan for faults, and note anything that looks off. Give concrete tuning "
+            + "suggestions. When you have findings, call push_overview_report so I can review "
+            + "and accept the ones I want.";
+
+        try
+        {
+            Clipboard.SetText(prompt);
+            App.Report("Analysis request copied — paste it into your connected AI agent's chat.");
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            App.Report("The clipboard was busy — nothing was copied.");
+        }
+    }
+
+    /// <summary>
     /// The accepted changes as text, ready to paste back into the chat with whichever
     /// agent published them.
     /// </summary>

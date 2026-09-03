@@ -31,6 +31,9 @@
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="16,10">
             <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" Content="Ask AI to analyze" Padding="12,4" Margin="0,0,16,0"
+                        Click="OnAskAiClick"
+                        ToolTip="Puts an analysis request on the clipboard, ready to paste into your connected AI agent's chat"/>
                 <Button DockPanel.Dock="Left" Content="Copy selected" Padding="12,4" Margin="0,0,8,0"
                         Click="OnCopySelectedClick"
                         ToolTip="Puts the accepted changes on the clipboard, ready to paste back to the agent"/>
