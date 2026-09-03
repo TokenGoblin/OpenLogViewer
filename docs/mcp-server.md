@@ -10,11 +10,6 @@ It acts on the **live window**. A table an agent opens opens on the Calibration 
 histogram it builds is the one on screen. Nothing happens in a second, invisible copy of
 the application.
 
-Building the same thing into a different application:
-[`docs/mcp-embedding-guide.md`](mcp-embedding-guide.md). The plan this was built to,
-including the reasoning behind what is and is not exposed:
-[`docs/mcp-plan.md`](mcp-plan.md).
-
 ## Arming
 
 The server is **off by default and never remembers being on** — every launch starts
@@ -240,4 +235,14 @@ and the connected indicator lights amber while it happens.
 believing the bench over the test suite, the honest status of `write_table_to_ecu`,
 `burn_table_to_ecu`, `write_settings_to_ecu`, `burn_settings_to_ecu` and `write_curve_to_ecu`
 is *written and tested, never run against a controller.* The same goes for the connect tools
-against each of the six protocols. `docs/mcp-plan.md` §8 lists what still needs to happen.
+against each of the six protocols.
+
+What still has to happen on the bench:
+
+- **Speeduino** — read, write and burn end to end through MCP. Opening the port resets the
+  board, so anything written but not burned is lost; that is the ECU's behaviour and the
+  tools should say so rather than hide it.
+- **rusEFI** — a second protocol through the same tools.
+- **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
+  `scan_faults` against a running car.
+- **The MicroSquirt is in a live car** and stays read-only unless somebody asks otherwise.
