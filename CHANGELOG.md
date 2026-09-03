@@ -11,7 +11,7 @@ rather than by commit.
 local [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude
 or any other MCP client can open logs, build histograms, run the VE analysis,
 connect to a controller, read fault codes, read and edit the tune, and send
-changes to an ECU. 60 tools, and they act on the window in front of you — a table
+changes to an ECU. 64 tools, and they act on the window in front of you — a table
 an agent opens opens on the Calibration tab.
 
 It is **off at every launch and never remembers being on**, binds `127.0.0.1`
@@ -39,6 +39,15 @@ something that was never going to happen.
 **The About box no longer claims there is no network code.** A Wi-Fi OBD2 dongle
 already strained that and a listening socket breaks it. It now says the thing that
 is still true: nothing is sent off this machine.
+
+**AI agent ▸ Overview.** A new window where a connected agent publishes what it
+found — a headline, a summary and a list of findings, each optionally carrying a
+proposed change to a table cell or a setting. `push_overview_report` opens it, so a
+diagnosis never happens invisibly; a person ticks the changes they want, and the
+agent reads that back with `get_overview_selections` before applying anything.
+This is a report layer, not a new way to edit the tune — an accepted change is
+still applied with `edit_table`/`set_setting`, and still reaches a controller only
+through the write tools, confirmed by a person exactly as before.
 
 ### Housekeeping
 

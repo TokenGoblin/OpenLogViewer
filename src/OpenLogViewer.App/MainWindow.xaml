@@ -182,6 +182,9 @@
                           ToolTip="{Binding Mcp.StatusLine}"/>
                 <Separator/>
                 <MenuItem Header="{Binding Mcp.TitleBarText}" IsEnabled="False"/>
+                <Separator/>
+                <MenuItem Header="_Overview…" Click="OnOverviewClick"
+                          ToolTip="What a connected AI agent found in the open tune and log, with the changes it proposes"/>
             </MenuItem>
 
             <MenuItem Header="_Help">
@@ -233,6 +236,15 @@
                         Click="OnInsightsClick" Padding="10,3" Margin="0,0,8,0"
                         IsEnabled="{Binding HasDocument}"
                         ToolTip="What this log says about the engine: mixture against target, injector headroom, knock, idle steadiness and more — with the arithmetic behind each"/>
+
+                <!--
+                    Also beside Insights: the same idea, but written by a connected
+                    AI agent rather than computed here, and carrying changes a person
+                    can choose to accept rather than only findings.
+                -->
+                <Button DockPanel.Dock="Right" Content="✦  Overview"
+                        Click="OnOverviewClick" Padding="10,3" Margin="0,0,8,0"
+                        ToolTip="What a connected AI agent found in the open tune and log, with the changes it proposes"/>
 
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
 

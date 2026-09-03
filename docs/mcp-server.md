@@ -75,7 +75,7 @@ this design working, not a misconfiguration.
 
 ## Tool inventory
 
-60 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
+64 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
 answer is no — so a precondition the window has not met yet ("no log is open") comes back
 as something an agent can act on rather than as an opaque error.
 
@@ -152,6 +152,30 @@ you did not get, and on an ignition table it can be a value moving the opposite 
 one intended.
 
 Nothing here reaches a controller.
+
+### Overview
+
+`push_overview_report`, `get_overview_report`, `get_overview_selections`, `clear_overview`.
+
+A place for an agent to publish a diagnosis rather than leave it in the chat: a headline, a
+summary, and a list of findings, each optionally carrying a proposed change — a table cell
+or a setting. `push_overview_report` opens the **Overview** window, so a diagnosis never
+happens invisibly, and every finding with a change shows a checkbox.
+
+**Nothing here reaches the tune.** This is a report/selection layer, not a sixth way to edit
+one. The loop:
+
+1. Read the tune and log with the tools above, then call `push_overview_report` with what
+   was found.
+2. A person ticks the changes they want, in the window.
+3. Call `get_overview_selections` to see exactly what was ticked, with each one's change.
+4. Apply each with the tools that already exist — `open_tune_table`/`select_cells`/
+   `edit_table` for a cell, `open_settings_page`/`set_setting` for a setting.
+5. Call `push_overview_report` again with the next revision.
+
+`push_overview_report` replaces the report outright rather than merging into it — a resolved
+finding left on screen would be worse than one dropped. `clear_overview` discards it without
+publishing a new one, the same shape as `cancel_restore`.
 
 ### Saved tunes
 
@@ -264,6 +288,14 @@ Four defects turned up that the test suite could not have found, all now fixed:
   refused on opening — "no fields this can show" — because a curve has points rather than
   fields, so an agent could never legitimately have used the write tool at the end of it.
 
+### Verified against a running application, 2026-09-03
+
+`push_overview_report` was called from a real MCP client, over a real socket, against a
+running instance of the application: the Overview window opened on its own, `screenshot`
+showed the headline, summary, revision and both findings rendered correctly — badge, accent
+colour and the checkbox on the finding carrying a change — and `get_overview_report` /
+`get_overview_selections` read back exactly what was published, against the same view model.
+
 ### Still to be proven
 
 - **Burning through MCP.** `burn_table_to_ecu` and `burn_settings_to_ecu` are written and
@@ -276,3 +308,6 @@ Four defects turned up that the test suite could not have found, all now fixed:
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
   `scan_faults` against a running car.
 - **The MicroSquirt is in a live car** and stays read-only unless somebody asks otherwise.
+- **A person actually ticking a box in the Overview window** and an agent seeing it in
+  `get_overview_selections`. The round trip up to that point is proven — see below — but
+  nothing has driven the checkbox itself, since that is a person's click, not a tool.

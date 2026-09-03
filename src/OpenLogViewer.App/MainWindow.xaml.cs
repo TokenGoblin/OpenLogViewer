@@ -222,6 +222,35 @@ public partial class MainWindow : Window
     /// <summary>Opens the insights, for a scripted run.</summary>
     public void ShowInsights() => OnInsightsClick(this, new RoutedEventArgs());
 
+    private OverviewWindow? _overview;
+
+    /// <summary>
+    /// Opens the overview, or brings it forward.
+    ///
+    /// No re-measuring here — unlike Insights, the overview is not computed from the
+    /// log on open; it is whatever a connected AI agent last published, and the
+    /// window is bound straight to it, so it is already current.
+    /// </summary>
+    private void OnOverviewClick(object sender, RoutedEventArgs e)
+    {
+        if (_overview is null)
+        {
+            _overview = new OverviewWindow(_vm) { Owner = this };
+            _overview.Closed += (_, _) => _overview = null;
+            _overview.Show();
+
+            return;
+        }
+
+        if (_overview.WindowState == WindowState.Minimized)
+            _overview.WindowState = WindowState.Normal;
+
+        _overview.Activate();
+    }
+
+    /// <summary>Opens (or focuses) the overview, so publishing one over MCP is never invisible.</summary>
+    public void ShowOverview() => OnOverviewClick(this, new RoutedEventArgs());
+
     private void OnCalculatorsClick(object sender, RoutedEventArgs e)
     {
         if (_calculators is null)
