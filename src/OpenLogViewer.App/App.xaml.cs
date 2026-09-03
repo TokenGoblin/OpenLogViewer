@@ -71,6 +71,36 @@ public partial class App : Application
         return null;
     }
 
+    /// <summary>
+    /// Stops the MCP listener on the way out, whether or not it was switched off
+    /// first.
+    ///
+    /// <para>
+    /// Not left to the window's Closed handler: the listener is the one thing
+    /// here that outlives a window if nobody stops it, and "off by default and
+    /// never remembered" is only true if closing the application really is what
+    /// ends it.
+    /// </para>
+    /// </summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        if (MainWindow is MainWindow window)
+        {
+            try
+            {
+                // Waited for rather than fired and forgotten: the process is on
+                // its way down, and an unawaited disarm would race it.
+                window.Mcp.ShutdownAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Report($"the MCP listener did not stop cleanly: {ex}");
+            }
+        }
+
+        base.OnExit(e);
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -97,6 +127,18 @@ public partial class App : Application
         if (theme >= 0 && theme + 1 < e.Args.Length) window.PreviewTheme(e.Args[theme + 1]);
 
         window.Show();
+
+        // "--mcp" arms the AI agent server at startup.
+        //
+        // Not a setting, and not persistence: it is typed afresh every launch,
+        // which is the same act as ticking the menu item. What "off by default
+        // and never remembered" rules out is the application deciding on its own
+        // to come up armed, and this is somebody saying so each time.
+        if (e.Args.Contains("--mcp"))
+        {
+            _ = window.Mcp.ToggleAsync().ContinueWith(
+                _ => Report(window.Mcp.StatusLine), TaskScheduler.Default);
+        }
 
         string? log = LogPathIn(e.Args);
         if (log is not null) window.LoadFile(log);

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.App;
 using Xunit;
 
@@ -82,7 +82,7 @@ public class DefinitionOnlyTuneTests : IDisposable
 
         Assert.True(vm.OpenDefinition(WriteIni(Firmware)));
 
-        Assert.Contains("definition rather than a tune", vm.WriteTableToEcu());
+        Assert.Contains("definition rather than a tune", vm.WriteTableToEcu().Message);
     }
 
     [Fact]

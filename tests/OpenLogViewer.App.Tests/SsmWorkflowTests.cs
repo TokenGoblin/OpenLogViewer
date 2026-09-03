@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.Core;
 using OpenLogViewer.Tests;
 
@@ -15,6 +15,9 @@ namespace OpenLogViewer.App.Tests;
 /// </summary>
 public class SsmWorkflowTests : IDisposable
 {
+
+    /// <summary>Answers the confirmation before anything reaches a controller.</summary>
+    private FakeWriteConfirmation Confirmation { get; } = new();
     private readonly List<string> _temp = [];
     private MainViewModel? _vm;
 
@@ -44,7 +47,8 @@ public class SsmWorkflowTests : IDisposable
             new PresetStore(Path.Combine(_folder, "presets.json")),
             new FilterStore(Path.Combine(_folder, "filters.json")),
             settings,
-            new MathChannelStore(Path.Combine(_folder, "math.json")));
+            new MathChannelStore(Path.Combine(_folder, "math.json")),
+            confirmation: Confirmation);
 
         return _vm;
     }

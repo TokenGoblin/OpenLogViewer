@@ -13,6 +13,22 @@
          between picking a Bluetooth module and guessing. Windows-only, which is
          why it is here and not in the core. -->
     <PackageReference Include="System.Management" Version="10.0.10" />
+
+    <!-- The local MCP server (src/Mcp/), so an AI agent can drive the window.
+         Off by default and bound to loopback; see docs/mcp-server.md. -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+  </ItemGroup>
+
+  <!--
+    Required to use WebApplication/Kestrel — which is what hosts the MCP server's
+    HTTP transport — from a non-Sdk.Web project. This is Microsoft's documented
+    pattern for embedding ASP.NET Core in a desktop app rather than the other way
+    around. Microsoft.Extensions.Hosting is deliberately not referenced
+    explicitly: the shared framework already carries it, and naming it as well
+    earns NU1510.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <PropertyGroup>

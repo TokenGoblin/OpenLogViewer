@@ -56,14 +56,32 @@ public sealed partial class MainViewModel : ObservableObject
     private int _colorCursor;
 
     /// <summary>
+    /// Asked before anything here reaches a controller or a vehicle.
+    ///
+    /// <para>
+    /// Every one of the six actions that changes something outside this
+    /// application goes through it, immediately before the first byte leaves, and
+    /// none of them has a second path around it. That is what makes the gate
+    /// hold for a scripted run and an MCP tool as well as for a button.
+    /// </para>
+    /// </summary>
+    private readonly IWriteConfirmation _confirm;
+
+    /// <summary>
     /// Stores are injectable so tests can point them at a temporary directory
     /// rather than reading and writing the user's real settings.
     /// </summary>
+    /// <param name="confirmation">
+    /// Asked before anything reaches a controller or a vehicle. Left out, every
+    /// such action is refused — see <see cref="DeniedWriteConfirmation"/> for why
+    /// that is the default rather than a free pass.
+    /// </param>
     public MainViewModel(
         PresetStore? presets = null, FilterStore? filters = null,
         SettingsStore? settings = null, MathChannelStore? math = null,
-        ChannelStyleStore? styles = null)
+        ChannelStyleStore? styles = null, IWriteConfirmation? confirmation = null)
     {
+        _confirm = confirmation ?? DeniedWriteConfirmation.Instance;
         _store = presets ?? new PresetStore();
         _filterStore = filters ?? new FilterStore();
         _settings = settings ?? new SettingsStore();
@@ -82,6 +100,25 @@ public sealed partial class MainViewModel : ObservableObject
         ApplySort();
         RefreshPresets();
         RefreshMathChannels();
+    }
+
+    /// <summary>
+    /// The AI-agent switch and what the window says about it.
+    ///
+    /// <para>
+    /// Held here only so the menu item and the status bar can bind to it through
+    /// the window's data context; the view model neither owns the server nor
+    /// knows what it does. Null until the window attaches one, which is why every
+    /// binding to it is through a path that tolerates that.
+    /// </para>
+    /// </summary>
+    public Mcp.McpSettingsViewModel? Mcp { get; private set; }
+
+    /// <summary>Called once by the window, at construction.</summary>
+    public void AttachMcp(Mcp.McpSettingsViewModel mcp)
+    {
+        Mcp = mcp;
+        Raise(nameof(Mcp));
     }
 
     /// <summary>Where recordings and exports go.</summary>
@@ -956,6 +993,31 @@ public sealed partial class MainViewModel : ObservableObject
             if (!covered) AddFilterItem(suggestion);
         }
     }
+
+    /// <summary>
+    /// The sample range the histogram or scatter now in hand was built over.
+    ///
+    /// <para>
+    /// Recorded because the range is not always the whole log — with "only the
+    /// zoomed time range" ticked the window builds over what the plot is showing
+    /// — and anything reading the grid without knowing which is reading numbers
+    /// whose meaning it has guessed.
+    /// </para>
+    /// </summary>
+    public (int First, int Last)? AnalysisRange { get; private set; }
+
+    /// <summary>
+    /// How many times a histogram or scatter has been built.
+    ///
+    /// <para>
+    /// Exists so a caller that only wants one built can tell whether somebody
+    /// else did it. Changing an axis raises <see cref="HistogramInvalidated"/>,
+    /// and the window answers that by rebuilding over the range it is showing —
+    /// so anything that rebuilds unconditionally afterwards would throw that
+    /// away and put a differently-ranged grid on screen.
+    /// </para>
+    /// </summary>
+    public int AnalysisBuilds { get; private set; }
 
     public HistogramTable? Table { get; private set; }
 
@@ -1879,7 +1941,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <see cref="TuneCurveEdit.Encode"/> — and the writes are applied to the
     /// copies held here only once the controller has taken them.
     /// </summary>
-    public string WriteCurveToEcu()
+    public WriteResult WriteCurveToEcu()
     {
         // What the tune is, before what is on screen: the same refusal every
         // other write makes, and reachable from a scripted run where no button
@@ -1927,6 +1989,17 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         int moved = OpenCurves.Sum(c => c.ChangedCount);
+        string what = OpenCurves.Count == 1 ? $" of \"{OpenCurves[0].Title}\"" : "";
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.Curve,
+                $"Send {moved} moved point{(moved == 1 ? "" : "s")}{what} to the ECU?",
+                "It takes effect at once. Nothing is burned, so a power cycle undoes it.")))
+        {
+            return "Nothing was sent.";
+        }
+
+        int landed = 0;
 
         try
         {
@@ -1945,22 +2018,25 @@ public sealed partial class MainViewModel : ObservableObject
                 tune.Accept(write);
                 _settingsEdit?.Accept(write);
                 _settingsPagesWritten.Add(write.Page);
+                landed++;
             }
 
             Rebuild(tune);
 
-            return $"Sent {moved} moved point{(moved == 1 ? "" : "s")} to the ECU. "
-                   + "It is running this now, and will forget it at the next power cycle "
-                   + "unless you burn it.";
+            return WriteResult.Sent(
+                $"Sent {moved} moved point{(moved == 1 ? "" : "s")} to the ECU. "
+                + "It is running this now, and will forget it at the next power cycle "
+                + "unless you burn it.");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
             // Whatever landed is on the controller, so the curves are rebuilt
             // from its bytes rather than left showing an edit that is now partly
-            // applied and partly not.
+            // applied and partly not — and a curve whose rows have half arrived
+            // has certainly reached it.
             Rebuild(tune);
 
-            return $"The write failed: {e.Message}";
+            return new WriteResult(landed > 0, $"The write failed: {e.Message}");
         }
     }
 
@@ -2260,7 +2336,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// and nothing is burned, so a power cycle undoes all of it.
     /// </para>
     /// </summary>
-    public string WriteSettingsToEcu()
+    public WriteResult WriteSettingsToEcu()
     {
         if (_settingsEdit is not { } edit) return "No tune has been read.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
@@ -2271,6 +2347,23 @@ public sealed partial class MainViewModel : ObservableObject
         if (writes.Count == 0) return "Nothing has been changed.";
 
         int settings = edit.ChangedCount;
+        int planned = writes.Sum(w => w.Data.Length);
+        int pages = writes.Select(w => w.Page).Distinct().Count();
+
+        // The byte count is the thing that is not obvious: a handful of settings
+        // can be one write or a dozen depending on where they sit, and several
+        // hundred bytes going into a running controller is worth seeing first.
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.Settings,
+                $"Send {settings} changed setting{(settings == 1 ? "" : "s")} to the ECU?",
+                $"{planned:N0} bytes across {pages} page{(pages == 1 ? "" : "s")}.\n\n"
+                + "This takes effect immediately on a running engine.\n\n"
+                + "It is not permanent: the ECU forgets it at the next power cycle "
+                + "unless you burn it.")))
+        {
+            return "Nothing was sent.";
+        }
+
         int bytes = 0, done = 0;
 
         try
@@ -2299,17 +2392,19 @@ public sealed partial class MainViewModel : ObservableObject
                 done++;
             }
 
-            return $"Sent {settings} setting{(settings == 1 ? "" : "s")} "
-                   + $"({bytes:N0} bytes) to the ECU. It is running them now, and will forget them "
-                   + "at the next power cycle unless you burn them.";
+            return WriteResult.Sent(
+                $"Sent {settings} setting{(settings == 1 ? "" : "s")} "
+                + $"({bytes:N0} bytes) to the ECU. It is running them now, and will forget them "
+                + "at the next power cycle unless you burn them.");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
             return done == 0
                 ? $"Nothing was sent: {e.Message}"
-                : $"{done} of {writes.Count} writes reached the ECU ({bytes:N0} bytes) and then "
-                  + $"this failed: {e.Message} Some settings have changed and some have not. "
-                  + "Nothing was burned, so turning the key off restores all of it.";
+                : WriteResult.Sent(
+                    $"{done} of {writes.Count} writes reached the ECU ({bytes:N0} bytes) and then "
+                    + $"this failed: {e.Message} Some settings have changed and some have not. "
+                    + "Nothing was burned, so turning the key off restores all of it.");
         }
         finally
         {
@@ -2330,13 +2425,24 @@ public sealed partial class MainViewModel : ObservableObject
     /// touched is a flash write for no reason — flash wears, and a burn stops
     /// the controller answering while it happens.
     /// </summary>
-    public string BurnSettingsToEcu()
+    public WriteResult BurnSettingsToEcu()
     {
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_tuneLayout is not { } layout) return "No tune has been read.";
 
         if (_settingsPagesWritten.Count == 0)
             return "Nothing has been sent, so there is nothing to burn.";
+
+        int pending = _settingsPagesWritten.Count;
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.SettingsBurn,
+                $"Burn {pending} page{(pending == 1 ? "" : "s")} of settings to the ECU's flash?",
+                "This is permanent. A power cycle will not undo it.\n\n"
+                + "Burn with the engine stopped: the ECU pauses while it writes flash.")))
+        {
+            return "Nothing was burned.";
+        }
 
         var burned = new List<int>();
 
@@ -2392,8 +2498,9 @@ public sealed partial class MainViewModel : ObservableObject
 
             Raise(nameof(CanBurnSettings));
 
-            return $"Burned {burned.Count} page{(burned.Count == 1 ? "" : "s")} to flash. "
-                   + "These settings now survive a power cycle.";
+            return WriteResult.Sent(
+                $"Burned {burned.Count} page{(burned.Count == 1 ? "" : "s")} to flash. "
+                + "These settings now survive a power cycle.");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2405,11 +2512,13 @@ public sealed partial class MainViewModel : ObservableObject
             // single sentence.
             bool unconfirmed = e is EcuProtocolException { Refused: false };
 
-            if (burned.Count == 0) return unconfirmed ? e.Message : $"The burn failed: {e.Message}";
+            if (burned.Count == 0)
+                return unconfirmed ? WriteResult.Sent(e.Message) : $"The burn failed: {e.Message}";
 
-            return $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then "
-                   + (unconfirmed ? "this happened: " : "this failed: ") + e.Message
-                   + " The rest are in working memory and will be lost at the next power cycle.";
+            return WriteResult.Sent(
+                $"{burned.Count} page{(burned.Count == 1 ? "" : "s")} were burned and then "
+                + (unconfirmed ? "this happened: " : "this failed: ") + e.Message
+                + " The rest are in working memory and will be lost at the next power cycle.");
         }
     }
 
@@ -2749,7 +2858,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// The connection checks the write by reading the same bytes back, so a
     /// write that returns without complaint is a write the ECU has taken.
     /// </summary>
-    public string WriteTableToEcu()
+    public WriteResult WriteTableToEcu()
     {
         // What the tune is comes before what is on screen. The same refusal the
         // settings and the burn make, and for the same reason: a placeholder
@@ -2779,6 +2888,21 @@ public sealed partial class MainViewModel : ObservableObject
         if (page.ChunkWriteCommand.Length == 0)
             return $"This firmware declares no way to write page {write.Page}.";
 
+        int cells = edit.ChangedCount;
+
+        // Asked here, not by the button that got here. Every guard above has
+        // passed, so the count quoted is the one that will actually be sent, and
+        // nothing is put to a person that was going to be refused anyway.
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.Table,
+                $"Send {cells} changed cell{(cells == 1 ? "" : "s")} of {edit.Name} to the ECU?",
+                "This takes effect immediately on a running engine.\n\n"
+                + "It is not permanent: the ECU forgets it at the next power cycle "
+                + "unless you burn it.")))
+        {
+            return "Nothing was sent.";
+        }
+
         try
         {
             connection.WriteTunePage(
@@ -2798,12 +2922,12 @@ public sealed partial class MainViewModel : ObservableObject
             // on a running engine, with nothing reporting an error.
             _settingsEdit?.Accept(write);
 
-            int cells = edit.ChangedCount;
             SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
 
-            return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the ECU. "
-                   + "It is running this now, and will forget it at the next power cycle "
-                   + "unless you burn it.";
+            return WriteResult.Sent(
+                $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the ECU. "
+                + "It is running this now, and will forget it at the next power cycle "
+                + "unless you burn it.");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2818,7 +2942,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// difference is the only thing standing between a change that can be undone
     /// with the ignition key and one that cannot.
     /// </summary>
-    public string BurnTableToEcu()
+    public WriteResult BurnTableToEcu()
     {
         if (TableEdit is not { } edit) return "No table is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
@@ -2832,11 +2956,23 @@ public sealed partial class MainViewModel : ObservableObject
         if (page.BurnCommand.Length == 0)
             return $"This firmware declares no way to burn page {write.Page}.";
 
+        // Asked more firmly than a write, because a write is undone by turning
+        // the key off and this is not. The engine-stopped line is the part no
+        // software here can check, which is why it is asked rather than enforced.
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.TableBurn,
+                $"Burn the page holding {edit.Name} to the ECU's flash?",
+                "This is permanent. A power cycle will not undo it.\n\n"
+                + "Burn with the engine stopped: the ECU pauses while it writes flash.")))
+        {
+            return "Nothing was burned.";
+        }
+
         try
         {
             connection.BurnPage(page, layout.LittleEndian, layout.AfterBurnDelay);
 
-            return $"Burned page {page.Index}. This survives a power cycle.";
+            return WriteResult.Sent($"Burned page {page.Index}. This survives a power cycle.");
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2844,7 +2980,13 @@ public sealed partial class MainViewModel : ObservableObject
             // succeeded. Only a refusal is a failure this end can vouch for;
             // anything else is an unconfirmed burn, and its own message already
             // says what that means and how to check.
-            return e is EcuProtocolException { Refused: false } ? e.Message : $"The burn failed: {e.Message}";
+            // A refusal is the one failure this end can vouch for: the
+            // controller said no, and nothing was committed. Anything else is an
+            // unconfirmed burn — the command went out and may well have taken —
+            // so it counts as having reached the controller.
+            return e is EcuProtocolException { Refused: false }
+                ? WriteResult.Sent(e.Message)
+                : $"The burn failed: {e.Message}";
         }
     }
 
@@ -3775,13 +3917,64 @@ public sealed partial class MainViewModel : ObservableObject
     /// it holds the adapter for that time and the gauges visibly stop, which is
     /// honest about what is happening to the link.
     /// </summary>
-    public FaultScan? ScanFaults() => _obd2?.ReadFaults();
+    public FaultScan? ScanFaults()
+    {
+        FaultScan? scan = _obd2?.ReadFaults();
+
+        // Remembered so the erase can say how many are about to go. It is the
+        // number the person is being asked about, and asking the car again to
+        // get it would be a second round trip for a question already answered.
+        if (scan is not null) _lastFaultCount = scan.Stored.Count + scan.Pending.Count;
+
+        return scan;
+    }
 
     /// <summary>
     /// Asks the car to erase them. See <see cref="Obd2Faults.Clear"/> for what
     /// that costs beyond the codes themselves.
+    ///
+    /// <para>
+    /// Null means nothing was attempted — no vehicle, or the erase was not
+    /// confirmed. The caller can tell which from <see cref="IsObd2Live"/>.
+    /// </para>
     /// </summary>
-    public FaultClear? ClearFaults() => _obd2?.ClearFaults();
+    public FaultClear? ClearFaults()
+    {
+        if (_obd2 is not { } obd2) return null;
+
+        // Confirmed at least as firmly as burning a tune, and for the same
+        // reason: what is lost is not recoverable. The freeze frame is the only
+        // record of what the engine was doing when the fault occurred — the
+        // single most useful thing for working out an intermittent — and it goes
+        // with the code.
+        int codes = _lastFaultCount;
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.FaultErase,
+                codes > 0
+                    ? $"Erase {codes} fault code{(codes == 1 ? "" : "s")} from the vehicle?"
+                    : "Erase the stored fault codes from the vehicle?",
+                "This clears more than the codes. The freeze frame — the record of what the "
+                + "engine was doing when the fault occurred — goes with them, and it cannot be "
+                + "recovered. So do the oxygen sensor test results and the readiness monitors, "
+                + "which the car has to re-earn over a full drive cycle before it can pass an "
+                + "emissions test.\n\n"
+                + "It does not repair anything. A fault that is still present will set the code "
+                + "again.\n\n"
+                + "Most vehicles refuse this with the engine running.")))
+        {
+            return null;
+        }
+
+        return obd2.ClearFaults();
+    }
+
+    /// <summary>
+    /// How many codes the last scan found, so the erase can say how many are
+    /// about to go. Zero is not "none" — it is "no scan has been run here" — and
+    /// the question is worded for both.
+    /// </summary>
+    private int _lastFaultCount;
 
     private void StartObd2(Elm327Source source, string port)
     {
@@ -4630,6 +4823,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void RebuildScatter(int firstSample, int lastSample)
     {
+        AnalysisRange = (firstSample, lastSample);
+        AnalysisBuilds++;
+
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
         {
             Points = null;
@@ -4711,6 +4907,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void RebuildHistogram(int firstSample, int lastSample)
     {
+        AnalysisRange = (firstSample, lastSample);
+        AnalysisBuilds++;
+
         if (Document is null || XAxis is null || YAxis is null || ZAxis is null)
         {
             Table = null;

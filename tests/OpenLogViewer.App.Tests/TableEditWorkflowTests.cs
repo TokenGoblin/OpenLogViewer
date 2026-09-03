@@ -149,7 +149,7 @@ public class TableEditWorkflowTests : IDisposable
         vm.EditTable(TuneTableEdit.Add(5));
 
         Assert.False(vm.CanWriteTable);
-        Assert.Contains("Not connected", vm.WriteTableToEcu(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Not connected", vm.WriteTableToEcu().Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class TableEditWorkflowTests : IDisposable
         // since without one none of the later questions can be answered.
         MainViewModel vm = WithTable(out _);
 
-        Assert.Contains("Not connected", vm.BurnTableToEcu(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Not connected", vm.BurnTableToEcu().Message, StringComparison.OrdinalIgnoreCase);
     }
 
     // ----- the tools on the page --------------------------------------------

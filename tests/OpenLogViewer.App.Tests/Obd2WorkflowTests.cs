@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.Core;
 using OpenLogViewer.Tests;
 
@@ -14,6 +14,9 @@ namespace OpenLogViewer.App.Tests;
 /// </summary>
 public class Obd2WorkflowTests : IDisposable
 {
+
+    /// <summary>Answers the confirmation before anything reaches a controller.</summary>
+    private FakeWriteConfirmation Confirmation { get; } = new();
     private readonly List<string> _temp = [];
     private MainViewModel? _vm;
 
@@ -48,7 +51,8 @@ public class Obd2WorkflowTests : IDisposable
             new PresetStore(Path.Combine(directory, "presets.json")),
             new FilterStore(Path.Combine(directory, "filters.json")),
             settings,
-            new MathChannelStore(Path.Combine(directory, "math.json")));
+            new MathChannelStore(Path.Combine(directory, "math.json")),
+            confirmation: Confirmation);
 
         return _vm;
     }

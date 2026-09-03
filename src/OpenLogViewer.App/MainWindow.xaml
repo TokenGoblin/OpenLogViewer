@@ -169,6 +169,21 @@
                           ToolTip="Calculated channels that estimate horsepower from the log"/>
             </MenuItem>
 
+            <!--
+                Top level rather than tucked inside Tools. Something that lets a
+                program outside this window read and change a tune is a thing to
+                be able to see, and switch off, without hunting for it.
+            -->
+            <MenuItem Header="_AI agent">
+                <MenuItem Header="_Allow an AI agent to connect (MCP)"
+                          IsCheckable="True"
+                          IsChecked="{Binding Mcp.IsArmed, Mode=OneWay}"
+                          Click="OnToggleMcpClick"
+                          ToolTip="{Binding Mcp.StatusLine}"/>
+                <Separator/>
+                <MenuItem Header="{Binding Mcp.TitleBarText}" IsEnabled="False"/>
+            </MenuItem>
+
             <MenuItem Header="_Help">
                 <MenuItem Header="How to use _this app" Click="OnGuideClick"
                           ToolTip="The guide, carried inside the application"/>
@@ -376,6 +391,34 @@
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding LiveHealthy}" Value="False">
                                     <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!--
+                    Whether an AI agent can reach this window, and whether one
+                    actually is.
+
+                    Hidden entirely while the server is off, because "OFF" in a
+                    status bar is a line of noise on every session that never
+                    arms it — the AI agent menu says so for anyone who looks.
+                    Amber once a client is attached: that is the state worth
+                    catching the eye, and it is the one this row exists for.
+                -->
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                           Margin="0,0,14,0" TextTrimming="CharacterEllipsis"
+                           Text="{Binding Mcp.IndicatorText}"
+                           ToolTip="{Binding Mcp.StatusLine}"
+                           Visibility="{Binding Mcp.IsVisible, Converter={StaticResource BoolToVis}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource Faint}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Mcp.IsClientConnected}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

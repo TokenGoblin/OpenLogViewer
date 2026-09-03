@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.App;
 using OpenLogViewer.Core;
 using Xunit;
@@ -207,7 +207,7 @@ public class SavedTuneCommandTests : IDisposable
         Assert.False(vm.CanWriteSettings);
         Assert.False(vm.CanWriteTable);
         Assert.False(vm.CanBurn);
-        Assert.Contains("opened from a file", vm.WriteTableToEcu());
+        Assert.Contains("opened from a file", vm.WriteTableToEcu().Message);
     }
 
     [Fact]

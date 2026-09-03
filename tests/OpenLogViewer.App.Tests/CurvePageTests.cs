@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.App;
 using OpenLogViewer.Core;
 using Xunit;
@@ -258,7 +258,7 @@ public class CurvePageTests : IDisposable
         vm.CurveChanged();
 
         Assert.False(vm.CanWriteCurve);
-        Assert.Contains("definition rather than a tune", vm.WriteCurveToEcu());
+        Assert.Contains("definition rather than a tune", vm.WriteCurveToEcu().Message);
     }
 
     [Fact]

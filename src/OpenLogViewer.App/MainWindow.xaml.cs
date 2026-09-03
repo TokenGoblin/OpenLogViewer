@@ -7,16 +7,45 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using OpenLogViewer.App.Mcp;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _vm = new();
+    private readonly MainViewModel _vm;
+
+    private readonly McpServerHost _mcpHost = new();
+    private readonly IUiDispatcher _uiDispatcher;
+
+    /// <summary>
+    /// The AI-agent switch. Public so the application can stop the listener on
+    /// the way out whether or not it was switched off first.
+    /// </summary>
+    public McpSettingsViewModel Mcp { get; }
 
     public MainWindow()
     {
+        // The confirmation is passed in rather than defaulted: a view model built
+        // without one refuses every write to a controller, which is the right way
+        // for a missed wiring to fail but not much use in the application itself.
+        // The owner is resolved when the dialog is raised, because this window is
+        // not usable as one yet.
+        _vm = new MainViewModel(confirmation: new MessageBoxWriteConfirmation(() => this));
+
+        // Captured here, synchronously, on the thread that owns this window —
+        // not in a factory that might be resolved on a pool thread later, which
+        // would hand the tools a dispatcher for the wrong thread.
+        _uiDispatcher = new WpfDispatcher(Dispatcher.CurrentDispatcher);
+
+        // The services are resolved when the server is armed rather than now, so
+        // this window is fully constructed by the time anything holds it.
+        Mcp = new McpSettingsViewModel(
+            _mcpHost, () => new McpServices(_vm, new WindowSource(() => this), _uiDispatcher));
+
+        _vm.AttachMcp(Mcp);
+
         InitializeComponent();
         DataContext = _vm;
 
@@ -400,6 +429,26 @@ public partial class MainWindow : Window
         Launch("https://github.com/TokenGoblin/OpenLogViewer#readme");
 
     /// <summary>
+    /// Arms or disarms the local MCP server.
+    ///
+    /// <para>
+    /// The menu item is checkable but its check state is bound one way, from the
+    /// switch rather than to it: what WPF does to a checkbox on click is not the
+    /// answer to whether a port was actually bound. Arming can fail — the usual
+    /// reason is a second copy of this application already holding 7071 — and the
+    /// tick has to follow the listener, not the mouse.
+    /// </para>
+    /// </summary>
+    private async void OnToggleMcpClick(object sender, RoutedEventArgs e)
+    {
+        await Mcp.ToggleAsync();
+
+        if (sender is MenuItem item) item.IsChecked = Mcp.IsArmed;
+
+        Report(Mcp.StatusLine);
+    }
+
+    /// <summary>
     /// What this is and what it was built against.
     ///
     /// The hardware list is the useful part: this reads several controllers that
@@ -418,7 +467,13 @@ public partial class MainWindow : Window
             + "Reads MegaSquirt and TunerStudio logs, MaxxECU logs, and delimited text.\n"
             + "Connects live to MegaSquirt, MicroSquirt, rusEFI, Speeduino, MaxxECU,\n"
             + "and any OBD2 vehicle through an ELM327 adapter.\n\n"
-            + "No network code: nothing here is ever sent anywhere.\n\n"
+            // It used to say "no network code: nothing here is ever sent
+            // anywhere". A Wi-Fi OBD2 dongle already strained that, and a
+            // listening socket for MCP breaks it outright. What is still true is
+            // narrower and worth stating exactly.
+            + "Nothing is sent off this machine. The Wi-Fi adapter link and the\n"
+            + "AI agent server are both local: the server binds 127.0.0.1 only,\n"
+            + "is off at every launch, and is never remembered as on.\n\n"
             + "https://github.com/TokenGoblin/OpenLogViewer",
             "About OpenLogViewer",
             MessageBoxButton.OK,
@@ -440,144 +495,37 @@ public partial class MainWindow : Window
 
     // ----- editing a table ----------------------------------------------------
 
-    /// <summary>
-    /// Sends the changed cells, having said plainly what that means.
-    ///
-    /// Asked for confirmation because this is the one action here that reaches
-    /// out and changes a running engine, and because the number of cells is the
-    /// thing worth checking before it does — a table scaled by five per cent
-    /// when one cell was meant is 256 changes, and it looks identical to one
-    /// change until it is counted.
-    /// </summary>
-    private void OnWriteTableClick(object sender, RoutedEventArgs e)
-    {
-        if (_vm.TableEdit is not { } edit) return;
+    // ----- sending what was changed -------------------------------------------
+    //
+    // Each of these is one line because the confirmation moved into the view
+    // model, where every caller meets it. It used to live here, which meant that
+    // a scripted run — or anything else calling the same method — reached a
+    // running engine with nothing asked at all. See IWriteConfirmation.
+    //
+    // The prose moved with the check, unchanged. It is composed where the counts
+    // are known, which also fixed an ordering fault: the dialog used to quote a
+    // cell count and then the view model would refuse the write outright, so a
+    // person confirmed something that was never going to happen.
 
-        int cells = edit.ChangedCount;
+    private void OnWriteTableClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.WriteTableToEcu().Message);
 
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            $"Send {cells} changed cell{(cells == 1 ? "" : "s")} of {edit.Name} to the ECU?\n\n"
-            + "This takes effect immediately on a running engine.\n\n"
-            + "It is not permanent: the ECU forgets it at the next power cycle unless you burn it.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
+    private void OnBurnTableClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.BurnTableToEcu().Message);
 
-        if (answer != MessageBoxResult.OK) return;
+    private void OnWriteSettingsClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.WriteSettingsToEcu().Message);
 
-        Report(_vm.WriteTableToEcu());
-    }
-
-    /// <summary>
-    /// Burns the page. Confirmed separately and more firmly than a write,
-    /// because a write is undone by turning the key off and this is not.
-    /// </summary>
-    private void OnBurnTableClick(object sender, RoutedEventArgs e)
-    {
-        if (_vm.TableEdit is not { } edit) return;
-
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            $"Burn the page holding {edit.Name} to the ECU's flash?\n\n"
-            + "This is permanent. A power cycle will not undo it.\n\n"
-            + "Burn with the engine stopped: the ECU pauses while it writes flash.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        Report(_vm.BurnTableToEcu());
-    }
-
-    /// <summary>
-    /// Sends the changed settings, after saying how many and how much.
-    ///
-    /// The byte count is stated because it is the thing that is not obvious: a
-    /// handful of settings can be one write or a dozen depending on where they
-    /// sit, and several hundred bytes going into a running controller is worth
-    /// seeing before it happens.
-    /// </summary>
-    private void OnWriteSettingsClick(object sender, RoutedEventArgs e)
-    {
-        if (!_vm.CanWriteSettings) return;
-
-        int settings = _vm.SettingsChangedCount;
-        int bytes = _vm.SettingsBytesToWrite;
-        int pages = _vm.SettingsPagesToWrite;
-
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            $"Send {settings} changed setting{(settings == 1 ? "" : "s")} to the ECU?\n\n"
-            + $"{bytes:N0} bytes across {pages} page{(pages == 1 ? "" : "s")}.\n\n"
-            + "This takes effect immediately on a running engine.\n\n"
-            + "It is not permanent: the ECU forgets it at the next power cycle unless you burn it.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        Report(_vm.WriteSettingsToEcu());
-    }
-
-    /// <summary>
-    /// Sends the curve on screen, once it has been confirmed.
-    ///
-    /// Confirmed like every other write to a controller, and for the same
-    /// reason: a curve is fuelling or timing against a temperature or a voltage,
-    /// and the engine may be running while it lands.
-    /// </summary>
-    private void OnSendCurveClick(object sender, RoutedEventArgs e)
-    {
-        if (!_vm.CanWriteCurve) return;
-
-        int moved = _vm.OpenCurves.Sum(c => c.ChangedCount);
-        string what = _vm.OpenCurves.Count == 1 ? $" of \"{_vm.OpenCurves[0].Title}\"" : "";
-
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            $"Send {moved} moved point{(moved == 1 ? "" : "s")}{what} to the ECU?\n\n"
-            + "It takes effect at once. Nothing is burned, so a power cycle undoes it.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        // Nothing is assigned to the view here. Setting a dependency property
-        // that XAML binds one way removes the binding, so the plot would go on
-        // showing the curve it had while everything above it moved on.
-        Report(_vm.WriteCurveToEcu());
-    }
+    // Nothing is assigned to the view here. Setting a dependency property that
+    // XAML binds one way removes the binding, so the plot would go on showing
+    // the curve it had while everything above it moved on.
+    private void OnSendCurveClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.WriteCurveToEcu().Message);
 
     private void OnRevertCurveClick(object sender, RoutedEventArgs e) => _vm.RevertCurve();
 
-    private void OnBurnSettingsClick(object sender, RoutedEventArgs e)
-    {
-        if (!_vm.CanBurnSettings) return;
-
-        int pages = _vm.SettingsPagesWritten;
-
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            $"Burn {pages} page{(pages == 1 ? "" : "s")} of settings to the ECU's flash?\n\n"
-            + "This is permanent. A power cycle will not undo it.\n\n"
-            + "Burn with the engine stopped: the ECU pauses while it writes flash.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        Report(_vm.BurnSettingsToEcu());
-    }
+    private void OnBurnSettingsClick(object sender, RoutedEventArgs e) =>
+        Report(_vm.BurnSettingsToEcu().Message);
 
     private void OnRevertSettingsClick(object sender, RoutedEventArgs e) => _vm.RevertSettings();
 

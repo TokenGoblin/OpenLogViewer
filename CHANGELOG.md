@@ -5,6 +5,41 @@
 Everything below landed in one run of work. Grouped by what it does for you
 rather than by commit.
 
+### An AI agent can drive the application
+
+**AI agent ▸ Allow an AI agent to connect (MCP).** OpenLogViewer can now host a
+local [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude
+or any other MCP client can open logs, build histograms, run the VE analysis,
+connect to a controller, read fault codes, read and edit the tune, and send
+changes to an ECU. 57 tools, and they act on the window in front of you — a table
+an agent opens opens on the Calibration tab.
+
+It is **off at every launch and never remembers being on**, binds `127.0.0.1`
+only, and the status bar says whether a listener is up and, separately, whether an
+agent is actually attached — the second one in amber, because that is the state
+worth noticing. Closing the application stops it. `--mcp` arms it at startup for a
+scripted run. [docs/mcp-server.md](docs/mcp-server.md) has the rest.
+
+**Nothing about it weakens a safety gate.** Every write and burn still asks a
+person, in the running application, before the first byte goes out — a write
+triggered over MCP waits for somebody to answer that dialog. The engine-stopped
+question a burn asks is never exposed as a tool, because nothing in software can
+see whether an engine is running and neither can an agent. There is no tool that
+restores a saved tune to a controller, matching the command line's existing
+refusal to have a flag for it, and none that clears fault codes.
+
+**The confirmations moved into the view model, which is a fix in its own right.**
+They used to live in the click handlers, so every other way into the same
+method — a scripted run, and MCP would have been next — reached a running engine
+with nothing asked. They now sit where all the callers meet, immediately before
+the write, which also fixed an ordering fault: the dialog used to quote a cell
+count and then the view model would refuse the write outright, so you confirmed
+something that was never going to happen.
+
+**The About box no longer claims there is no network code.** A Wi-Fi OBD2 dongle
+already strained that and a listening socket breaks it. It now says the thing that
+is still true: nothing is sent off this machine.
+
 ### Housekeeping
 
 **Third-party notices, and the installer now carries them.** The published build

@@ -14,6 +14,19 @@ public sealed class ViewModelHarness : IDisposable
     private readonly List<string> _temp = [];
 
     /// <summary>
+    /// Answers the confirmation every view model this harness builds asks before
+    /// it writes to a controller.
+    ///
+    /// <para>
+    /// It says yes, because these tests are about what a write does rather than
+    /// about the gate in front of it. Tests that are about the gate set
+    /// <see cref="FakeWriteConfirmation.Answer"/> to false, or read
+    /// <see cref="FakeWriteConfirmation.Asked"/> to see what was put to them.
+    /// </para>
+    /// </summary>
+    public FakeWriteConfirmation Confirmation { get; } = new();
+
+    /// <summary>
     /// Writes a CSV log. Channels are given as name/unit pairs against columns of
     /// values; a "Time" column is added automatically at 10 Hz.
     /// </summary>
@@ -91,7 +104,8 @@ public sealed class ViewModelHarness : IDisposable
             new PresetStore(Path.Combine(directory, "presets.json")),
             new FilterStore(Path.Combine(directory, "filters.json")),
             new SettingsStore(Path.Combine(directory, "settings.json")),
-            new MathChannelStore(Path.Combine(directory, "math.json")));
+            new MathChannelStore(Path.Combine(directory, "math.json")),
+            confirmation: Confirmation);
 
         // And the workspace with them. The stores above are pointed at a
         // temporary directory but the workspace is not, so anything that

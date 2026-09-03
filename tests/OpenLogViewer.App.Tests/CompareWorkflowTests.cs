@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App.Tests;
@@ -15,6 +15,9 @@ namespace OpenLogViewer.App.Tests;
 /// </summary>
 public class CompareWorkflowTests : IDisposable
 {
+
+    /// <summary>Answers the confirmation before anything reaches a controller.</summary>
+    private static FakeWriteConfirmation Confirmation { get; } = new();
     private readonly List<string> _temp = [];
 
     public void Dispose()
@@ -63,7 +66,8 @@ public class CompareWorkflowTests : IDisposable
             new PresetStore(Path.Combine(folder, "presets.json")),
             new FilterStore(Path.Combine(folder, "filters.json")),
             settings,
-            new MathChannelStore(Path.Combine(folder, "math.json")));
+            new MathChannelStore(Path.Combine(folder, "math.json")),
+            confirmation: Confirmation);
     }
 
     private MainViewModel Loaded(double offset, int topRpm, out string comparePath)

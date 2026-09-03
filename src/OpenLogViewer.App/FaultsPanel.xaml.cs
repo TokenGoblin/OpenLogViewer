@@ -233,28 +233,10 @@ public partial class FaultsPanel : UserControl
     /// </summary>
     private void OnClearClick(object sender, RoutedEventArgs e)
     {
-        if (Result is not { } scan) return;
+        if (Result is null) return;
 
-        int count = scan.Stored.Count + scan.Pending.Count;
-
-        MessageBoxResult answer = MessageBox.Show(
-            Window.GetWindow(this),
-            $"Erase {count} fault code{(count == 1 ? "" : "s")} from the vehicle?\n\n"
-            + "This clears more than the codes. The freeze frame — the record of what the "
-            + "engine was doing when the fault occurred — goes with them, and it cannot be "
-            + "recovered. So do the oxygen sensor test results and the readiness monitors, "
-            + "which the car has to re-earn over a full drive cycle before it can pass an "
-            + "emissions test.\n\n"
-            + "It does not repair anything. A fault that is still present will set the code "
-            + "again.\n\n"
-            + "Most vehicles refuse this with the engine running.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
+        // The confirmation is the view model's, along with the wording, so that
+        // the erase cannot be reached without it from anywhere else.
         ClearButton.IsEnabled = false;
         Status.Text = "Erasing…";
 
@@ -274,7 +256,15 @@ public partial class FaultsPanel : UserControl
 
         if (cleared is null)
         {
-            Status.Text = "No OBD2 vehicle is connected.";
+            // Null is "nothing was attempted", which is either of two things.
+            // The button goes back on for both: a declined erase is a decision,
+            // not a state to be stuck in.
+            Status.Text = _vm is { IsObd2Live: true }
+                ? "Nothing was erased."
+                : "No OBD2 vehicle is connected.";
+
+            ClearButton.IsEnabled = true;
+
             return;
         }
 
