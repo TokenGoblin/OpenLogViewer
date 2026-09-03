@@ -75,16 +75,24 @@ public static class LiveTools
     public static Task<object> ConnectSerial(
         [Description("Port name, for example COM8.")] string port,
         MainViewModel vm,
+        IWindowSource windows,
         IUiDispatcher dispatcher) =>
-        Connect(vm, dispatcher, () => vm.Connect(port), $"connect to {port}");
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectTo(port),
+            () => vm.Connect(port),
+            $"connect to {port}");
 
     [McpServerTool]
     [Description("Connects to an OBD2 vehicle through an ELM327 adapter on a serial port.")]
     public static Task<object> ConnectObd2(
         [Description("Port name, for example COM5.")] string port,
         MainViewModel vm,
+        IWindowSource windows,
         IUiDispatcher dispatcher) =>
-        Connect(vm, dispatcher, () => vm.ConnectObd2(port), $"connect to the adapter on {port}");
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectTo(port, asObd2: true),
+            () => vm.ConnectObd2(port),
+            $"connect to the adapter on {port}");
 
     [McpServerTool]
     [Description(
@@ -94,8 +102,11 @@ public static class LiveTools
         [Description("Address and port, for example 192.168.0.10:35000. Empty to search.")]
         string address = "",
         MainViewModel vm = null!,
+        IWindowSource windows = null!,
         IUiDispatcher dispatcher = null!) =>
-        Connect(vm, dispatcher, () => vm.ConnectObd2Wifi(address),
+        Connect(vm, windows, dispatcher,
+            window => _ = window.ConnectToWifi(address),
+            () => vm.ConnectObd2Wifi(address),
             address.Length == 0 ? "find a Wi-Fi adapter" : $"connect to {address}");
 
     [McpServerTool]
@@ -103,6 +114,7 @@ public static class LiveTools
     public static Task<object> ConnectObd2Ble(
         [Description("Adapter name, as list_ble_adapters reports it.")] string name,
         MainViewModel vm,
+        IWindowSource windows,
         IUiDispatcher dispatcher) =>
         dispatcher.InvokeAsync<object>(() =>
         {
@@ -116,7 +128,10 @@ public static class LiveTools
 
             try
             {
-                vm.ConnectObd2Ble(adapter);
+                // The window's own way in, where there is one: it starts the
+                // timer that turns a connection into a live session.
+                if (windows.Window is { } window) window.StartLiveOverBle(adapter, quiet: true);
+                else vm.ConnectObd2Ble(adapter);
             }
             catch (Exception e) when (e is IOException or InvalidOperationException or TimeoutException)
             {
@@ -131,25 +146,38 @@ public static class LiveTools
     public static Task<object> ConnectSsm(
         [Description("Port name, for example COM10.")] string port,
         MainViewModel vm,
+        IWindowSource windows,
         IUiDispatcher dispatcher) =>
-        Connect(vm, dispatcher, () => vm.ConnectSsm(port), $"connect over SSM on {port}");
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectOverSsm(port),
+            () => vm.ConnectSsm(port),
+            $"connect over SSM on {port}");
 
     [McpServerTool]
     [Description("Connects to a MaxxECU over a serial port.")]
     public static Task<object> ConnectMaxxEcu(
         [Description("Port name.")] string port,
         MainViewModel vm,
+        IWindowSource windows,
         IUiDispatcher dispatcher) =>
-        Connect(vm, dispatcher, () => vm.ConnectMaxxEcu(port), $"connect to the MaxxECU on {port}");
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectToMaxxEcu(port),
+            () => vm.ConnectMaxxEcu(port),
+            $"connect to the MaxxECU on {port}");
 
     [McpServerTool]
     [Description("Closes the live connection, and the recording with it if one is running.")]
-    public static Task<object> Disconnect(MainViewModel vm, IUiDispatcher dispatcher) =>
+    public static Task<object> Disconnect(
+        MainViewModel vm, IWindowSource windows, IUiDispatcher dispatcher) =>
         dispatcher.InvokeAsync<object>(() =>
         {
             if (!vm.IsLive) return new { disconnected = false, reason = "Nothing is connected." };
 
-            vm.Disconnect();
+            // The window's, where there is one: the timer that drives the session
+            // lives there, and closing the session without stopping it leaves a
+            // dispatcher timer ticking over nothing for the life of the window.
+            if (windows.Window is { } window) window.CloseLiveSession();
+            else vm.Disconnect();
 
             return new { disconnected = true };
         });
@@ -172,22 +200,46 @@ public static class LiveTools
         });
 
     [McpServerTool]
-    [Description("One snapshot of every live channel's current value.")]
+    [Description(
+        "One snapshot of every live channel at the most recent sample, as a number and as the "
+        + "application would format it. Refuses until the first block has arrived.")]
     public static Task<object> ReadLiveChannels(MainViewModel vm, IUiDispatcher dispatcher) =>
         dispatcher.InvokeAsync<object>(() =>
         {
             if (!vm.IsLive) return new { read = false, reason = NotLiveRefusal };
 
+            // Taken from the newest sample rather than from ChannelItem.Value.
+            // That property is the reading under the plot's cursor, and a live
+            // session nobody is hovering has no cursor — so every channel came
+            // back as an em dash, which looks like a controller saying nothing
+            // rather than a question nobody asked.
+            if (vm.Document is not { SampleCount: > 0 } document)
+            {
+                return new
+                {
+                    read = false,
+                    reason = "Connected, but no samples have arrived yet. Try again in a moment.",
+                };
+            }
+
+            int newest = document.SampleCount - 1;
+
             return new
             {
                 read = true,
                 at = DateTimeOffset.Now.ToString("O"),
-                channels = vm.Channels.Select(c => new
-                {
-                    name = c.Name,
-                    units = c.Units,
-                    value = c.Value,
-                }).ToArray(),
+                sample = newest,
+                seconds = Math.Round(document.Time.At(newest), 3),
+                channels = document.Channels
+                    .Where(c => !document.IsTimeBase(c))
+                    .Select(c => new
+                    {
+                        name = c.Name,
+                        units = c.Units,
+                        value = double.IsFinite(c.At(newest)) ? Math.Round(c.At(newest), 6) : (double?)null,
+                        formatted = c.FormatWithUnits(c.At(newest), vm.Units),
+                    })
+                    .ToArray(),
             };
         });
 
@@ -229,16 +281,32 @@ public static class LiveTools
     /// or the Connect menu — must not be able to interleave between the check and
     /// the attempt, which would open two ports.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Through the window where there is one.</b> The view model's own connect
+    /// opens the port and reads the tune, and that is only half a live session:
+    /// the timer that pulls samples out of it and into the channel list, the plot
+    /// and the gauges belongs to the window. Going straight to the view model
+    /// left a session that was genuinely connected, whose tune could be read, and
+    /// which never produced a single sample — nothing on screen moved and
+    /// read_live_channels came back empty. It also skipped the window's protocol
+    /// detection, which is what tells a MaxxECU or an OBD2 adapter from a
+    /// MegaSquirt by the port's own description.
+    /// </para>
     /// </summary>
+    /// <param name="viaWindow">The window's own way in, which starts the timer.</param>
+    /// <param name="headless">The fallback where there is no window, as in a test.</param>
     private static Task<object> Connect(
-        MainViewModel vm, IUiDispatcher dispatcher, Action connect, string what) =>
+        MainViewModel vm, IWindowSource windows, IUiDispatcher dispatcher,
+        Action<MainWindow> viaWindow, Action headless, string what) =>
         dispatcher.InvokeAsync<object>(() =>
         {
             if (vm.IsLive) return new { connected = false, reason = AlreadyLiveRefusal };
 
             try
             {
-                connect();
+                if (windows.Window is { } window) viaWindow(window);
+                else headless();
             }
             catch (Exception e)
                 when (e is IOException or InvalidOperationException or TimeoutException

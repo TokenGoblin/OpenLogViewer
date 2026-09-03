@@ -1618,7 +1618,7 @@ public partial class MainWindow : Window
             .FirstOrDefault(p => p.PortName.Equals(port, StringComparison.OrdinalIgnoreCase));
 
         bool bluetooth = described?.IsBluetooth ?? false;
-        bool maxxEcu = described?.IsMaxxEcu ?? false;
+        bool maxxEcu = _forceMaxxEcu || (described?.IsMaxxEcu ?? false);
         bool obd2 = _forceObd2 || (described?.IsObd2 ?? false);
 
         // Connecting reads the ECU's whole settings memory, which is 50 ms on a
@@ -1691,6 +1691,38 @@ public partial class MainWindow : Window
         _liveTimer.Tick += OnLiveTick;
         _liveTimer.Start();
     }
+
+    /// <summary>
+    /// Opens a MaxxECU, whatever the port calls itself.
+    ///
+    /// Alongside <see cref="ConnectTo"/>'s asObd2: a caller that knows what is on
+    /// the other end can say so, rather than relying on the port's description
+    /// being recognisable.
+    /// </summary>
+    public void ConnectToMaxxEcu(string port)
+    {
+        _forceMaxxEcu = true;
+
+        try
+        {
+            StartLive(port, quiet: true);
+        }
+        finally
+        {
+            _forceMaxxEcu = false;
+        }
+    }
+
+    /// <summary>
+    /// Closes the session and stops the timer that drives it.
+    ///
+    /// Public because the view model's own Disconnect is only half of it: the
+    /// timer lives here, and a session closed without stopping it leaves a
+    /// dispatcher timer ticking over nothing for the life of the window.
+    /// </summary>
+    public void CloseLiveSession() => StopLive();
+
+    private bool _forceMaxxEcu;
 
     private void StopLive()
     {

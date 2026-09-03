@@ -231,17 +231,37 @@ The tools have been driven end to end against a **running application**: opening
 building a histogram, reading write-readiness and capturing the window all work over MCP,
 and the connected indicator lights amber while it happens.
 
-**The write and burn tools have not yet met real hardware.** Per this project's habit of
-believing the bench over the test suite, the honest status of `write_table_to_ecu`,
-`burn_table_to_ecu`, `write_settings_to_ecu`, `burn_settings_to_ecu` and `write_curve_to_ecu`
-is *written and tested, never run against a controller.* The same goes for the connect tools
-against each of the six protocols.
+### Verified on a Speeduino, 2026-09-03
 
-What still has to happen on the bench:
+`connect_serial`, the tune reads and `write_table_to_ecu` have been run against a real
+Speeduino 202501 on COM14. It connected at 10 Hz over 81 channels, read 20 tables and 60
+settings pages, opened the VE table with its real breakpoints, and sent one cell: 33 → 34,
+read back off the controller, with the pending count dropping to zero. Nothing was burned.
 
-- **Speeduino** — read, write and burn end to end through MCP. Opening the port resets the
-  board, so anything written but not burned is lost; that is the ECU's behaviour and the
-  tools should say so rather than hide it.
+**The confirmation held, and can be timed.** The tool call sat for 64 seconds — the whole
+time the dialog was open — and returned only once a person had answered it. That is the
+gate doing exactly what it is for.
+
+Three defects turned up that the test suite could not have found, all now fixed:
+
+- A session connected through MCP never produced a sample. The timer that drives a live
+  session belongs to the window, not the view model, so calling the view model directly
+  opened the port and read the tune and then sat there — nothing on screen moved and
+  `list_channels` reported no log. The live tools now go in the way the window and the
+  command line do.
+- `read_live_channels` returned an em dash for every channel, because it read the value
+  under the plot's cursor and a live session nobody is hovering has no cursor.
+- `get_tune_summary` reported `source: "none"` for a perfectly good live tune: that field
+  named the `.msq` opened to give a log real table axes, which is a different thing.
+
+### Still to be proven
+
+- **Burning through MCP.** `burn_table_to_ecu` and `burn_settings_to_ecu` are written and
+  tested and have never committed a page. On this board the burn command is per-page and
+  opening the port resets it, so anything written and not burned is gone at the next
+  connection.
+- **`write_settings_to_ecu` and `write_curve_to_ecu`** — the table path is proven, these
+  two are not.
 - **rusEFI** — a second protocol through the same tools.
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
   `scan_faults` against a running car.

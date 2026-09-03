@@ -1,4 +1,3 @@
-using System.Windows;
 using OpenLogViewer.App.Mcp;
 
 namespace OpenLogViewer.App.Tests;
@@ -28,7 +27,7 @@ public sealed class ImmediateUiDispatcher : IUiDispatcher
 /// <summary>No window, which is what a headless test has.</summary>
 public sealed class NoWindow : IWindowSource
 {
-    public Window? Window => null;
+    public MainWindow? Window => null;
 }
 
 /// <summary>

@@ -54,11 +54,20 @@ public static class AppTools
             tune = new
             {
                 loaded = vm.HasEcuTune,
-                source = vm.TuneSource,
-                detail = vm.TuneDetail,
+                tables = vm.EcuTables.Count,
                 fromFile = vm.TuneIsFromFile,
                 placeholder = vm.TuneIsPlaceholder,
-                warning = vm.HasTuneWarning ? vm.TuneWarning : null,
+
+                // Two different things, kept apart. The first is the tune in
+                // hand — read off a controller or opened from a file. The second
+                // is the .msq opened to give a log real table axes, which is
+                // "none" on most live sessions and says nothing about the first.
+                logTuneForAxes = new
+                {
+                    source = vm.TuneSource,
+                    detail = vm.TuneDetail,
+                    warning = vm.HasTuneWarning ? vm.TuneWarning : null,
+                },
             },
             comparison = vm.HasComparison ? vm.CompareName : null,
         });

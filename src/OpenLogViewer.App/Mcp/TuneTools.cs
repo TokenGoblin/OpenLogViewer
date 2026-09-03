@@ -33,9 +33,14 @@ public static class TuneTools
         dispatcher.InvokeAsync<object>(() => new
         {
             loaded = vm.HasEcuTune,
-            source = vm.TuneSource,
-            detail = vm.TuneDetail,
             summary = vm.EcuTuneSummary,
+
+            // The controller's own account of itself: port, firmware, build and
+            // the definition matched to it. Deliberately not TuneSource, which
+            // names the .msq opened to bin a log onto its table axes and reads
+            // "none" on a perfectly good live tune.
+            controller = vm.IsLive ? vm.LiveDetail : null,
+            logTuneForAxes = new { source = vm.TuneSource, detail = vm.TuneDetail },
             fromFile = vm.TuneIsFromFile,
             placeholder = vm.TuneIsPlaceholder,
             warning = vm.HasTuneWarning ? vm.TuneWarning : null,

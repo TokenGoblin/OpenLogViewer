@@ -62,19 +62,26 @@ public sealed record McpServices(
     IWindowSource Windows,
     IUiDispatcher Dispatcher);
 
-/// <summary>Where a tool that needs to draw the application finds it.</summary>
+/// <summary>
+/// Where a tool that needs the application itself — to draw it, or to start a
+/// live session the way the window does — finds it.
+///
+/// <para>
+/// Null in a test, and in that case those tools refuse rather than pretending.
+/// </para>
+/// </summary>
 public interface IWindowSource
 {
-    System.Windows.Window? Window { get; }
+    MainWindow? Window { get; }
 }
 
 /// <summary>
 /// The real one. Resolved when asked rather than held, because the window does
 /// not exist yet when the view model that reaches it is built.
 /// </summary>
-public sealed class WindowSource(Func<System.Windows.Window?> resolve) : IWindowSource
+public sealed class WindowSource(Func<MainWindow?> resolve) : IWindowSource
 {
-    public System.Windows.Window? Window => resolve();
+    public MainWindow? Window => resolve();
 }
 
 /// <summary>
