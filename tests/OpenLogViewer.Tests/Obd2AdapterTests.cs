@@ -153,4 +153,88 @@ public class Obd2AdapterTests
 
         Assert.Equal("", elm.Reset());
     }
+
+    // ----- a clone whose banner never says "ELM" -----------------------------
+
+    /// <summary>
+    /// Plenty of clones answer ATZ with a version and no maker's name at all.
+    /// Reset finds a name by looking for "ELM", so it returns nothing for these —
+    /// which is a name it could not find, not a link that said nothing.
+    /// </summary>
+    [Fact]
+    public void AnAdapterThatDoesNotCallItselfElmStillAnswered()
+    {
+        var elm = new Elm327(new FakeElm { Elm327Name = "OBDII v2.1" });
+
+        Assert.Equal("", elm.Reset());
+        Assert.True(elm.AnsweredReset, "a banner came back and this says otherwise");
+    }
+
+    /// <summary>A link that is open and says nothing whatever.</summary>
+    private sealed class Mute : IEcuTransport
+    {
+        public bool IsOpen { get; private set; }
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            // Swallowed. Answering is the one thing this does not do.
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout) => 0;
+
+        public void DiscardInput()
+        {
+        }
+
+        public void Dispose() => Close();
+    }
+
+    [Fact]
+    public void SilenceIsToldApartFromAnUnfamiliarBanner()
+    {
+        var elm = new Elm327(new Mute());
+
+        Assert.Equal("", elm.Reset());
+        Assert.False(elm.AnsweredReset, "nothing came back and this says something did");
+    }
+
+    /// <summary>
+    /// And the session that rests on it comes back from a key-off.
+    ///
+    /// Recover reads "nothing came back" as a dead session and ends it. Reading
+    /// an unfamiliar banner that way threw on every attempt against a perfectly
+    /// live link, so the whole reconnect window was spent and the session ended
+    /// on a car that had simply been switched off and on again.
+    /// </summary>
+    [Fact]
+    public void ASessionOnSuchAnAdapterRecovers()
+    {
+        // Product is what ATI answers, and it is what names an adapter whose ATZ
+        // banner does not. Connecting still needs a name — noise must not get
+        // one — and this clone has one to give; what it does not have is the
+        // word "ELM" in its banner, which is what used to end the session.
+        var fake = new FakeElm { Elm327Name = "OBDII v2.1", Product = "OBDII v2.1" };
+
+        // Supported [01-20]: 0x04, 0x05, 0x0B, 0x0C, 0x0D, 0x0F, 0x11.
+        fake.Answers[0x00] = [0b0001_1000, 0b0011_1010, 0b1000_0000, 0b0000_0000];
+        fake.Answers[0x04] = [0x7F];
+        fake.Answers[0x05] = [0x5A];
+        fake.Answers[0x0B] = [0x64];
+        fake.Answers[0x0C] = [0x1A, 0xF8];
+        fake.Answers[0x0D] = [0x40];
+        fake.Answers[0x0F] = [0x46];
+        fake.Answers[0x11] = [0x33];
+
+        using Elm327Source source = Elm327Source.Connect(fake);
+
+        Assert.NotEmpty(source.Parameters);
+
+        // The exception is the failure being tested for; anything else would be
+        // the fake, and should not be swallowed.
+        source.Recover();
+    }
 }

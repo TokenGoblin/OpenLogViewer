@@ -205,6 +205,13 @@ public sealed class Elm327Source : ILiveSource
         // The name from the reset is kept as the fallback: it is what proves an
         // adapter answered at all, and Identify can come back empty on a device
         // that is being sent noise.
+        //
+        // Gated on the NAME and not on AnsweredReset, which is the weaker
+        // question and the wrong one here. Noise from the wrong baud rate
+        // answers too, and asking it to identify itself gets noise back — which
+        // would name it, and naming it turns "wrong port or wrong speed" into
+        // "check the ignition is on". Those are fixed in entirely different
+        // ways, and noise is never its own name.
         string adapter = reset.Length > 0 ? elm.Identify() : "";
         if (adapter.Length == 0) adapter = reset;
 
@@ -890,7 +897,21 @@ public sealed class Elm327Source : ILiveSource
         // handshake spends the warm-up, the protocol question and a whole poll
         // round on a corpse — the better part of ten seconds of blank gauges —
         // before anything concludes what the first reply already said.
-        if (_elm.Reset().Length == 0 && _elm.Reset(ConfirmingSilence).Length == 0)
+        // Asked of AnsweredReset rather than of what Reset returns. What it
+        // returns is a name, and a name is empty on every clone whose banner
+        // omits "ELM" — so this used to throw on a perfectly live link, on every
+        // attempt, burning the whole reconnect window and ending a session that
+        // a key turned back on would have resumed.
+        _elm.Reset();
+        bool answered = _elm.AnsweredReset;
+
+        if (!answered)
+        {
+            _elm.Reset(ConfirmingSilence);
+            answered = _elm.AnsweredReset;
+        }
+
+        if (!answered)
             throw new EcuProtocolException(
                 "The adapter accepted the connection and then said nothing at all, "
                 + "which is a session that has died rather than an ECU that is slow. "

@@ -231,4 +231,72 @@ public class ReviewFixTests
 
         Assert.Equal(6.0, result.ChangePercent[0, 0]!.Value, 1);
     }
+
+    // ----- a table with one cell that will not fit ---------------------------
+
+    private const string Table = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = ""
+        pageReadCommand = "r%2o%2c"
+           fuel = array, U08, 0, [4], "%", 1, 0, 0, 200, 0
+        """;
+
+    /// <summary>
+    /// A constant reported as rejected has to be left exactly as it was, because
+    /// that is what the restore plan tells the person it did.
+    /// </summary>
+    [Fact]
+    public void ACellThatWillNotFitLeavesTheWholeConstantAlone()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Table);
+        EcuTune ecu = EcuTune.FromPages(layout, [10, 20, 30, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        // The third cell is past the 200 the firmware declares. The two before it
+        // are perfectly storable, and are different from what the ECU holds —
+        // which is the whole point: they used to be written in before the third
+        // was refused.
+        MsqFile file = MsqFile.Read("""
+            <msq><page number="1">
+              <constant name="fuel">111 122 999 44</constant>
+            </page></msq>
+            """);
+
+        MsqLoad load = MsqApply.Load(layout, file, ecu);
+
+        Assert.Single(load.Rejected);
+        Assert.Equal("fuel", load.Rejected[0].Name);
+
+        // Not [111, 122, 30, 40].
+        Assert.Equal([10, 20, 30, 40], load.Tune.Array("fuel")!);
+    }
+
+    /// <summary>
+    /// And the plan that rests on it asks for no write at all, rather than
+    /// promising to leave a constant alone and then sending half of it.
+    /// </summary>
+    [Fact]
+    public void ARejectedConstantProducesNoWrite()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Table);
+        EcuTune ecu = EcuTune.FromPages(layout, [10, 20, 30, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        MsqFile file = MsqFile.Read("""
+            <msq><page number="1">
+              <constant name="fuel">111 122 999 44</constant>
+            </page></msq>
+            """);
+
+        TuneRestorePlan plan = TuneRestore.Plan(ecu, file);
+
+        Assert.Single(plan.Rejected);
+        Assert.Empty(plan.Writes);
+        Assert.True(plan.IsEmpty);
+
+        // The sentence the person actually reads before agreeing to it.
+        Assert.Contains("left alone", plan.Summary, StringComparison.OrdinalIgnoreCase);
+    }
+
 }

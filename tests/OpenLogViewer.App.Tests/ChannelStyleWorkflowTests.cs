@@ -447,4 +447,54 @@ public class ChannelStyleWorkflowTests : IDisposable
         Assert.DoesNotContain("E", vm.StyleMax, StringComparison.OrdinalIgnoreCase);
         Assert.True(vm.StyleMax.Length <= 12, $"seeded max was '{vm.StyleMax}'");
     }
+
+    // ----- a smoothed trace across a live poll -------------------------------
+
+    /// <summary>
+    /// A smoothed channel keeps being drawn once a live session hands it more
+    /// samples.
+    ///
+    /// <para>
+    /// The smoothed copy is worked out once and kept, because a plot asks for
+    /// values a great many times over as it is panned. Held across a rebind it
+    /// was the copy made from the first poll, and ValueAt answers NaN past its
+    /// end — so a channel with a remembered smoothing level, which a live
+    /// session applies as it seeds its rows, drew a few samples and then stopped
+    /// for the rest of the session.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ASmoothedChannelStillDrawsAfterTheLiveSessionGrowsIt()
+    {
+        var item = new ChannelItem(
+            new LogChannel("MAP", "kPa", 1, [40, 41, 40, 42, 41]),
+            Colors.Red);
+
+        item.SetSmoothing(SmoothingLevel.Light);
+
+        // Reading it is what builds the smoothed copy, exactly as a repaint does.
+        Assert.False(double.IsNaN(item.ValueAt(4)));
+
+        // The next poll: the same channel, longer.
+        item.Rebind(new LogChannel(
+            "MAP", "kPa", 1, [40, 41, 40, 42, 41, 95, 96, 95, 97, 96]));
+
+        Assert.False(double.IsNaN(item.ValueAt(9)), "the trace stopped where the first poll ended");
+
+        // And it is the new data, not the old copy stretched.
+        Assert.True(item.ValueAt(9) > 90, $"read {item.ValueAt(9)}, which is the old samples");
+    }
+
+    [Fact]
+    public void AnUnsmoothedChannelIsUnaffectedByARebind()
+    {
+        var item = new ChannelItem(new LogChannel("RPM", "", 0, [1000, 1100]), Colors.Red);
+
+        Assert.Equal(1100, item.ValueAt(1));
+
+        item.Rebind(new LogChannel("RPM", "", 0, [1000, 1100, 4200]));
+
+        Assert.Equal(4200, item.ValueAt(2));
+    }
+
 }

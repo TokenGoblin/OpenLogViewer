@@ -226,15 +226,34 @@ public static class MsqApply
                 return new MsqComplaint(
                     constant.Name, $"the file holds {tokens.Length} values where the firmware wants {cells}");
 
+            // All of it or none of it.
+            //
+            // A cell that will not fit used to be reported after the cells before
+            // it had already been poked in, and the caller records the complaint
+            // and carries on — so the half-written image was the one a restore
+            // then byte-diffed against the controller. One out-of-range cell in a
+            // fuel table produced real writes for the rest of that table, while
+            // the plan told the person that constant "would be left alone". That
+            // is the worst way for this to be wrong: the reassurance and the
+            // damage came from the same run.
+            byte[]? before = Snapshot(pages, constant);
+
             // Row-major, which is how the file writes a grid and how the
             // controller stores one.
             for (int i = 0; i < cells; i++)
             {
-                if (!Number(tokens[i], out double value))
-                    return new MsqComplaint(constant.Name, $"\"{tokens[i]}\" is not a number");
+                MsqComplaint? complaint =
+                    !Number(tokens[i], out double value)
+                        ? new MsqComplaint(constant.Name, $"\"{tokens[i]}\" is not a number")
+                        : !tune.PokeInto(pages, constant, i, value)
+                            ? new MsqComplaint(constant.Name, $"{value} will not fit at cell {i}")
+                            : null;
 
-                if (!tune.PokeInto(pages, constant, i, value))
-                    return new MsqComplaint(constant.Name, $"{value} will not fit at cell {i}");
+                if (complaint is null) continue;
+
+                Restore(pages, constant, before);
+
+                return complaint;
             }
 
             return null;
@@ -246,6 +265,30 @@ public static class MsqApply
         return tune.PokeInto(pages, constant, 0, single)
             ? null
             : new MsqComplaint(constant.Name, $"{single} is outside what this setting can hold");
+    }
+
+    /// <summary>
+    /// The bytes a constant occupies, or null where it does not sit in the pages
+    /// at all — in which case nothing can have been written and there is nothing
+    /// to put back.
+    /// </summary>
+    private static byte[]? Snapshot(IReadOnlyList<byte[]> pages, TuneConstant constant)
+    {
+        if (constant.Page < 0 || constant.Page >= pages.Count) return null;
+
+        byte[] page = pages[constant.Page];
+
+        if (constant.Offset < 0 || constant.Offset + constant.Size > page.Length) return null;
+
+        return page[constant.Offset..(constant.Offset + constant.Size)];
+    }
+
+    /// <summary>Puts a snapshot back, leaving the constant as it was found.</summary>
+    private static void Restore(IReadOnlyList<byte[]> pages, TuneConstant constant, byte[]? before)
+    {
+        if (before is null) return;
+
+        before.CopyTo(pages[constant.Page].AsSpan(constant.Offset));
     }
 
     /// <summary>

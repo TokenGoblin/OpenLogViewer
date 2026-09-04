@@ -29,6 +29,15 @@ public sealed class ChannelItem : ObservableObject
         if (ReferenceEquals(Channel, channel)) return;
 
         Channel = channel;
+
+        // The smoothed copy was worked out over the samples that had arrived by
+        // then, and ValueAt returns NaN past its end. Kept across a rebind it
+        // froze a smoothed trace at the length of the first poll and lifted the
+        // pen for the rest of the session — on a live connection, where a
+        // remembered smoothing level is applied as the channels are seeded, so
+        // the trace was dead before anybody looked at it.
+        _smoothed = null;
+
         Raise(nameof(Channel));
         Raise(nameof(Range));
         Raise(nameof(IsFlat));

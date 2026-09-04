@@ -108,12 +108,31 @@ public sealed class Elm327(IEcuTransport transport)
         //
         // Noise is a different matter and still gets the full treatment: that is
         // what a wrong baud rate looks like, and the adapter is real.
+        // Recorded separately from what is returned, because they are different
+        // questions and one string cannot answer both.
+        //
+        // What comes back is a NAME, and Clean finds one by looking for "ELM" —
+        // so a clone whose banner never says the word returns empty while having
+        // answered perfectly. Callers reading that emptiness as silence were
+        // wrong about every such adapter: the recovery after a key-off threw on
+        // a healthy link and ended the session, and the connect path skipped the
+        // warm-up and left the adapter nameless.
+        AnsweredReset = identity.Length > 0;
+
         if (identity.Length == 0) return "";
 
         foreach (string command in Setup) Send(command, Timeout);
 
         return Clean(identity);
     }
+
+    /// <summary>
+    /// Whether the last <see cref="Reset"/> got anything back at all — a banner,
+    /// or noise from the wrong baud rate. This is the question "is this link
+    /// alive"; what <see cref="Reset"/> returns is the question "what is it
+    /// called", and an adapter can answer the first without answering the second.
+    /// </summary>
+    public bool AnsweredReset { get; private set; }
 
     private static readonly string[] Setup = ["ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"];
 
