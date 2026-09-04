@@ -44,6 +44,33 @@ still the manual carried inside the application, because a laptop plugged into a
 car in a garage with no signal is exactly where somebody needs to look something
 up.
 
+### The guide is now checked against the menus, both ways
+
+Two features shipped undocumented — the Subaru SSM connection and channel
+smoothing — and both got past `GuideTests`, whose list of features to look for is
+written by hand. Nobody adds the feature they forgot, so that list can only ever
+find what somebody already remembered.
+
+`GuideMenuTests` derives its list from `MainWindow.xaml` instead:
+
+- **Every menu item must be mentioned in the guide**, or excused in
+  `NeedsNoGuideEntry` with a reason. There are twelve excuses, all of them things
+  like **Exit** and **About OpenLogViewer**.
+- **Every `Tools ▸ Something` the guide writes must still be a menu item.**
+- **Every "X in the toolbar" must still be a button.** This is the half the menu
+  test cannot see — the guide sent people to an "Export ▾" toolbar button long
+  after Export became a File menu item, and a ▾ is still right for Connect, so
+  the arrow alone proves nothing.
+
+Each was checked by putting the original defect back and watching the right test
+fail with the right message.
+
+Getting it to pass meant the guide naming a dozen commands the way the
+application names them rather than describing them in its own words — **View ▸
+Draw steady channels as steady** instead of "turn it off in the View menu",
+**Jump to maximum** instead of "right-click it". That is worth having on its own:
+somebody looking at a menu can now search the guide for what they are looking at.
+
 ### Smoothing and "Plot only this channel" are documented at last
 
 Both are shipping features of the channel right-click menu, and neither appeared

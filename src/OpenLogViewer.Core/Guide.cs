@@ -104,9 +104,9 @@ public static class Guide
                 + "plus its highest and lowest — and the moment each happened."),
 
             new("Jump to an extreme",
-                "The ▲ and ▼ buttons on a channel row, or right-click it. Clicking the max or min "
-                + "line in the hover card does the same. The zoom is kept, and the channel is "
-                + "plotted first if it was not showing."),
+                "The ▲ and ▼ buttons on a channel row, or right-click it for Jump to maximum and "
+                + "Jump to minimum. Clicking the max or min line in the hover card does the same. "
+                + "The zoom is kept, and the channel is plotted first if it was not showing."),
 
             new("Zoom and pan",
                 "Scroll to zoom at the pointer, drag to pan, double-click to fit the whole log. "
@@ -120,8 +120,8 @@ public static class Guide
 
             new("Overlaid or stacked",
                 "Overlaid traces each scale to their own range and read well for timing between "
-                + "channels. Stacked gives each its own strip, which is what you want past about "
-                + "four."),
+                + "channels. Stacked traces give each its own strip, which is what you want past "
+                + "about four. Both are in the View menu and on the toolbar."),
 
             new("Gaps are drawn as gaps",
                 "A paused-and-resumed log leaves a hole, and a straight line across it would read "
@@ -131,8 +131,8 @@ public static class Guide
             new("Steady channels look steady",
                 "A sensor holding almost still would otherwise have its last decimal place "
                 + "stretched to fill the lane, and a pressure holding 12.0 within a tenth would be "
-                + "drawn as a wall of noise. Turn it off in the View menu when a small drift is "
-                + "exactly what you are chasing."),
+                + "drawn as a wall of noise. Untick View ▸ Draw steady channels as steady when a "
+                + "small drift is exactly what you are chasing."),
 
             new("Save a selection",
                 "Plot what you want and press + Save. The preset becomes a chip you can click to "
@@ -144,9 +144,9 @@ public static class Guide
             "Jump to where something happened.",
         [
             new("Search the log",
-                "Type a condition — RPM > 4500 && TPS > 80 — and every stretch of the drive that "
-                + "met it is shaded. Enter steps forward through them, shift-Enter back, Escape "
-                + "closes the bar.",
+                "View ▸ Find in the log…, or Ctrl+F. Type a condition — RPM > 4500 && TPS > 80 — "
+                + "and every stretch of the drive that met it is shaded. Enter steps forward "
+                + "through them, shift-Enter back, Escape closes the bar.",
                 "Ctrl+F"),
 
             new("It uses the calculated-channel syntax",
@@ -183,7 +183,7 @@ public static class Guide
                 "Open tune… for a .msl or .csv, which carry none. For an .mlg it is usually the "
                 + "wrong thing to do: VE Calibration scales the numbers that produced the logged "
                 + "mixture, and a tune edited since the drive would have it scale numbers the "
-                + "engine never ran."),
+                + "engine never ran. File ▸ Use the tune stored in the log puts it back."),
 
             new("Only the zoomed range",
                 "Restricts the table to the window you zoomed to in the log view, so it can be "
@@ -399,6 +399,8 @@ public static class Guide
 
             new("The definition must match",
                 "A session is refused when no definition matches the signature the ECU reports. "
+                + "Tools ▸ ECU definition files… opens the folder to put one in, with a note "
+                + "naming what your ECU actually reported. "
                 + "Firmware versions move channels around inside the realtime block, so decoding "
                 + "with the wrong one does not fail — it reads every channel from the wrong offset "
                 + "and returns numbers that look entirely reasonable. Open the tune before "
@@ -407,8 +409,10 @@ public static class Guide
             new("Recording is yours to start",
                 "Connecting does not record on its own — a session is opened to check a link or "
                 + "watch a gauge far more often than to capture anything. Press Record when you "
-                + "mean it. Each recording's clock starts where you pressed record, and every row "
-                + "is flushed as it arrives, so a pulled cable leaves a complete file."),
+                + "mean it, or tick Tools ▸ Record as soon as I connect to have it start with the "
+                + "session. Each recording's clock starts where you pressed record, and every row "
+                + "is flushed as it arrives, so a pulled cable leaves a complete file. Tools ▸ "
+                + "Open the recordings folder goes to them."),
 
             new("Losing the link is not the end",
                 "Key off and key on is normal, so a lost link is waited on for a minute — the "
@@ -664,10 +668,10 @@ public static class Guide
                 + "lists something that would not mean anything where you are."),
 
             new("What is offered follows the view",
-                "In log view: plotted channels as CSV, all channels as CSV, or the plot as a PNG. "
-                + "In histogram view: the table, the sample counts, or the table as a PNG. In "
-                + "scatter view: the plotted points, each row carrying its index in the log, or the "
-                + "scatter as a PNG."),
+                "In log view: Plotted channels as CSV, All channels as CSV, or Plot as PNG. In "
+                + "histogram view: Table as CSV, Sample counts as CSV, or Table as PNG. In scatter "
+                + "view: Plotted points as CSV, each row carrying its index in the log, or Scatter "
+                + "as PNG."),
 
             new("Mark a span first",
                 "and the CSV covers only that span. The menu says which it is about to write."),

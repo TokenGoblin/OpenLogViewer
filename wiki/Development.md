@@ -63,12 +63,12 @@ application has no console attached.
 dotnet test -c Release
 ```
 
-**2,347 tests, in two suites:**
+**2,361 tests, in two suites:**
 
 | Suite | Tests | What it covers |
 | --- | ---: | --- |
-| `OpenLogViewer.Tests` | 1,835 | The readers, the histogram and scatter, filters, tune axes, the tune model, the protocols, and every calculator |
-| `OpenLogViewer.App.Tests` | 512 | The view model, driven end to end: write a log, open it, and exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does |
+| `OpenLogViewer.Tests` | 1,843 | The readers, the histogram and scatter, filters, tune axes, the tune model, the protocols, every calculator, and the guide |
+| `OpenLogViewer.App.Tests` | 518 | The view model, driven end to end: write a log, open it, and exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does |
 
 Two things about how they are written are worth knowing before adding to them:
 
@@ -82,6 +82,30 @@ Two things about how they are written are worth knowing before adding to them:
 There are also fakes for the hardware: `FakeController`, `FakeElm`,
 `FakeElmOverTcp`, `FakeSubaru`, `FakeWriteConfirmation`. A new protocol should
 come with one.
+
+### The documentation is tested too
+
+`GuideMenuTests` reads `MainWindow.xaml` and checks the in-app guide against it,
+both ways:
+
+| Test | Fails when |
+| --- | --- |
+| `EveryMenuItemIsInTheGuide` | A menu item is not mentioned anywhere in the guide |
+| `EveryMenuPathTheGuideNamesStillExists` | The guide writes `Tools â–¸ Something` that is not a menu item |
+| `EveryToolbarButtonTheGuideNamesStillExists` | The guide says "X in the toolbar" and X is not a button |
+| `NothingIsExcusedThatIsNoLongerAMenuItem` | The excuse list has rotted |
+
+The first is the important one, and the reason it derives its list from the XAML
+rather than taking one is that the two features it was written for â€” the Subaru
+SSM connection and channel smoothing â€” both shipped undocumented past a
+hand-written checklist. Nobody adds the feature they forgot.
+
+A menu item that genuinely needs no entry â€” **Exit**, **About OpenLogViewer**,
+a context-menu **Delete** verb â€” goes in `NeedsNoGuideEntry` **with a reason**.
+Adding to that list is meant to be a decision somebody makes on purpose.
+
+`GuideTests` additionally asserts that every named feature is findable, that no
+section is empty and that nothing is left as a placeholder.
 
 > **NOTICE:** **Passing tests are not the same as working against hardware.** The
 > suite runs against fakes. Anything touching a real controller â€” a protocol
