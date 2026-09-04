@@ -5,6 +5,45 @@
 Everything below landed in one run of work. Grouped by what it does for you
 rather than by commit.
 
+### The documentation was audited and restructured
+
+The README had become the entire product manual — 1,150 lines covering
+everything from the histogram's colour ramp to the WiX version. It is now an
+overview: what this does, what it runs on, how to start, and where the rest is.
+
+The rest is **[docs/](docs/README.md)**, split by what a reader is trying to do:
+[getting started](docs/getting-started.md), [installation](docs/installation.md),
+the [user guide](docs/user-guide.md), [histogram and
+scatter](docs/histogram-and-scatter.md), [VE
+calibration](docs/ve-calibration.md), [calculated
+channels](docs/calculated-channels.md), [live
+connection](docs/live-connection.md), [OBD2](docs/obd2.md), [Subaru
+SSM](docs/subaru-ssm.md), [editing a tune](docs/tune-editing.md),
+[configuration](docs/configuration.md), the [command
+line](docs/command-line.md), [troubleshooting](docs/troubleshooting.md),
+[architecture](docs/architecture.md) and [development](docs/development.md).
+
+**The audit found things that were wrong rather than merely missing.** Several
+shipping features were documented nowhere at all — the Subaru SSM connection,
+comparing two logs, the saved-tune commands, the logging rate, Insights, the
+power estimate, the units setting. And two tooltips in the application itself
+told users the opposite of what the software does:
+
+- **Record as soon as I connect** said "On by default". It is off by default, and
+  has been since connecting stopped recording on its own. Every other statement
+  in the product said so; this one did not.
+- **Calculators** listed nine of the fifteen, and none of the six added since it
+  was written.
+
+Both are fixed, along with the **About** dialog, which did not mention the Subaru
+connection, and the in-app guide's references to an **Export ▾** toolbar button
+that has been a **File ▸ Export** menu for some time.
+
+The in-app guide gained the missing features and lost the stale labels. It is
+still the manual carried inside the application, because a laptop plugged into a
+car in a garage with no signal is exactly where somebody needs to look something
+up.
+
 ### An AI agent can drive the application
 
 **AI agent ▸ Allow an AI agent to connect (MCP).** OpenLogViewer can now host a

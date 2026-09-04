@@ -505,7 +505,7 @@ public partial class MainWindow : Window
             + "Datalog viewer and live tuning for engine ECUs.\n\n"
             + "Reads MegaSquirt and TunerStudio logs, MaxxECU logs, and delimited text.\n"
             + "Connects live to MegaSquirt, MicroSquirt, rusEFI, Speeduino, MaxxECU,\n"
-            + "and any OBD2 vehicle through an ELM327 adapter.\n\n"
+            + "any OBD2 vehicle through an ELM327 adapter, and a Subaru over SSM.\n\n"
             // It used to say "no network code: nothing here is ever sent
             // anywhere". A Wi-Fi OBD2 dongle already strained that, and a
             // listening socket for MCP breaks it outright. What is still true is

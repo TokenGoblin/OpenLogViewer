@@ -143,3 +143,10 @@ misaligned decode produces values that are obviously impossible:
 A useful trick when the alignment is unknown: scan every byte offset in the
 record for one that decodes as `s16 * 0.1` within 11–15 across most records.
 That locates battery voltage, and the rest of the layout follows from it.
+
+## Related
+
+- [Documentation index](README.md)
+- [User guide ▸ Supported log formats](user-guide.md#supported-log-formats)
+- [Histogram and scatter ▸ Axis breakpoints from the tune](histogram-and-scatter.md#axis-breakpoints-from-the-tune) — the `.msq` an MLG embeds
+- [Development ▸ The dump tool](development.md#the-dump-tool)

@@ -137,7 +137,7 @@
                           ToolTip="Choose when a log starts, what it is called and where it goes"/>
                 <MenuItem Header="Record as soon as I _connect" IsCheckable="True"
                           IsChecked="{Binding RecordOnConnect}"
-                          ToolTip="On by default. Turn it off to pick the moment a log starts yourself — the session is still watched and plotted either way"/>
+                          ToolTip="Off by default: connecting watches, and recording is asked for. Turn it on to record from the moment you connect — the session is watched and plotted either way"/>
                 <MenuItem Header="Open the _recordings folder" Click="OnOpenRecordingsClick"/>
                 <Separator/>
                 <MenuItem x:Name="RateMenuItem" Header="Logging _rate" SubmenuOpened="OnRateMenuOpened">
@@ -163,7 +163,7 @@
                           ToolTip="Where to put the .ini for an ECU this machine does not already know"/>
                 <Separator/>
                 <MenuItem Header="Ca_lculators…" Click="OnCalculatorsClick"
-                          ToolTip="Boost, pressure ratio, injectors, fuel pump, lambda, octane, engine, gearing and airflow"/>
+                          ToolTip="Fifteen calculators: engine recipe, boost, pressure ratio, turbo sizing, airflow, intercooling, injectors, fuel pump, lambda, octane, engine, runners &amp; headers, gearing, drag strip and running costs"/>
                 <MenuItem Header="Estimate _power…" Click="OnEstimatePowerClick"
                           IsEnabled="{Binding HasDocument}"
                           ToolTip="Calculated channels that estimate horsepower from the log"/>

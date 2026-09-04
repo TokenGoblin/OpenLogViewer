@@ -244,3 +244,10 @@ writes `log-channels.csv`, whose header and units rows are exactly the two colum
 **Measure against a `.logged` fixture, never a `.channels` one alone.** Field names give a
 number that looks right and is not: rusEFI scored 19/21 on its field names and 12/21 on
 its labels, and it is the labels that reach a live session.
+
+## Related
+
+- [Documentation index](README.md)
+- [Live connection ▸ Definition files](live-connection.md#definition-files) — where to put one, and where they are searched for
+- [Editing a tune](tune-editing.md) — the settings pages a definition builds
+- [Architecture](architecture.md)

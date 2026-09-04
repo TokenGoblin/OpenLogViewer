@@ -61,6 +61,25 @@ public static class Guide
                 "Log draws the channels against time. Histogram bins them into a table shaped like "
                 + "the one in your ECU. Scatter puts every sample at its own X and Y. They are the "
                 + "same samples and the same settings; only the question differs."),
+
+            new("Compare two logs",
+                "File ▸ Compare against another log…, then Show the difference to subtract the "
+                + "second log's table from this one cell by cell. Channels are matched by name, so "
+                + "two logs from different firmware may share nothing — it says so rather than "
+                + "showing an empty result. Stop comparing closes the second."),
+
+            new("What the log has to say",
+                "◈ Insights in the toolbar. Every finding is arithmetic on the samples rather than "
+                + "a rule of thumb, and each carries the numbers behind it and how many samples it "
+                + "rests on — so you can disagree with the conclusion without taking the "
+                + "measurement on trust. Four tenths lean under boost over nine hundred samples is "
+                + "a real difference; the same four tenths at idle over nine is not."),
+
+            new("Units",
+                "View ▸ Units: as reported, metric or imperial. As reported is the default because "
+                + "it is the only one that cannot be wrong — an ECU reports what it reports. It is "
+                + "a display setting and nothing else: a recording always keeps the units its ECU "
+                + "used, so reopening it later cannot double-convert."),
         ]),
 
         new("Reading the plot",
@@ -394,6 +413,26 @@ public static class Guide
                 "An adapter Windows only describes as a USB-SERIAL CH340 is indistinguishable from "
                 + "a tuning cable until something talks to it, and the two want opposite opening "
                 + "moves. Use Connect ▾ → Connect as an OBD2 adapter for those."),
+
+            new("A Subaru, over its own protocol",
+                "Connect ▾ → Connect over SSM (Subaru) reads what the ECU has learnt — knock "
+                + "correction, fine knock learning, IAM, the fuelling trims — none of which is in "
+                + "OBD2 at any speed. The addresses are yours to supply, in ssm-parameters.json in "
+                + "the definitions folder; a template is written there the first time. One address "
+                + "per request, about 146 ms each, so eight parameters is roughly 0.85 Hz."),
+
+            new("How fast it logs",
+                "Tools ▸ Logging rate. 25 Hz by default, which is past what a wideband can resolve "
+                + "and enough for fuelling work. The faster rates are for transients and cost what "
+                + "they sound like: at 100 Hz a rusEFI's 823 channels are about 14 MB a minute. It "
+                + "is a ceiling rather than a promise — a link that cannot go that fast goes as "
+                + "fast as it can, and the toolbar reports what it managed."),
+
+            new("Reading the block in one request",
+                "Tools ▸ Read the block in one request asks the firmware for the whole realtime "
+                + "page at once. Faster where the firmware allows it and fatal where it does not, "
+                + "which is why it is off by default. If a session dies the moment it starts, this "
+                + "is the first thing to turn back off."),
         ]),
 
         new("Gauges",
@@ -447,6 +486,31 @@ public static class Guide
                 "Which is far tighter than the storage: an ignition table kept as a signed 16-bit "
                 + "tenth of a degree would accept ±3,276° as far as the encoding cares, while the "
                 + "firmware declares −10 to 90."),
+
+            new("Settings, not just tables",
+                "A tune is mostly not tables. The Settings half of Calibration is built from what "
+                + "the firmware says about itself — an MS3 offers 144 pages, a Speeduino 49. "
+                + "Almost every field is conditional, so turning something on makes the fields "
+                + "that configure it appear; where a condition cannot be worked out the field is "
+                + "shown with a ? rather than hidden."),
+
+            new("Back it up to a file",
+                "Tools ▸ Save the tune to a file… writes every setting to a .msq — a backup, and "
+                + "the format TunerStudio reads. A tune that exists only in an ECU is one power "
+                + "supply away from being gone."),
+
+            new("Open or compare a saved tune",
+                "Tools ▸ Open a saved tune… opens a .msq and its settings pages with no ECU "
+                + "attached. Compare with a saved tune… says which settings the file and the tune "
+                + "in hand disagree about. Nothing opened from a file can be sent: that would "
+                + "write a zero for every setting the file does not mention."),
+
+            new("Restoring one is its own thing",
+                "Tools ▸ Restore a saved tune to the ECU… writes only the settings that differ, "
+                + "leaving alone everything the file never mentioned. You are shown the plan "
+                + "first — how many settings change and to what, what the file was missing, what "
+                + "this firmware refused — because \"restore this tune\" is not a question anybody "
+                + "can answer and \"change 47 settings, one of them the rev limit\" is."),
         ]),
 
         new("AI agent (MCP)",
@@ -549,10 +613,16 @@ public static class Guide
             "The arithmetic a tuner keeps a phone open for.",
         [
             new("Open them",
-                "ƒ Calculators in the toolbar. Injector sizing and dead time, turbo and compressor "
-                + "matching, intercooler and water injection, cam timing, manifold and header "
-                + "geometry, gearing and tyre size, octane blending, drag strip correlations, "
-                + "running costs, and an estimate of power from a log."),
+                "ƒ Calculators in the toolbar. Fifteen of them, in six groups: Plan a build "
+                + "(engine recipe); Air & boost (boost, pressure ratio, turbo sizing, airflow, "
+                + "intercooling); Fuel (injectors, fuel pump, lambda, octane); Engine (engine, "
+                + "runners & headers); Drivetrain (gearing, drag strip); and Running costs."),
+
+            new("Power from a log",
+                "Tools ▸ Estimate power… adds calculated channels that estimate crank power from "
+                + "the fuel the log says was burned. It is an estimate and not a dyno figure — the "
+                + "largest unknown is the efficiency it has to assume — so use it to compare one "
+                + "run against another under the same assumptions."),
 
             new("They say what they assume",
                 "The drag-strip figures are correlations fitted to real runs rather than physics — "
@@ -564,6 +634,10 @@ public static class Guide
         new("Export",
             "Getting numbers and pictures out.",
         [
+            new("Where it is",
+                "File ▸ Export. What it offers follows the view you are in, so the menu never "
+                + "lists something that would not mean anything where you are."),
+
             new("What is offered follows the view",
                 "In log view: plotted channels as CSV, all channels as CSV, or the plot as a PNG. "
                 + "In histogram view: the table, the sample counts, or the table as a PNG. In "
@@ -611,8 +685,9 @@ public static class Guide
         [
             new("Recordings and exports",
                 "In a single folder named after the app, in your user profile: Logs for live "
-                + "recordings, Exports for anything written out. Export ▾ → Open the folder takes "
-                + "you there and Change the folder… moves it."),
+                + "recordings, Exports for anything written out, and ECU definitions for firmware "
+                + "files you supply. File ▸ Data folder ▸ Open the folder takes you there, and "
+                + "Change the folder… moves it."),
 
             new("Why not My Documents",
                 "It is redirected into OneDrive on most machines, which buries recordings a couple "

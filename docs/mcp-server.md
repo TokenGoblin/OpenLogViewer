@@ -410,3 +410,11 @@ unchanged at 60. See [ini-and-channels.md](ini-and-channels.md#the-settings-inte
 - **Any of this on a running engine.** Everything above was a bench board with nothing
   turning. The confirmation gate is what stands between a tool call and a running engine,
   and it has only ever been tested with the engine stopped.
+
+## Related
+
+- [Documentation index](README.md)
+- [Editing a tune](tune-editing.md) — the confirmation gate every write passes through
+- [Live connection](live-connection.md)
+- [Command line](command-line.md) — `--mcp`
+- [Troubleshooting ▸ AI agent (MCP)](troubleshooting.md#ai-agent-mcp)

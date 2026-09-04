@@ -1,6 +1,6 @@
 # Builds and tests on every push and pull request.
 #
-# There are 1,440 tests and, until this existed, nothing that ran them except
+# There are 2,347 tests and, until this existed, nothing that ran them except
 # somebody remembering to. A suite nobody is obliged to run is a suite that goes
 # red quietly — and this one carries the arithmetic a person points at an engine,
 # so a silent regression in it is not a cosmetic problem.
