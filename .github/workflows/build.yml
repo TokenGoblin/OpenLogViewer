@@ -44,6 +44,13 @@ jobs:
       - name: Test
         run: dotnet test OpenLogViewer.slnx --configuration Release --no-build --verbosity normal
 
+      # The wiki is generated from docs/ rather than kept as a second copy, and
+      # this is what stops the two drifting: a documentation change that was not
+      # rebuilt fails here rather than being noticed on the published wiki weeks
+      # later.
+      - name: Check the wiki matches docs/
+        run: .\tools\build-wiki.ps1 -Check
+
       # Fails on a package with a known advisory. Worth its own step so that a
       # security problem in a dependency reads as a security problem rather than
       # as a mysterious build failure.

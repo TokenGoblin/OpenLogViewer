@@ -44,6 +44,24 @@ still the manual carried inside the application, because a laptop plugged into a
 car in a garage with no signal is exactly where somebody needs to look something
 up.
 
+### The wiki is built from the documentation, not kept beside it
+
+`tools/build-wiki.ps1` generates a GitHub or GitLab wiki from `docs/`. A wiki is
+a separate repository with a flat page namespace, so the pages are renamed and
+every link rewritten — `user-guide.md#export` becomes `User-guide#export` — and a
+sidebar and footer are generated. The page text is copied through untouched.
+
+Doing it this way rather than writing the wiki by hand is the point. A wiki
+edited in the browser is a fork nobody notices until the two disagree, so the
+footer on every page says to edit `docs/` instead, and CI runs
+`build-wiki.ps1 -Check` and fails if the two have drifted.
+
+`-Flavour GitLab` switches the home page, sidebar name, footer and blob URL
+paths; `-RepositoryUrl` moves every repository link, including the ones written
+into the prose. [Development ▸ Publishing the
+wiki](docs/development.md#publishing-the-wiki) has the first-publish steps for
+both.
+
 ### An AI agent can drive the application
 
 **AI agent ▸ Allow an AI agent to connect (MCP).** OpenLogViewer can now host a
