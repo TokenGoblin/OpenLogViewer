@@ -1,4 +1,4 @@
-using OpenLogViewer.Core;
+﻿using OpenLogViewer.Core;
 using Xunit;
 
 namespace OpenLogViewer.Tests;
@@ -545,5 +545,105 @@ public class TuneInterfaceTests
 
         Assert.Equal("Warning: not enough channels", items[0].Label);
         Assert.Equal("Sequential Siamese Hybrid Mode", items[1].Label);
+    }
+
+    [Fact]
+    public void ADialogOfLiveReadingsHoldsNoSettings()
+    {
+        // rusEFI gives every runtime structure a dialog: engine_state,
+        // trigger_state0, fan_control0, wideband_state0. They hold an indicator
+        // panel and a live graph and nothing else, and offered as settings pages
+        // they open blank — 38 of that firmware's 147 did, until this.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = fan_control0, "fan_control0"
+                  panel = fan_control0IndicatorPanel
+                  liveGraph = fan_control0_1_Graph, "Graph", South
+            """);
+
+        Assert.False(ui.HasSettings("fan_control0"));
+    }
+
+    [Fact]
+    public void ADialogWithAFieldHoldsSettings()
+    {
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = idle, "Idle"
+                  field = "A/C RPM target", acIdleRpmTarget
+            """);
+
+        Assert.True(ui.HasSettings("idle"));
+    }
+
+    [Fact]
+    public void ASettingIsFoundThroughAnEmbeddedPanel()
+    {
+        // The common shape: an outer dialog that is nothing but panels.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = outer, "Outer"
+                  panel = decoration
+                  panel = inner
+               dialog = decoration, ""
+                  liveGraph = someGraph, "Graph", South
+               dialog = inner, "Inner"
+                  field = "Cranking RPM", crankingRPM
+            """);
+
+        Assert.True(ui.HasSettings("outer"));
+    }
+
+    [Fact]
+    public void AReadingIsEnoughToBeWorthOpening()
+    {
+        // displayOnlyField shows a real value against a real label, which is
+        // worth a page even though nothing on it can be typed into.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = summary, "Summary"
+                  displayOnlyField = "Required fuel", reqFuel
+            """);
+
+        Assert.True(ui.HasSettings("summary"));
+    }
+
+    [Fact]
+    public void APanelNamingACurveCountsWhenTheCallerSaysItIsOne()
+    {
+        // A dialog often exists only to hold a curve or a table — a Speeduino's
+        // "warmup", a rusEFI's "veTableDialog". Neither is a dialog, so without
+        // the predicate they look as empty as a status page, and dropping them
+        // would undo the fix that stopped warmup enrichment and injector dead
+        // time opening nothing at all.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = warmup, "Warmup enrichment"
+                  panel = warmup_curve
+            """);
+
+        Assert.False(ui.HasSettings("warmup"));
+        Assert.True(ui.HasSettings("warmup", n => n == "warmup_curve"));
+    }
+
+    [Fact]
+    public void ADialogThatEmbedsItselfDoesNotHang()
+    {
+        // A firmware is under no obligation not to do this.
+        TuneInterface ui = TuneInterfaceReader.Read("""
+            [UserDefined]
+               dialog = a, "A"
+                  panel = b
+               dialog = b, "B"
+                  panel = a
+            """);
+
+        Assert.False(ui.HasSettings("a"));
+    }
+
+    [Fact]
+    public void AnUnknownDialogHoldsNothing()
+    {
+        Assert.False(TuneInterfaceReader.Read("[UserDefined]").HasSettings("nope"));
     }
 }

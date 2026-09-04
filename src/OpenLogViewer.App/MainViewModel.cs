@@ -1784,7 +1784,11 @@ public sealed partial class MainViewModel : ObservableObject
                 // 23 of a MicroSquirt's 131 entries and 48 of an MS3's 246
                 // opening nothing — warmup enrichment, cranking pulsewidth,
                 // injector dead time, most of what a tuner actually changes.
-                bool isDialog = ui.Find(entry.Dialog) is not null;
+                // Only where the dialog actually holds settings. A firmware
+                // describes its runtime state in dialogs too, and those open
+                // blank — see TuneInterface.HasSettings.
+                bool isDialog = ui.HasSettings(
+                    entry.Dialog, n => _curveNames.Contains(n) || TableNamed(n) is not null);
 
                 // Only where a curve can actually be built from it. One naming a
                 // curve whose bins this build does not have would otherwise be

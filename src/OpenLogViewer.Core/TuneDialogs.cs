@@ -174,6 +174,50 @@ public sealed record TuneInterface
 
     public TuneDialog? Find(string name) =>
         name is not null && Dialogs.TryGetValue(name, out TuneDialog? dialog) ? dialog : null;
+
+    /// <summary>
+    /// Whether a dialog holds anything worth opening — a setting, a slider or a
+    /// reading — following the panels it embeds.
+    ///
+    /// <para>
+    /// A firmware describes more than its settings here. rusEFI gives every
+    /// runtime structure a dialog of its own — <c>engine_state</c>,
+    /// <c>trigger_state0</c>, <c>fan_control0</c>, <c>wideband_state0</c> — and
+    /// those hold only indicator panels and live graphs, never a field. Offered
+    /// as settings pages they open blank: 38 of that firmware's 147. This is the
+    /// same judgement already made for curves and tables, that a menu entry
+    /// which opens nothing is worse than no menu entry at all.
+    /// </para>
+    /// </summary>
+    /// <param name="showable">
+    /// Whether a panel target this does not know as a dialog is nonetheless
+    /// worth opening. A dialog frequently exists only to hold a curve or a
+    /// table — a Speeduino's <c>warmup</c>, a rusEFI's <c>veTableDialog</c> —
+    /// and neither of those is a dialog, so without this they look as empty as
+    /// a status page. Which names are curves and which are tables is known where
+    /// the tune is, not here.
+    /// </param>
+    public bool HasSettings(string name, Func<string, bool>? showable = null) =>
+        HasSettings(name, showable, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+    private bool HasSettings(string name, Func<string, bool>? showable, HashSet<string> seen)
+    {
+        // The visited set is not defensiveness: a panel may embed a dialog that
+        // embeds it back, and a firmware is under no obligation not to.
+        if (Find(name) is not { } dialog || !seen.Add(name)) return false;
+
+        foreach (DialogItem item in dialog.Items)
+        {
+            if (item.IsEditable || item.Kind is DialogItemKind.ReadOnlyField) return true;
+
+            if (item.Kind is not DialogItemKind.Panel) continue;
+
+            if (HasSettings(item.Target, showable, seen)) return true;
+            if (showable is not null && showable(item.Target)) return true;
+        }
+
+        return false;
+    }
 }
 
 /// <summary>Reads <c>[Menu]</c> and <c>[UserDefined]</c>.</summary>
