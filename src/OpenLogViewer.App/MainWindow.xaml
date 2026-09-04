@@ -190,6 +190,14 @@
             <MenuItem Header="_Help">
                 <MenuItem Header="How to use _this app" Click="OnGuideClick"
                           ToolTip="The guide, carried inside the application"/>
+                <!--
+                    In Help as well as under AI agent. Somebody wanting to connect
+                    Claude is looking for instructions, and instructions live in
+                    Help; the AI agent menu is where the switch is, which is a
+                    different question.
+                -->
+                <MenuItem Header="Connect an A_I agent (MCP)…" Click="OnAiHelpClick"
+                          ToolTip="How to arm the local MCP server and point Claude at it"/>
                 <Separator/>
                 <MenuItem Header="_Documentation online" Click="OnDocumentationClick"/>
                 <Separator/>

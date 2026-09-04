@@ -449,6 +449,79 @@ public static class Guide
                 + "firmware declares −10 to 90."),
         ]),
 
+        new("AI agent (MCP)",
+            "Let Claude, or another AI client, drive this application — and what it still cannot do without you.",
+        [
+            new("What this is",
+                "OpenLogViewer can host a local Model Context Protocol server, so an AI agent can "
+                + "open logs, build histograms, run the VE analysis, connect to a controller, read "
+                + "fault codes, read and edit the tune, and send changes to an ECU. It acts on this "
+                + "window: a table it opens appears on the Calibration tab, and a histogram it "
+                + "builds is the one on screen. Nothing happens in a second, invisible copy."),
+
+            new("Switch it on",
+                "AI agent ▸ Allow an AI agent to connect (MCP). It is off at every launch and never "
+                + "remembers being on — there is no setting that starts it armed, because a listener "
+                + "that survives a restart is one you can forget about. Unticking it, or closing the "
+                + "application, stops it immediately."),
+
+            new("Knowing whether anything is attached",
+                "The status bar and the window title carry three states. Nothing at all means no "
+                + "listener. A hollow circle with 127.0.0.1:7071 means it is listening and nobody is "
+                + "there. A filled amber dot means an agent is actually talking to it — amber because "
+                + "that is the one worth noticing across the room. Armed and connected are kept "
+                + "separate deliberately: saying an AI is connected when none is would make the "
+                + "indicator worth ignoring."),
+
+            new("Connect Claude Code",
+                "With the server armed, run: claude mcp add --transport http openlogviewer "
+                + "http://127.0.0.1:7071/ — then start Claude Code in any folder and ask it to look "
+                + "at the log or the tune. The application has to be running and armed first; there "
+                + "is nothing for the agent to launch."),
+
+            new("Connect Claude Desktop",
+                "Edit claude_desktop_config.json and add an entry under mcpServers named "
+                + "openlogviewer, whose url is http://127.0.0.1:7071/ — then restart Claude Desktop. "
+                + "Same rule: arm the server before the client goes looking for it."),
+
+            new("It only listens to this machine",
+                "The server binds 127.0.0.1 and nothing else, armed or not, so nothing off this "
+                + "computer can reach it. There is a test that reads the source to keep it that way. "
+                + "Your logs and your tune are not sent anywhere by arming it."),
+
+            new("Nothing is written without you",
+                "Every write and every burn still asks, in this window, before the first byte goes "
+                + "out. An agent that calls a write tool waits — the call does not return until "
+                + "somebody answers the dialog, however long that takes. The question a burn asks, "
+                + "whether the engine is stopped, is never offered to an agent at all: nothing in "
+                + "software can see whether an engine is running, and neither can an AI."),
+
+            new("What an agent can never do",
+                "Restore a saved tune to a controller — that stays Tools ▸ Restore a saved tune to "
+                + "the ECU, done by a person. Clear fault codes, because erasing them takes the "
+                + "freeze frame with it and resets the readiness monitors. Attach to a port by "
+                + "scanning for one, because a MicroSquirt in a running car and a Speeduino on a "
+                + "bench look identical over a COM port, and choosing between them is not a decision "
+                + "to make on somebody's behalf."),
+
+            new("Ask for an overview",
+                "AI agent ▸ Overview shows what a connected agent found in the open tune and log, "
+                + "with each proposed change as a checkbox you tick or leave. The agent reads back "
+                + "only what you ticked. If nothing is connected yet, the button there copies a "
+                + "ready-made prompt to the clipboard for you to paste into a chat."),
+
+            new("If it will not connect",
+                "A client reporting ConnectionRefused when the server is not armed is the design "
+                + "working, not a fault. If arming itself fails, the usual reason is a second copy of "
+                + "this application already holding port 7071 — hover the menu item for the full "
+                + "status line, which says why."),
+
+            new("Arm it for a scripted run",
+                "--mcp on the command line arms the server at startup. That is not a setting and not "
+                + "persistence: it is typed afresh every launch, which is the same act as ticking the "
+                + "menu item."),
+        ]),
+
         new("Fault codes",
             "Reading and clearing what a car is complaining about.",
         [

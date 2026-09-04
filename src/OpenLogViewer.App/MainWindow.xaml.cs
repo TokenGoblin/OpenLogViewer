@@ -458,6 +458,16 @@ public partial class MainWindow : Window
         Launch("https://github.com/TokenGoblin/OpenLogViewer#readme");
 
     /// <summary>
+    /// Opens the guide at the section on connecting an AI agent.
+    ///
+    /// The guide rather than a message box, and offline rather than a link: the
+    /// instructions include a command to type and a config file to edit, and
+    /// somebody reading them is at a laptop in a garage as often as at a desk.
+    /// It is the same reasoning that put the manual inside the application.
+    /// </summary>
+    private void OnAiHelpClick(object sender, RoutedEventArgs e) => ShowGuide("AI agent");
+
+    /// <summary>
     /// Arms or disarms the local MCP server.
     ///
     /// <para>
