@@ -1,0 +1,882 @@
+# rusEFI master.2024.11.17.uaefi.2834573262
+# from rusEFImaster.2024.11.17.uaefi.2834573262.ini: every output channel the firmware publishes, by field name.
+sd_present	
+sd_logging_internal	
+triggerScopeReady	
+antilagTriggered	
+isFanOn	
+isO2HeaterOn	
+checkEngine	
+needBurn	
+sd_msd	
+isFan2On	
+toothLogReady	
+isTpsError	
+isCltError	
+isMapError	
+isIatError	
+isTriggerError	
+hasCriticalError	
+isWarnNow	
+isPedalError	
+isKnockChipOk	
+launchTriggered	
+isTps2Error	
+injectorFault	
+ignitionFault	
+isMainRelayOn	
+isUsbConnected	
+dfcoActive	
+sd_active_wr	
+sd_active_rd	
+isMapValid	
+RPMValue	RPM
+rpmAcceleration	RPM acceleration/Rate of Change/ROC
+speedToRpmRatio	value
+unusedVehicleSpeedKph	kph
+internalMcuTemperature	deg C
+coolant	deg C
+intake	deg C
+auxTemp1	deg C
+auxTemp2	deg C
+TPSValue	%
+throttlePedalPosition	%
+tpsADC	ADC
+rawMaf	V
+mafMeasured	kg/h
+MAPValue	kPa
+baroPressure	kPa
+lambdaValue	
+VBatt	V
+oilPressure	kPa
+vvtPositionB1I	deg
+actualLastInjection	ms
+injectorDutyCycle	%
+tempLogging1	
+injectionOffset	deg
+engineMakeCodeNameCrc16	crc16
+wallFuelAmount	mg
+wallFuelCorrectionValue	mg
+revolutionCounterSinceStart	
+canReadCounter	
+tpsAccelFuel	ms
+currentIgnitionMode	
+currentInjectionMode	
+coilDutyCycle	%
+etbTarget	%
+etb1DutyCycle	%
+fuelTankLevel	%
+totalFuelConsumption	grams
+fuelFlowRate	gram/s
+TPS2Value	%
+tuneCrc16	crc16
+veValue	ratio
+seconds	sec
+engineMode	em
+firmwareVersion	version_f
+rawIdlePositionSensor	V
+rawWastegatePosition	V
+accelerationLat	G
+accelerationLon	G
+detectedGear	
+maxTriggerReentrant	
+rawLowFuelPressure	V
+rawHighFuelPressure	V
+lowFuelPressure	kpa
+tcuDesiredGear	gear
+flexPercent	%
+wastegatePositionSensor	%
+highFuelPressure	bar
+tempLogging3	
+tempLogging4	
+calibrationValue	
+calibrationMode	
+idleStepperTargetPosition	
+tsConfigVersion	
+totalTriggerErrorCounter	counter
+orderingErrorCounter	
+warningCounter	count
+lastErrorCode	error
+recentErrorCode1	error
+recentErrorCode2	error
+recentErrorCode3	error
+recentErrorCode4	error
+recentErrorCode5	error
+recentErrorCode6	error
+recentErrorCode7	error
+recentErrorCode8	error
+debugFloatField1	val
+debugFloatField2	val
+debugFloatField3	val
+debugFloatField4	val
+debugFloatField5	val
+debugFloatField6	val
+debugFloatField7	val
+debugIntField1	val
+debugIntField2	val
+debugIntField3	val
+debugIntField4	val
+debugIntField5	val
+egt1	deg C
+egt2	deg C
+egt3	deg C
+egt4	deg C
+egt5	deg C
+egt6	deg C
+egt7	deg C
+egt8	deg C
+rawTps1Primary	V
+rawClt	V
+rawIat	V
+rawOilPressure	V
+rawAcPressure	V
+fuelClosedLoopBinIdx	
+rawPpsPrimary	V
+rawPpsSecondary	V
+rawRawPpsPrimary	V
+rawRawPpsSecondary	V
+idlePositionSensor	%
+AFRValue	AFR
+VssAcceleration	m/s2
+lambdaValue2	
+AFRValue2	AFR
+vvtPositionB1E	deg
+vvtPositionB2I	deg
+vvtPositionB2E	deg
+fuelPidCorrection1	%
+fuelPidCorrection2	%
+rawTps1Secondary	V
+rawTps2Primary	V
+rawTps2Secondary	V
+accelerationVert	G
+gyroYaw	deg/sec
+vvtTargets1	deg
+vvtTargets2	deg
+vvtTargets3	deg
+vvtTargets4	deg
+turboSpeed	hz
+ignitionAdvanceCyl1	deg
+ignitionAdvanceCyl2	deg
+ignitionAdvanceCyl3	deg
+ignitionAdvanceCyl4	deg
+ignitionAdvanceCyl5	deg
+ignitionAdvanceCyl6	deg
+ignitionAdvanceCyl7	deg
+ignitionAdvanceCyl8	deg
+ignitionAdvanceCyl9	deg
+ignitionAdvanceCyl10	deg
+ignitionAdvanceCyl11	deg
+ignitionAdvanceCyl12	deg
+tps1Split	%
+tps2Split	%
+tps12Split	%
+accPedalSplit	%
+sparkCutReason	code
+fuelCutReason	code
+mafEstimate	kg/h
+instantRpm	rpm
+rawMap	V
+rawAfr	V
+calibrationValue2	
+luaInvocationCounter	count
+luaLastCycleDuration	nt
+vssEdgeCounter	
+issEdgeCounter	
+auxLinear1	
+auxLinear2	
+auxLinear3	
+auxLinear4	
+fallbackMap	kPa
+instantMAPValue	kPa
+maxLockedDuration	us
+canWriteOk	
+canWriteNotOk	
+triggerPrimaryFall	
+triggerPrimaryRise	
+triggerSecondaryFall	
+triggerSecondaryRise	
+triggerVvtFall	
+triggerVvtRise	
+triggerVvt2Fall	
+triggerVvt2Rise	
+starterState	
+starterRelayDisable	
+multiSparkCounter	
+extiOverflowCount	
+alternatorStatus_pTerm	
+alternatorStatus_iTerm	
+alternatorStatus_dTerm	
+alternatorStatus_output	
+alternatorStatus_error	
+alternatorStatus_resetCounter	
+idleStatus_pTerm	
+idleStatus_iTerm	
+idleStatus_dTerm	
+idleStatus_output	
+idleStatus_error	
+idleStatus_resetCounter	
+etbStatus_pTerm	
+etbStatus_iTerm	
+etbStatus_dTerm	
+etbStatus_output	
+etbStatus_error	
+etbStatus_resetCounter	
+boostStatus_pTerm	
+boostStatus_iTerm	
+boostStatus_dTerm	
+boostStatus_output	
+boostStatus_error	
+boostStatus_resetCounter	
+wastegateDcStatus_pTerm	
+wastegateDcStatus_iTerm	
+wastegateDcStatus_dTerm	
+wastegateDcStatus_output	
+wastegateDcStatus_error	
+wastegateDcStatus_resetCounter	
+vvtStatus1_pTerm	
+vvtStatus1_iTerm	
+vvtStatus1_dTerm	
+vvtStatus1_output	
+vvtStatus1_error	
+vvtStatus1_resetCounter	
+vvtStatus2_pTerm	
+vvtStatus2_iTerm	
+vvtStatus2_dTerm	
+vvtStatus2_output	
+vvtStatus2_error	
+vvtStatus2_resetCounter	
+vvtStatus3_pTerm	
+vvtStatus3_iTerm	
+vvtStatus3_dTerm	
+vvtStatus3_output	
+vvtStatus3_error	
+vvtStatus3_resetCounter	
+vvtStatus4_pTerm	
+vvtStatus4_iTerm	
+vvtStatus4_dTerm	
+vvtStatus4_output	
+vvtStatus4_error	
+vvtStatus4_resetCounter	
+auxSpeed1	s
+auxSpeed2	s
+ISSValue	RPM
+rawAnalogInput1	V
+rawAnalogInput2	V
+rawAnalogInput3	V
+rawAnalogInput4	V
+rawAnalogInput5	V
+rawAnalogInput6	V
+rawAnalogInput7	V
+rawAnalogInput8	V
+gppwmOutput1	%
+gppwmOutput2	%
+gppwmOutput3	%
+gppwmOutput4	%
+gppwmXAxis1	
+gppwmXAxis2	
+gppwmXAxis3	
+gppwmXAxis4	
+gppwmYAxis1	
+gppwmYAxis2	
+gppwmYAxis3	
+gppwmYAxis4	
+rawBattery	V
+ignBlendParameter1	
+ignBlendParameter2	
+ignBlendParameter3	
+ignBlendParameter4	
+ignBlendBias1	%
+ignBlendBias2	%
+ignBlendBias3	%
+ignBlendBias4	%
+ignBlendOutput1	deg
+ignBlendOutput2	deg
+ignBlendOutput3	deg
+ignBlendOutput4	deg
+veBlendParameter1	
+veBlendParameter2	
+veBlendParameter3	
+veBlendParameter4	
+veBlendBias1	%
+veBlendBias2	%
+veBlendBias3	%
+veBlendBias4	%
+veBlendOutput1	%
+veBlendOutput2	%
+veBlendOutput3	%
+veBlendOutput4	%
+boostOpenLoopBlendParameter1	
+boostOpenLoopBlendParameter2	
+boostOpenLoopBlendBias1	%
+boostOpenLoopBlendBias2	%
+boostOpenLoopBlendOutput1	%
+boostOpenLoopBlendOutput2	%
+boostClosedLoopBlendParameter1	
+boostClosedLoopBlendParameter2	
+boostClosedLoopBlendBias1	%
+boostClosedLoopBlendBias2	%
+boostClosedLoopBlendOutput1	%
+boostClosedLoopBlendOutput2	%
+coilState1	
+coilState2	
+coilState3	
+coilState4	
+coilState5	
+coilState6	
+coilState7	
+coilState8	
+coilState9	
+coilState10	
+coilState11	
+coilState12	
+injectorState1	
+injectorState2	
+injectorState3	
+injectorState4	
+injectorState5	
+injectorState6	
+injectorState7	
+injectorState8	
+injectorState9	
+injectorState10	
+injectorState11	
+injectorState12	
+triggerChannel1	
+triggerChannel2	
+vvtChannel1	
+vvtChannel2	
+vvtChannel3	
+vvtChannel4	
+outputRequestPeriod	
+mapFast	
+luaGauges1	value
+luaGauges2	value
+luaGauges3	value
+luaGauges4	value
+luaGauges5	value
+luaGauges6	value
+luaGauges7	value
+luaGauges8	value
+rawMaf2	V
+mafMeasured2	kg/h
+schedulingUsedCount	
+vehicleSpeedKph	kph
+Gego	%
+testBenchIter	count
+oilTemp	deg C
+fuelTemp	deg C
+ambientTemp	deg C
+compressorDischargeTemp	deg C
+compressorDischargePressure	kPa
+throttleInletPressure	kPa
+ignitionOnTime	sec
+engineRunTime	sec
+distanceTraveled	km
+afrGasolineScale	AFR
+afr2GasolineScale	AFR
+wheelSlipRatio	
+ignitorDiagnostic1	
+ignitorDiagnostic2	
+ignitorDiagnostic3	
+ignitorDiagnostic4	
+ignitorDiagnostic5	
+ignitorDiagnostic6	
+ignitorDiagnostic7	
+ignitorDiagnostic8	
+ignitorDiagnostic9	
+ignitorDiagnostic10	
+ignitorDiagnostic11	
+ignitorDiagnostic12	
+injectorDiagnostic1	
+injectorDiagnostic2	
+injectorDiagnostic3	
+injectorDiagnostic4	
+injectorDiagnostic5	
+injectorDiagnostic6	
+injectorDiagnostic7	
+injectorDiagnostic8	
+injectorDiagnostic9	
+injectorDiagnostic10	
+injectorDiagnostic11	
+injectorDiagnostic12	
+actualLastInjectionStage2	ms
+injectorDutyCycleStage2	%
+unusedByteHere	
+fastAdcErrorsCount	
+deviceUid	
+mc33810spiErrorCounter	
+sadDwellRatioCounter	
+injectionPrimingCounter	
+tempLogging2	
+acPressure	kPa
+rawAuxAnalog1	V
+rawAuxAnalog2	V
+rawAuxAnalog3	V
+rawAuxAnalog4	V
+fastAdcErrorCallbackCount	
+slowAdcErrorsCount	
+rawAuxTemp1	V
+rawAuxTemp2	V
+rawAmbientTemp	V
+rtcUnixEpochTime	
+sparkCutReasonBlinker	
+fuelCutReasonBlinker	
+unusedAtTheEnd1	
+unusedAtTheEnd2	
+unusedAtTheEnd3	
+unusedAtTheEnd4	
+unusedAtTheEnd5	
+unusedAtTheEnd6	
+unusedAtTheEnd7	
+unusedAtTheEnd8	
+unusedAtTheEnd9	
+unusedAtTheEnd10	
+unusedAtTheEnd11	
+unusedAtTheEnd12	
+unusedAtTheEnd13	
+unusedAtTheEnd14	
+unusedAtTheEnd15	
+unusedAtTheEnd16	
+unusedAtTheEnd17	
+unusedAtTheEnd18	
+unusedAtTheEnd19	
+unusedAtTheEnd20	
+unusedAtTheEnd21	
+unusedAtTheEnd22	
+unusedAtTheEnd23	
+unusedAtTheEnd24	
+unusedAtTheEnd25	
+unusedAtTheEnd26	
+unusedAtTheEnd27	
+unusedAtTheEnd28	
+unusedAtTheEnd29	
+unusedAtTheEnd30	
+unusedAtTheEnd31	
+unusedAtTheEnd32	
+unusedAtTheEnd33	
+unusedAtTheEnd34	
+unusedAtTheEnd35	
+unusedAtTheEnd36	
+unusedAtTheEnd37	
+unusedAtTheEnd38	
+unusedAtTheEnd39	
+unusedAtTheEnd40	
+unusedAtTheEnd41	
+unusedAtTheEnd42	
+unusedAtTheEnd43	
+unusedAtTheEnd44	
+unusedAtTheEnd45	
+unusedAtTheEnd46	
+unusedAtTheEnd47	
+unusedAtTheEnd48	
+unusedAtTheEnd49	
+unusedAtTheEnd50	
+unusedAtTheEnd51	
+unusedAtTheEnd52	
+totalFuelCorrection	mult
+running_postCrankingFuelCorrection	
+running_intakeTemperatureCoefficient	
+running_coolantTemperatureCoefficient	
+running_timeSinceCrankingInSecs	secs
+running_baseFuel	mg
+running_fuel	mg
+afrTableYAxis	%
+targetLambda	
+targetAFR	ratio
+stoichiometricRatio	ratio
+sdTcharge_coff	
+sdAirMassInOneCylinder	g
+normalizedCylinderFilling	%
+brokenInjector	
+unused88	
+idealEngineTorque	
+injectorHwIssue	
+baseDwell	ms
+sparkDwell	ms
+dwellDurationAngle	deg
+cltTimingCorrection	deg
+timingIatCorrection	deg
+timingPidCorrection	deg
+baseIgnitionAdvance	deg
+correctedIgnitionAdvance	deg
+tractionAdvanceDrop	deg
+dwellVoltageCorrection	
+luaTimingAdd	deg
+luaTimingMult	deg
+luaIgnitionSkip	
+m_knockLevel	Volts
+m_knockCyl1	dBv
+m_knockCyl2	dBv
+m_knockCyl3	dBv
+m_knockCyl4	dBv
+m_knockCyl5	dBv
+m_knockCyl6	dBv
+m_knockCyl7	dBv
+m_knockCyl8	dBv
+m_knockCyl9	dBv
+m_knockCyl10	dBv
+m_knockCyl11	dBv
+m_knockCyl12	dBv
+m_knockRetard	deg
+m_knockThreshold	
+m_knockCount	
+m_maximumRetard	
+m_knockSpectrum1	compressed data
+m_knockSpectrum2	compressed data
+m_knockSpectrum3	compressed data
+m_knockSpectrum4	compressed data
+m_knockSpectrum5	compressed data
+m_knockSpectrum6	compressed data
+m_knockSpectrum7	compressed data
+m_knockSpectrum8	compressed data
+m_knockSpectrum9	compressed data
+m_knockSpectrum10	compressed data
+m_knockSpectrum11	compressed data
+m_knockSpectrum12	compressed data
+m_knockSpectrum13	compressed data
+m_knockSpectrum14	compressed data
+m_knockSpectrum15	compressed data
+m_knockSpectrum16	compressed data
+m_knockSpectrumChannelCyl	compressed N + N
+m_knockFrequencyStart	Hz
+m_knockFrequencyStep	Hz
+m_knockFuelTrimMultiplier	multiplier
+tcuCurrentGear	gear
+tcRatio	value
+lastShiftTime	
+tcu_currentRange	
+pressureControlDuty	%
+torqueConverterDuty	%
+isShifting	
+throttleUseWotModel	
+throttleModelCrossoverAngle	%
+throttleEstimatedFlow	g/s
+m_requested_pump	
+fuel_requested_percent	
+fuel_requested_percent_pi	
+noValve	
+angleAboveMin	
+isHpfpInactive	
+m_pressureTarget_kPa	
+nextLobe	
+di_nextStart	v
+m_deadtime	ms
+pressureDelta	kPa
+pressureRatio	
+retardThresholdRpm	
+launchActivatePinState	
+isPreLaunchCondition	
+isLaunchCondition	
+isSwitchActivated	
+isClutchActivated	
+isBrakePedalActivated	
+isValidInputPin	
+activateSwitchCondition	
+rpmLaunchCondition	
+rpmPreLaunchCondition	
+speedCondition	
+tpsCondition	
+isTorqueReductionTriggerPinValid	
+torqueReductionTriggerPinState	
+isTimeConditionSatisfied	
+isRpmConditionSatisfied	
+isAppConditionSatisfied	
+isFlatShiftConditionSatisfied	
+isAntilagCondition	
+ALSMinRPMCondition	
+ALSMaxRPMCondition	
+ALSMinCLTCondition	
+ALSMaxCLTCondition	
+ALSMaxThrottleIntentCondition	
+isALSSwitchActivated	
+ALSActivatePinState	
+ALSSwitchCondition	
+ALSTimerCondition	
+fuelALSCorrection	
+timingALSCorrection	deg
+timingALSSkip	deg
+isTpsInvalid	
+m_shouldResetPid	
+isBelowClosedLoopThreshold	
+isNotClosedLoop	
+isZeroRpm	
+hasInitBoost	
+rpmTooLow	
+tpsTooLow	
+mapTooLow	
+isPlantValid	
+isBoostControlled	
+luaTargetAdd	v
+boostOutput	percent
+luaTargetMult	v
+openLoopPart	v
+luaOpenLoopAdd	v
+boostControllerClosedLoopPart	%
+boostControlTarget	kPa
+acButtonState	
+m_acEnabled	
+engineTooSlow	
+engineTooFast	
+noClt	
+engineTooHot	
+tpsTooHigh	
+isDisabledByLua	
+acCompressorState	
+acPressureTooLow	
+acPressureTooHigh	
+cranking0	
+notRunning0	
+disabledWhileEngineStopped0	
+brokenClt0	
+enabledForAc0	
+hot0	
+cold0	
+disabledBySpeed0	
+radiatorFanStatus0	
+cranking1	
+notRunning1	
+disabledWhileEngineStopped1	
+brokenClt1	
+enabledForAc1	
+hot1	
+cold1	
+disabledBySpeed1	
+radiatorFanStatus1	
+isPrime	
+engineTurnedRecently	
+isFuelPumpOn	
+ignitionOn	
+isBenchTest	
+hasIgnitionVoltage	
+mainRelayState	
+delayedShutoffRequested	
+lua_fuelAdd	g
+lua_fuelMult	
+lua_clutchUpState	
+lua_brakePedalState	
+lua_acRequestState	
+lua_luaDisableEtb	
+lua_luaIgnCut	
+lua_luaFuelCut	
+lua_clutchDownState	
+lua_disableDecelerationFuelCutOff	
+sd_tCharge	deg C
+sd_tChargeK	
+crankingFuel_coolantTemperatureCoefficient	
+crankingFuel_tpsCoefficient	
+crankingFuel_durationCoefficient	
+crankingFuel_fuel	mg
+baroCorrection	
+hellenBoardId	id
+clutchUpState	
+clutchDownState	
+brakePedalState	
+startStopState	
+smartChipState	
+smartChipRestartCounter	
+smartChipAliveCounter	
+startStopPhysicalState	
+acrActive	
+acrEngineMovedRecently	
+heaterControlEnabled	
+luaDigitalState0	
+luaDigitalState1	
+luaDigitalState2	
+luaDigitalState3	
+startStopStateToggleCounter	
+luaSoftSparkSkip	
+luaHardSparkSkip	
+tractionControlSparkSkip	
+desiredRpmLimit	rpm
+fuelInjectionCounter	
+globalSparkCounter	
+fuelingLoad	
+ignitionLoad	
+veTableYAxis	%
+overDwellCounter	
+overDwellNotScheduledCounter	
+sparkOutOfOrderCounter	
+tpsFrom	
+tpsTo	
+deltaTps	
+extraFuel	
+valueFromTable	
+isAboveAccelThreshold	
+isBelowDecelThreshold	
+isTimeToResetAccumulator	
+isFractionalEnrichment	
+belowEpsilon	
+tooShort	
+fractionalInjFuel	
+accumulatedValue	
+maxExtraPerCycle	
+maxExtraPerPeriod	
+maxInjectedPerPeriod	
+cycleCnt	
+hwEventCounters1	
+hwEventCounters2	
+hwEventCounters3	
+hwEventCounters4	
+hwEventCounters5	
+hwEventCounters6	
+vvtCamCounter	
+mapVvt_MAP_AT_SPECIAL_POINT	kPa
+mapVvt_MAP_AT_DIFF	kPa
+mapVvt_MAP_AT_CYCLE_COUNT	distance
+mapVvt_sync_counter	counter
+currentEngineDecodedPhase	deg
+triggerToothAngleError	deg
+triggerIgnoredToothCount	
+mapCamPrevToothAngle	deg
+isDecodingMapCam	
+triggerElapsedUs	
+crankSynchronizationCounter0	
+vvtSyncGapRatio0	
+vvtToothDurations00	us
+vvtCurrentPosition0	sync: Primary Cam Position
+vvtToothPosition10	sync: Cam Tooth Position
+vvtToothPosition20	sync: Cam Tooth Position
+vvtToothPosition30	sync: Cam Tooth Position
+vvtToothPosition40	sync: Cam Tooth Position
+triggerSyncGapRatio0	
+triggerStateIndex0	
+vvtStateIndex0	
+crankSynchronizationCounter1	
+vvtSyncGapRatio1	
+vvtToothDurations01	us
+vvtCurrentPosition1	sync: Primary Cam Position
+vvtToothPosition11	sync: Cam Tooth Position
+vvtToothPosition21	sync: Cam Tooth Position
+vvtToothPosition31	sync: Cam Tooth Position
+vvtToothPosition41	sync: Cam Tooth Position
+triggerSyncGapRatio1	
+triggerStateIndex1	
+vvtStateIndex1	
+crankSynchronizationCounter2	
+vvtSyncGapRatio2	
+vvtToothDurations02	us
+vvtCurrentPosition2	sync: Primary Cam Position
+vvtToothPosition12	sync: Cam Tooth Position
+vvtToothPosition22	sync: Cam Tooth Position
+vvtToothPosition32	sync: Cam Tooth Position
+vvtToothPosition42	sync: Cam Tooth Position
+triggerSyncGapRatio2	
+triggerStateIndex2	
+vvtStateIndex2	
+crankSynchronizationCounter3	
+vvtSyncGapRatio3	
+vvtToothDurations03	us
+vvtCurrentPosition3	sync: Primary Cam Position
+vvtToothPosition13	sync: Cam Tooth Position
+vvtToothPosition23	sync: Cam Tooth Position
+vvtToothPosition33	sync: Cam Tooth Position
+vvtToothPosition43	sync: Cam Tooth Position
+triggerSyncGapRatio3	
+triggerStateIndex3	
+vvtStateIndex3	
+crankSynchronizationCounter4	
+vvtSyncGapRatio4	
+vvtToothDurations04	us
+vvtCurrentPosition4	sync: Primary Cam Position
+vvtToothPosition14	sync: Cam Tooth Position
+vvtToothPosition24	sync: Cam Tooth Position
+vvtToothPosition34	sync: Cam Tooth Position
+vvtToothPosition44	sync: Cam Tooth Position
+triggerSyncGapRatio4	
+triggerStateIndex4	
+vvtStateIndex4	
+camResyncCounter	
+m_hasSynchronizedPhase	
+wallFuelCorrection	
+wallFuel	
+idleState	
+currentIdlePosition	
+baseIdlePosition	
+idleClosedLoop	
+iacByTpsTaper	
+throttlePedalUpState	
+mightResetPid	
+shouldResetPid	
+wasResetPid	
+mustResetPid	
+isCranking	
+isIacTableForCoasting	
+notIdling	
+needReset	
+isInDeadZone	
+isBlipping	
+useClosedLoop	
+badTps	
+looksLikeRunning	
+looksLikeCoasting	
+looksLikeCrankToIdle	
+isIdleCoasting	
+isIdleClosedLoop	
+idleTarget	
+targetRpmByClt	
+targetRpmAc	
+iacByRpmTaper	
+luaAdd	
+targetWithIdlePosition0	per
+trim0	
+luaAdjustment0	per
+m_wastegatePosition0	per
+etbFeedForward0	
+etbIntegralError0	
+etbCurrentTarget0	%
+etbCurrentAdjustedTarget0	%
+etbRevLimitActive0	
+jamDetected0	
+validPlantPosition0	
+etbTpsErrorCounter0	count
+etbPpsErrorCounter0	count
+etbErrorCode0	
+etbErrorCodeBlinker0	
+tcEtbDrop0	%
+jamTimer0	sec
+adjustedEtbTarget0	%
+state0	
+targetWithIdlePosition1	per
+trim1	
+luaAdjustment1	per
+m_wastegatePosition1	per
+etbFeedForward1	
+etbIntegralError1	
+etbCurrentTarget1	%
+etbCurrentAdjustedTarget1	%
+etbRevLimitActive1	
+jamDetected1	
+validPlantPosition1	
+etbTpsErrorCounter1	count
+etbPpsErrorCounter1	count
+etbErrorCode1	
+etbErrorCodeBlinker1	
+tcEtbDrop1	%
+jamTimer1	sec
+adjustedEtbTarget1	%
+state1	
+faultCode0	
+heaterDuty0	%
+pumpDuty0	%
+tempC0	C
+nernstVoltage0	V
+esr0	ohm
+faultCode1	
+heaterDuty1	%
+pumpDuty1	%
+tempC1	C
+nernstVoltage1	V
+esr1	ohm
+dcOutput0	per
+isEnabled0_int	per
+isEnabled0	
+value0	value
+value1	value
+errorRate	ratio
+vvtTarget	deg
+vvtOutput	%
+lambdaCurrentlyGood	
+lambdaMonitorCut	
+lambdaTimeSinceGood	sec
+scatteredGetEnabled	
+egoCorrectionForVeAnalyze	

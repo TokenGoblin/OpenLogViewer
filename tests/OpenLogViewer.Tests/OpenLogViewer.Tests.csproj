@@ -18,6 +18,14 @@
     <!-- Real bytes off a MaxxECU Race, so the frame reader is checked against a
          recording rather than against a fake of my own making. -->
     <None Include="Fixtures\*.bin" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The channel lists of the firmwares to hand, name and declared units, so
+         the roles can be checked against what a controller really publishes
+         rather than against names invented here. ".channels" holds the output
+         channel field names, ".logged" the datalog labels a log carries; the
+         "-bench" ones were written over the wire from the boards themselves. -->
+    <None Include="Fixtures\*.channels" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\*.logged" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

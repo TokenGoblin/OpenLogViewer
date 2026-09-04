@@ -1,0 +1,98 @@
+# MS2Extra comms342h2
+# from MS2Extracomms342h2.ini: the datalog labels, which are the names a live session and a recorded log carry.
+SecL	s
+RPM	RPM
+MAP	kPa
+Boost psi	
+TPS	%
+MAF	g/sec
+MAFload	kPa
+AFR	AFR
+AFR2	AFR
+MAT	°F
+CLT	°F
+Engine	bit
+Batt V	v
+EGO cor1	%
+EGO cor2	%
+Fuel: Air cor	%
+Fuel: Warmup cor	%
+Fuel: Baro cor	%
+Fuel: Total cor	%
+Accel PW	ms
+VE1	%
+PW	ms
+VE2	%
+PW2	ms
+SPK: Spark Advance	deg
+SPK: Knock retard	deg
+SPK: Cold advance	deg
+SPK: External advance	deg
+SPK: Base Spark Advance	deg
+SPK: Idle Correction Advance	deg
+SPK: MAT Retard	deg
+SPK: Flex Advance	deg
+SPK: Spark Table 1	deg
+SPK: Spark Table 2	deg
+SPK: Spark Table 3	deg
+SPK: Revlim Retard	deg
+SPK: Nitrous Retard	deg
+Dwell	ms
+Barometer	kPa
+TPSdot	
+MAPdot	
+RPMdot	rpm/sec
+Stepper Idle Position	
+PWM Idle Duty	
+Boost Duty	%
+Boost Target	kPa
+Ethanol Percentage	%
+E85 Fuel Correction	%
+WallFuel1	uS
+WallFuel2	uS
+EAE1 %	%
+EAE2 %	%
+Load	
+Secondary Load	
+Ign load	
+Secondary Ign Load	
+EAE Load	
+AFR Load	
+EGT 6 temp	
+EGT 7 temp	
+ADC6	
+ADC7	
+gpioadc0	
+gpioadc1	
+gpioadc2	
+gpioadc3	
+gpioadc4	
+gpioadc5	
+gpioadc6	
+gpioadc7	
+status1	
+status2	
+status3	
+status4	
+status5	
+Closed-Loop Idle Target RPM	rpm
+Closed-Loop Idle RPM Error	rpm
+Timing Err%	%
+AFR Target 1	AFR
+Lost Sync Count	
+Lost Sync Reason	
+InjTiming1	deg
+InjTiming2	deg
+PW3	ms
+PW4	ms
+VE Trim 1	%
+VE Trim 2	%
+VE Trim 3	%
+VE Trim 4	%
+Knock In	%
+On/Off Outputs Status Bits	bit
+PORTs BDE	
+PORTs AM	
+PORT T	
+CAN error bits	
+CAN error count	

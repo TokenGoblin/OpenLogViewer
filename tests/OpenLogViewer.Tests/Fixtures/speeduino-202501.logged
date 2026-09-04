@@ -1,0 +1,83 @@
+# speeduino 202501
+# from speeduino202501.ini: the datalog labels, which are the names a live session and a recorded log carry.
+SecL	sec
+RPM	rpm
+MAP	kpa
+MAPxRPM	
+TPS	%
+AFR	O2
+IAT	
+CLT	
+Engine	bits
+DFCO	
+Gego	%
+Gair	%
+Gwarm	%
+Gbaro	%
+Gammae	%
+Accel Enrich	%
+VE (Current)	%
+VE1	%
+VE2	%
+PW	ms
+PW2	ms
+PW3	ms
+PW4	ms
+AFR Target	O2
+TPS DOT	%/s
+Advance (Current)	deg
+Dwell	ms
+Dwell (Measured)	ms
+Battery V	V
+rpm/s	rpm/s
+Eth %	%
+GflexFuel	%
+Fuel Temp	
+GfuelTemp	%
+Error #	
+Error ID	
+Boost PSI	
+Boost Target	kPa
+Boost Duty	%
+Boost Flex Adjust	kPa
+Boost cut	
+Hard Launch	
+Hard Limiter	
+Idle Control	
+IAC value	
+Idle Target RPM	RPM
+Idle RPM Delta	
+Baro Pressure	kpa
+Nitrous	
+Fan	
+Sync Loss #	
+VVT1 Angle	deg
+VVT1 Target Angle	deg
+VVT1 Duty	%
+Wheel Speed (kph)	km/h
+Wheel Speed (mph)	
+Gear	
+Fuel Pressure	PSI
+Oil Pressure	PSI
+VVT2 Angle	deg
+VVT2 Target Angle	deg
+VVT2 Duty	%
+FAN Duty	%
+Loops/s	loops
+Loops/rev	
+WMI Duty Cycle	%
+MAP DOT	kPa/s
+Advance 1	deg
+Advance 2	deg
+EMAP	kpa
+FuelLoad	
+IgnitionLoad	
+Engine Prot. RPM	
+Engine Prot. MAP	
+Engine Prot. Oil Pressure	
+Engine Prot. AFR	
+Engine Prot. CLT	
+Fuel Staging	
+Current Knock Events	
+Knkock Retard	deg
+Knock Detected	

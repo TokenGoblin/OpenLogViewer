@@ -1,0 +1,825 @@
+# rusEFI master.2024.11.17.uaefi.2834573262
+# from rusEFImaster.2024.11.17.uaefi.2834573262.ini: the datalog labels, which are the names a live session and a recorded log carry.
+SD: Present	
+SD: Logging	
+triggerScopeReady	
+antilagTriggered	
+Radiator Fan	
+isO2HeaterOn	
+checkEngine	
+needBurn	
+SD: MSD	
+Radiator Fan 2	
+Tooth Logger Ready	
+Error: TPS	
+Error: CLT	
+Error: MAP	
+Error: IAT	
+Error: Trigger	
+Error: Active	
+Warning: Active	
+Error: Pedal	
+isKnockChipOk	
+Launch Control Triggered	
+Error: TPS2	
+Injector Fault	
+Ignition Fault	
+isMainRelayOn	
+isUsbConnected	
+dfcoActive	
+SD card writing	
+SD card reading	
+MAP from sensor seems valid	
+RPM	RPM
+dRPM	RPM acceleration/Rate of Change/ROC
+Gearbox Ratio	value
+CPU Temperature	deg C
+CLT	deg C
+IAT	deg C
+auxTemp1	deg C
+auxTemp2	deg C
+TPS	%
+Throttle pedal position	%
+tpsADC	ADC
+rawMaf	V
+MAF	kg/h
+MAP	kPa
+baroPressure	kPa
+Lambda	
+VBatt	V
+Oil Pressure	kPa
+VVT: bank 1 intake	deg
+Fuel: Last inj pulse width	ms
+Fuel: injector duty cycle	%
+tempLogging1	
+Fuel: Injection timing SOI	deg
+Engine CRC16	crc16
+Fuel: wall amount	mg
+Fuel: wall correction	mg
+revolutionCounterSinceStart	
+CAN: Rx	
+Fuel: TPS AE add fuel ms	ms
+Ignition: Mode	
+Fuel: Injection mode	
+Ignition: coil duty cycle	%
+ETB Target	%
+ETB: Duty	%
+Fuel level	%
+Fuel: Total consumed	grams
+Fuel: Flow rate	gram/s
+TPS2	%
+Tune CRC16	crc16
+Fuel: VE	ratio
+Uptime	sec
+Engine Mode	em
+firmware	version_f
+rawIdlePositionSensor	V
+rawWastegatePosition	V
+Accel: Lateral	G
+Accel: Longitudinal	G
+Detected Gear	
+maxTriggerReentrant	
+rawLowFuelPressure	V
+rawHighFuelPressure	V
+Fuel pressure (low)	kpa
+TCU: Desired Gear	gear
+Flex Ethanol %	%
+Wastegate position sensor	%
+Fuel pressure (high)	bar
+tempLogging3	
+tempLogging4	
+calibrationValue	
+calibrationMode	
+Idle: Stepper target position	
+tsConfigVersion	
+Trigger Error Counter	counter
+orderingErrorCounter	
+Warning: counter	count
+Warning: last	error
+Warning code 1	error
+Warning code 2	error
+Warning code 3	error
+Warning code 4	error
+Warning code 5	error
+Warning code 6	error
+Warning code 7	error
+Warning code 8	error
+debugFloatField1	val
+debugFloatField2	val
+debugFloatField3	val
+debugFloatField4	val
+debugFloatField5	val
+debugFloatField6	val
+debugFloatField7	val
+debugIntField1	val
+debugIntField2	val
+debugIntField3	val
+debugIntField4	val
+debugIntField5	val
+EGT 1	deg C
+EGT 2	deg C
+EGT 3	deg C
+EGT 4	deg C
+EGT 5	deg C
+EGT 6	deg C
+EGT 7	deg C
+EGT 8	deg C
+rawTps1Primary	V
+rawClt	V
+rawIat	V
+rawOilPressure	V
+rawAcPressure	V
+fuelClosedLoopBinIdx	
+rawPpsPrimary	V
+rawPpsSecondary	V
+rawRawPpsPrimary	V
+rawRawPpsSecondary	V
+Idle: Position sensor	%
+Air/Fuel Ratio	AFR
+Vss Accel	m/s2
+Lambda 2	
+Air/Fuel Ratio 2	AFR
+VVT: bank 1 exhaust	deg
+VVT: bank 2 intake	deg
+VVT: bank 2 exhaust	deg
+Fuel: Trim bank 1	%
+Fuel: Trim bank 2	%
+rawTps1Secondary	V
+rawTps2Primary	V
+rawTps2Secondary	V
+Accel: Vertical	G
+Gyro: Yaw rate	deg/sec
+vvtTargets 1	deg
+vvtTargets 2	deg
+vvtTargets 3	deg
+vvtTargets 4	deg
+Turbocharger Speed	hz
+Ign: Timing Cyl 1	deg
+Ign: Timing Cyl 2	deg
+Ign: Timing Cyl 3	deg
+Ign: Timing Cyl 4	deg
+Ign: Timing Cyl 5	deg
+Ign: Timing Cyl 6	deg
+Ign: Timing Cyl 7	deg
+Ign: Timing Cyl 8	deg
+Ign: Timing Cyl 9	deg
+Ign: Timing Cyl 10	deg
+Ign: Timing Cyl 11	deg
+Ign: Timing Cyl 12	deg
+tps1Split	%
+tps2Split	%
+tps12Split	%
+accPedalSplit	%
+Ign: Cut Code	code
+Fuel: Cut Code	code
+Air: Flow estimate	kg/h
+sync: instant RPM	rpm
+rawMap	V
+rawAfr	V
+calibrationValue2	
+Lua: Tick counter	count
+Lua: Last tick duration	nt
+vssEdgeCounter	
+issEdgeCounter	
+Aux linear #1	
+Aux linear #2	
+Aux linear #3	
+Aux linear #4	
+fallbackMap	kPa
+Instant MAP	kPa
+maxLockedDuration	us
+CAN: Tx OK	
+CAN: Tx err	
+triggerPrimaryFall	
+triggerPrimaryRise	
+triggerSecondaryFall	
+triggerSecondaryRise	
+triggerVvtFall	
+triggerVvtRise	
+triggerVvt2Fall	
+triggerVvt2Rise	
+starterState	
+starterRelayDisable	
+Ign: Multispark count	
+extiOverflowCount	
+alternatorStatus_pTerm	
+alternatorStatus_iTerm	
+alternatorStatus_dTerm	
+alternatorStatus_output	
+alternatorStatus_error	
+alternatorStatus_resetCounter	
+idleStatus_pTerm	
+idleStatus_iTerm	
+idleStatus_dTerm	
+idleStatus_output	
+idleStatus_error	
+idleStatus_resetCounter	
+etbStatus_pTerm	
+etbStatus_iTerm	
+etbStatus_dTerm	
+etbStatus_output	
+etbStatus_error	
+etbStatus_resetCounter	
+boostStatus_pTerm	
+boostStatus_iTerm	
+boostStatus_dTerm	
+boostStatus_output	
+boostStatus_error	
+boostStatus_resetCounter	
+wastegateDcStatus_pTerm	
+wastegateDcStatus_iTerm	
+wastegateDcStatus_dTerm	
+wastegateDcStatus_output	
+wastegateDcStatus_error	
+wastegateDcStatus_resetCounter	
+vvtStatus1_pTerm	
+vvtStatus1_iTerm	
+vvtStatus1_dTerm	
+vvtStatus1_output	
+vvtStatus1_error	
+vvtStatus1_resetCounter	
+vvtStatus2_pTerm	
+vvtStatus2_iTerm	
+vvtStatus2_dTerm	
+vvtStatus2_output	
+vvtStatus2_error	
+vvtStatus2_resetCounter	
+vvtStatus3_pTerm	
+vvtStatus3_iTerm	
+vvtStatus3_dTerm	
+vvtStatus3_output	
+vvtStatus3_error	
+vvtStatus3_resetCounter	
+vvtStatus4_pTerm	
+vvtStatus4_iTerm	
+vvtStatus4_dTerm	
+vvtStatus4_output	
+vvtStatus4_error	
+vvtStatus4_resetCounter	
+Aux speed 1	s
+Aux speed 2	s
+TCU: Input Shaft Speed	RPM
+rawAnalogInput 1	V
+rawAnalogInput 2	V
+rawAnalogInput 3	V
+rawAnalogInput 4	V
+rawAnalogInput 5	V
+rawAnalogInput 6	V
+rawAnalogInput 7	V
+rawAnalogInput 8	V
+GPPWM Output 1	%
+GPPWM Output 2	%
+GPPWM Output 3	%
+GPPWM Output 4	%
+gppwmXAxis 1	
+gppwmXAxis 2	
+gppwmXAxis 3	
+gppwmXAxis 4	
+gppwmYAxis 1	
+gppwmYAxis 2	
+gppwmYAxis 3	
+gppwmYAxis 4	
+rawBattery	V
+ignBlendParameter 1	
+ignBlendParameter 2	
+ignBlendParameter 3	
+ignBlendParameter 4	
+ignBlendBias 1	%
+ignBlendBias 2	%
+ignBlendBias 3	%
+ignBlendBias 4	%
+ignBlendOutput 1	deg
+ignBlendOutput 2	deg
+ignBlendOutput 3	deg
+ignBlendOutput 4	deg
+veBlendParameter 1	
+veBlendParameter 2	
+veBlendParameter 3	
+veBlendParameter 4	
+veBlendBias 1	%
+veBlendBias 2	%
+veBlendBias 3	%
+veBlendBias 4	%
+veBlendOutput 1	%
+veBlendOutput 2	%
+veBlendOutput 3	%
+veBlendOutput 4	%
+boostOpenLoopBlendParameter 1	
+boostOpenLoopBlendParameter 2	
+boostOpenLoopBlendBias 1	%
+boostOpenLoopBlendBias 2	%
+boostOpenLoopBlendOutput 1	%
+boostOpenLoopBlendOutput 2	%
+boostClosedLoopBlendParameter 1	
+boostClosedLoopBlendParameter 2	
+boostClosedLoopBlendBias 1	%
+boostClosedLoopBlendBias 2	%
+boostClosedLoopBlendOutput 1	%
+boostClosedLoopBlendOutput 2	%
+coilState1	
+coilState2	
+coilState3	
+coilState4	
+coilState5	
+coilState6	
+coilState7	
+coilState8	
+coilState9	
+coilState10	
+coilState11	
+coilState12	
+injectorState1	
+injectorState2	
+injectorState3	
+injectorState4	
+injectorState5	
+injectorState6	
+injectorState7	
+injectorState8	
+injectorState9	
+injectorState10	
+injectorState11	
+injectorState12	
+triggerChannel1	
+triggerChannel2	
+bank 1 intake cam input	
+bank 1 exhaust cam input	
+bank 2 intake cam input	
+bank 2 exhaust cam input	
+outputRequestPeriod	
+mapFast	
+Lua: Gauge 1	value
+Lua: Gauge 2	value
+Lua: Gauge 3	value
+Lua: Gauge 4	value
+Lua: Gauge 5	value
+Lua: Gauge 6	value
+Lua: Gauge 7	value
+Lua: Gauge 8	value
+rawMaf2	V
+MAF #2	kg/h
+schedulingUsedCount	
+Vehicle Speed	kph
+Gego	%
+testBenchIter	count
+oilTemp	deg C
+fuelTemp	deg C
+ambientTemp	deg C
+compressorDischargeTemp	deg C
+compressorDischargePressure	kPa
+throttleInletPressure	kPa
+ignitionOnTime	sec
+engineRunTime	sec
+distanceTraveled	km
+Air/Fuel Ratio (Gas Scale)	AFR
+Air/Fuel Ratio 2 (Gas Scale)	AFR
+wheelSlipRatio	
+ignitorDiagnostic 1	
+ignitorDiagnostic 2	
+ignitorDiagnostic 3	
+ignitorDiagnostic 4	
+ignitorDiagnostic 5	
+ignitorDiagnostic 6	
+ignitorDiagnostic 7	
+ignitorDiagnostic 8	
+ignitorDiagnostic 9	
+ignitorDiagnostic 10	
+ignitorDiagnostic 11	
+ignitorDiagnostic 12	
+injectorDiagnostic 1	
+injectorDiagnostic 2	
+injectorDiagnostic 3	
+injectorDiagnostic 4	
+injectorDiagnostic 5	
+injectorDiagnostic 6	
+injectorDiagnostic 7	
+injectorDiagnostic 8	
+injectorDiagnostic 9	
+injectorDiagnostic 10	
+injectorDiagnostic 11	
+injectorDiagnostic 12	
+Fuel: Last inj pulse width stg 2	ms
+Fuel: injector duty cycle stage 2	%
+fastAdcErrorsCount	
+deviceUid	
+mc33810spiErrorCounter	
+sadDwellRatioCounter	
+injectionPrimingCounter	
+tempLogging2	
+A/C pressure	kPa
+rawAuxAnalog1	V
+rawAuxAnalog2	V
+rawAuxAnalog3	V
+rawAuxAnalog4	V
+fastAdcErrorCallbackCount	
+slowAdcErrorsCount	
+rawAuxTemp1	V
+rawAuxTemp2	V
+rawAmbientTemp	V
+rtcUnixEpochTime	
+sparkCutReasonBlinker	
+fuelCutReasonBlinker	
+Fuel: Total correction	mult
+Fuel: Post cranking mult	
+Fuel: IAT correction	
+Fuel: CLT correction	
+running_timeSinceCrankingInSecs	secs
+Fuel: base cycle mass	mg
+Fuel: running	mg
+afrTableYAxis	%
+Fuel: target lambda	
+Fuel: target AFR	ratio
+Fuel: Stoich ratio	ratio
+sdTcharge_coff	
+Air: Cylinder airmass	g
+Air: Normalized cyl filling	%
+brokenInjector	
+idealEngineTorque	
+injectorHwIssue	
+Ignition: base dwell	ms
+Ignition: coil charge time	ms
+Ignition: dwell duration	deg
+Ign: CLT correction	deg
+Ign: IAT correction	deg
+Idle: Timing adjustment	deg
+Timing: base ignition	deg
+Timing: ignition	deg
+Traction: timing correction	deg
+Ign: Dwell voltage correction	
+Ign: Lua timing add	deg
+Ign: Lua timing mult	deg
+Ign: Lua Spark Skip	
+Knock: Current level	Volts
+Knock: Cyl 1	dBv
+Knock: Cyl 2	dBv
+Knock: Cyl 3	dBv
+Knock: Cyl 4	dBv
+Knock: Cyl 5	dBv
+Knock: Cyl 6	dBv
+Knock: Cyl 7	dBv
+Knock: Cyl 8	dBv
+Knock: Cyl 9	dBv
+Knock: Cyl 10	dBv
+Knock: Cyl 11	dBv
+Knock: Cyl 12	dBv
+Knock: Retard	deg
+Knock: Threshold	
+Knock: Count	
+Knock: Max retard	
+Knock: SpectrumData 1	compressed data
+Knock: SpectrumData 2	compressed data
+Knock: SpectrumData 3	compressed data
+Knock: SpectrumData 4	compressed data
+Knock: SpectrumData 5	compressed data
+Knock: SpectrumData 6	compressed data
+Knock: SpectrumData 7	compressed data
+Knock: SpectrumData 8	compressed data
+Knock: SpectrumData 9	compressed data
+Knock: SpectrumData 10	compressed data
+Knock: SpectrumData 11	compressed data
+Knock: SpectrumData 12	compressed data
+Knock: SpectrumData 13	compressed data
+Knock: SpectrumData 14	compressed data
+Knock: SpectrumData 15	compressed data
+Knock: SpectrumData 16	compressed data
+Knock: ChannelAndCylNumber	compressed N + N
+Knock: Start Freq	Hz
+Knock: Step Freq	Hz
+Knock: Fuel trim when knock	multiplier
+TCU: Current Gear	gear
+TCU: Torque Converter Ratio	value
+lastShiftTime	
+TCU: Current Range	
+TCU: EPC Duty	%
+TCU: TC Duty	%
+isShifting	
+Air: Throttle model WOT	
+Air: Throttle crossover pos	%
+Air: Throttle flow estimate	g/s
+GDI: HPFP duration	
+GDI: requested_percent	
+GDI: percent_pi	
+noValve	
+angleAboveMin	
+isHpfpInactive	
+GDI: target pressure	
+GDI: nextLobe	
+GDI: next start	v
+Fuel: injector lag	ms
+Fuel: Injector pressure delta	kPa
+Fuel: Injector pressure ratio	
+retardThresholdRpm	
+launchActivatePinState	
+isPreLaunchCondition	
+isLaunchCondition	
+isSwitchActivated	
+isClutchActivated	
+isBrakePedalActivated	
+isValidInputPin	
+activateSwitchCondition	
+rpmLaunchCondition	
+rpmPreLaunchCondition	
+speedCondition	
+tpsCondition	
+isTorqueReductionTriggerPinValid	
+torqueReductionTriggerPinState	
+isTimeConditionSatisfied	
+isRpmConditionSatisfied	
+isAppConditionSatisfied	
+isFlatShiftConditionSatisfied	
+isAntilagCondition	
+ALSMinRPMCondition	
+ALSMaxRPMCondition	
+ALSMinCLTCondition	
+ALSMaxCLTCondition	
+ALSMaxThrottleIntentCondition	
+isALSSwitchActivated	
+ALSActivatePinState	
+ALSSwitchCondition	
+ALSTimerCondition	
+fuelALSCorrection	
+timingALSCorrection	deg
+timingALSSkip	deg
+isTpsInvalid	
+m_shouldResetPid	
+isBelowClosedLoopThreshold	
+isNotClosedLoop	
+isZeroRpm	
+hasInitBoost	
+rpmTooLow	
+tpsTooLow	
+mapTooLow	
+isPlantValid	
+isBoostControlled	
+Boost: Lua target add	v
+Boost: Output	percent
+Boost: Lua target mult	v
+Boost: Open loop	v
+Boost: Lua open loop add	v
+Boost: Closed loop	%
+Boost: Target	kPa
+AC switch	
+AC enabled	
+AC engine too slow	
+AC engine too fast	
+AC no CLT	
+AC engine too hot	
+AC tps too high	
+AC disabled by Lua	
+AC compressor on	
+AC pressure too low	
+AC pressure too high	
+cranking0	
+notRunning0	
+disabledWhileEngineStopped0	
+brokenClt0	
+enabledForAc0	
+hot0	
+cold0	
+disabledBySpeed0	
+radiatorFanStatus0	
+cranking1	
+notRunning1	
+disabledWhileEngineStopped1	
+brokenClt1	
+enabledForAc1	
+hot1	
+cold1	
+disabledBySpeed1	
+radiatorFanStatus1	
+isPrime	
+engineTurnedRecently	
+isFuelPumpOn	
+ignitionOn	
+isBenchTest	
+hasIgnitionVoltage	
+mainRelayState	
+delayedShutoffRequested	
+Lua: Fuel add	g
+Lua: Fuel mult	
+lua_clutchUpState	
+lua_brakePedalState	
+lua_acRequestState	
+lua_luaDisableEtb	
+lua_luaIgnCut	
+lua_luaFuelCut	
+lua_clutchDownState	
+lua_disableDecelerationFuelCutOff	
+Air: Charge temperature estimate	deg C
+Air: Charge temperature estimate K	
+Fuel: cranking CLT mult	
+Fuel: cranking TPS mult	
+Fuel: cranking duration mult	
+Fuel: Cranking cycle mass	mg
+Fuel: Barometric pressure mult	
+Detected Board ID	id
+Clutch: up	
+Clutch: down	
+Brake switch	
+startStopState	
+smartChipState	
+smartChipRestartCounter	
+smartChipAliveCounter	
+startStopPhysicalState	
+Harley ACR Active	
+acrEngineMovedRecently	
+heaterControlEnabled	
+luaDigitalState0	
+luaDigitalState1	
+luaDigitalState2	
+luaDigitalState3	
+startStopStateToggleCounter	
+luaSoftSparkSkip	
+luaHardSparkSkip	
+tractionControlSparkSkip	
+User-defined RPM hard limit	rpm
+Fuel: Injection counter	
+Ign: Spark counter	
+Fuel: Load	
+Ignition: load	
+veTableYAxis	%
+overDwellCounter	
+overDwellNotScheduledCounter	
+sparkOutOfOrderCounter	
+Fuel: TPS AE from	
+Fuel: TPS AE to	
+Fuel: TPS AE change	
+extraFuel	
+valueFromTable	
+Fuel: TPS AE Active	
+isBelowDecelThreshold	
+Fuel: TPS AE: reset time	
+isFractionalEnrichment	
+Fuel: TPS AE: below threshold	
+Fuel: TPS AE: too short	
+fractionalInjFuel	
+accumulatedValue	
+maxExtraPerCycle	
+maxExtraPerPeriod	
+maxInjectedPerPeriod	
+cycleCnt	
+Hardware events since boot 1	
+Hardware events since boot 2	
+Hardware events since boot 3	
+Hardware events since boot 4	
+Hardware events since boot 5	
+Hardware events since boot 6	
+Sync: total cams front counter	
+InstantMAP at readout angle	kPa
+InstantMAP delta @ readout angles	kPa
+mapVvt_MAP_AT_CYCLE_COUNT	distance
+Instant MAP sync counter	counter
+Sync: Engine Phase	deg
+Sync: trigger angle error	deg
+triggerIgnoredToothCount	
+Sync: MAP: prev angle	deg
+isDecodingMapCam	
+triggerElapsedUs	
+sync: Crank sync counter0	
+vvtSyncGapRatio0	
+vvtToothDurations00	us
+vvtCurrentPosition0	sync: Primary Cam Position
+vvtToothPosition 10	sync: Cam Tooth Position
+vvtToothPosition 20	sync: Cam Tooth Position
+vvtToothPosition 30	sync: Cam Tooth Position
+vvtToothPosition 40	sync: Cam Tooth Position
+Trigger Sync Latest Ratio0	
+triggerStateIndex0	
+vvtStateIndex0	
+sync: Crank sync counter1	
+vvtSyncGapRatio1	
+vvtToothDurations01	us
+vvtCurrentPosition1	sync: Primary Cam Position
+vvtToothPosition 11	sync: Cam Tooth Position
+vvtToothPosition 21	sync: Cam Tooth Position
+vvtToothPosition 31	sync: Cam Tooth Position
+vvtToothPosition 41	sync: Cam Tooth Position
+Trigger Sync Latest Ratio1	
+triggerStateIndex1	
+vvtStateIndex1	
+sync: Crank sync counter2	
+vvtSyncGapRatio2	
+vvtToothDurations02	us
+vvtCurrentPosition2	sync: Primary Cam Position
+vvtToothPosition 12	sync: Cam Tooth Position
+vvtToothPosition 22	sync: Cam Tooth Position
+vvtToothPosition 32	sync: Cam Tooth Position
+vvtToothPosition 42	sync: Cam Tooth Position
+Trigger Sync Latest Ratio2	
+triggerStateIndex2	
+vvtStateIndex2	
+sync: Crank sync counter3	
+vvtSyncGapRatio3	
+vvtToothDurations03	us
+vvtCurrentPosition3	sync: Primary Cam Position
+vvtToothPosition 13	sync: Cam Tooth Position
+vvtToothPosition 23	sync: Cam Tooth Position
+vvtToothPosition 33	sync: Cam Tooth Position
+vvtToothPosition 43	sync: Cam Tooth Position
+Trigger Sync Latest Ratio3	
+triggerStateIndex3	
+vvtStateIndex3	
+sync: Crank sync counter4	
+vvtSyncGapRatio4	
+vvtToothDurations04	us
+vvtCurrentPosition4	sync: Primary Cam Position
+vvtToothPosition 14	sync: Cam Tooth Position
+vvtToothPosition 24	sync: Cam Tooth Position
+vvtToothPosition 34	sync: Cam Tooth Position
+vvtToothPosition 44	sync: Cam Tooth Position
+Trigger Sync Latest Ratio4	
+triggerStateIndex4	
+vvtStateIndex4	
+sync: Phase Re-Sync Counter	
+sync: Known Engine Phase	
+fuel wallwetting injection time	
+Fuel on the wall	
+idleState	
+Idle: Position	
+idle: base value	
+Idle: Closed loop	
+idle: iacByTpsTaper portion	
+idle: throttlePedalUpState	
+idle: mightResetPid	
+Idle: shouldResetPid	
+Idle: wasResetPid	
+Idle: mustResetPid	
+Idle: cranking	
+isIacTableForCoasting	
+notIdling	
+Idle: reset	
+Idle: dead zone	
+isBlipping	
+useClosedLoop	
+badTps	
+looksLikeRunning	
+looksLikeCoasting	
+looksLikeCrankToIdle	
+Idle: coasting	
+Idle: Closed loop active	
+Idle: Target RPM	
+Idle: Target RPM base	
+Idle: Target A/C RPM	
+idle: iacByRpmTaper portion	
+idle: Lua Adder	
+ETB: target with idle0	per
+ETB: trim0	
+ETB: luaAdjustment0	per
+DC: wastegatePosition0	per
+etbFeedForward0	
+etbIntegralError0	
+ETB: target for current pedal0	%
+etbCurrentAdjustedTarget0	%
+etbRevLimitActive0	
+jamDetected0	
+validPlantPosition0	
+ETB TPS error counter0	count
+ETB pedal error counter0	count
+etbErrorCode0	
+etbErrorCodeBlinker0	
+ETB traction control0	%
+ETB jam timer0	sec
+ETB with adjustments0	%
+state0	
+ETB: target with idle1	per
+ETB: trim1	
+ETB: luaAdjustment1	per
+DC: wastegatePosition1	per
+etbFeedForward1	
+etbIntegralError1	
+ETB: target for current pedal1	%
+etbCurrentAdjustedTarget1	%
+etbRevLimitActive1	
+jamDetected1	
+validPlantPosition1	
+ETB TPS error counter1	count
+ETB pedal error counter1	count
+etbErrorCode1	
+etbErrorCodeBlinker1	
+ETB traction control1	%
+ETB jam timer1	sec
+ETB with adjustments1	%
+state1	
+WBO: Fault code0	
+WBO: Heater duty0	%
+WBO: Pump duty0	%
+WBO: Temperature0	C
+WBO: Nernst Voltage0	V
+WBO: ESR0	ohm
+WBO: Fault code1	
+WBO: Heater duty1	%
+WBO: Pump duty1	%
+WBO: Temperature1	C
+WBO: Nernst Voltage1	V
+WBO: ESR1	ohm
+DC: output0	per
+DC: en0	per
+isEnabled0	
+ETB: SENT value0	value
+ETB: SENT value1	value
+ETB: SENT error rate	ratio
+vvtTarget	deg
+vvtOutput	%
+lambdaCurrentlyGood	
+lambdaMonitorCut	
+lambdaTimeSinceGood	sec

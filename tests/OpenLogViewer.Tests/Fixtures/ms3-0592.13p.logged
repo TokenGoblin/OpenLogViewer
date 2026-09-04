@@ -1,0 +1,392 @@
+# MS3 Format 0592.13P
+# from MS3Format0592.13P.ini: the datalog labels, which are the names a live session and a recorded log carry.
+SecL	s
+RPM	RPM
+MAP	kPa
+Boost psi	
+TPS	%
+TPSADC	ADC
+MAF	g/sec
+MAFload	kPa
+MAF volts	V
+AFR	AFR
+AFR2	AFR
+AFR3	AFR
+AFR4	AFR
+AFR5	AFR
+AFR6	AFR
+AFR7	AFR
+AFR8	AFR
+MAT	°F
+CLT	°F
+Engine	bit
+Batt V	v
+EGO cor1	%
+EGO cor2	%
+EGO cor3	%
+EGO cor4	%
+EGO cor5	%
+EGO cor6	%
+EGO cor7	%
+EGO cor8	%
+Fuel: Air cor	%
+Fuel: Warmup cor	%
+Fuel: Baro cor	%
+Fuel: Total cor	%
+Fuel: Accel PW	ms
+VE1	%
+PW	ms
+VE2	%
+PW2	ms
+VE1 raw	%
+VE2 raw	%
+VE3 raw	%
+VE4 raw	%
+Seq PW1	ms
+Seq PW2	ms
+Seq PW3	ms
+Seq PW4	ms
+Seq PW5	ms
+Seq PW6	ms
+Seq PW7	ms
+Seq PW8	ms
+Seq PW9	ms
+Seq PW10	ms
+Seq PW11	ms
+Seq PW12	ms
+SPK: Spark Advance	deg
+SPK: Knock retard	deg
+Knock in	%
+SPK: Cold advance	deg
+SPK: Traction retard	deg
+SPK: CEL retard	deg
+SPK: Fuel cut retard	deg
+SPK: External advance	deg
+SPK: Base Spark Advance	deg
+SPK: Idle Correction Advance	deg
+SPK: MAT Retard	deg
+SPK: Flex Advance	deg
+SPK: Spark Table 1	deg
+SPK: Spark Table 2	deg
+SPK: Spark Table 3	deg
+SPK: Spark Table 4	deg
+SPK: Revlim Retard	deg
+SPK: ALS Timing	deg
+SPK: Launch Timing	deg
+SPK: 3-step Timing	deg
+SPK: Launch VSS Retard	deg
+SPK: Nitrous Retard	deg
+Dwell	ms
+Barometer	kPa
+Stepper Idle position	
+PWM Idle duty	%
+Closed-loop idle target RPM	rpm
+Closed-loop idle RPM error	rpm
+Boost duty	%
+Boost target 1	kPa
+Boost duty 2	%
+Boost target 2	kPa
+Dome target 1	kPa
+AFR 1 Target	AFR
+AFR 2 Target	AFR
+AFR 1 Error	
+AFR 2 Error	
+TPSdot	
+MAPdot	
+RPMdot	rpm/sec
+Wall fuel1	us
+Wall fuel2	us
+EAE1	%
+EAE2	%
+Load	
+Secondary load	
+Ign load	%
+Secondary ign load	%
+EAE load	
+AFR load	
+Injector timing pri	deg
+Injector timing sec	deg
+EGT1	°F
+EGT2	°F
+EGT3	°F
+EGT4	°F
+EGT5	°F
+EGT6	°F
+EGT7	°F
+EGT8	°F
+EGT9	°F
+EGT10	°F
+EGT11	°F
+EGT12	°F
+ECU Temperature	
+CANpwmin0	
+CANpwmin1	
+CANpwmin2	
+CANpwmin3	
+canin1_8	
+canout1_8	
+canout9_16	
+Timing err	%
+Lost sync count	
+Lost sync reason	
+Fuel flow cc/min	cc/min
+VSS1	
+VSS2	
+VSS3	
+VSS4	
+VSS1 ms-1	ms-1
+VSS2 ms-1	ms-1
+VSS3 ms-1	ms-1
+VSS4 ms-1	ms-1
+MPG(USA)	
+MPG(UK)	
+l/100km	
+Shaft rpm 1	RPM
+Shaft rpm 2	RPM
+Nitrous added fuel	ms
+Nitrous 1 duty	%
+Nitrous 2 duty	%
+Nitrous Timer	s
+Water inj duty	%
+ALS added fuel	ms
+ALS timing	deg
+SDcard file number	
+SDcard status	
+SDcard phase	
+SDcard error	
+Gear	
+VSS1dot	ms-2
+VSS2dot	ms-2
+Accel X	ms-2
+Accel Y	ms-2
+PWM A duty	%
+PWM B duty	%
+PWM C duty	%
+PWM D duty	%
+PWM E duty	%
+PWM F duty	%
+Generic Closed-Loop A duty	%
+Generic Closed-Loop B duty	%
+Status1	
+Status2	
+Status3	
+Status4	
+Status5	
+Status5s	
+Status6	
+Status7	
+Status8	
+Status9	
+Status10	
+VVT angle 1	deg
+VVT angle 2	deg
+VVT angle 3	deg
+VVT angle 4	deg
+VVT target 1	deg
+VVT target 2	deg
+VVT target 3	deg
+VVT target 4	deg
+VVT duty 1	%
+VVT duty 2	%
+VVT duty 3	%
+VVT duty 4	%
+TPS accel	%
+MAP accel	%
+Total accel	%
+Launch timer	s
+Launch timed retard	deg
+Knock cyl# 1	%
+Knock cyl# 2	%
+Knock cyl# 3	%
+Knock cyl# 4	%
+Knock cyl# 5	%
+Knock cyl# 6	%
+Knock cyl# 7	%
+Knock cyl# 8	%
+Knock cyl#09	%
+Knock cyl#10	%
+Knock cyl#11	%
+Knock cyl#12	%
+porta	bit
+portb	bit
+porteh	bit
+portk	bit
+portmj	bit
+portp	bit
+portt	bit
+CEL status	bit
+CEL status2	bit
+CEL error code	bit
+Ethanol Percentage	%
+E85 Fuel Correction	%
+Fuel Temp1	°F
+Fuel Temp2	°C
+Fuel Pressure1_kPa	kPa
+Fuel Pressure1_psi	psi
+Fuel Pressure1_bar	bar
+Fuel Pressure2_kPa	kPa
+Fuel Pressure2_psi	psi
+Fuel Pressure2_bar	bar
+Fuel pump control duty	%
+Fan 1 control duty	%
+Alternator target voltage	V
+Alternator control period	ms
+Alternator control duty	%
+Alternator load	%
+Battery current	A
+Fuel temperature cor	%
+Fuel pressure cor	%
+Long term fuel trim cor	%
+GPS Altitude	
+GPS Speed	
+GPS Speed ms-1	ms-1
+GPS Course (deg)	
+GPS Latitude	
+GPS Longitude	
+Engine in cruise state	
+Engine accelerating slowly	
+Engine decelerating slowly	
+Engine in overrun	
+Engine idling	
+Engine WOT	
+TC slip * time	
+Loop	
+CAN error bits	
+CAN error count	
+Dome channel 1 fill duty	%
+Dome channel 1 empty duty	%
+Accelerator Pedal/Grip Position	%
+Throttle Target	%
+Mainloop time	us
+status: RPM Sync	
+status: Full RPM Sync	
+status: N2O 1	
+status: N2O 2	
+status: Launch Armed	
+status: Launch Active	
+status: Flat Shift	
+status: Spark Cut	
+status: Over Boost	
+status: CL Idle	
+status: Fuel Cut	
+status: Test Mode	
+status: Soft Limit	
+status: Seq. Shift	
+status: Launch On	
+status: EGT Warn	
+status: EGT Shutdown	
+status: AFR Warn	
+status: AFR Shutdown	
+status: Idle VE	
+status: Idle Adv	
+status: Fan	
+status: MAP Sample Error	
+status: VVT 1 Error	
+status: VVT 2 Error	
+status: VVT 3 Error	
+status: VVT 4 Error	
+status: Knock	
+status: A/C	
+status: Check Engine	
+status: Limp Mode	
+status: Water Inj Low	
+status: VSS Launch	
+status: DBW Fault	
+status: Oil Shutdown	
+status: Fuel Press. Shutdown	
+status: Overrun Fuel Cut	
+status: Stoich Switching	
+status: ReqFuel Switching	
+status: Boost Switching	
+status: Safety Shutdown	
+status: CAN RX	
+status: CAN TX	
+status: I/O Box 1	
+status: I/O Box 2	
+status: I/O Box 3	
+status: CANEGT1	
+status: CANEGT2	
+status: L.T Trim	
+status: SD Warn	
+status: SD Card	
+status: SD Ready	
+status: SD Log	
+status: SD Error	
+status: Tune Error	
+port:A0 Injector A	
+port:A1 Injector B	
+port:A2 Injector C	
+port:A3 Injector D	
+port:A4 Injector E	
+port:A5 Injector F	
+port:A6 Injector G	
+port:A7 Injector H	
+port:B0 Spark A	
+port:B1 Spark B	
+port:B2 Spark C	
+port:B3 Spark D	
+port:B4 Spark E	
+port:B5 Spark F	
+port:B6 Spark G	
+port:B7 Spark H	
+port:E0 Digital Switched In 4	
+port:E1 Digital Switched In 5	
+port:E1 PE1	
+port:E2 Digital Switched In 1	
+port:E4 Fuel Pump	
+port:H6 Digital Switched In 3	
+port:H7 Digital Switched 12v In	
+port:K0 Tach Out	
+port:K2 Digital Switched In 2	
+port:J0 Stepper Out 1	
+port:J1 Stepper Out 2	
+port:M2 Knock Interface	
+port:M3 knock Interface	
+port:M4 Knock Interface	
+port:M5 Knock Interface	
+port:M6 IAC EN	
+port:J7 Knock Interface	
+port:P2 PWM Out 2	
+port:P3 High Current Out 3	
+port:P4 High Current Out 1	
+port:P5 High Current Out 2	
+port:P6 PWM Out3	
+port:P7 PWM / Idle Out 1	
+port:T0 CKP	
+port:T1 Injector I	
+port:T2 CMP	
+port:T3 Injector J	
+port:T4 Digital Frequency In 2	
+port:T5 Digital Frequency In 3	
+port:T6 Digital I/O 5	
+port:CAN IN 1	
+port:CAN IN 2	
+port:CAN IN 3	
+port:CAN IN 4	
+port:CAN IN 5	
+port:CAN IN 6	
+port:CAN IN 7	
+port:CAN IN 8	
+cel:MAP Fualt	
+cel:MAT Fault	
+cel:CLT Fault	
+cel:TPS Fault	
+cel:Batt Fault	
+cel:AFR0 Fault	
+cel:SYNC Fault	
+cel:EGT Fault	
+cel:Flex Fault	
+cel:MAF Fault	
+cel:Knock Fault	
+cel:CAM Fault	
+cel:Oil Fault	
+cel:Fuel Press Fault	
+cel:CEL EGT Shutdown	
+cel:CEL AFR Shutdown	
+cel:CEL W. Inj Low	
+state:Cruise	
+state:Accel	
+state:Decel	
+state:Overrun	
+state:Idle	
+state:Wot	

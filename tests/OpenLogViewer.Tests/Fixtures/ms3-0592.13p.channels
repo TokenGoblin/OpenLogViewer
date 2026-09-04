@@ -1,0 +1,515 @@
+# MS3 Format 0592.13P
+# from MS3Format0592.13P.ini: every output channel the firmware publishes, by field name.
+seconds	s
+pulseWidth1	ms
+pulseWidth2	ms
+rpm	RPM
+advance	deg
+squirt	bit
+firing1	
+firing2	
+sched1	
+inj1	
+sched2	
+inj2	
+engine	bit
+ready	
+crank	
+startw	
+warmup	
+tpsaccaen	
+tpsaccden	
+mapaccaen	
+mapaccden	
+afrtgt1	AFR
+afrtgt2	AFR
+wbo2_en1	
+wbo2_en2	
+barometer	kPa
+map	kPa
+mat	°F
+coolant	°F
+tps	%
+batteryVoltage	v
+afr1_old	AFR
+afr2_old	AFR
+knock	%
+egoCorrection1	%
+egoCorrection2	%
+airCorrection	%
+warmupEnrich	%
+accelEnrich	ms
+tpsfuelcut	%
+baroCorrection	%
+gammaEnrich	%
+veCurr1	%
+veCurr2	%
+iacstep	
+idleDC	%
+coldAdvDeg	deg
+TPSdot	%/s
+MAPdot	kPa/s
+dwell	ms
+mafload	kPa
+fuelload	
+fuelCorrection	%
+sd_status	
+knockRetard	deg
+EAEFuelCorr1	%
+egoV	V
+egoV2	V
+status1	
+status2	
+status3	
+status4	
+status6	
+status7	
+status5	
+status5s	
+cel_status	bit
+cel_status_map	
+cel_status_mat	
+cel_status_clt	
+cel_status_tps	
+cel_status_batt	
+cel_status_afr0	
+cel_status_sync	
+cel_status_egt	
+cel_status_flex	
+cel_status_maf	
+cel_status_knock	
+cel_status_cam	
+cel_status_oil	
+cel_status_fp	
+cel_status_egtshut	
+cel_status_afrshut	
+fuelload2	
+ignload	%
+ignload2	%
+synccnt	
+syncreason	
+wallfuel1	us
+wallfuel2	us
+sensor01	
+sensor02	
+sensor03	
+sensor04	
+sensor05	
+sensor06	
+sensor07	
+sensor08	
+sensor09	
+sensor10	
+sensor11	
+sensor12	
+sensor13	
+sensor14	
+sensor15	
+sensor16	
+canin1_8	
+canout1_8	
+canout9_16	
+boostduty	%
+n2o_addfuel	ms
+n2o_retard	deg
+pwseq1	ms
+pwseq2	ms
+pwseq3	ms
+pwseq4	ms
+pwseq5	ms
+pwseq6	ms
+pwseq7	ms
+pwseq8	ms
+pwseq9	ms
+pwseq10	ms
+pwseq11	ms
+pwseq12	ms
+nitrous1_duty	%
+nitrous2_duty	%
+egt1	°F
+egt2	°F
+egt3	°F
+egt4	°F
+egt5	°F
+egt6	°F
+egt7	°F
+egt8	°F
+egt9	°F
+egt10	°F
+egt11	°F
+egt12	°F
+dome_fill_duty1	%
+dome_fill_duty2	%
+dome_empty_duty1	%
+dome_empty_duty2	%
+app	%
+throttle_targ	%
+maf	g/sec
+canpwmin0	
+canpwmin1	
+canpwmin2	
+canpwmin3	
+fuelflow	cc/min
+fuelcons	l/km
+EAEFuelCorr2	%
+tpsADC	ADC
+eaeload1	
+afrload1	
+gear	
+timing_err	%
+RPMdot	rpm/sec
+vss1dot	ms-2
+vss2dot	ms-2
+accelx	ms-2
+accely	ms-2
+accelz	
+duty_pwm_a	%
+duty_pwm_b	%
+duty_pwm_c	%
+duty_pwm_d	%
+duty_pwm_e	%
+duty_pwm_f	%
+afr1	AFR
+afr2	AFR
+afr3	AFR
+afr4	AFR
+afr5	AFR
+afr6	AFR
+afr7	AFR
+afr8	AFR
+afr9	AFR
+afr10	AFR
+afr11	AFR
+afr12	AFR
+egov1	V
+egov2	V
+egov3	V
+egov4	V
+egov5	V
+egov6	V
+egov7	V
+egov8	V
+egov9	V
+egov10	V
+egov11	V
+egov12	V
+ve_raw1	%
+ve_raw2	%
+ve_raw3	%
+ve_raw4	%
+egocor1	%
+egocor2	%
+egocor3	%
+egocor4	%
+egocor5	%
+egocor6	%
+egocor7	%
+egocor8	%
+egocor9	%
+egocor10	%
+egocor11	%
+egocor12	%
+ports	bit
+ports0	
+ports1	
+ports2	
+ports3	
+ports4	
+ports5	
+ports6	
+ports7	
+portm	bit
+portm0	
+portm1	
+portm6	
+portm7	
+boost_dome_targ1	kPa
+boost_dome_targ2	kPa
+status9	
+status10	
+stream_level	
+water_duty	%
+dwell_trl	ms
+vss1	
+vss2	
+vss1_ms_1	ms-1
+vss2_ms_1	ms-1
+ss1	RPM
+ss2	RPM
+nitrous_timer	s
+sd_filenum	
+sd_error	
+sd_phase	
+boostduty2	%
+status8	
+vvt_ang1	deg
+vvt_ang2	deg
+vvt_ang3	deg
+vvt_ang4	deg
+inj_timing_pri	deg
+inj_timing_sec	deg
+vvt_target1	deg
+vvt_target2	deg
+vvt_target3	deg
+vvt_target4	deg
+vvt_duty1	%
+vvt_duty2	%
+vvt_duty3	%
+vvt_duty4	%
+fuel_pct	%
+fuel_temp1	°F
+fuel_temp2	°C
+tps_accel	%
+map_accel	%
+total_accel	%
+knock_cyl01	%
+knock_cyl02	%
+knock_cyl03	%
+knock_cyl04	%
+knock_cyl05	%
+knock_cyl06	%
+knock_cyl07	%
+knock_cyl08	%
+knock_cyl09	%
+knock_cyl10	%
+knock_cyl11	%
+knock_cyl12	%
+fan1_duty	%
+launch_timer	s
+launch_retard	deg
+maf_volts	V
+porta	bit
+porta0	
+porta1	
+porta2	
+porta3	
+porta4	
+porta5	
+porta6	
+porta7	
+portb	bit
+portb0	
+portb1	
+portb2	
+portb3	
+portb4	
+portb5	
+portb6	
+portb7	
+porteh	bit
+porte0	
+porte1	
+porte2	
+porte4	
+porth6	
+porth7	
+portk	bit
+portk0	
+portk1	
+portk2	
+portk3	
+portk4	
+portk5	
+portk7	
+portmj	bit
+portj0	
+portj1	
+portm2	
+portm3	
+portm4	
+portm5	
+portj7	
+portp	bit
+portp2	
+portp3	
+portp4	
+portp5	
+portp6	
+portp7	
+portt	bit
+portt0	
+portt1	
+portt2	
+portt3	
+portt4	
+portt5	
+portt6	
+portt7	
+cel_errorcode	bit
+boost_targ_1	kPa
+boost_targ_2	kPa
+airtemp	°F
+looptime	us
+vss3	
+vss4	
+vss3_ms_1	ms-1
+vss4_ms_1	ms-1
+fuel_press1	kPa
+fuel_press2	kPa
+cl_idle_targ_rpm	rpm
+fp_duty	%
+alt_duty	%
+alt_period	ms
+load_duty	%
+alt_targv	V
+batt_curr	A
+fueltemp_cor	%
+fuelpress_cor	%
+ltt_cor	%
+engine_state_cruise	
+engine_state_accel_slow	
+engine_state_decel_slow	
+engine_state_overrun	
+engine_state_idle	
+engine_state_wot	
+tc_retard	deg
+cel_retard	deg
+fc_retard	deg
+ext_advance	deg
+base_advance	deg
+idle_cor_advance	deg
+mat_retard	deg
+flex_advance	deg
+adv1	deg
+adv2	deg
+adv3	deg
+adv4	deg
+revlim_retard	deg
+als_timing	deg
+als_addfuel	ms
+deadtime1	ms
+launch_timing	deg
+step3_timing	deg
+launchvss_retard	deg
+cel_status2	bit
+cel_status2_winj	
+cel_status2_shutd	
+gps_latdeg	
+gps_latmin	
+gps_latmmin	
+gps_londeg	
+gps_lonmin	
+gps_lonmmin	
+gps_outstatus	
+gps_altk	
+gps_altm	
+gps_speed	
+gps_speed_ms_1	ms-1
+gps_course	
+generic_pid_duty_a	%
+generic_pid_duty_b	%
+tc_slipxtime	
+loop	
+can_error_cnt	
+can_error	
+deadValue	
+secl	s
+pulseWidth	ms
+throttle	%
+egoCorrection	%
+veCurr	%
+accDecEnrichPcnt	%
+accEnrichPcnt	%
+accEnrichMS	ms
+decEnrichPcnt	%
+decEnrichMS	ms
+rpm100	
+egoVoltage	AFR
+afr1err	
+afr2err	
+boostbar	
+boostpsig	
+vacuum	
+boostvac	
+economy_l_km	
+economy_mpg_us	
+economy_mpg_uk	
+economy_l_100km	
+rpm_target_error_follower	rpm
+mathigh	
+calcflow	
+tpsDOT	
+mapDOT	
+fuel_press1_psi	psi
+fuel_press2_psi	psi
+fuel_press1_bar	bar
+fuel_press2_bar	bar
+gps_latsec	
+gps_lonsec	
+gps_alt	
+gps_latitude	
+gps_long	
+gps_lonEW	
+gps_longitude	
+pedal	
+injOpen1	
+needBurnYesNo	
+dataLostYesNo	
+configErrYesNo	
+rpmSyncedYesNo	
+fullsyncYesNo	
+n2o1OnOff	
+n2o2OnOff	
+launchYesNo	
+launchActive	
+flatShiftYesNo	
+sparkCutActive	
+overBoostActive	
+clIdleOnOff	
+fuelCutActive	
+tLogOnOff	
+testModeActive	
+softLimitActive	
+seqShiftActive	
+launchOnOff	
+egtWarnActive	
+egtShutDwnActive	
+afrWarnActive	
+afrShutDwnActive	
+idleVeActive	
+idleAdvanceActive	
+fanOnOff	
+mapSampleErrorActive	
+vvt1ErrYesNo	
+vvt2ErrYesNo	
+vvt3ErrYesNo	
+vvt4ErrYesNo	
+knockYesNo	
+acOnOff	
+checkEngineOnOff	
+limpModeOnOff	
+injdisActive	
+spkdisActive	
+wiLowActive	
+pw4xOnOff	
+vssLaunchOnOff	
+dbwFaultActive	
+oilShutDwnActive	
+fuelPressShutDwnActive	
+overRunFuelCutActive	
+stoichSwitchingActive	
+reqFuelSwitchingActive	
+sdWarnActive	
+boostSwitchingActive	
+safetyShutdownActive	
+canRxOnOff	
+canTxOnOff	
+iobox1Active	
+iobox2Active	
+iobox3Active	
+canegt1Active	
+canegt2Active	
+ltTrimActive	
+sdcardLogActive	
+sdcardYesNo	
+sdCardErrYesNo	
+sdcardReadyYesNo	
+gammTuneErrYesNo	
+canIn1OnOff	
+canIn2OnOff	
+canIn3OnOff	
+canIn4OnOff	
+canIn5OnOff	
+canIn6OnOff	
+canIn7OnOff	
+canIn8OnOff	

@@ -1,0 +1,183 @@
+# speeduino 202501
+# from speeduino202501.ini: every output channel the firmware publishes, by field name.
+secl	sec
+status1	bits
+inj1Status	
+inj2Status	
+inj3Status	
+inj4Status	
+DFCOOn	
+boostCutFuel	
+toothLog1Ready	
+toothLog2Ready	
+engine	bits
+running	
+crank	
+ase	
+warmup	
+tpsaccaen	
+tpsaccden	
+mapaccaen	
+mapaccden	
+syncLossCounter	
+map	kpa
+iatRaw	°C
+coolantRaw	°C
+batCorrection	%
+batteryVoltage	V
+afr	O2
+egoCorrection	%
+airCorrection	%
+warmupEnrich	%
+rpm	rpm
+accelEnrich	%
+gammaEnrich	%
+VE1	%
+VE2	%
+afrTarget	O2
+TPSdot	%/s
+advance	deg
+tps	%
+loopsPerSecond	loops
+freeRAM	bytes
+boostTarget	kPa
+boostDuty	%
+status2	bits
+launchHard	
+launchSoft	
+hardLimitOn	
+softlimitOn	
+boostCutSpark	
+error	
+idleControlOn	
+sync	
+rpmDOT	rpm/s
+flex	%
+flexFuelCor	%
+flexIgnCor	deg
+idleLoad	
+testoutputs	bits
+testenabled	
+testactive	
+afr2	O2
+baro	kpa
+auxin_gauge0	
+auxin_gauge1	
+auxin_gauge2	
+auxin_gauge3	
+auxin_gauge4	
+auxin_gauge5	
+auxin_gauge6	
+auxin_gauge7	
+auxin_gauge8	
+auxin_gauge9	
+auxin_gauge10	
+auxin_gauge11	
+auxin_gauge12	
+auxin_gauge13	
+auxin_gauge14	
+auxin_gauge15	
+tpsADC	ADC
+errors	bits
+errorNum	
+currentError	
+pulseWidth	ms
+pulseWidth2	ms
+pulseWidth3	ms
+pulseWidth4	ms
+status3	bits
+resetLockOn	
+nitrousOn	
+fuel2Active	
+vssRefresh	
+halfSync	
+nSquirts	
+engineProtectStatus	bits
+engineProtectRPM	
+engineProtectMAP	
+engineProtectOil	
+engineProtectAFR	
+engineProtectCoolant	
+engineProtectOth	
+IOError	
+fuelLoad	
+ignLoad	
+dwell	ms
+CLIdleTarget	RPM
+MAPdot	kPa/s
+vvt1Angle	deg
+vvt1Target	deg
+vvt1Duty	%
+flexBoostCor	kPa
+baroCorrection	%
+veCurr	%
+ASECurr	%
+vss	km/h
+gear	
+fuelPressure	PSI
+oilPressure	PSI
+wmiPW	%
+status4	bits
+wmiEmptyBit	
+vvt1Error	
+vvt2Error	
+fanStatus	
+burnPending	
+stagingActive	
+UnusedBits4	
+vvt2Angle	deg
+vvt2Target	deg
+vvt2Duty	%
+outputsStatus0	
+outputsStatus1	
+outputsStatus2	
+outputsStatus3	
+outputsStatus4	
+outputsStatus5	
+outputsStatus6	
+outputsStatus7	
+fuelTempRaw	°C
+fuelTempCor	%
+advance1	deg
+advance2	deg
+sd_status	
+emap	kpa
+fanDuty	%
+airConStatus	bits
+airConRequest	
+airConCompressor	
+airConRPMMLockout	
+airConTPSLockout	
+airConTurningOn	
+airConCLTLockout	
+airConFanStatus	
+airConUnusedBits	
+dwellActual	ms
+status5	bits
+flatShiftHardActive	
+flatShiftSoftActive	
+spark2Active	
+knockActive	
+knockIGNORE	
+knockEventCount	
+knockCor	deg
+coolant	
+iat	
+fuelTemp	
+seconds	
+fuelPressure_bar	
+oilPressure_bar	
+fuelPressure_kpa	
+oilPressure_kpa	
+throttle	%
+revolutionTime	
+boostCutOut	
+MAPxRPM	
+loopsPerRev	
+ase_enrich	
+map_bar	
+map_psi	
+map_inhg	
+map_vacboost	
+vssMPH	
+CLIdleDelta	

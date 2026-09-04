@@ -1,4 +1,4 @@
-namespace OpenLogViewer.Core;
+﻿namespace OpenLogViewer.Core;
 
 /// <summary>A job a channel does, whatever its firmware chose to call it.</summary>
 public enum ChannelRole
@@ -80,19 +80,28 @@ public static class ChannelRoles
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        string[] names = Aliases(role);
-
-        // A whole-name match first. "Throttle position" should win over
-        // "Throttle position sensor 2" wherever both exist.
-        foreach (string alias in names)
+        // Alias by alias, taking a whole-name match before a near one within
+        // each. A whole name still wins where both describe the same alias:
+        // "Throttle position" should beat "Throttle position sensor 2".
+        //
+        // Running every alias's exact match before any alias's near match
+        // instead lets a late alias beat an early one, and the aliases are
+        // ordered most specific first for a reason. A MegaSquirt logs both
+        // "gps_speed" and "vss1": "gpsspeed" matched the last alias exactly and
+        // won over "vss" — the first — matching "vss1" with a sensor number
+        // after it. A car with no GPS receiver logs that channel as a flat
+        // zero, so every speed filter and insight worked from nothing while
+        // reading as though it had found the speed.
+        foreach (string alias in Aliases(role))
+        {
             if (document.Channels.FirstOrDefault(
                     c => Simplify(c.Name) == alias && Suits(role, c)) is { } exact)
                 return exact;
 
-        foreach (string alias in names)
             if (document.Channels.FirstOrDefault(
                     c => Extends(Simplify(c.Name), alias) && Suits(role, c)) is { } near)
                 return near;
+        }
 
         return null;
     }
@@ -146,8 +155,13 @@ public static class ChannelRoles
 
             // A mixture is reported as a bare ratio as often as it is labelled,
             // and "AFR", "lambda" and ":1" are all in use.
+            // "o2" because that is the unit string a Speeduino puts on afr,
+            // afrTarget and afr2: the names matched their aliases exactly and
+            // this guard threw all three away, leaving that firmware with no
+            // mixture and no target at all. "1" rather than ":1" because
+            // Simplify strips the colon, which made that entry unreachable.
             ChannelRole.Mixture or ChannelRole.MixtureTarget =>
-                units is "afr" or "lambda" or ":1" or "ratio",
+                units is "afr" or "lambda" or "1" or "ratio" or "o2",
 
             ChannelRole.IntakeAir => units is "c" or "f" or "degc" or "degf" or "temp" or "k",
 
@@ -160,15 +174,20 @@ public static class ChannelRoles
             ChannelRole.InjectorPulseWidth => units is "ms" or "msec" or "s" or "sec" or "us",
             ChannelRole.InjectorDuty => units is "%" or "percent" or "pct",
 
+            // Written as Simplify leaves them, the slash being one of the
+            // characters it strips: "g/s" as a literal could never match
+            // anything, and half this list was inert because of it. "gsec" is
+            // what a MegaSquirt declares on its maf channel.
             ChannelRole.MassAirFlow =>
-                units is "g/s" or "gs" or "kg/h" or "kgh" or "lb/min" or "lbmin" or "g/min" or "kg/min",
+                units is "gs" or "gsec" or "kgh" or "kghr" or "lbmin" or "gmin" or "kgmin",
 
             // "ratio" among them because that is how a rusEFI labels veValue,
             // which is nonetheless the same 0–120 figure everyone else calls a
             // percentage rather than a fraction of one.
             ChannelRole.VolumetricEfficiency => units is "%" or "percent" or "pct" or "ratio",
 
-            ChannelRole.VehicleSpeed => units is "km/h" or "kmh" or "kph" or "mph" or "m/s",
+            // Likewise stripped of its slashes: "km/h" and "m/s" never matched.
+            ChannelRole.VehicleSpeed => units is "kmh" or "kph" or "mph" or "ms",
 
             ChannelRole.SparkAdvance or ChannelRole.KnockRetard =>
                 units is "deg" or "degrees" or "btdc" or "degbtdc" or "°",
@@ -217,21 +236,25 @@ public static class ChannelRoles
         // also starts with "afr".
         ChannelRole.MixtureTarget =>
             ["afrtarget", "afrtarget1", "afr1target", "lambdatarget", "targetafr", "targetlambda",
-             "afrtgt", "afrtgt1", "egotarget", "lambdatarget1"],
+             "afrtgt", "afrtgt1", "egotarget", "lambdatarget1", "fueltargetlambda"],
 
         ChannelRole.ManifoldPressure => ["map", "mapvalue", "manifoldpressure", "manifoldabsolutepressure", "mapkpa"],
 
         // A cut is reported as a percentage on one controller and as a reason
         // code on another. Either way zero means it is not cutting, which is
         // all this needs to know.
-        ChannelRole.FuelCut => ["fuelcut", "fuelcutreason", "fuelcutcode", "dfco", "decelfuelcut"],
+        // "fuelcutactive" spelled out: it is what an MS3 calls it, and Extends
+        // allows a bank number after an alias rather than six more characters.
+        ChannelRole.FuelCut =>
+            ["fuelcut", "statusfuelcut", "fuelcutactive", "fuelcutreason", "fuelcutcode",
+             "dfco", "decelfuelcut"],
 
         ChannelRole.IntakeAir =>
             // The bare word last, which is all a rusEFI calls it. Safe only
             // because the units have to be a temperature: the same board logs
             // "intake" pressures and valve positions under names starting the
             // same way, and every one of them is kept out by that guard.
-            ["iat", "mat", "intakeairtemperature", "intakeair", "intaketemp", "chargetemp",
+            ["iat", "mat", "intakeairiat", "intakeairtemperature", "intakeair", "intaketemp", "chargetemp",
              "airtemp", "manifoldairtemp", "act", "inlettemp", "intake"],
 
         ChannelRole.Barometric => ["baro", "baropressure", "barometricpressure", "barometer", "ambientpressure"],
@@ -243,7 +266,10 @@ public static class ChannelRoles
             // A rusEFI logs the advance twice, before its corrections and after.
             // This role is the figure actually commanded, so the corrected one
             // is named and "baseIgnitionAdvance" deliberately is not.
-            ["sparkadvance", "spksparkadvance", "advance", "correctedignitionadvance",
+            // "timingignition" is the label rusEFI puts on correctedIgnitionAdvance.
+            // Its sibling "Timing: base ignition" is the figure before the
+            // corrections and is deliberately left unreachable.
+            ["sparkadvance", "spksparkadvance", "advance", "correctedignitionadvance", "timingignition",
              "ignitionadvance", "timing", "ignadvance", "spkadvance", "sparkangle",
              "timingadvance", "ignitiontiming"],
 
@@ -253,11 +279,15 @@ public static class ChannelRoles
             // not degrees taken away. rusEFI's own retard is "m_knockRetard",
             // whose sibling "m_knockLevel" is exactly such a sensor reading and
             // is kept out by the units having to be degrees.
-            ["knockretard", "spkknockretard", "knockcorrection", "knockrtd",
+            // "knockcor" is a Speeduino's name for it, in degrees, and no
+            // amount of loose matching reaches it from "knockcorrection".
+            ["knockretard", "spkknockretard", "knockcorrection", "knockcor", "knockrtd",
              "totalknockretard", "mknockretard"],
 
         ChannelRole.BatteryVoltage =>
-            ["battv", "batteryvoltage", "batt", "battery", "vbatt", "voltage", "supplyvoltage"],
+            // "batteryv" is a Speeduino's label, and Extends will not take a "v"
+            // after "battery" — only a bank number.
+            ["battv", "batteryv", "batteryvoltage", "batt", "battery", "vbatt", "voltage", "supplyvoltage"],
 
         // Bank one where a controller logs each separately, the banks being the
         // same on any engine this could describe.
@@ -266,27 +296,39 @@ public static class ChannelRoles
              "shorttermfueltrim", "stft", "lambdacorrection", "gego"],
 
         ChannelRole.WarmupCorrection =>
+            // "gwarm" is a Speeduino's label for it, named the way its "Gego"
+            // is — which this file already takes for the closed-loop trim.
             ["fuelwarmupcor", "warmupcor", "warmupenrichment", "wue", "warmupcorrection",
-             "fuelwarmup", "warmup"],
+             "gwarm", "fuelwarmup", "warmup"],
 
-        ChannelRole.Boost => ["boostpsi", "boost", "boostpressure", "manifoldgaugepressure"],
+        // A MegaSquirt reports gauge boost three times over, in three units,
+        // and "boostpsig" misses "boostpsi" by the one trailing character
+        // Extends will not allow. "boostvac" is deliberately absent: it is the
+        // vacuum side, which is not what this role means.
+        ChannelRole.Boost =>
+            ["boostpsi", "boostpsig", "boost", "boostbar", "boostpressure", "manifoldgaugepressure"],
 
         // "pw" alone is what a MegaSquirt calls it; the rest spell it out. Bank
         // one is taken where a controller logs each bank separately, the two
         // being the same on any engine this could describe.
         ChannelRole.InjectorPulseWidth =>
             ["pw", "pulsewidth", "injpw", "injectorpulsewidth", "injectorpw", "injpulsewidth",
-             "fuelpw", "pulsewidth1", "actuallastinjection"],
+             "fuelpw", "pulsewidth1", "actuallastinjection", "fuellastinjpulsewidth"],
 
         ChannelRole.InjectorDuty =>
-            ["dutycycle", "injectorduty", "injduty", "duty", "idc", "injectordutycycle"],
+            ["dutycycle", "injectorduty", "injduty", "duty", "idc", "injectordutycycle",
+             "fuelinjectordutycycle"],
 
         // The low-pressure side first: on a port-injected engine that is the
         // rail, and on a direct-injected one it is still the pump feeding it,
         // which is the pressure a pulse width can be reasoned about against.
         ChannelRole.FuelPressure =>
+            // The bracketed and suffixed forms are labels rather than field
+            // names: a rusEFI logs "Fuel pressure (low)" and an MS3 the same
+            // sensor three times over, in kPa, psi and bar. kPa is taken.
             ["fuelpressure", "fuelpress", "fuelrailpressure", "railpressure", "fp", "fuelp",
-             "lowfuelpressure", "highfuelpressure"],
+             "lowfuelpressure", "fuelpressurelow", "fuelpressure1kpa",
+             "highfuelpressure", "fuelpressurehigh"],
 
         ChannelRole.MassAirFlow =>
             ["maf", "massairflow", "airflow", "airmassflow", "mafflow", "mafmeasured"],
@@ -295,10 +337,17 @@ public static class ChannelRoles
         // "veTableYAxis", which is the load the table is looked up on and not a
         // filling efficiency at all.
         ChannelRole.VolumetricEfficiency =>
-            ["ve", "vevalue", "volumetricefficiency", "vecurrent", "vetable"],
+            // "vecurr" is what both an MS2 and an MS3 call the figure actually
+            // being used, alongside a "veCurr1" per bank.
+            ["ve", "vevalue", "fuelve", "volumetricefficiency", "vecurr", "vecurrent", "vetable"],
 
         ChannelRole.VehicleSpeed =>
-            ["vss", "vehiclespeed", "vehiclespeedkph", "speed", "roadspeed", "gpsspeed"],
+            // A Speeduino logs the same road speed twice, in kph and mph, and
+            // brackets the unit into the label. "gpsspeed" stays last: it is a
+            // receiver rather than a sensor, and reads a flat zero on a car
+            // that has none.
+            ["vss", "vehiclespeed", "vehiclespeedkph", "wheelspeedkph", "wheelspeedmph",
+             "wheelspeed", "speed", "roadspeed", "gpsspeed"],
 
         _ => [],
     };
@@ -307,6 +356,11 @@ public static class ChannelRoles
     /// A name reduced to something comparable: lower case, with spaces,
     /// underscores, dots and hyphens taken out, since every firmware writes
     /// "Throttle position", "throttle_pos" and "ThrottlePos" for the same thing.
+    ///
+    /// Brackets among them, because a datalog label qualifies itself with one as
+    /// readily as a firmware groups its channels with a prefix: a Speeduino logs
+    /// "Wheel Speed (kph)" and "VE (Current)", and a rusEFI "Fuel pressure
+    /// (low)". Left in, every one of those is invisible to every alias.
     /// </summary>
     internal static string Simplify(string text)
     {
@@ -319,7 +373,7 @@ public static class ChannelRoles
             // a prefix — "SPK: Knock retard", "Fuel: Warmup cor" — and that
             // colon is a heading rather than part of the name. Left in, every
             // one of those channels is invisible to every alias.
-            if (c is ' ' or '_' or '.' or '-' or '\t' or '°' or ':' or '/') continue;
+            if (c is ' ' or '_' or '.' or '-' or '\t' or '°' or ':' or '/' or '(' or ')') continue;
 
             buffer[at++] = char.ToLowerInvariant(c);
         }

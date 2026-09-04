@@ -1,0 +1,164 @@
+# MS2Extra comms342h2
+# from MS2Extracomms342h2.ini: every output channel the firmware publishes, by field name.
+seconds	s
+pulseWidth1	ms
+pulseWidth2	ms
+rpm	RPM
+advance	deg
+squirt	bit
+firing1	
+firing2	
+sched1	
+inj1	
+sched2	
+inj2	
+engine	bit
+ready	
+crank	
+startw	
+warmup	
+tpsaccaen	
+tpsaccden	
+mapaccaen	
+mapaccden	
+afrtgt1	AFR
+afrtgt2	AFR
+wbo2_en1	
+wbo2_en2	
+barometer	kPa
+map	kPa
+mat	°F
+coolant	°F
+tps	%
+batteryVoltage	v
+afr1	AFR
+afr2	AFR
+knock	%
+egoCorrection1	%
+egoCorrection2	%
+airCorrection	%
+warmupEnrich	%
+accelEnrich	ms
+tpsfuelcut	%
+baroCorrection	%
+gammaEnrich	%
+veCurr1	%
+veCurr2	%
+iacstep	
+idleDC	
+coldAdvDeg	deg
+TPSdot	%/s
+MAPdot	kPa/s
+dwell	ms
+mafload	kPa
+fuelload	
+fuelCorrection	%
+portStatus	bit
+port0	
+port1	
+port2	
+port3	
+port4	
+port5	
+port6	
+knockRetard	deg
+EAEFuelCorr1	%
+egoV	V
+egoV2	V
+status1	
+status2	
+status3	
+status4	
+looptime	us
+status5	
+tpsADC	ADC
+fuelload2	
+ignload	
+ignload2	
+synccnt	
+timing_err	%
+deltaT	uS
+wallfuel1	uS
+gpioadc0	
+gpioadc1	
+gpioadc2	
+gpioadc3	
+gpioadc4	
+gpioadc5	
+gpioadc6	
+gpioadc7	
+gpiopwmin0	
+gpiopwmin1	
+gpiopwmin2	
+gpiopwmin3	
+adc6	
+adc7	
+wallfuel2	uS
+EAEFuelCorr2	%
+boostduty	%
+syncreason	
+user0	
+inj_adv1	deg
+inj_adv2	deg
+pulseWidth3	ms
+pulseWidth4	ms
+vetrim1curr	%
+vetrim2curr	%
+vetrim3curr	%
+vetrim4curr	%
+maf	g/sec
+eaeload1	
+afrload1	
+RPMdot	rpm/sec
+gpioport0	
+gpioport1	
+gpioport2	
+cl_idle_targ_rpm	rpm
+maf_volts	V
+airtemp	°F
+dwell_trl	ms
+fuel_pct	%
+boost_targ	kPa
+ext_advance	deg
+base_advance	deg
+idle_cor_advance	deg
+mat_retard	deg
+flex_advance	deg
+adv1	deg
+adv2	deg
+adv3	deg
+revlim_retard	deg
+nitrous_retard	deg
+deadtime1	s
+n2o_addfuel	ms
+portbde	
+portam	
+portt	
+can_error_cnt	
+can_error	
+deadValue	
+secl	s
+pulseWidth	s
+throttle	%
+lambda1	Lambda
+lambda2	Lambda
+egoCorrection	%
+veCurr	%
+accDecEnrichPcnt	%
+accEnrichPcnt	%
+accEnrichMS	ms
+decEnrichPcnt	%
+decEnrichMS	ms
+rpm100	
+boostbar	
+boostpsig	
+vacuum	
+boostvac	
+rpm_target_error_follower	rpm
+mathigh	
+egoVoltage	AFR
+egt6temp	
+egt7temp	
+calcflow	
+tpsDOT	
+mapDOT	
