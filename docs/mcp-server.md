@@ -10,6 +10,11 @@ It acts on the **live window**. A table an agent opens opens on the Calibration 
 histogram it builds is the one on screen. Nothing happens in a second, invisible copy of
 the application.
 
+What the tools can see of a controller — which channels exist, what they are called, which
+settings pages are worth opening — is decided by the firmware's definition file.
+[ini-and-channels.md](ini-and-channels.md) explains that, and is worth reading before
+wondering why a channel an agent expected is not in `list_channels`.
+
 ## Arming
 
 The server is **off by default and never remembers being on** — every launch starts
@@ -72,6 +77,61 @@ claude mcp add --transport http openlogviewer http://127.0.0.1:7071/
 Either way the application must already be running and armed before the client connects;
 there is nothing to launch on the agent's behalf. A client reporting `ConnectionRefused` is
 this design working, not a misconfiguration.
+
+## Driving it from a script
+
+An MCP client library is the easy path, but the transport is plain enough to drive with an
+HTTP client, which is what a scripted bench run wants. Worth knowing:
+
+- **It is MCP streamable HTTP**, JSON-RPC over `POST` to `/`. Send
+  `Accept: application/json, text/event-stream` — both, or the server has nothing it is
+  allowed to answer with.
+- **A reply may come back as SSE** rather than as a JSON body. Take the last `data:` line.
+- **`initialize` first**, then the `notifications/initialized` notification, then
+  `tools/call`. Keep the `Mcp-Session-Id` the initialize response hands back and send it on
+  every later request.
+- **A notification has no `id` and returns an empty body.** Parsing that as JSON is the
+  first thing to get wrong.
+- **Give the client a long timeout.** A write tool does not return until somebody answers
+  a dialog, and calls are serialised, so a read queued behind a write waits too. Five
+  minutes is a reasonable ceiling; 30 seconds is not.
+
+Arm and connect in one line, then talk to it:
+
+```sh
+OpenLogViewer.App.exe --connect COM8 --mcp
+```
+
+**Identify the board before opening a port.** Port numbers move and the USB ids do not, and
+a MicroSquirt in a running car and a Speeduino on a bench look identical over a COM port.
+`list_serial_ports` reads WMI only and opens nothing, so it is safe to call first; no tool
+scans and attaches on your behalf.
+
+### The write workflow
+
+The order the five write tools expect, and the one the rusEFI and Speeduino runs used:
+
+1. **Back the tune up first.** `save_tune_to_file` writes a `.msq` with no dialog. A burn
+   is permanent, and this is what makes it reversible.
+2. **Open the thing being changed** — `open_tune_table`, `open_settings_page`. A curve
+   lives on a settings page; opening the page is what makes `list_curves` answer.
+3. **Stage the change** — `select_cells` then `edit_table`, or `set_setting`, or
+   `set_curve_point`. Nothing has left the application yet.
+4. **Call `get_write_readiness`.** It splits what is in the way into
+   `needsAcknowledgement` — things an agent can still resolve, such as nothing having been
+   changed yet — and `remainingForOperator`, which is the dialog and, for a burn, the
+   engine-stopped question. When `needsAcknowledgement` is empty, it is a person's move.
+5. **Write.** `write_table_to_ecu`, `write_settings_to_ecu` or `write_curve_to_ecu`. The
+   call blocks until the dialog is answered and returns `declined` when it is refused.
+   The change is live but forgotten at the next power cycle.
+6. **Burn, if it should persist.** `burn_table_to_ecu` or `burn_settings_to_ecu`. Permanent.
+   On a rusEFI most of the tune is page 0, so a settings burn commits a curve written
+   alongside it; a Speeduino's pages are separate.
+7. **Verify.** `compare_with_saved_tune` against the backup names each differing setting,
+   and `plan_restore` says what putting it back would take. Both change nothing.
+
+To undo, run the same sequence in reverse and burn again — or, for a whole tune,
+*Tools ▸ Restore a saved tune to the ECU* in the window, which is deliberately not a tool.
 
 ## Tool inventory
 
@@ -144,7 +204,7 @@ whether the car's own count disagrees with the codes it listed.
 | `select_cells` | The cells edits act on |
 | `edit_table` | set / add / scale / interpolate / revert — the same operation the keyboard raises |
 | `revert_table` | Back to what the controller holds |
-| `list_settings_pages`, `open_settings_page`, `set_setting`, `revert_settings` | The settings dialogs |
+| `list_settings_pages`, `open_settings_page`, `set_setting`, `revert_settings` | The settings dialogs. Only pages holding something — a firmware describes its runtime state in dialogs too, and those open blank |
 | `list_curves`, `set_curve_point`, `revert_curve` | Fuelling or timing against a temperature or a voltage. A curve page has no fields — its points are the editable thing, and `open_settings_page` returns them |
 
 `edit_table` returns a **clamped** count as well as a moved count. A clamped cell is a value
@@ -296,18 +356,57 @@ showed the headline, summary, revision and both findings rendered correctly — 
 colour and the checkbox on the finding carrying a change — and `get_overview_report` /
 `get_overview_selections` read back exactly what was published, against the same view model.
 
+### Verified on a rusEFI, 2026-09-04
+
+A second protocol through the same tools. The uaEFI on COM8,
+`rusEFI master.2024.11.17.uaefi.2834573262`: connected at 10 Hz over **823 channels**,
+**75 tables**, **147 settings pages**, a curve page opened and its eight points read, and
+the tune saved to a 151 KB `.msq` that `plan_restore` then called **empty** — "The ECU
+already holds this tune, setting for setting". That last one matters: it is the check that
+previously reported a phantom "0 settings would change, 2 bytes across 1 page" on this
+board, and it is now clean on the hardware that produced the fault.
+
+**Every write tool has now been sent, and every change survived a physical unplug.**
+
+| Tool | What it sent |
+|---|---|
+| `write_settings_to_ecu` | `acIdleRpmTarget` 900 → 950 |
+| `write_curve_to_ecu` | cranking CLT multiplier at 90 °C, 1.0 → 1.05 |
+| `write_table_to_ecu` | rusEFI VE cell 31.5 → 32.5 %; Speeduino 33 → 44 % |
+| `burn_settings_to_ecu` | "Burned 1 page to flash" |
+| `burn_table_to_ecu` | rusEFI "Burned page 0"; Speeduino "Burned page 1" |
+
+Confirmed two independent ways: `compare_with_saved_tune` against a backup taken before
+the first write, and — for the rusEFI — the tune read back by a **different program**, the
+`rusefi-ecu` MCP server, after rebooting the controller. The second matters because it
+does not rely on this application checking its own work.
+
+The Speeduino cell is the sharpest evidence there is. It read **33** at the start of the
+session, the *unburned* 34 left on it the day before having been lost to a power cycle
+exactly as predicted, and **44** after being burned and physically unplugged.
+
+**The gate held on all ten dialogs.** Every write and burn blocked until a person answered,
+including the burn's engine-stopped question, and `get_write_readiness` moved each item
+from `needsAcknowledgement` to `remainingForOperator` as the changes were staged.
+
+**Both boards were restored and re-burned in the same session**, each verified by
+`plan_restore` against its backup returning empty again. Nothing was left on either.
+
+One defect turned up, now fixed: **`list_settings_pages` offered 38 of the rusEFI's 147
+pages that are not settings at all** — `engine_state`, `trigger_state0`–`4`,
+`fan_control0`, `wideband_state0`, `lambda_monitor`. Their dialogs hold only indicator
+panels and live graphs, never a field, so each opened blank; an agent following the list
+wasted a quarter of its calls. The count is now **105 with none blank**, and a Speeduino is
+unchanged at 60. See [ini-and-channels.md](ini-and-channels.md#the-settings-interface).
+
 ### Still to be proven
 
-- **Burning through MCP.** `burn_table_to_ecu` and `burn_settings_to_ecu` are written and
-  tested and have never committed a page. On this board the burn command is per-page and
-  opening the port resets it, so anything written and not burned is gone at the next
-  connection.
-- **`write_settings_to_ecu` and `write_curve_to_ecu`** — the table path is proven and both
-  of these can now be reached and staged, but neither has been sent.
-- **rusEFI** — a second protocol through the same tools.
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
-  `scan_faults` against a running car.
+  `scan_faults` against a running car. This is the last untested surface.
 - **The MicroSquirt is in a live car** and stays read-only unless somebody asks otherwise.
 - **A person actually ticking a box in the Overview window** and an agent seeing it in
   `get_overview_selections`. The round trip up to that point is proven — see below — but
   nothing has driven the checkbox itself, since that is a person's click, not a tool.
+- **Any of this on a running engine.** Everything above was a bench board with nothing
+  turning. The confirmation gate is what stands between a tool call and a running engine,
+  and it has only ever been tested with the engine stopped.

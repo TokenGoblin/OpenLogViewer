@@ -49,6 +49,54 @@ This is a report layer, not a new way to edit the tune — an accepted change is
 still applied with `edit_table`/`set_setting`, and still reaches a controller only
 through the write tools, confirmed by a person exactly as before.
 
+**All five write tools have now been used on real hardware, and every change was
+verified across a physical power cycle.** A rusEFI uaEFI and a Speeduino on the bench
+took a setting, a curve point and a table cell, each written and burned and then read
+back — once by comparing against a tune saved beforehand, and once by a different
+program entirely, so the proof does not rest on this application checking its own work.
+The confirmation gate held on all ten dialogs, including the engine-stopped question a
+burn asks. Both boards were then restored and re-burned, each verified by `plan_restore`
+finding nothing left to change. [docs/mcp-server.md](docs/mcp-server.md) records what
+was sent and what is still unproven — the OBD2 dongles, and any of it on a running
+engine.
+
+### Every make of ECU is understood better than it was
+
+**A firmware's own names now reach the analysis.** Everything built on "the coolant
+channel" — the insights, the suggested filters, VE calibration, the power estimate —
+looks the job up by role rather than by spelling. Measured against logs taken off the
+bench, a live Speeduino matched **14 of 21 roles and now matches 19**, and a live rusEFI
+the same. What was missing was not obscure: the Speeduino had no mixture, no mixture
+target, no battery voltage, no warmup correction and no road speed; the rusEFI had no
+mixture target, no spark advance, no volumetric efficiency, no injector pulse width and
+no injector duty. Nothing failed and nothing warned — those features simply returned
+empty on entire makes of controller.
+
+The causes, all fixed: a Speeduino declares its `afr` and `afrTarget` channels in units
+of `O2`, and the units guard threw both away; `Simplify` did not strip brackets, so
+`Wheel Speed (kph)` and `Fuel pressure (low)` were invisible; several unit strings in the
+guard contained characters that same routine removes, so `"g/s"`, `"km/h"`, `"m/s"` and
+`":1"` could never have matched anything; and a dozen datalog labels had no alias at all.
+
+**An MS3 no longer answers "vehicle speed" with its GPS receiver.** Matching tried every
+alias's whole-name match before any alias's near match, so `gps_speed` — matching the
+*last* alias exactly — beat `vss1`, matching the *first* with a sensor number after it. On
+a car with no receiver fitted that channel is a flat zero, so every speed-based filter and
+insight worked from nothing while reading as though it had found the speed. Aliases are
+now tried in order, whole name before near, one alias at a time.
+
+**Settings menus no longer offer pages that open blank.** A firmware describes more than
+its settings in its dialogs: rusEFI gives every runtime structure one of its own —
+`engine_state`, `trigger_state0`, `fan_control0` — holding an indicator panel and a live
+graph and never a field. **38 of that board's 147 pages** opened empty. It now lists 105
+with none blank, and a Speeduino is unchanged at 60, which is the check that matters
+because that is the firmware whose curve pages this nearly took with it.
+
+[docs/ini-and-channels.md](docs/ini-and-channels.md) is new, and explains the whole path:
+how a definition file is found and matched, why it is read as ISO-8859-1, the two
+different names every firmware gives each channel and which one a live session uses, how
+a role is matched, and what becomes a settings page.
+
 ### Housekeeping
 
 **Third-party notices, and the installer now carries them.** The published build

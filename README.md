@@ -388,9 +388,19 @@ does not fail — it reads every channel from the wrong offset and returns numbe
 that look entirely reasonable. Even adjacent versions count as no match.
 
 TunerStudio keeps INIs under `.efiAnalytics/TunerStudio/config/ecuDef` and in
-each project folder; both are searched. **Open the tune before connecting** if
+each project folder; both are searched, along with an **ECU definitions** folder
+in your workspace, which is searched first and is the place to put one for a
+firmware too new for the copy on disk. **Open the tune before connecting** if
 you want the channels the firmware derives from tune settings — duty cycle
 divides by the cylinder count, and that does not come over the wire.
+
+**Channels are named the way the firmware's datalog names them**, not the way its
+output-channel list does — a rusEFI publishes `RPMValue` and `correctedIgnitionAdvance`
+and logs them as `RPM` and `Timing: ignition`. That is why a preset saved against a
+recorded file applies to a live session, and it is also why only the channels a
+firmware chooses to log appear at all: 81 of a Speeduino's 181, 823 of a rusEFI's 880.
+[docs/ini-and-channels.md](docs/ini-and-channels.md) has the whole of it, including
+how a channel is matched to the job it does.
 
 **Recording is yours to start and stop.** A **Record** button sits next to
 *Connect* whenever a session is live. You choose the moment, the name and the
@@ -675,6 +685,32 @@ scale, and long-term trim sat at +1.56% — two counts off the 128 that means "n
 correction" — which fixes the offset, since a wrong one would leave a healthy
 engine showing a large standing correction. Lambda oscillated 0.97 to 1.22 about
 1.00, which is closed loop doing what closed loop does.
+
+## AI agent access (MCP)
+
+*AI agent ▸ Allow an AI agent to connect (MCP)* lets Claude, or any other MCP
+client, drive the application in front of you: open logs, build histograms, run
+the VE analysis, connect to a controller, read fault codes, read and edit the
+tune, and send changes to an ECU. It acts on the live window — a table an agent
+opens opens on the Calibration tab.
+
+It is **off at every launch and never remembers being on**, and binds `127.0.0.1`
+only. The status bar says whether a listener is up and, separately, whether an
+agent is actually attached — the second in amber, because that is the state worth
+noticing. `--mcp` arms it for a scripted run.
+
+**Nothing about it weakens a safety gate.** Every write and burn still asks you,
+in this window, before the first byte goes out; a write triggered by an agent
+waits for somebody to answer that dialog. The engine-stopped question a burn asks
+is never exposed as a tool, because nothing in software can see whether an engine
+is running and neither can an agent. No tool restores a saved tune to a
+controller, and none clears fault codes.
+
+All five write tools have been used on real hardware, and every change was
+verified across a physical power cycle.
+[docs/mcp-server.md](docs/mcp-server.md) has the tool inventory, how to drive the
+server from a script, the write workflow, and an honest account of what has and
+has not been proven.
 
 ## Calculated channels
 
@@ -1045,6 +1081,15 @@ OpenLogViewer.App.exe path\to\log.mlg --screenshot out.png
 Add `--pointer 0.42,0.55` (fractions of the plot area) to place the cursor first,
 so the hover readout appears in the capture.
 
+`--connect COM8 --settle 15000 --export <dir>` does the same against a live
+controller, writing the plot, the plotted channels and every channel as CSV once
+the session has settled. That is how the bench measurements in
+[docs/ini-and-channels.md](docs/ini-and-channels.md) were taken.
+
+**Known issue:** `--insights` and `--screenshot` together hang. The findings window
+is modal, so the capture queued behind it never runs and the application never
+exits. Use them separately.
+
 ## Layout
 
 ```
@@ -1054,6 +1099,8 @@ src/OpenLogViewer.App     WPF viewer
 tools/OpenLogViewer.Dump  console decoder / regression harness
 tests/OpenLogViewer.Tests xunit tests
 docs/mlg-format.md        the MLG binary format
+docs/ini-and-channels.md  firmware definitions, channel naming and roles
+docs/mcp-server.md        AI agent access over MCP
 ```
 
 `OpenLogViewer.Core` targets plain `net10.0` and has no WPF reference, so it can
