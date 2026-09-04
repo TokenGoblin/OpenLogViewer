@@ -63,17 +63,17 @@ application has no console attached.
 dotnet test -c Release
 ```
 
-**2,361 tests, in two suites:**
+**2,379 tests, in two suites:**
 
 | Suite | Tests | What it covers |
 | --- | ---: | --- |
 | `OpenLogViewer.Tests` | 1,843 | The readers, the histogram and scatter, filters, tune axes, the tune model, the protocols, every calculator, and the guide |
-| `OpenLogViewer.App.Tests` | 518 | The view model, driven end to end: write a log, open it, and exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does |
+| `OpenLogViewer.App.Tests` | 536 | The view model driven end to end — write a log, open it, exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does — and the documentation |
 
 Two things about how they are written are worth knowing before adding to them:
 
 - **The MLG tests build synthetic log files in memory**, so they cover the awkward
-  cases â€” packed flag bytes, interleaved markers, scale and transform â€” without
+  cases — packed flag bytes, interleaved markers, scale and transform — without
   sample logs checked into the repository.
 - **The preset, filter and settings stores are injected with temporary paths**, so
   tests never touch real user settings. Follow that pattern for anything new that
@@ -91,25 +91,62 @@ both ways:
 | Test | Fails when |
 | --- | --- |
 | `EveryMenuItemIsInTheGuide` | A menu item is not mentioned anywhere in the guide |
-| `EveryMenuPathTheGuideNamesStillExists` | The guide writes `Tools â–¸ Something` that is not a menu item |
+| `EveryMenuPathTheGuideNamesStillExists` | The guide writes `Tools ▸ Something` that is not a menu item |
 | `EveryToolbarButtonTheGuideNamesStillExists` | The guide says "X in the toolbar" and X is not a button |
 | `NothingIsExcusedThatIsNoLongerAMenuItem` | The excuse list has rotted |
 
 The first is the important one, and the reason it derives its list from the XAML
-rather than taking one is that the two features it was written for â€” the Subaru
-SSM connection and channel smoothing â€” both shipped undocumented past a
+rather than taking one is that the two features it was written for — the Subaru
+SSM connection and channel smoothing — both shipped undocumented past a
 hand-written checklist. Nobody adds the feature they forgot.
 
-A menu item that genuinely needs no entry â€” **Exit**, **About OpenLogViewer**,
-a context-menu **Delete** verb â€” goes in `NeedsNoGuideEntry` **with a reason**.
+A menu item that genuinely needs no entry — **Exit**, **About OpenLogViewer**,
+a context-menu **Delete** verb — goes in `NeedsNoGuideEntry` **with a reason**.
 Adding to that list is meant to be a decision somebody makes on purpose.
 
 `GuideTests` additionally asserts that every named feature is findable, that no
 section is empty and that nothing is left as a placeholder.
 
+`DocumentedDefaultsTests` checks stated facts against the software:
+
+| Test | Fails when |
+| --- | --- |
+| `DocumentedSettingsDefaultsMatchAFreshInstall` | A default in `configuration.md` is not what a new install actually has |
+| `TheLoggingRateTableMatchesTheMenu` | The rate table and the menu disagree |
+| `TheVeSettingsTableMatchesTheDefaults` | `ve-calibration.md` disagrees with `VeAnalysisSettings` |
+| `TheSmoothingTableMatchesTheWindows` | The smoothing windows in the user guide are not the real ones |
+| `EveryCalculatorIsNamedWhereverTheyAreListed` | A calculator is missing from the tooltip, the user guide or the guide |
+| `TheSchemeCountIsRight`, `TheCalculatorCountIsRight` | A stated count is no longer true |
+
+The settings defaults are read off a real `SettingsStore` rather than compared
+against a constant, so this measures behaviour rather than agreeing with a
+constant that has itself drifted.
+
+`DocumentationLinkTests` checks the set holds together:
+
+| Test | Fails when |
+| --- | --- |
+| `EveryLinkResolvesToAFile` | A relative link points at nothing |
+| `EveryAnchorResolvesToAHeading` | A `#section` link names a heading that is not there |
+| `TheGeneratedWikiJoinsUp` | The wiki's own links do not resolve |
+| `TheWikiSaysWhatItsSourceSays` | A wiki page's non-ASCII text differs from its source |
+| `NothingContainsACharacterNobodyTyped` | A control character got into a page or a workflow file |
+
+The last two are worth explaining. The generator rewrites links and nothing
+else, and a link is ASCII, so every character above 127 in a wiki page must
+appear in its source in the same order. That narrow claim catches a wide fault:
+the first build of this wiki was read back through the wrong codepage and
+shipped with 1,249 characters turned to mojibake, and `-Check` did not notice
+because it was comparing one corrupted copy against another.
+
+The control-character test exists for a smaller reason. A scripted edit once
+wrote a literal backspace into this workflow file and into six commands in this
+page, because a shell collapsed `\b` on its way to Python. The YAML would not
+parse, the commands could not be copied, and neither showed up in a diff.
+
 > **NOTICE:** **Passing tests are not the same as working against hardware.** The
-> suite runs against fakes. Anything touching a real controller â€” a protocol
-> change, a new firmware family, a write path â€” needs verifying on a board before
+> suite runs against fakes. Anything touching a real controller — a protocol
+> change, a new firmware family, a write path — needs verifying on a board before
 > it is trusted. `docs/mcp-server.md` and `docs/ini-and-channels.md` record what
 > has and has not actually been proven, and on what.
 
@@ -126,7 +163,7 @@ dotnet run --project tools/OpenLogViewer.Dump -c Release -- <log> [--channels] [
 | Option | Shows |
 | --- | --- |
 | `--channels` | Every channel with its units and range |
-| `--categories` | How each channel was grouped â€” the quickest way to check the classifier |
+| `--categories` | How each channel was grouped — the quickest way to check the classifier |
 | `--tune` | The tune axes found in the log |
 
 ## The probe tool
@@ -174,8 +211,8 @@ That writes the plot, the plotted channels and every channel as CSV once the
 session has settled. It is how the bench measurements in
 [ini-and-channels.md](Firmware-definitions-and-channels) were taken.
 
-Individual pieces of the interface can be captured too â€” menus, calculators, the
-power estimate, fault codes. See [Command line â–¸ Capturing parts of the
+Individual pieces of the interface can be captured too — menus, calculators, the
+power estimate, fault codes. See [Command line ▸ Capturing parts of the
 interface](Command-line#capturing-parts-of-the-interface).
 
 > **NOTICE:** `--insights` and `--screenshot` together hang. The findings window
@@ -187,13 +224,13 @@ interface](Command-line#capturing-parts-of-the-interface).
 `.github/workflows/build.yml` runs on every push and pull request, on
 `windows-latest`:
 
-1. `dotnet restore` â€” separately, so a dependency problem reads as one
+1. `dotnet restore` — separately, so a dependency problem reads as one
 2. `dotnet build -warnaserror`
 3. `dotnet test`
-4. `dotnet list package --vulnerable --include-transitive` â€” fails the build on a
+4. `dotnet list package --vulnerable --include-transitive` — fails the build on a
    known advisory, in its own step so a security problem reads as a security
    problem
-5. `tools\build-wiki.ps1 -Check` â€” fails if `wiki/` no longer matches `docs/`,
+5. `tools\build-wiki.ps1 -Check` — fails if `wiki/` no longer matches `docs/`,
    so the published wiki and the documentation cannot drift apart
 
 Windows only, and not an oversight: the application is WPF and the core targets a
@@ -209,7 +246,7 @@ wix extension add --global WixToolset.UI.wixext/5.0.2
 installer\build.ps1
 ```
 
-See [Installation â–¸ Build the installer](Installation#build-the-installer) for
+See [Installation ▸ Build the installer](Installation#build-the-installer) for
 the parameters and what the result contains.
 
 ## Coding conventions
@@ -221,9 +258,9 @@ and visible. In short:
 - **Comments explain why, not what.** The codebase leans heavily on this: a
   comment that restates the line above it is noise, and one that records why a
   clamp exists, or which hardware failure a workaround was written for, is the
-  most valuable thing in the file. Several of the trickiest behaviours here â€” the
-  ELM327 read-completion rules, the rolled `â€¦doz` axes, the batched-request
-  death â€” are documented only in the comment beside them and in this
+  most valuable thing in the file. Several of the trickiest behaviours here — the
+  ELM327 read-completion rules, the rolled `…doz` axes, the batched-request
+  death — are documented only in the comment beside them and in this
   documentation set.
 - **XML doc comments on public types and members**, saying what the thing is for.
 - **Units in names and in doc comments** wherever a number has one.
@@ -242,13 +279,13 @@ and visible. In short:
    - `README.md`
    - `docs/getting-started.md`, `docs/user-guide.md`
    - The feature's own page under `docs/`
-   - `docs/configuration.md` â€” if a setting, default or file changed
-   - `docs/command-line.md` â€” if an option changed
-   - `docs/troubleshooting.md` â€” for realistic new failure modes
-   - `src/OpenLogViewer.Core/Guide.cs` â€” **the in-app guide**, if the change is
+   - `docs/configuration.md` — if a setting, default or file changed
+   - `docs/command-line.md` — if an option changed
+   - `docs/troubleshooting.md` — for realistic new failure modes
+   - `src/OpenLogViewer.Core/Guide.cs` — **the in-app guide**, if the change is
      user-visible
    - `CHANGELOG.md`
-   - `wiki/` â€” run `tools\build-wiki.ps1`. CI fails if it is out of date
+   - `wiki/` — run `tools\build-wiki.ps1`. CI fails if it is out of date
 4. **Keep terminology consistent with the interface.** If the menu says **Connect
    over SSM (Subaru)**, the documentation says that, not "the Subaru link".
 5. **Verify on hardware** anything that touches a real controller, and say in the
@@ -261,7 +298,7 @@ and visible. In short:
 `src/OpenLogViewer.Core/Guide.cs` is the manual carried inside the application,
 for the very good reason that this software is used in garages with no internet.
 
-It is written as data â€” `GuideSection` and `GuideEntry` records â€” so it can be
+It is written as data — `GuideSection` and `GuideEntry` records — so it can be
 searched across sections, themed with the rest of the window, and checked by a
 test. `GuideTests` asserts that every section has entries and that no text was
 left empty.
@@ -272,8 +309,8 @@ somebody reads standing next to a car.
 ## Publishing the wiki
 
 A GitHub or GitLab wiki is a separate git repository with a flat page namespace.
-Rather than keep a second copy of the documentation there â€” which is a fork
-nobody notices until the two disagree â€” the wiki is **generated from `docs/`**.
+Rather than keep a second copy of the documentation there — which is a fork
+nobody notices until the two disagree — the wiki is **generated from `docs/`**.
 
 ```powershell
 tools\build-wiki.ps1                       # GitHub, into wiki/
@@ -286,11 +323,11 @@ tools\build-wiki.ps1 -Check                # fail if wiki/ is out of date
 | `-Flavour` | `GitHub` | `GitHub` or `GitLab`. Changes the home page and sidebar names, the footer, and blob URL paths |
 | `-OutputDirectory` | `wiki` | Where to write. Point it straight at a cloned wiki repository to publish |
 | `-RepositoryUrl` | The GitHub repository | Rewrites every repository URL, including ones written into the prose |
-| `-Check` | â€” | Verifies `wiki/` matches what `docs/` would produce. Runs in CI |
+| `-Check` | — | Verifies `wiki/` matches what `docs/` would produce. Runs in CI |
 
 ### What it changes
 
-Only names and links. **The page text is copied through untouched** â€” if
+Only names and links. **The page text is copied through untouched** — if
 something reads wrong on the wiki, fix it in `docs/` and build again.
 
 | | `docs/` | Wiki |
@@ -308,9 +345,9 @@ brackets and a comma that every link then has to URL-encode.
 ### First publish, GitHub
 
 The wiki repository does not exist until the first page is created **in the
-browser** â€” until then `git clone` returns "Repository not found".
+browser** — until then `git clone` returns "Repository not found".
 
-1. On the repository, enable **Settings â–¸ Features â–¸ Wikis** if it is off.
+1. On the repository, enable **Settings ▸ Features ▸ Wikis** if it is off.
 2. Open the **Wiki** tab and **Create the first page**. Save anything; it is
    about to be overwritten.
 3. Then:
@@ -356,11 +393,11 @@ a page deleted from `docs/` is deleted from the wiki rather than left behind.
 ## Releasing
 
 1. Update `<Version>` in `src/OpenLogViewer.App/OpenLogViewer.App.csproj`.
-   **Three parts only** â€” Windows Installer ignores the fourth when deciding
+   **Three parts only** — Windows Installer ignores the fourth when deciding
    whether one build supersedes another, and a four-part version produces
    releases that silently refuse to upgrade each other.
 2. Update `CHANGELOG.md`.
-3. Check the documentation set against the release â€” see the contributing
+3. Check the documentation set against the release — see the contributing
    checklist above.
 4. `installer\build.ps1`. The version comes from the application's own
    `<Version>` unless overridden, so the installer and the thing it installs

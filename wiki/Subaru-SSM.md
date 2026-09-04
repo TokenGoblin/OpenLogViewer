@@ -54,7 +54,7 @@ makes the parameter list a budget.
 | --- | --- |
 | Vehicle | A Subaru that speaks SSM |
 | Adapter | A serial or USB adapter on the vehicle's diagnostic connector |
-| A parameter file | `ssm-parameters.json`, which **you supply** â€” see below |
+| A parameter file | `ssm-parameters.json`, which **you supply** — see below |
 
 There is no definition file to find. There is an address list, and it is yours to
 fill in.
@@ -71,7 +71,7 @@ fill in.
 time it is wanted, so there is something to edit rather than a format to guess
 at. Reach it with:
 
-**Connect â–¾ â–¸ Connect over SSM (Subaru) â–¸ Edit the parameter listâ€¦**
+**Connect ▾ ▸ Connect over SSM (Subaru) ▸ Edit the parameter list…**
 
 That opens the definitions folder.
 
@@ -96,7 +96,7 @@ That opens the definitions folder.
       "name": "Coolant",
       "address": "0x000008",
       "bytes": 1,
-      "units": "Â°C",
+      "units": "°C",
       "scale": 1,
       "offset": -40,
       "digits": 0,
@@ -115,19 +115,19 @@ interesting ones.
 
 1. Fill in `ssm-parameters.json` with the addresses you want.
 2. Plug the adapter in and turn the ignition on.
-3. **Connect â–¾ â–¸ Connect over SSM (Subaru)**, and pick the port.
+3. **Connect ▾ ▸ Connect over SSM (Subaru)**, and pick the port.
 
 **Expected result:** the status bar reads
 
 ```text
-Live â€” SSM   â€¢   8 parameters   â€¢   <adapter>
+Live — SSM   •   8 parameters   •   <adapter>
 ```
 
-and the title bar reads `Live: SSM â€” OpenLogViewer`. Each parameter appears as a
-channel, categorised as `SSM Â· 0x0000NN`.
+and the title bar reads `Live: SSM — OpenLogViewer`. Each parameter appears as a
+channel, categorised as `SSM · 0x0000NN`.
 
-**To verify:** include one address you can check independently â€” engine speed at
-`0x00000E`, say â€” and confirm it agrees with the tachometer or with an OBD2
+**To verify:** include one address you can check independently — engine speed at
+`0x00000E`, say — and confirm it agrees with the tachometer or with an OBD2
 session on the same car.
 
 **It refuses more readily than an OBD2 connection does, and deliberately.** The
@@ -145,22 +145,22 @@ Each entry in `parameters` takes:
 
 | Field | Required | Type | Default | Description |
 | --- | --- | --- | --- | --- |
-| `name` | Yes | string | â€” | The channel name. Must be unique within the file |
-| `address` | Yes | string | â€” | Hex, with or without `0x`. Range `0x000000` to `0xFFFFFF` |
+| `name` | Yes | string | — | The channel name. Must be unique within the file |
+| `address` | Yes | string | — | Hex, with or without `0x`. Range `0x000000` to `0xFFFFFF` |
 | `bytes` | No | integer | `1` | How many consecutive bytes, most significant first |
 | `units` | No | string | `""` | Shown beside the value |
 | `scale` | No | number | `1` | Multiplied by the raw value |
-| `offset` | No | number | `0` | Added after scaling. A temperature is typically raw âˆ’ 40 |
+| `offset` | No | number | `0` | Added after scaling. A temperature is typically raw − 40 |
 | `digits` | No | integer | `0` | Decimal places shown |
 | `low` | No | number | `0` | Gauge lower bound |
 | `high` | No | number | `255` | Gauge upper bound |
 | `enabled` | No | boolean | `true` | Whether this parameter is actually read |
 
-The value shown is `raw Ã— scale + offset`.
+The value shown is `raw × scale + offset`.
 
 **`enabled` earns its keep** because one address per request makes the list a
-budget. A file can hold every parameter a car offers â€” around 160 on this
-protocol â€” while a dozen are switched on. Changing what you are watching is then
+budget. A file can hold every parameter a car offers — around 160 on this
+protocol — while a dozen are switched on. Changing what you are watching is then
 a matter of moving a flag rather than finding an address and its scaling again.
 
 **A bad entry is dropped rather than failing the file.** Somebody filling this in
@@ -171,8 +171,8 @@ are reported, and the count is what tells you something went missing.
 An entry is dropped when:
 
 - `name` is missing or empty
-- `address` is missing, not valid hex, or outside `0x000000`â€“`0xFFFFFF`
-- `name` duplicates one already read â€” a duplicate would give two channels the
+- `address` is missing, not valid hex, or outside `0x000000`–`0xFFFFFF`
+- `name` duplicates one already read — a duplicate would give two channels the
   same column, and every preset and filter matching on it would find whichever
   came first
 
@@ -183,7 +183,7 @@ unfinished.**
 
 What lives at which address is not something this application can discover. The
 two addresses in the template were confirmed by reading them against the same
-values over OBD2 â€” and that method only works for parameters OBD2 already has,
+values over OBD2 — and that method only works for parameters OBD2 already has,
 which are precisely the ones not worth reaching SSM for. Knock correction and the
 learnt fuelling trims have nothing to check them against.
 
@@ -195,7 +195,7 @@ one cannot take from:
   grants nothing to anybody.
 
 So the file is yours to fill in, from whatever source you judge appropriate for
-your own vehicle â€” the same arrangement as the ECU definition files this
+your own vehicle — the same arrangement as the ECU definition files this
 application already expects you to provide.
 
 It also means this works on any Subaru rather than only the one it was written
@@ -230,6 +230,6 @@ against.
 ## Related
 
 - [Live connection](Live-connection)
-- [OBD2](OBD2) â€” faster, standardised, and enough for most work
-- [Command line](Command-line) â€” `--connect-ssm <port>`
-- [Configuration â–¸ Where files go](Configuration#where-files-go)
+- [OBD2](OBD2) — faster, standardised, and enough for most work
+- [Command line](Command-line) — `--connect-ssm <port>`
+- [Configuration ▸ Where files go](Configuration#where-files-go)

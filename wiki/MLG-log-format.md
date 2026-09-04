@@ -2,12 +2,12 @@
 
 This is a clean-room description of the binary datalog format written by
 TunerStudio for MegaSquirt ECUs, derived by analysing sample `.mlg` files. The
-container is self-describing â€” channel names, types, units and scaling all live
-in the file â€” so the format can be read without any external definition.
+container is self-describing — channel names, types, units and scaling all live
+in the file — so the format can be read without any external definition.
 
 All multi-byte values are **big-endian**.
 
-## File header â€” 24 bytes
+## File header — 24 bytes
 
 | Offset | Type      | Field |
 |--------|-----------|-------|
@@ -19,7 +19,7 @@ All multi-byte values are **big-endian**.
 | 20     | `u16`     | Payload size of one data record, in bytes |
 | 22     | `u16`     | Channel descriptor count |
 
-## Channel descriptors â€” 89 bytes each, starting at offset 24
+## Channel descriptors — 89 bytes each, starting at offset 24
 
 | Offset | Type       | Field |
 |--------|------------|-------|
@@ -31,7 +31,7 @@ All multi-byte values are **big-endian**.
 | 54     | `u8`       | Display decimal places |
 | 55     | `byte[34]` | Reserved / zero |
 
-There is **no** `displayStyle` byte before the scale â€” `scale` begins
+There is **no** `displayStyle` byte before the scale — `scale` begins
 immediately after the units field at offset 46.
 
 ### Data types
@@ -49,7 +49,7 @@ immediately after the units field at offset 46.
 | 16    | packed flag byte | 1 |
 
 Type 16 descriptors carry an **empty name** and units `"bits"`. They are easy to
-overlook, but each still consumes one payload byte â€” skipping them misaligns
+overlook, but each still consumes one payload byte — skipping them misaligns
 every channel that follows.
 
 Channel values are decoded as:
@@ -68,7 +68,7 @@ Every record starts with the same 4-byte header:
 | 1      | `u8`  | Sequence counter, increments by 1 across *all* records |
 | 2      | `u16` | Logger tick |
 
-### Type 0 â€” sample
+### Type 0 — sample
 
 ```
 4-byte header | payload (header field @20 bytes) | 1 trailing checksum byte
@@ -76,12 +76,12 @@ Every record starts with the same 4-byte header:
 
 The payload holds every declared channel packed in declaration order with no
 alignment padding. The first channel is normally `Time` (`f32`, seconds), and it
-is stored in the payload â€” not derived from the header tick.
+is stored in the payload — not derived from the header tick.
 
 Note that the header's record-length field counts **only the payload**, so the
 on-disk stride is `4 + payload + 1`.
 
-### Type 1 â€” marker
+### Type 1 — marker
 
 ```
 4-byte header | char[50] annotation text
@@ -135,18 +135,18 @@ stride = 4 + 335 + 1 = 340
 Physical plausibility is the most reliable check that the layout is right; a
 misaligned decode produces values that are obviously impossible:
 
-- `Batt V` sits at 12â€“14.5 V on a running engine (and dips near 9 V on cranking)
-- `CLT` reaches 160â€“200 Â°F once warm
-- `MAP` stays within roughly 10â€“250 kPa
+- `Batt V` sits at 12–14.5 V on a running engine (and dips near 9 V on cranking)
+- `CLT` reaches 160–200 °F once warm
+- `MAP` stays within roughly 10–250 kPa
 - `Time` increases monotonically
 
 A useful trick when the alignment is unknown: scan every byte offset in the
-record for one that decodes as `s16 * 0.1` within 11â€“15 across most records.
+record for one that decodes as `s16 * 0.1` within 11–15 across most records.
 That locates battery voltage, and the rest of the layout follows from it.
 
 ## Related
 
 - [Documentation index](Home)
-- [User guide â–¸ Supported log formats](User-guide#supported-log-formats)
-- [Histogram and scatter â–¸ Axis breakpoints from the tune](Histogram-and-scatter#axis-breakpoints-from-the-tune) â€” the `.msq` an MLG embeds
-- [Development â–¸ The dump tool](Development#the-dump-tool)
+- [User guide ▸ Supported log formats](User-guide#supported-log-formats)
+- [Histogram and scatter ▸ Axis breakpoints from the tune](Histogram-and-scatter#axis-breakpoints-from-the-tune) — the `.msq` an MLG embeds
+- [Development ▸ The dump tool](Development#the-dump-tool)

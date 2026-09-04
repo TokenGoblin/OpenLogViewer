@@ -30,7 +30,7 @@ Reading, changing and saving the tune on a connected controller.
 
 > **NOTICE:** Every write is read back and compared before it is called done. A
 > write reported as successful was verified. A write reported as failed may still
-> have partially landed â€” re-read the tune before continuing.
+> have partially landed — re-read the tune before continuing.
 
 ## What a tune is
 
@@ -49,14 +49,14 @@ this world reads.
 
 ## Opening the Calibration view
 
-Switch to **Calibration** in the toolbar, or **View â–¸ Calibration**, on a live
+Switch to **Calibration** in the toolbar, or **View ▸ Calibration**, on a live
 connection.
 
 **Expected result:** the tables and a **Settings** panel appear. They are read
 **off the controller** rather than from a saved file, so they are what it is
 running now.
 
-Calibration is not available on an OBD2 connection â€” a standard vehicle has no
+Calibration is not available on an OBD2 connection — a standard vehicle has no
 tune to read. It shows [fault codes](OBD2#fault-codes) instead.
 
 ## Editing a table
@@ -73,9 +73,9 @@ tune to read. It shows [fault codes](OBD2#fault-codes) instead.
 
 | Key | Change | With Shift |
 | --- | --- | --- |
-| `+` `âˆ’` | Nudge by the firmware's own smallest step | Ten steps |
+| `+` `−` | Nudge by the firmware's own smallest step | Ten steps |
 | `PgUp` `PgDn` | Scale by 1 % | 5 % |
-| `Esc` | Put the selection back to what the ECU said | â€” |
+| `Esc` | Put the selection back to what the ECU said | — |
 
 **Scaling is there because it is how tuning is actually done.** A region reading
 four per cent lean is corrected by adding four per cent to it, not by typing
@@ -90,13 +90,13 @@ says what the value *is*; the outline says it is not what the ECU holds.
 
 **Values are held to the range the firmware declares,** which is far tighter than
 the storage allows. An ignition table kept as a signed 16-bit tenth of a degree
-would accept Â±3,276 Â° as far as the encoding cares, while MS2Extra declares
-âˆ’10 Â° to 90 Â°.
+would accept ±3,276 ° as far as the encoding cares, while MS2Extra declares
+−10 ° to 90 °.
 
 ## Editing the settings
 
 The **Settings** half of the Calibration view sits beside the tables. Its pages
-are built from what the firmware says about itself â€” the menus, dialogs and
+are built from what the firmware says about itself — the menus, dialogs and
 fields the `.ini` declares, which is the same description TunerStudio draws from.
 
 **Nothing about them is written here.** The firmware supplies all of it:
@@ -144,7 +144,7 @@ That count matters. A table scaled by 5 % when one cell was meant is 256 changes
 and it looks identical to one change until it is counted.
 
 For settings, the confirmation says **how many settings, how many bytes and how
-many pages** â€” a handful of settings is one write or a dozen depending where they
+many pages** — a handful of settings is one write or a dozen depending where they
 sit.
 
 ### Burning
@@ -168,24 +168,24 @@ A tune that exists only in an ECU is one power supply away from being gone.
 
 | Command | What it does |
 | --- | --- |
-| **Tools â–¸ Save the tune to a fileâ€¦** | Writes every setting to a `.msq` â€” a backup, and the format TunerStudio reads |
-| **Tools â–¸ Open a saved tuneâ€¦** | Opens a `.msq` and its firmware's settings pages, with **no ECU attached** |
-| **Tools â–¸ Compare with a saved tuneâ€¦** | Says which settings the file and the tune in hand disagree about |
-| **Tools â–¸ Restore a saved tune to the ECUâ€¦** | Writes the settings that differ â€” see below |
+| **Tools ▸ Save the tune to a file…** | Writes every setting to a `.msq` — a backup, and the format TunerStudio reads |
+| **Tools ▸ Open a saved tune…** | Opens a `.msq` and its firmware's settings pages, with **no ECU attached** |
+| **Tools ▸ Compare with a saved tune…** | Says which settings the file and the tune in hand disagree about |
+| **Tools ▸ Restore a saved tune to the ECU…** | Writes the settings that differ — see below |
 
 **Saving is refused for a tune opened from a definition file,** whose every value
 is a zero standing in for one. Writing that out would produce a file that looks
 like a tune and is not.
 
-**A tune opened from a file cannot be sent.** It is a real tune â€” worth looking
-at, worth saving again, worth comparing against what is attached â€” but sending it
+**A tune opened from a file cannot be sent.** It is a real tune — worth looking
+at, worth saving again, worth comparing against what is attached — but sending it
 would write every setting the file carries and, for every setting it does not, a
 zero. Restoring a whole tune to an engine is a deliberate act, not something that
 falls out of having opened a file. Use **Restore**.
 
 ## Restoring a saved tune
 
-**Tools â–¸ Restore a saved tune to the ECUâ€¦**
+**Tools ▸ Restore a saved tune to the ECU…**
 
 This is **the largest change this application can make to an engine**, and it is
 handled accordingly.
@@ -201,7 +201,7 @@ handed to you first:
 | **Differences** | Which settings would change, and to what |
 | **Writes / bytes / pages** | How much would actually be sent |
 | **Missing** | Settings the firmware declares that the file never mentioned. Left exactly as the ECU has them |
-| **Rejected** | Settings the file gave a value this firmware cannot store â€” an option name it no longer offers, a number outside its range. Left exactly as the ECU has them |
+| **Rejected** | Settings the file gave a value this firmware cannot store — an option name it no longer offers, a number outside its range. Left exactly as the ECU has them |
 | **Unknown** | Names in the file this firmware has no constant for |
 | **Signature check** | Whether the file and the controller agree about which firmware this is |
 
@@ -217,9 +217,9 @@ A tune saved from a neighbouring firmware revision is missing a handful of
 constants, and **the difference between leaving those alone and writing zeros
 over them is the difference between a restore and a wrecked tune.**
 
-> **NOTICE:** A signature mismatch is not fatal on its own â€” a tune saved from
+> **NOTICE:** A signature mismatch is not fatal on its own — a tune saved from
 > revision 3.4.2 and a controller running 3.4.3 have almost everything in
-> common â€” but it is the single fact most worth reading before you send eight
+> common — but it is the single fact most worth reading before you send eight
 > hundred settings to an engine. The plan states it explicitly.
 
 Restore is **not** available to a connected AI agent. See
@@ -232,11 +232,11 @@ it. There is deliberately no command-line flag that carries one out.
 
 ### Reading, on a Speeduino 202501
 
-- The tune reads in **424 ms** â€” 3,408 bytes across fifteen pages.
+- The tune reads in **424 ms** — 3,408 bytes across fifteen pages.
 - Two consecutive reads are **byte-identical**.
 - Values were checked against the raw bytes rather than against the display:
   `0x09` at a scale of a tenth is the 0.9 ms injector open time, `0x5F` is the
-  95 % duty limit, `0x61` masked to bits 4â€“7 is six cylinders.
+  95 % duty limit, `0x61` masked to bits 4–7 is six cylinders.
 
 ### Writing, on the same board
 
@@ -244,7 +244,7 @@ it. There is deliberately no command-line flag that carries one out.
   re-reading the whole tune showed that byte changed and **no other byte in 3,408
   had moved**.
 - **The bit field case:** seven settings share byte 83 of page 14. Flipping one of
-  them moved exactly one bit â€” `01001010` to `01001000` â€” leaving the other six as
+  them moved exactly one bit — `01001010` to `01001000` — leaving the other six as
   they were.
 
 That last one is the failure this is built to avoid. An ECU takes a clobbered
@@ -263,12 +263,12 @@ byte without complaint, and the read-back agrees with what was sent.
 - **No undo across a send.** `Esc` restores the selection before a send; after a
   send, the way back is to send the old values again, or to power-cycle if you
   have not burned.
-- **A tune opened from a file cannot be sent** â€” use Restore.
+- **A tune opened from a file cannot be sent** — use Restore.
 - **A definition file opened as a tune reads all zeros** and cannot be saved.
 - **Nothing persists without a burn.** A sent change is gone at the next power
   cycle.
 - **Opening the serial port resets some boards.** On an Arduino-based board such
-  as a Speeduino, connecting resets it â€” so unburned changes are lost.
+  as a Speeduino, connecting resets it — so unburned changes are lost.
 
 ## Troubleshooting
 
@@ -288,6 +288,6 @@ byte without complaint, and the read-back agrees with what was sent.
 ## Related
 
 - [Live connection](Live-connection)
-- [VE calibration](VE-calibration) â€” where a suggested table comes from
-- [AI agent access (MCP)](AI-agent-access-MCP) â€” what an agent can and cannot do here
+- [VE calibration](VE-calibration) — where a suggested table comes from
+- [AI agent access (MCP)](AI-agent-access-MCP) — what an agent can and cannot do here
 - [Firmware definitions and channels](Firmware-definitions-and-channels)

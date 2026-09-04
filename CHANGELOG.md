@@ -44,6 +44,42 @@ still the manual carried inside the application, because a laptop plugged into a
 car in a garage with no signal is exactly where somebody needs to look something
 up.
 
+### The wiki shipped corrupted, and now cannot again
+
+The first build of it was mojibake. Windows PowerShell reads a file with no
+byte-order mark using the system codepage, and every page here is UTF-8 without
+one, so `Get-Content -Raw` turned every em-dash into `â€"`, every `●` into two
+characters of nonsense, and the architecture diagram's box-drawing lines into
+gibberish. **1,249 characters across nineteen pages.**
+
+The freshness check was no help whatever: it compared one corrupted copy against
+another corrupted copy and reported them identical.
+
+The generator now reads through .NET, which detects the encoding properly, and
+the script carries a byte-order mark of its own so its own em-dash survives. What
+catches it in future is a narrower claim than "the files match": the generator
+rewrites links and nothing else, and a link is ASCII, so every character above
+127 in a wiki page must appear in its source in the same order. That is
+`TheWikiSaysWhatItsSourceSays`, and it fails loudly on a single wrong character.
+
+### Documentation defaults, links and stray characters are tested
+
+Three suites, each aimed at a class of error this project has actually shipped:
+
+- **`DocumentedDefaultsTests`** reads the defaults out of `configuration.md` and
+  compares them against a real `SettingsStore` — behaviour, not a constant that
+  may itself have drifted. It also holds the logging rates, the VE settings, the
+  smoothing windows, the scheme count and the calculator list to what the
+  software has. This is the class the "On by default" tooltip belonged to.
+- **`DocumentationLinkTests`** resolves every relative link and every `#anchor`
+  across the set and the generated wiki — 333 links and 300 respectively — and
+  fails on any control character in a page or a workflow file.
+- **`GuideMenuTests`**, above.
+
+The control-character check earned its keep immediately by catching a literal
+backspace in the sentence of `development.md` explaining what a literal backspace
+had previously broken.
+
 ### The guide is now checked against the menus, both ways
 
 Two features shipped undocumented — the Subaru SSM connection and channel

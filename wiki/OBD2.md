@@ -37,10 +37,10 @@ way a phone app does.
 
 | Kind | How it appears | How to connect |
 | --- | --- | --- |
-| USB / serial, self-identifying | In **Connect â–¾** as a COM port, named `OBDII`, `OBDLink`, `ELM327`, `Vgate` etc. | Pick it. It is recognised as an adapter automatically |
-| USB / serial, generic | Windows describes it only as `USB-SERIAL CH340` | **Connect â–¾ â–¸ Connect as an OBD2 adapter** |
-| Bluetooth LE | In **Connect â–¾** with `(Bluetooth LE)` after the name | Pick it |
-| Wi-Fi | **In no list at all** | **Connect â–¾ â–¸ Connect to a Wi-Fi OBD2 adapter** |
+| USB / serial, self-identifying | In **Connect ▾** as a COM port, named `OBDII`, `OBDLink`, `ELM327`, `Vgate` etc. | Pick it. It is recognised as an adapter automatically |
+| USB / serial, generic | Windows describes it only as `USB-SERIAL CH340` | **Connect ▾ ▸ Connect as an OBD2 adapter** |
+| Bluetooth LE | In **Connect ▾** with `(Bluetooth LE)` after the name | Pick it |
+| Wi-Fi | **In no list at all** | **Connect ▾ ▸ Connect to a Wi-Fi OBD2 adapter** |
 
 A generic `USB-SERIAL CH340` is indistinguishable from a tuning cable until
 something talks to it, and the two want opposite opening moves. That is why it is
@@ -50,14 +50,14 @@ asked for rather than guessed.
 
 1. Plug the adapter into the vehicle's OBD2 port and into the laptop.
 2. Turn the ignition on.
-3. **Connect â–¾** and pick the adapter, or **Connect as an OBD2 adapter** for a
+3. **Connect ▾** and pick the adapter, or **Connect as an OBD2 adapter** for a
    generic cable.
 
 **Expected result:** the toolbar reports a live OBD2 session with a parameter
 count and a rate, around 2 Hz.
 
 **To verify:** with the engine stopped, MAP and barometric pressure should read
-the same value â€” around 86 kPa at moderate altitude, around 101 kPa at sea level.
+the same value — around 86 kPa at moderate altitude, around 101 kPa at sea level.
 They only agree if both decode formulas are right.
 
 ### Baud rate
@@ -82,7 +82,7 @@ them.
 **Most cheap adapters sold now are Bluetooth LE**, and this catches people out.
 
 **Bluetooth LE** (Low Energy) has **no serial port profile**. These adapters
-never become a COM port however long you wait â€” which is how a perfectly good
+never become a COM port however long you wait — which is how a perfectly good
 dongle comes to look broken.
 
 They carry the same ASCII ELM327 conversation over two GATT characteristics
@@ -90,7 +90,7 @@ instead. OpenLogViewer lists them in the same menu as the serial ports, with
 `(Bluetooth LE)` after the name.
 
 **To connect:** pair the adapter in Windows Bluetooth settings first, then pick
-it from **Connect â–¾**.
+it from **Connect ▾**.
 
 There is no standard for which GATT service an ELM327 clone uses, so the known
 ones are tried in turn and **each is proved by asking it something before being
@@ -116,7 +116,7 @@ address is the whole of what it is reached by.
 
 1. **Join the dongle's own Wi-Fi network.** On a Vgate iCar Pro this is `V-LINK`.
 2. **Check Windows has stayed on it.** See the warning below.
-3. **Connect â–¾ â–¸ Connect to a Wi-Fi OBD2 adapter**, and pick an address.
+3. **Connect ▾ ▸ Connect to a Wi-Fi OBD2 adapter**, and pick an address.
 
 | Address | Used by |
 | --- | --- |
@@ -149,7 +149,7 @@ has no such thing: each parameter is a separate request and a separate wait.
 
 Fine for watching a car. **No use for catching a misfire.**
 
-The parameters a needle follows â€” RPM, speed, throttle, load, MAP â€” are asked for
+The parameters a needle follows — RPM, speed, throttle, load, MAP — are asked for
 every round, and the rest take turns. So the headline gauges stay live while the
 fuel level updates when it gets to it.
 
@@ -163,7 +163,7 @@ It is **probed, never assumed**, and the probe can only answer yes on evidence:
 
 - **At least two parameters must come back.** A car that ignores the extras and
   answers the first looks exactly like a batched reply carrying one.
-- **Only tried on a bus positively identified as CAN** â€” not merely one that
+- **Only tried on a bus positively identified as CAN** — not merely one that
   failed to identify as slow. An unknown protocol is neither, and this request
   reaches a J1850 vehicle as a malformed one.
 - **Three unanswered batches and it gives up** for the rest of the session. What
@@ -173,7 +173,7 @@ It is **probed, never assumed**, and the probe can only answer yes on evidence:
 ### Adapters that cannot survive being asked
 
 > **NOTICE:** A Vgate iCar Pro Wi-Fi does not *refuse* a batched request. It
-> answers one, completely and on time, and then the TCP session is simply gone â€”
+> answers one, completely and on time, and then the TCP session is simply gone —
 > every read afterwards returns nothing while the socket still reports itself
 > connected.
 
@@ -206,7 +206,7 @@ deliberate differences from a tuning ECU's gauges:
 
 ## Fault codes
 
-**Tools â–¸ Fault codesâ€¦**, once connected to an OBD2 vehicle.
+**Tools ▸ Fault codes…**, once connected to an OBD2 vehicle.
 
 ### Reading them
 
@@ -236,9 +236,9 @@ a time, so the gauges stop for a second or two while the car is being asked.
 ### Clearing them
 
 > **WARNING:** **Erasing fault codes does not fix anything, and costs more than
-> the codes.** Mode 04 also clears the freeze frame â€” the one record of what the
+> the codes.** Mode 04 also clears the freeze frame — the one record of what the
 > engine was doing at the moment the fault occurred, and the most useful thing
-> there is for an intermittent â€” along with the oxygen sensor results and the
+> there is for an intermittent — along with the oxygen sensor results and the
 > readiness monitors. **A car cleared this morning cannot pass an emissions test
 > this afternoon whatever its condition,** because it no longer has evidence that
 > its monitors ever ran.
@@ -275,15 +275,15 @@ reason. See [AI agent access (MCP)](AI-agent-access-MCP).
 
 | Symptom | Likely cause | What to check |
 | --- | --- | --- |
-| A Bluetooth adapter never appears as a COM port | It is Bluetooth LE, which has no serial port profile | It will not, ever. Look for it in **Connect â–¾** with `(Bluetooth LE)` after the name |
-| A Wi-Fi adapter appears in no list | Correct â€” it is an access point, not a device | Join its Wi-Fi, then **Connect â–¾ â–¸ Connect to a Wi-Fi OBD2 adapter** |
+| A Bluetooth adapter never appears as a COM port | It is Bluetooth LE, which has no serial port profile | It will not, ever. Look for it in **Connect ▾** with `(Bluetooth LE)` after the name |
+| A Wi-Fi adapter appears in no list | Correct — it is an access point, not a device | Join its Wi-Fi, then **Connect ▾ ▸ Connect to a Wi-Fi OBD2 adapter** |
 | Wi-Fi connection times out | Windows left the dongle's network for one with internet | Re-check the Windows network list; reconnect to `V-LINK` or equivalent |
 | Wi-Fi connection is refused | A phone app still holds the single allowed connection | Close the phone app |
 | "Nothing on COM*n* answered as an OBD2 adapter" | Wrong port, or it is a tuning cable | Confirm the port; try **Connect as an OBD2 adapter** for a generic CH340 |
 | Connection succeeds but no channels | Ignition is off, or the car is not responding on the bus | Turn the ignition on. Some vehicles need the engine running |
 | The link dies a second after connecting | A dongle that cannot survive a batched request | It is recorded after two occurrences and not probed again. A different dongle starts clean |
 | Every reading is one command late | The adapter ignores `ATE0` and echoes commands | Handled automatically; if it persists, report the adapter model |
-| Readings stop while scanning fault codes | Expected â€” the adapter takes one command at a time | Wait a second or two |
+| Readings stop while scanning fault codes | Expected — the adapter takes one command at a time | Wait a second or two |
 
 ## Related
 

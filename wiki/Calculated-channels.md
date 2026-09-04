@@ -25,14 +25,14 @@ Once built, it is an ordinary channel in every respect:
 - Available to data filters
 - Included in a CSV export
 
-Calculated channels are marked **Æ’** in the channel list.
+Calculated channels are marked **ƒ** in the channel list.
 
 ## Adding one
 
-1. Click **Æ’ Add calculated channel** at the bottom of the channel sidebar.
+1. Click **ƒ Add calculated channel** at the bottom of the channel sidebar.
 2. Give it a name and an expression.
 
-**Expected result:** the channel appears in the list, marked **Æ’**, and can be
+**Expected result:** the channel appears in the list, marked **ƒ**, and can be
 ticked like any other.
 
 **To verify:** plot it alongside its inputs and check the arithmetic at a few
@@ -62,10 +62,10 @@ points with the hover readout.
 | `log(x)` | 1 | Natural logarithm |
 | `log10(x)` | 1 | Base-10 logarithm |
 | `exp(x)` | 1 | e raised to `x` |
-| `sign(x)` | 1 | âˆ’1, 0 or 1 |
+| `sign(x)` | 1 | −1, 0 or 1 |
 | `pow(x, y)` | 2 | `x` raised to `y` |
-| `min(a, b, â€¦)` | 2 to 8 | The smallest |
-| `max(a, b, â€¦)` | 2 to 8 | The largest |
+| `min(a, b, …)` | 2 to 8 | The smallest |
+| `max(a, b, …)` | 2 to 8 | The largest |
 | `clamp(x, low, high)` | 3 | `x` held between `low` and `high` |
 | `if(condition, then, else)` | 3 | `then` when `condition` is non-zero, otherwise `else` |
 
@@ -73,8 +73,8 @@ points with the hover readout.
 
 | Constant | Value |
 | --- | --- |
-| `pi` | 3.14159265358979â€¦ |
-| `e` | 2.71828182845905â€¦ |
+| `pi` | 3.14159265358979… |
+| `e` | 2.71828182845905… |
 
 Function and constant names are matched case-insensitively.
 
@@ -102,7 +102,7 @@ reading that was never taken would let `if` choose a branch on the strength of
 nothing.
 
 **A result that is not finite becomes a gap** rather than an infinity, which
-would otherwise take the channel's whole range with it â€” a single division by
+would otherwise take the channel's whole range with it — a single division by
 zero would flatten every other sample against the axis.
 
 ## Where they are stored
@@ -127,7 +127,7 @@ RPM * Torque / 5252
 ```
 
 Horsepower from torque, where the log carries a torque channel. 5252 is the
-constant for lbÂ·ft and RPM.
+constant for lb·ft and RPM.
 
 ```text
 if(Boost psi > 0, Boost psi, 0)
@@ -154,15 +154,15 @@ Gauge pressure from two absolute readings.
 | Symptom | Likely cause | What to check |
 | --- | --- | --- |
 | The channel is listed but has no data | An input channel is not in this log | The sidebar reports which definition did not fit |
-| The channel is flat at zero | A comparison is being used as a value | Comparisons yield 1 or 0; wrap them in `if(â€¦)` if you want a magnitude |
+| The channel is flat at zero | A comparison is being used as a value | Comparisons yield 1 or 0; wrap them in `if(…)` if you want a magnitude |
 | The trace has holes | An input has gaps, or the result is not finite | Gaps propagate deliberately. Check for division by a channel that reaches zero |
-| Everything else on the plot is squashed flat | This channel reached a huge value | Wrap it in `clamp(â€¦)` |
+| Everything else on the plot is squashed flat | This channel reached a huge value | Wrap it in `clamp(…)` |
 | A name is not recognised | The channel name differs from the log's | Copy the name exactly from the channel list |
 | `MAP` matched the wrong channel | A longer name shares the prefix | Names are matched longest-first; use the full name |
 
 ## Related
 
-- [User guide â–¸ Finding a moment](User-guide#finding-a-moment) â€” the same
+- [User guide ▸ Finding a moment](User-guide#finding-a-moment) — the same
   syntax, used as a search
-- [Histogram and scatter â–¸ Data filters](Histogram-and-scatter#data-filters)
+- [Histogram and scatter ▸ Data filters](Histogram-and-scatter#data-filters)
 - [Configuration](Configuration)

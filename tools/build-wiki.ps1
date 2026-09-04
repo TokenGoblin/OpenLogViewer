@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds a GitHub or GitLab wiki from docs/.
 
@@ -243,7 +243,13 @@ function Build-Wiki {
 
         if (-not (Test-Path $path)) { throw "docs/$source is missing." }
 
-        $body = Get-Content $path -Raw
+        # Read through .NET rather than Get-Content, which in Windows PowerShell
+        # defaults to the system codepage for a file with no byte-order mark —
+        # and every page here is UTF-8 without one. That read turned every "—"
+        # into "â€"" and every "●" into two characters of nonsense, consistently
+        # enough that -Check compared one corrupted copy against another and
+        # reported them identical.
+        $body = [System.IO.File]::ReadAllText($path)
 
         # Before the links, so a rewritten link is not rewritten twice.
         if ($RepositoryUrl -ne $writtenAgainst) {

@@ -645,7 +645,8 @@ public static class Guide
                 "ƒ Calculators in the toolbar. Fifteen of them, in six groups: Plan a build "
                 + "(engine recipe); Air & boost (boost, pressure ratio, turbo sizing, airflow, "
                 + "intercooling); Fuel (injectors, fuel pump, lambda, octane); Engine (engine, "
-                + "runners & headers); Drivetrain (gearing, drag strip); and Running costs."),
+                + "runners & headers); Drivetrain (gearing, drag strip); and Running costs "
+                + "(fuel economy)."),
 
             new("Power from a log",
                 "Tools ▸ Estimate power… adds calculated channels that estimate crank power from "

@@ -5,7 +5,7 @@ channel that plainly exists can still go unrecognised.
 
 This is the part of the application with the least room to guess. A definition file is
 the only thing that says what the bytes coming off a controller mean, and getting it
-subtly wrong does not throw â€” it produces numbers that look entirely reasonable.
+subtly wrong does not throw — it produces numbers that look entirely reasonable.
 
 ---
 
@@ -28,7 +28,7 @@ The workspace folder is deliberately first: a file somebody went to the trouble 
 putting there is a more deliberate answer than one a tool cached at some point.
 
 `IniCatalog.Scan` reads only the first 400 lines of each file looking for a signature,
-and skips files that have none â€” a projects directory is full of INIs that are not
+and skips files that have none — a projects directory is full of INIs that are not
 firmware definitions.
 
 **A session is refused when nothing matches, and adjacent versions count as no match.**
@@ -48,7 +48,7 @@ TunerStudio's variables rather than the firmware's.
 and is written that way regardless. `TuningText.Decode` tries strict UTF-8 first, since a
 modern file may well be, and falls back to Latin-1 on invalid bytes. A BOM is stripped.
 
-Read as UTF-8 they *mostly* work, because most of the content is ASCII â€” and then the
+Read as UTF-8 they *mostly* work, because most of the content is ASCII — and then the
 degree sign, the one byte that matters in a units string, decodes to a replacement
 character and every temperature channel is labelled `?F`. That is not cosmetic: units
 decide whether a channel can fill a role (below), so a mangled degree sign silently costs
@@ -56,7 +56,7 @@ you coolant and intake air temperature on every MegaSquirt.
 
 Use `TuningText.Read`, never `File.ReadAllText`.
 
-## What a firmware calls its channels â€” twice
+## What a firmware calls its channels — twice
 
 **This is the part that catches people, including this application.**
 
@@ -64,12 +64,12 @@ An INI names every channel **two** different ways, and they are not alike:
 
 | | Where | Example on a rusEFI |
 |---|---|---|
-| **Field names** | `[OutputChannels]`, via `MsqIni.ReadOutputChannels` â†’ `RealtimeDecoder.Names` | `RPMValue`, `coolant`, `correctedIgnitionAdvance`, `veValue` |
-| **Datalog labels** | `[Datalog]`, via `MsqIni.ReadDatalog` â†’ `DatalogEntry.Label` | `RPM`, `CLT`, `Timing: ignition`, `Fuel: VE` |
+| **Field names** | `[OutputChannels]`, via `MsqIni.ReadOutputChannels` → `RealtimeDecoder.Names` | `RPMValue`, `coolant`, `correctedIgnitionAdvance`, `veValue` |
+| **Datalog labels** | `[Datalog]`, via `MsqIni.ReadDatalog` → `DatalogEntry.Label` | `RPM`, `CLT`, `Timing: ignition`, `Fuel: VE` |
 
 **A live session and anything recorded from one carry the labels.** `LiveSession` is
 built on a `TunerStudioSource`, which walks the datalog entries, finds each one's field in
-the decoder, and names the channel by its label â€” falling back to the field name only
+the decoder, and names the channel by its label — falling back to the field name only
 where the label is empty, and dropping duplicates.
 
 Two consequences:
@@ -89,7 +89,7 @@ Measured on the definitions to hand:
 | rusEFI 2026.09.03 super-uaefi | 1030 | 1028 |
 
 **Both sets occur in the wild**, which is why the alias tables have to carry both: a
-controller's own logs tend to use field names â€” a rusEFI writes `RPMValue` â€” while
+controller's own logs tend to use field names — a rusEFI writes `RPMValue` — while
 anything recorded through this application uses labels.
 
 ### Expressions, and why the tune matters
@@ -101,18 +101,18 @@ given, and reports the ones it could not resolve rather than retrying per sample
 
 That is why the README says to **open the tune before connecting**: injector duty divides
 by the cylinder count, and the cylinder count does not come over the wire. Connect without
-a tune and those channels are simply absent â€” 45 of a Speeduino's expressions go
+a tune and those channels are simply absent — 45 of a Speeduino's expressions go
 unresolved.
 
 ## Roles: finding the channel that does a job
 
-Everything built on "the coolant channel" â€” the insights, the suggested filters, VE
-calibration, the power estimate â€” goes through `ChannelRoles.Find`, which maps one of 21
+Everything built on "the coolant channel" — the insights, the suggested filters, VE
+calibration, the power estimate — goes through `ChannelRoles.Find`, which maps one of 21
 `ChannelRole` values onto whatever this firmware happened to call it.
 
 Anything that looks for a single spelling works on one make of controller and silently
 does nothing on the others. That is not hypothetical; it has happened repeatedly, and it
-never announces itself â€” the feature just returns empty.
+never announces itself — the feature just returns empty.
 
 **How a name is matched.**
 
@@ -123,7 +123,7 @@ never announces itself â€” the feature just returns empty.
    `VE (Current)`); left in, every one of those is invisible to every alias.
 2. Each role's aliases are tried **in order, most specific first**. Within one alias, a
    whole-name match is taken before a near one.
-3. A near match is `Extends`: the alias plus at most a bank or sensor number â€” `afr1`,
+3. A near match is `Extends`: the alias plus at most a bank or sensor number — `afr1`,
    `lambdaa`, but never `afrload`.
 4. `Suits` checks the units are right for the job, with an empty unit allowed everywhere
    because plenty of firmware declares none.
@@ -131,7 +131,7 @@ never announces itself â€” the feature just returns empty.
 **Alias order beats match quality, and that ordering is deliberate.** Running every
 alias's exact match before any alias's near match lets a late alias beat an early one: an
 MS3 logs both `gps_speed` and `vss1`, and `gpsspeed` matching the last alias exactly used
-to win over `vss` â€” the first and most preferred â€” matching `vss1` with a sensor number
+to win over `vss` — the first and most preferred — matching `vss1` with a sensor number
 after it. A car with no GPS receiver logs that channel as a flat zero, so every
 speed-based filter and insight worked from nothing while reading as though it had found
 the speed.
@@ -182,26 +182,26 @@ A dialog is a list of `DialogItem`s:
 | `ReadOnlyField` | `displayOnlyField` | A value you cannot change |
 | `Label`, `Text` | `field` with no constant, `text` | A caption |
 | `Panel` | `panel` | Another dialog, embedded |
-| `Command` | `commandButton` | Nothing â€” recorded, not rendered |
+| `Command` | `commandButton` | Nothing — recorded, not rendered |
 | `Gauge`, `Unsupported` | `gauge`, `indicator`, `indicatorPanel`, `liveGraph`, `graphLine` | Nothing |
 
 **A menu entry names one of three things and the file does not say which**: a dialog, a
 curve, or a table. `BuildSettingsMenu` tries each in turn, and offers the entry only where
-one of them resolves â€” a menu entry that opens nothing is worse than no menu entry at all.
+one of them resolves — a menu entry that opens nothing is worse than no menu entry at all.
 That rule was first needed for curves, which had been skipped entirely and left 23 of a
 MicroSquirt's 131 entries and 48 of an MS3's 246 opening a blank pane: warmup enrichment,
 cranking pulsewidth, injector dead time, most of what a tuner actually changes.
 
 **The same rule applies to dialogs, which is newer.** A firmware describes more than its
-settings here. rusEFI gives every runtime structure a dialog of its own â€” `engine_state`,
-`trigger_state0`, `fan_control0`, `wideband_state0` â€” holding an indicator panel and a
+settings here. rusEFI gives every runtime structure a dialog of its own — `engine_state`,
+`trigger_state0`, `fan_control0`, `wideband_state0` — holding an indicator panel and a
 live graph and never a field. Offered as settings pages they opened blank: **38 of that
 firmware's 147.** `TuneInterface.HasSettings` now decides, walking embedded panels and
 guarding against a dialog that embeds itself.
 
 **It takes a predicate, and that is the subtle part.** Filtering on editable fields alone
 also drops `veTableDialog`, `cltFuelCorrCurveDialog`, a Speeduino's `warmup` and
-`primePW` â€” dialogs that exist only to hold a **curve or a table**, neither of which is a
+`primePW` — dialogs that exist only to hold a **curve or a table**, neither of which is a
 dialog. That would have undone the curve fix above. Core cannot know which names are
 curves or tables, so the view model passes in a `showable` predicate that can answer.
 
@@ -236,7 +236,7 @@ field, a setting found through an embedded panel, a read-only display, a panel n
 curve, and a dialog that embeds itself.
 
 To regenerate a fixture, take the channel list from the same readers the application uses
-â€” `MsqIni.ReadOutputChannels` into a `RealtimeDecoder` for `.channels`, and the datalog
+— `MsqIni.ReadOutputChannels` into a `RealtimeDecoder` for `.channels`, and the datalog
 entries resolved the way `TunerStudioSource` resolves them for `.logged`. For a `-bench`
 fixture, connect to the board and export: `--connect COM8 --settle 15000 --export <dir>`
 writes `log-channels.csv`, whose header and units rows are exactly the two columns wanted.
@@ -248,6 +248,6 @@ its labels, and it is the labels that reach a live session.
 ## Related
 
 - [Documentation index](Home)
-- [Live connection â–¸ Definition files](Live-connection#definition-files) â€” where to put one, and where they are searched for
-- [Editing a tune](Editing-a-tune) â€” the settings pages a definition builds
+- [Live connection ▸ Definition files](Live-connection#definition-files) — where to put one, and where they are searched for
+- [Editing a tune](Editing-a-tune) — the settings pages a definition builds
 - [Architecture](Architecture)

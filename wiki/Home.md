@@ -2,12 +2,12 @@
 
 OpenLogViewer is a Windows application for reading engine datalogs and for
 connecting live to an engine control unit (ECU). It opens recorded logs, plots
-and analyses them, and â€” on a supported controller â€” reads and edits the tune.
+and analyses them, and — on a supported controller — reads and edits the tune.
 
 If you have never used it before, start with **[Getting started](Getting-started)**.
 
 The same material is also carried inside the application, offline, under
-**Help â–¸ How to use this app**. This set goes further: it documents defaults,
+**Help ▸ How to use this app**. This set goes further: it documents defaults,
 valid ranges, file formats and command-line options that the in-app guide
 deliberately leaves out.
 
@@ -62,9 +62,9 @@ deliberately leaves out.
 ## Conventions used in these pages
 
 - **Bold** names an element you see on screen, spelled as the application spells
-  it â€” a menu, a button, a checkbox, a status line.
+  it — a menu, a button, a checkbox, a status line.
 - `Monospace` is something you type, or a file, path or value.
-- A â–¸ separates menu levels: **Tools â–¸ Fault codesâ€¦**
+- A ▸ separates menu levels: **Tools ▸ Fault codes…**
 - Units are always given. Where the application shows a value in the units the
   ECU reported, these pages say so.
 

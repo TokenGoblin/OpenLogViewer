@@ -49,7 +49,10 @@ jobs:
       # rebuilt fails here rather than being noticed on the published wiki weeks
       # later.
       - name: Check the wiki matches docs/
-        run: .\tools\build-wiki.ps1 -Check
+        # -ExecutionPolicy explicitly rather than trusting the runner's default:
+        # a policy that refuses to run the script fails this step in a way that
+        # reads like the wiki being wrong.
+        run: pwsh -ExecutionPolicy Bypass -File tools/build-wiki.ps1 -Check
 
       # Fails on a package with a known advisory. Worth its own step so that a
       # security problem in a dependency reads as a security problem rather than

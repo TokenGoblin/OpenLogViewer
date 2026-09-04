@@ -17,7 +17,7 @@ asking for.
 
 ## What it does
 
-**VE** stands for *volumetric efficiency* â€” the number in a fuel table that
+**VE** stands for *volumetric efficiency* — the number in a fuel table that
 tells the ECU how much air the engine takes in at a given RPM and load. The ECU
 meters fuel from that number.
 
@@ -28,7 +28,7 @@ The reasoning is one line:
 > actually came out as.
 
 Richer than target means the ECU thought there was more air than there was, so
-the VE number is too high. Scale it by measured Ã· target.
+the VE number is too high. Scale it by measured ÷ target.
 
 The result is a **suggestion**. Nothing is written to the ECU, and nothing is
 applied to the tune on screen.
@@ -69,7 +69,7 @@ suggested values themselves.
 | Setting | Default | Range | Units | What it does |
 | --- | ---: | --- | --- | --- |
 | **Min samples** | 12 | 1 and up | samples | A cell with fewer samples is left alone and counted as thin |
-| **Max change %** | 15 | 0â€“100 | % | Largest move suggested for one pass. Larger corrections are clamped, not applied whole |
+| **Max change %** | 15 | 0–100 | % | Largest move suggested for one pass. Larger corrections are clamped, not applied whole |
 | **Wideband delay, s** | 0 (none) | 0 and up | s | How long the sensor takes to see the mixture metered now |
 
 **Min samples** matters more than it looks. Two crossings on the way somewhere
@@ -84,7 +84,7 @@ measurement and the other a glance. The correction is scaled by:
 n / (n + MinSamples)
 ```
 
-â€” half at the threshold, approaching the whole of it as samples accumulate. A
+— half at the threshold, approaching the whole of it as samples accumulate. A
 thin cell stays near the number it already holds, which carries the weight of
 however it was arrived at.
 
@@ -99,7 +99,7 @@ turns one bad reading into a hole in the table.
 
 **The wideband reads late.** The reading at a given moment is not evidence about
 that moment: fuel metered on this revolution is burned, pushed out of the port,
-carried down the pipe to wherever the sensor is, and only then measured â€” and the
+carried down the pipe to wherever the sensor is, and only then measured — and the
 sensor itself takes time to respond.
 
 At steady state that costs nothing. Through a fast ramp the mixture from 3,000
@@ -131,7 +131,7 @@ and its samples start to disagree.
 So the delay is swept, the disagreement within each cell measured, and the delay
 where they agree best is the answer.
 
-This is **signal alignment rather than tuning** â€” every cell is judged against
+This is **signal alignment rather than tuning** — every cell is judged against
 its own readings and never against a target, so a badly mistuned engine aligns
 exactly as well as a well tuned one.
 
@@ -170,7 +170,7 @@ The refusals are what make it usable:
   skipped.
 
 Use the [data filters](Histogram-and-scatter#data-filters) to exclude what you
-do not want counted â€” up to temperature, engine running, off idle.
+do not want counted — up to temperature, engine running, off idle.
 
 ## Reading the result
 
@@ -191,8 +191,8 @@ Two ways to use the result:
 
 | Route | How |
 | --- | --- |
-| Paste into a tuning application | **File â–¸ Export â–¸ Table as CSV**. The table is written in tuning-table shape â€” X across the top, Y down the side, highest row first |
-| Edit the ECU directly | Switch to **Calibration** on a live connection and make the changes there â€” see [Editing a tune](Editing-a-tune) |
+| Paste into a tuning application | **File ▸ Export ▸ Table as CSV**. The table is written in tuning-table shape — X across the top, Y down the side, highest row first |
+| Edit the ECU directly | Switch to **Calibration** on a live connection and make the changes there — see [Editing a tune](Editing-a-tune) |
 
 > **WARNING:** A suggested table is a suggestion. Review it before applying any
 > of it. A cell suggesting a large change on thin data, or on a stretch of log
@@ -209,7 +209,7 @@ Two ways to use the result:
 | Corrections all sit at the clamp | The measured and target channels are different quantities | Confirm both are AFR, or both lambda, and referenced to the same fuel |
 | Corrections smear across a region | Wideband delay not set | Press **Find it** |
 | **Find it** says the engine did not change enough | Steady-state log | Log a drive with ramps and changes of load |
-| The table looks nothing like the tune | The opened tune is not the one the log ran | **File â–¸ Use the tune stored in the log** |
+| The table looks nothing like the tune | The opened tune is not the one the log ran | **File ▸ Use the tune stored in the log** |
 
 ## Related
 

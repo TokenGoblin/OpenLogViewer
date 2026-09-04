@@ -22,7 +22,7 @@ results back out.
 
 ## The three ways to read a log
 
-A **channel** is one recorded quantity â€” RPM, coolant temperature, air/fuel
+A **channel** is one recorded quantity — RPM, coolant temperature, air/fuel
 ratio. A log is a set of channels sampled together over time.
 
 The same samples and the same settings can be read three ways. Switch between
@@ -46,21 +46,21 @@ The sidebar on the left lists every channel in the log. Tick one to plot it.
 | Search box | Matches on channel name, units or category |
 | **Common** | Plots the set most logs are read for, in one click |
 | **All** / **None** | Plot everything, or nothing |
-| Sort chips | **Category**, **Aâ€“Z** or **Plotted** |
+| Sort chips | **Category**, **A–Z** or **Plotted** |
 | **Hide unused** | Hides channels that never change. **On by default** |
 | Right-click a row | Jump to an extreme, plot only that channel, or set its colour, scale and smoothing |
 
-Channels are grouped by system â€” Common, Engine, Air & boost, Fuel, Ignition,
-Temperature, Idle, Electrical, Diagnostics â€” in collapsible sections. The
+Channels are grouped by system — Common, Engine, Air & boost, Fuel, Ignition,
+Temperature, Idle, Electrical, Diagnostics — in collapsible sections. The
 grouping is derived from the channel's name and units; see
 [Firmware definitions and channels](Firmware-definitions-and-channels) for how.
 
 **Hide unused** deserves a note. Logs routinely declare channels that never
-move â€” 98 of 179 in one sample log â€” and hiding them is what makes the rest
+move — 98 of 179 in one sample log — and hiding them is what makes the rest
 findable. Hidden channels are still recorded and still exported; only the list
 is filtered.
 
-Calculated channels are marked **Æ’**. See [Calculated
+Calculated channels are marked **ƒ**. See [Calculated
 channels](Calculated-channels).
 
 ## Presets
@@ -74,7 +74,7 @@ and name it.
 restores exactly that selection. Right-click a chip to overwrite or delete it.
 
 Presets are matched **by channel name**, not by log, so one saved against a
-recorded file applies to any other log â€” or to a live session â€” that carries
+recorded file applies to any other log — or to a live session — that carries
 those names. They are stored as readable JSON in
 `%APPDATA%\OpenLogViewer\presets.json`, which you can hand-edit or copy between
 machines.
@@ -87,7 +87,7 @@ Move the pointer over the plot.
 
 - Every channel row shows its value at that moment.
 - The trace nearest the pointer thickens and its row highlights.
-- A card gives that channel's value, its maximum and its minimum â€” **and the
+- A card gives that channel's value, its maximum and its minimum — **and the
   moment each occurred**.
 
 ### Zoom, pan, and marking
@@ -99,10 +99,10 @@ Move the pointer over the plot.
 | Double-click | Fit the whole log |
 | Shift + drag | Mark a span |
 | Click | Clear the marked span |
-| **View â–¸ Reset zoom** | Back to the whole log |
+| **View ▸ Reset zoom** | Back to the whole log |
 
 Marking a span changes what the sidebar reports: every row switches to
-`min â€¦ max` and the average over that span, and the hover card describes the
+`min … max` and the average over that span, and the hover card describes the
 span rather than the whole log. A marked span also restricts a CSV export, and
 outlines the histogram cells that span passed through.
 
@@ -111,8 +111,8 @@ outlines the histogram cells that span passed through.
 Three ways, all of which keep the current zoom and plot the channel first if it
 was not already showing:
 
-- The **â–²** and **â–¼** buttons on a channel row
-- Right-click a channel row â–¸ **Jump to maximum** / **Jump to minimum**
+- The **▲** and **▼** buttons on a channel row
+- Right-click a channel row ▸ **Jump to maximum** / **Jump to minimum**
 - Click the max or min line inside the hover card
 
 ### Overlaid or stacked
@@ -132,9 +132,9 @@ was never recorded. The pen lifts when the step between samples exceeds ten
 times the log's median sample interval.
 
 **Steady channels are drawn as steady.** A sensor holding almost still would
-otherwise have its last decimal place stretched to fill the lane â€” a pressure
+otherwise have its last decimal place stretched to fill the lane — a pressure
 holding 12.0 within a tenth drawn as a wall of noise. Turn this off with **View
-â–¸ Draw steady channels as steady** when a small drift is exactly what you are
+▸ Draw steady channels as steady** when a small drift is exactly what you are
 chasing.
 
 ## Per-channel appearance
@@ -148,7 +148,7 @@ applies to every other log carrying that channel.
 | **Jump to maximum** / **Jump to minimum** | Frames that channel's extreme, keeping the current zoom |
 | **Plot only this channel** | Unticks everything else and plots this one alone |
 | **Colour** | Pins a colour from the current scheme's palette |
-| **Fixed scaleâ€¦** | Draws the channel over a range you name instead of its own |
+| **Fixed scale…** | Draws the channel over a range you name instead of its own |
 | **Smoothing** | None, Light, Medium or Strong. **Drawing only** |
 | **Back to automatic** | Clears the colour, the scale and the smoothing at once |
 
@@ -163,7 +163,7 @@ different units share one plot, and it costs comparability: the same channel is
 drawn over a different range in every log, and in the same log before and after
 a filter. Two runs cannot then be read against each other by eye.
 
-**To pin a scale:** right-click the channel â–¸ **Fixed scaleâ€¦**, and give a low
+**To pin a scale:** right-click the channel ▸ **Fixed scale…**, and give a low
 and a high bound. The editor opens seeded with the range the channel is drawn
 over now.
 
@@ -175,12 +175,12 @@ The boxes take and show their bounds in the units the list is currently showing,
 and say which. The pin itself is stored in the log's own units, so switching
 between metric and imperial redraws the labels without moving the range.
 
-A pinned scale is used exactly as given â€” the steady-channel floor described
+A pinned scale is used exactly as given — the steady-channel floor described
 above is not applied on top of it.
 
 ### Pinned colour
 
-**To pin a colour:** right-click the channel â–¸ **Colour**, and pick from the
+**To pin a colour:** right-click the channel ▸ **Colour**, and pick from the
 current scheme's palette.
 
 > **NOTICE:** A pinned colour opts out of re-checking. Trace colours are
@@ -195,17 +195,17 @@ traces never share a colour.
 
 Quietens a noisy trace so it can be read.
 
-**To smooth a channel:** right-click it â–¸ **Smoothing**, and pick a level.
+**To smooth a channel:** right-click it ▸ **Smoothing**, and pick a level.
 
 | Level | Window | What it is for |
 | --- | ---: | --- |
-| **None** (default) | â€” | As logged |
+| **None** (default) | — | As logged |
 | **Light** | 5 samples | Takes the fuzz off without moving anything |
 | **Medium** | 15 samples | A noisy sensor becomes a readable line |
 | **Strong** | 51 samples | The shape only, for a channel that is mostly noise |
 
 **Expected result:** the trace is drawn smoothed and the channel row reads
-`smoothed Â· median of 15`. The hover readout follows the drawn line.
+`smoothed · median of 15`. The hover readout follows the drawn line.
 
 > **WARNING:** **Smoothing is a way of drawing, not a way of measuring.** A
 > smoothed AFR hides exactly the single-sample lean excursion that damages a
@@ -220,7 +220,7 @@ engine.
 Three details that matter if you are reading a smoothed trace closely:
 
 - **It is a median, not an average.** Sensor noise arrives as spikes, and a mean
-  smears each spike across the whole window â€” one bad sample in fifteen moves
+  smears each spike across the whole window — one bad sample in fifteen moves
   the line for fifteen samples, which is worse than the spike. A median throws
   the spike away and keeps the edges, so a genuine step from one pressure to
   another survives where a mean would round it off.
@@ -237,7 +237,7 @@ Three details that matter if you are reading a smoothed trace closely:
 
 ## Finding a moment
 
-**Ctrl+F**, or **View â–¸ Find in the logâ€¦**.
+**Ctrl+F**, or **View ▸ Find in the log…**.
 
 Type a condition. Every stretch of the log that met it is shaded, and the search
 steps through them.
@@ -260,14 +260,14 @@ channel or a filter without translation.
 
 **What this adds over a filter is *where*.** A filter says which samples to
 count and throws the rest away; a search says which moments to go and look at,
-and leaves the log alone. Filters still apply â€” they say which part of the drive
+and leaves the log alone. Filters still apply — they say which part of the drive
 is under consideration.
 
 Two behaviours worth knowing:
 
 - **Consecutive matches are one finding, not fifty.** A signal sitting near its
-  threshold crosses it repeatedly â€” RPM wandering about 4,000 against
-  `RPM > 4000` alternates true and false every few samples â€” so a brief dip
+  threshold crosses it repeatedly — RPM wandering about 4,000 against
+  `RPM > 4000` alternates true and false every few samples — so a brief dip
   below is bridged.
 - **A sample where a named channel has no reading is counted as *could not be
   judged*,** separately from the misses. A comparison against a reading that was
@@ -281,16 +281,16 @@ find out what moved.
 **To compare:**
 
 1. Open the first log.
-2. **File â–¸ Compare against another logâ€¦** and choose the second.
+2. **File ▸ Compare against another log…** and choose the second.
 
 **Expected result:** the application reports how many channels the two logs
 share, and how many are unique to each.
 
 | Command | What it does |
 | --- | --- |
-| **File â–¸ Compare against another logâ€¦** | Opens a second log alongside this one |
-| **File â–¸ Show the difference** | Subtracts the second log's table from this one, cell by cell |
-| **File â–¸ Stop comparing** | Closes the second log |
+| **File ▸ Compare against another log…** | Opens a second log alongside this one |
+| **File ▸ Show the difference** | Subtracts the second log's table from this one, cell by cell |
+| **File ▸ Stop comparing** | Closes the second log |
 
 **Show the difference** applies to the histogram table. Where the first table
 holds 78 % VE and the second holds 81 %, the difference cell reads +3. The
@@ -307,12 +307,12 @@ glance and the size of the move reads as lightness.
 
 ## Insights
 
-**â—ˆ Insights** in the toolbar. A findings window that reads the log arithmetically. **Every finding is a
+**◈ Insights** in the toolbar. A findings window that reads the log arithmetically. **Every finding is a
 calculation on the samples rather than a rule of thumb.**
 
 The distinction matters: a tuner can already see the traces. What they cannot
 see is that the mixture under boost is four tenths lean of target with a
-standard error of six hundredths â€” a real difference â€” while the same four
+standard error of six hundredths — a real difference — while the same four
 tenths at idle over nine samples is not.
 
 Findings are ranked:
@@ -323,14 +323,14 @@ Findings are ranked:
 | **Watch** | Worth looking at before the next drive |
 | **Note** | Nothing to act on, but worth knowing |
 | **Good** | Checked, and as it should be |
-| **Unanswered** | The log cannot answer this â€” usually a channel it does not carry |
+| **Unanswered** | The log cannot answer this — usually a channel it does not carry |
 
 Each finding carries the numbers behind it and how many samples it rests on, so
 you can disagree with the conclusion without taking the measurement on trust.
 
 ## Estimating power
 
-**Tools â–¸ Estimate powerâ€¦**, with a log open.
+**Tools ▸ Estimate power…**, with a log open.
 
 This adds calculated channels that estimate crank power from the log. It is an
 estimate from fuel flow and assumed efficiency, not a measurement.
@@ -348,7 +348,7 @@ Defaults, all of which you can change in the dialog:
 | Cylinders | 4 | | |
 | Fuel | Petrol | | |
 | Volumetric efficiency | 95 | % | Used only for logs that do not record VE |
-| Lambda | 0.85 | Î» | Used only where the log carries no wideband |
+| Lambda | 0.85 | λ | Used only where the log carries no wideband |
 | Injector flow | 550 | cc/min | Static flow, one injector |
 | Injector rated pressure | 300 | kPa | The differential pressure that rating was taken at |
 | Injector dead time | 1.0 | ms | Subtracted from the logged pulse width |
@@ -359,7 +359,7 @@ power.
 
 ## Calculators
 
-**Tools â–¸ Calculatorsâ€¦** â€” the arithmetic a tuner otherwise keeps a phone open
+**Tools ▸ Calculators…** — the arithmetic a tuner otherwise keeps a phone open
 for. Fifteen calculators in six groups:
 
 | Group | Calculators |
@@ -372,13 +372,13 @@ for. Fifteen calculators in six groups:
 | Running costs | Fuel economy |
 
 Each calculator states what it is *not* modelling. The drag-strip figures, for
-example, are correlations fitted to real runs rather than physics â€” there is no
+example, are correlations fitted to real runs rather than physics — there is no
 term for traction, gearing, the air or the driver. That statement is what
 decides whether an answer is any use to you.
 
 ## Units
 
-**View â–¸ Units.**
+**View ▸ Units.**
 
 | Option | What it shows |
 | --- | --- |
@@ -400,7 +400,7 @@ converted; anything else is shown as reported.
 
 ## Colour schemes
 
-Pick one from the box at the top right, or under **View â–¸ Theme**. The choice is
+Pick one from the box at the top right, or under **View ▸ Theme**. The choice is
 remembered in `%APPDATA%\OpenLogViewer\settings.json`.
 
 | Group | Schemes |
@@ -426,7 +426,7 @@ preference. Ids are the lower-case hyphenated names, for example
 
 ## Export
 
-**File â–¸ Export.** What is offered follows the view you are in.
+**File ▸ Export.** What is offered follows the view you are in.
 
 ### From the plot
 
@@ -434,7 +434,7 @@ preference. Ids are the lower-case hyphenated names, for example
 | --- | --- |
 | Plotted channels as CSV | Just what is on the plot |
 | All channels as CSV | Everything the log carries |
-| Plot as PNG | The plot as drawn, at 2Ã— |
+| Plot as PNG | The plot as drawn, at 2× |
 
 **Mark a span first and the CSV covers only that span.** The menu says which it
 is about to write.
@@ -445,14 +445,14 @@ is about to write.
 | --- | --- |
 | Table as CSV | The binned values, highest row first |
 | Sample counts as CSV | How many samples landed in each cell |
-| Table as PNG | The heat table as drawn, at 2Ã— |
+| Table as PNG | The heat table as drawn, at 2× |
 
 ### From the scatter
 
 | Export | What it writes |
 | --- | --- |
 | Plotted points as CSV | One row per sample, with its index in the log |
-| Scatter as PNG | The scatter as drawn, at 2Ã— |
+| Scatter as PNG | The scatter as drawn, at 2× |
 
 ### What the CSV guarantees
 
@@ -466,13 +466,13 @@ is about to write.
 - **An exported CSV opens again in OpenLogViewer.** The header and units rows
   are the shape the delimited reader already detects.
 
-The histogram table is written in the shape a tuning table has â€” X breakpoints
-across the top, Y down the side, highest row first â€” so a block can be pasted
+The histogram table is written in the shape a tuning table has — X breakpoints
+across the top, Y down the side, highest row first — so a block can be pasted
 straight into a tuning application. Cells never visited are left **empty**
 rather than written as zero, which would read as a measurement of nothing.
 
 Exports go to `%USERPROFILE%\OpenLogViewer\Exports` by default. See
-[Configuration â–¸ Where files go](Configuration#where-files-go).
+[Configuration ▸ Where files go](Configuration#where-files-go).
 
 `--export <folder>` writes every export for the current view without the
 dialogs. See [Command line](Command-line).
@@ -488,7 +488,7 @@ dialogs. See [Command line](Command-line).
 | MoTeC, Haltech, Link, AEM, ECUMaster, Holley, HP Tuners, Speeduino | CSV / TSV export | Generic delimited-text reader |
 | Anything else | Delimited text | Read if it has a header row and numeric columns |
 
-Nothing is assumed from the file extension â€” the content is examined instead.
+Nothing is assumed from the file extension — the content is examined instead.
 The text reader works out the following for itself:
 
 | Detected | Handled |
@@ -497,12 +497,12 @@ The text reader works out the following for itself:
 | Decimal separator | Point or comma (`1234,5`, as European-locale exports write it) |
 | Quoting | Quoted fields containing the delimiter (RFC 4180) |
 | Units | From a dedicated units row, or bracketed in the header: `MAP (kPa)`, `RPM [rpm]`, `CLT {degC}` |
-| Encoding | UTF-8 or Latin-1. Older TunerStudio exports are ISO-8859-1, where `Â°F` is a single byte that is not valid UTF-8 |
+| Encoding | UTF-8 or Latin-1. Older TunerStudio exports are ISO-8859-1, where `°F` is a single byte that is not valid UTF-8 |
 | Time base | Seconds, milliseconds or minutes; from a wall-clock timestamp column; or synthesised from the sample index when there is no usable time column |
-| Duplicate names | Disambiguated by units â€” MS3 emits `Fuel Consumption` twice, in GPH and l/hr |
+| Duplicate names | Disambiguated by units — MS3 emits `Fuel Consumption` twice, in GPH and l/hr |
 
 A log that starts at t = 2178 s, or at a negative time, is read correctly.
 
 The binary format is documented in [The MLG log format](MLG-log-format). If a log
-from an ECU not listed above does not open, the format is usually easy to add â€”
+from an ECU not listed above does not open, the format is usually easy to add —
 the delimited reader is one file.

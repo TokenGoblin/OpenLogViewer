@@ -68,11 +68,11 @@ OpenLogViewer.App.exe --open-tune "C:\tunes\daily.msq" --page Rev
 | Option | Value | Description |
 | --- | --- | --- |
 | `--theme` | A theme id | Starts in a colour scheme for one run, without changing the saved preference. Ids are the lower-case hyphenated scheme names, e.g. `solarized-dark` |
-| `--stacked` | â€” | Stacked traces instead of overlaid |
-| `--gauges` | â€” | Opens the Gauges view |
+| `--stacked` | — | Stacked traces instead of overlaid |
+| `--gauges` | — | Opens the Gauges view |
 | `--calibration` | *(optional)* table name | Opens the Calibration view, optionally at a named table |
 | `--guide` | *(optional)* section name | Opens the in-app guide, optionally at a section |
-| `--insights` | â€” | Opens the findings window for the loaded log |
+| `--insights` | — | Opens the findings window for the loaded log |
 | `--select` | `from,to` | Marks a span, in the log's own time units |
 | `--find` | An expression | Opens the search bar and frames the first hit |
 
@@ -86,13 +86,13 @@ OpenLogViewer.App.exe log.mlg --find "RPM > 4000 && TPS > 80"
 | Option | Value | Description |
 | --- | --- | --- |
 | `--connect` | A port, e.g. `COM8` | Connects to a controller on that serial port |
-| `--obd2` | â€” | With `--connect`, treats the port as an OBD2 adapter rather than a tuning cable |
+| `--obd2` | — | With `--connect`, treats the port as an OBD2 adapter rather than a tuning cable |
 | `--connect-ble` | A device name or id | Connects to a Bluetooth LE OBD2 adapter |
 | `--connect-wifi` | `host:port`, or `auto` | Connects to a Wi-Fi OBD2 adapter. `auto` tries the known addresses |
 | `--connect-ssm` | A port | Connects to a Subaru over SSM |
 | `--connect-menu` | A menu entry | Connects via the entry with that label in the connect menu |
 | `--settle` | Milliseconds | Waits for the session to settle before doing anything else |
-| `--mcp` | â€” | Arms the local MCP server at startup |
+| `--mcp` | — | Arms the local MCP server at startup |
 
 ```powershell
 OpenLogViewer.App.exe --connect COM8 --settle 15000 --export "C:\out"
@@ -108,17 +108,17 @@ OpenLogViewer.App.exe --connect-wifi auto
 
 | Option | Value | Description |
 | --- | --- | --- |
-| `--histogram` | â€” | Opens the histogram view |
-| `--scatter` | â€” | Opens the scatter view |
+| `--histogram` | — | Opens the histogram view |
+| `--scatter` | — | Opens the scatter view |
 | `--tune-axes` | An index | Uses the tune's own table axes, by index |
 | `--compare` | A channel name | Sets **Compare against** |
 | `--z` | A channel name | Sets the value channel |
-| `--count-colour` | â€” | Colours by sample count |
-| `--count-value` | â€” | Uses sample count as the cell value (histogram only) |
+| `--count-colour` | — | Colours by sample count |
+| `--count-value` | — | Uses sample count as the cell value (histogram only) |
 | `--cell` | `column,row` | Activates a table cell, tracing it back to the log |
 | `--mark` | `column,row` | The same for a scatter block |
-| `--ve` | â€” | Turns on **Suggest a new fuel table** |
-| `--ve-values` | â€” | With `--ve`, shows the new numbers rather than the percentage move |
+| `--ve` | — | Turns on **Suggest a new fuel table** |
+| `--ve-values` | — | With `--ve`, shows the new numbers rather than the percentage move |
 
 ```powershell
 OpenLogViewer.App.exe log.mlg --histogram --tune-axes 0 --z AFR --compare "AFR 1 Target" --ve
@@ -183,7 +183,7 @@ dotnet run --project tools/OpenLogViewer.Dump -c Release -- <log> [options]
 | Option | Description |
 | --- | --- |
 | `--channels` | Lists every channel with its units and range |
-| `--categories` | Shows how each channel was grouped â€” the quickest way to check the classifier against a new firmware |
+| `--categories` | Shows how each channel was grouped — the quickest way to check the classifier against a new firmware |
 | `--tune` | Lists the tune axes found in the log |
 
 ```text
@@ -214,6 +214,6 @@ Ignition (24)
 
 ## Related
 
-- [Configuration](Configuration) â€” the persistent equivalents of some of these
+- [Configuration](Configuration) — the persistent equivalents of some of these
 - [Development](Development)
 - [AI agent access (MCP)](AI-agent-access-MCP)

@@ -18,11 +18,11 @@
 | --- | --- |
 | Operating system | Windows 10 version 1809 (build 17763) or later |
 | Architecture | x64 (an ARM64 build can be produced from source) |
-| Runtime | None â€” the installer is self-contained |
+| Runtime | None — the installer is self-contained |
 | Download size | About 54 MB |
 
 Nothing else is required to open a recorded log. A live connection additionally
-needs a serial, Bluetooth LE or Wi-Fi adapter â€” see
+needs a serial, Bluetooth LE or Wi-Fi adapter — see
 [Live connection](Live-connection).
 
 ### To build from source
@@ -43,14 +43,14 @@ application cannot.
 2. Run it.
 
 > **NOTICE:** The installer is not code-signed. Windows SmartScreen shows
-> "Windows protected your PC" the first time it runs. Choose **More info â–¸ Run
+> "Windows protected your PC" the first time it runs. Choose **More info ▸ Run
 > anyway**. Signing requires a code-signing certificate, not a change to the
 > software.
 
 **Expected result:** OpenLogViewer appears in the Start menu and opens to an
 empty window with a channel sidebar on the left.
 
-**To verify:** open **Help â–¸ About OpenLogViewer**. It reports the installed
+**To verify:** open **Help ▸ About OpenLogViewer**. It reports the installed
 version.
 
 ## What the installer does
@@ -64,17 +64,17 @@ version.
 
 The file associations are deliberately registered under `OpenWithProgids`
 rather than as the default handler. OpenLogViewer appears in the **Open with**
-list and never takes the double-click â€” anyone running this most likely has
+list and never takes the double-click — anyone running this most likely has
 TunerStudio installed, and those are its files.
 
 Nothing is ever written next to the executable, so the application is content
 installed read-only under Program Files. Settings go to `%APPDATA%`, and
 recordings go to your user profile. See
-[Configuration â–¸ Where files go](Configuration#where-files-go).
+[Configuration ▸ Where files go](Configuration#where-files-go).
 
 ## Uninstalling
 
-Use **Settings â–¸ Apps â–¸ Installed apps**, or Add/Remove Programs.
+Use **Settings ▸ Apps ▸ Installed apps**, or Add/Remove Programs.
 
 Uninstalling removes the program and **leaves `%USERPROFILE%\OpenLogViewer`
 alone**, because those are your recordings. Settings under

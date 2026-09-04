@@ -20,13 +20,13 @@ screen. Allow about ten minutes.
 A datalog viewer and live tuning tool for engine control units.
 
 An **ECU** (Engine Control Unit) is the computer that runs an engine. A
-**datalog** â€” or just *log* â€” is a recording of what its sensors read, sample by
+**datalog** — or just *log* — is a recording of what its sensors read, sample by
 sample, taken either by the ECU itself or by a tuning application such as
 TunerStudio. A **tune** is the set of tables and settings the ECU runs from.
 
 OpenLogViewer does three things:
 
-1. **Opens recorded logs** and lets you read them â€” plotted against time, binned
+1. **Opens recorded logs** and lets you read them — plotted against time, binned
    into a table, or plotted as a scatter.
 2. **Connects live** to a controller or to any OBD2 vehicle, showing readings as
    they arrive and recording them to a file.
@@ -53,12 +53,12 @@ Building from source additionally needs the .NET 10 SDK. See
 Run `OpenLogViewer-<version>-win-x64.msi`.
 
 > **NOTICE:** The installer is not code-signed. Windows SmartScreen shows a
-> warning the first time you run it. Choose **More info â–¸ Run anyway**. This is
+> warning the first time you run it. Choose **More info ▸ Run anyway**. This is
 > the expected behaviour for an unsigned installer and does not indicate a
 > problem with the file.
 
 **Expected result:** OpenLogViewer appears in the Start menu. It does *not*
-take over the double-click action for `.mlg` or `.msl` files â€” it registers
+take over the double-click action for `.mlg` or `.msl` files — it registers
 itself under **Open with** only, so an existing TunerStudio installation keeps
 those associations.
 
@@ -72,10 +72,10 @@ You need a log file. Any of these will do:
 
 Then either:
 
-- **File â–¸ Open logâ€¦** (`Ctrl+O`), or
+- **File ▸ Open log…** (`Ctrl+O`), or
 - Drag the file onto the window.
 
-Nothing is assumed from the file extension â€” the content is examined instead, so
+Nothing is assumed from the file extension — the content is examined instead, so
 a log renamed by a browser or an email client still opens.
 
 **Expected result:** the window title becomes the file name, the channel list
@@ -84,17 +84,17 @@ sample count and duration.
 
 **If it does not open:** the message names what was wrong with the file rather
 than saying that something failed. See
-[Troubleshooting â–¸ A log will not open](Troubleshooting#a-log-will-not-open).
+[Troubleshooting ▸ A log will not open](Troubleshooting#a-log-will-not-open).
 
 ## 5. Plot some channels
 
 Tick channels in the sidebar list to plot them. To get going quickly, click
-**Common** above the list â€” it plots the set most logs are read for.
+**Common** above the list — it plots the set most logs are read for.
 
 Two more controls are worth knowing immediately:
 
 - **Hide unused** is on by default. Logs routinely declare channels that never
-  move â€” 98 of 179 in one sample log â€” and hiding them is what makes the rest
+  move — 98 of 179 in one sample log — and hiding them is what makes the rest
   findable. Those channels are still recorded and still exported.
 - The search box at the top of the list matches on channel name, units or
   category.
@@ -118,7 +118,7 @@ Two more gestures:
 | Scroll wheel | Zoom in and out at the pointer |
 | Drag | Pan |
 | Double-click | Fit the whole log |
-| `Shift`+drag | Mark a span; every row switches to min â€¦ max and the average over it |
+| `Shift`+drag | Mark a span; every row switches to min … max and the average over it |
 
 ## 7. Build a table from the log
 
@@ -133,7 +133,7 @@ by its value, with the sample count behind each cell available on hover.
 
 If the log is a `.mlg`, it carries the tune it was recorded with. Choose one of
 the tune's own tables under **Axis breakpoints** and the table is binned onto
-exactly those breakpoints â€” cell for cell against the table in TunerStudio.
+exactly those breakpoints — cell for cell against the table in TunerStudio.
 
 See [Histogram and scatter](Histogram-and-scatter) for what this can and
 cannot tell you.
@@ -144,7 +144,7 @@ Three checks, in order of how much they prove:
 
 1. **The log opened.** The status bar reports a channel count and a duration
    that match what you expect from the recording.
-2. **A value reads correctly.** Hover a known channel â€” battery voltage should
+2. **A value reads correctly.** Hover a known channel — battery voltage should
    sit between about 12 V and 14.5 V on a running engine, coolant temperature
    should climb through warmup. A channel reading a plausible-looking constant
    when it should be moving is the failure worth catching here.
@@ -155,9 +155,9 @@ Three checks, in order of how much they prove:
 
 ## 9. Next steps
 
-- [User guide](User-guide) â€” everyday operation in full
-- [Live connection](Live-connection) â€” connect to a controller
-- [OBD2](OBD2) â€” connect to any standard vehicle with a cheap adapter
-- [VE calibration](VE-calibration) â€” turn a log into a suggested fuel table
-- **Help â–¸ How to use this app** â€” the same guide, offline, inside the
+- [User guide](User-guide) — everyday operation in full
+- [Live connection](Live-connection) — connect to a controller
+- [OBD2](OBD2) — connect to any standard vehicle with a cheap adapter
+- [VE calibration](VE-calibration) — turn a log into a suggested fuel table
+- **Help ▸ How to use this app** — the same guide, offline, inside the
   application

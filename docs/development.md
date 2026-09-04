@@ -63,12 +63,12 @@ application has no console attached.
 dotnet test -c Release
 ```
 
-**2,361 tests, in two suites:**
+**2,379 tests, in two suites:**
 
 | Suite | Tests | What it covers |
 | --- | ---: | --- |
 | `OpenLogViewer.Tests` | 1,843 | The readers, the histogram and scatter, filters, tune axes, the tune model, the protocols, every calculator, and the guide |
-| `OpenLogViewer.App.Tests` | 518 | The view model, driven end to end: write a log, open it, and exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does |
+| `OpenLogViewer.App.Tests` | 536 | The view model driven end to end — write a log, open it, exercise the channel list, presets, filters, histogram, live sessions, tune edits and the MCP tools the way the interface does — and the documentation |
 
 Two things about how they are written are worth knowing before adding to them:
 
@@ -106,6 +106,43 @@ Adding to that list is meant to be a decision somebody makes on purpose.
 
 `GuideTests` additionally asserts that every named feature is findable, that no
 section is empty and that nothing is left as a placeholder.
+
+`DocumentedDefaultsTests` checks stated facts against the software:
+
+| Test | Fails when |
+| --- | --- |
+| `DocumentedSettingsDefaultsMatchAFreshInstall` | A default in `configuration.md` is not what a new install actually has |
+| `TheLoggingRateTableMatchesTheMenu` | The rate table and the menu disagree |
+| `TheVeSettingsTableMatchesTheDefaults` | `ve-calibration.md` disagrees with `VeAnalysisSettings` |
+| `TheSmoothingTableMatchesTheWindows` | The smoothing windows in the user guide are not the real ones |
+| `EveryCalculatorIsNamedWhereverTheyAreListed` | A calculator is missing from the tooltip, the user guide or the guide |
+| `TheSchemeCountIsRight`, `TheCalculatorCountIsRight` | A stated count is no longer true |
+
+The settings defaults are read off a real `SettingsStore` rather than compared
+against a constant, so this measures behaviour rather than agreeing with a
+constant that has itself drifted.
+
+`DocumentationLinkTests` checks the set holds together:
+
+| Test | Fails when |
+| --- | --- |
+| `EveryLinkResolvesToAFile` | A relative link points at nothing |
+| `EveryAnchorResolvesToAHeading` | A `#section` link names a heading that is not there |
+| `TheGeneratedWikiJoinsUp` | The wiki's own links do not resolve |
+| `TheWikiSaysWhatItsSourceSays` | A wiki page's non-ASCII text differs from its source |
+| `NothingContainsACharacterNobodyTyped` | A control character got into a page or a workflow file |
+
+The last two are worth explaining. The generator rewrites links and nothing
+else, and a link is ASCII, so every character above 127 in a wiki page must
+appear in its source in the same order. That narrow claim catches a wide fault:
+the first build of this wiki was read back through the wrong codepage and
+shipped with 1,249 characters turned to mojibake, and `-Check` did not notice
+because it was comparing one corrupted copy against another.
+
+The control-character test exists for a smaller reason. A scripted edit once
+wrote a literal backspace into this workflow file and into six commands in this
+page, because a shell collapsed `\b` on its way to Python. The YAML would not
+parse, the commands could not be copied, and neither showed up in a diff.
 
 > **NOTICE:** **Passing tests are not the same as working against hardware.** The
 > suite runs against fakes. Anything touching a real controller — a protocol
