@@ -169,8 +169,12 @@ public class DocumentationLinkTests
         string[] files = [.. Directory.EnumerateFiles(wiki, "*.md").Order()];
         Assert.True(files.Length > 15, "far fewer wiki pages than expected");
 
+        // A lambda rather than the method group: GetFileNameWithoutExtension is
+        // declared to return string?, and a method group cannot carry the
+        // NotNullIfNotNull that makes it string here, so the inferred key type
+        // is string? and fails the notnull constraint under -warnaserror.
         Dictionary<string, HashSet<string>> anchors = files.ToDictionary(
-            Path.GetFileNameWithoutExtension,
+            f => Path.GetFileNameWithoutExtension(f)!,
             AnchorsIn,
             StringComparer.OrdinalIgnoreCase);
 
