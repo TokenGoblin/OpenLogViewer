@@ -54,6 +54,7 @@ says which cells it does not have the evidence to move.
 | **Channel sidebar** | Search, grouping by system, hide-unused, per-channel range, live value at the cursor, jump to a channel's extremes |
 | **Presets** | Named channel selections, matched by name so they carry between logs and to a live session |
 | **Plot** | Overlaid or stacked, scroll-to-zoom, shift-drag to mark a span, gaps drawn as gaps, steady channels drawn as steady |
+| **Per-channel appearance** | Pin a colour or a scale, or smooth a noisy trace — a median, and drawing only, so every measurement still reads the channel as logged |
 | **Heat table** | Up to 40 × 40, binned onto the tune's own axes, filtered, traced back to the log in both directions |
 | **Scatter** | Every sample at its own X and Y, aggregated onto the display grid so no mark is an accident of draw order |
 | **Search** | `Ctrl+F` — `RPM > 4500 && TPS > 80`. Consecutive matches are one finding, not fifty |

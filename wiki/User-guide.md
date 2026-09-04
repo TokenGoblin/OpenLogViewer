@@ -7,7 +7,7 @@ results back out.
 - [The channel list](#the-channel-list)
 - [Presets](#presets)
 - [Reading the plot](#reading-the-plot)
-- [Pinned colours and scales](#pinned-colours-and-scales)
+- [Per-channel appearance](#per-channel-appearance)
 - [Finding a moment](#finding-a-moment)
 - [Comparing two logs](#comparing-two-logs)
 - [Insights](#insights)
@@ -48,6 +48,7 @@ The sidebar on the left lists every channel in the log. Tick one to plot it.
 | **All** / **None** | Plot everything, or nothing |
 | Sort chips | **Category**, **Aâ€“Z** or **Plotted** |
 | **Hide unused** | Hides channels that never change. **On by default** |
+| Right-click a row | Jump to an extreme, plot only that channel, or set its colour, scale and smoothing |
 
 Channels are grouped by system â€” Common, Engine, Air & boost, Fuel, Ignition,
 Temperature, Idle, Electrical, Diagnostics â€” in collapsible sections. The
@@ -136,9 +137,24 @@ holding 12.0 within a tenth drawn as a wall of noise. Turn this off with **View
 â–¸ Draw steady channels as steady** when a small drift is exactly what you are
 chasing.
 
-## Pinned colours and scales
+## Per-channel appearance
 
-Right-click any channel row.
+Right-click any channel row. Everything in this menu is remembered **by channel
+name** in `%APPDATA%\OpenLogViewer\channels.json`, so a choice made on one log
+applies to every other log carrying that channel.
+
+| Menu item | What it does |
+| --- | --- |
+| **Jump to maximum** / **Jump to minimum** | Frames that channel's extreme, keeping the current zoom |
+| **Plot only this channel** | Unticks everything else and plots this one alone |
+| **Colour** | Pins a colour from the current scheme's palette |
+| **Fixed scaleâ€¦** | Draws the channel over a range you name instead of its own |
+| **Smoothing** | None, Light, Medium or Strong. **Drawing only** |
+| **Back to automatic** | Clears the colour, the scale and the smoothing at once |
+
+> **NOTICE:** `channels.json` holds settings for up to 500 channels. Past that
+> the application says there is no room left rather than quietly discarding an
+> older one; clear a channel you no longer pin and try again.
 
 ### Fixed scale
 
@@ -175,10 +191,49 @@ current scheme's palette.
 An entry a pinned channel holds is not handed out to another trace, so two
 traces never share a colour.
 
-**Back to automatic** clears both at once.
+### Smoothing
 
-Both are stored by channel name in `%APPDATA%\OpenLogViewer\channels.json`, so a
-choice made on one log applies to every other log carrying that channel.
+Quietens a noisy trace so it can be read.
+
+**To smooth a channel:** right-click it â–¸ **Smoothing**, and pick a level.
+
+| Level | Window | What it is for |
+| --- | ---: | --- |
+| **None** (default) | â€” | As logged |
+| **Light** | 5 samples | Takes the fuzz off without moving anything |
+| **Medium** | 15 samples | A noisy sensor becomes a readable line |
+| **Strong** | 51 samples | The shape only, for a channel that is mostly noise |
+
+**Expected result:** the trace is drawn smoothed and the channel row reads
+`smoothed Â· median of 15`. The hover readout follows the drawn line.
+
+> **WARNING:** **Smoothing is a way of drawing, not a way of measuring.** A
+> smoothed AFR hides exactly the single-sample lean excursion that damages a
+> piston. Do not use a smoothed trace to decide an engine is safe.
+
+**Nothing that judges the engine reads through it.** Insights, VE calibration,
+the histogram, the scatter, the channel statistics and every export all take the
+channel **as logged**. What smoothing changes is the line on the plot and the
+figure read off it, which is a question about eyesight rather than about the
+engine.
+
+Three details that matter if you are reading a smoothed trace closely:
+
+- **It is a median, not an average.** Sensor noise arrives as spikes, and a mean
+  smears each spike across the whole window â€” one bad sample in fifteen moves
+  the line for fifteen samples, which is worse than the spike. A median throws
+  the spike away and keeps the edges, so a genuine step from one pressure to
+  another survives where a mean would round it off.
+- **The window is counted in samples, not seconds.** Noise of this kind is per
+  reading, whether they arrive at 1 Hz or 50. A window stated in time would
+  smooth nothing on a slow log and destroy a fast one. The same level therefore
+  covers 5 s on a 1 Hz OBD2 link and 0.1 s at 50 Hz.
+- **The ends are not padded.** The window shrinks at the first and last samples
+  rather than inventing data to fill it. A missing reading stays missing, so the
+  pen still lifts across a gap; missing readings inside a window are passed over,
+  which thins the evidence rather than poisoning it.
+
+**Back to automatic** clears the colour, the scale and the smoothing at once.
 
 ## Finding a moment
 

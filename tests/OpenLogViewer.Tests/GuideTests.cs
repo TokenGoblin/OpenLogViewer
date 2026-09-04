@@ -88,6 +88,14 @@ public class GuideTests
     [InlineData("stacked")]
     [InlineData("shift-drag")]
     [InlineData("span")]
+    [InlineData("smoothing")]
+    [InlineData("SSM")]
+    [InlineData("logging rate")]
+    [InlineData("insights")]
+    [InlineData("units")]
+    [InlineData("compare")]
+    [InlineData("restore")]
+    [InlineData("estimate power")]
     public void EveryFeatureIsDescribedSomewhere(string feature) =>
         Assert.Contains(Guide.AllEntries, e => e.Matches(feature));
 

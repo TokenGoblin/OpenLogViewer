@@ -324,9 +324,14 @@ public static class Guide
                 + "dropped."),
         ]),
 
-        new("Colours and scales",
-            "Making a channel look the same in every log.",
+        new("Colours, scales and smoothing",
+            "The channel right-click menu: making a channel look the same in every log.",
         [
+            new("Plot only this channel",
+                "Unticks everything else and leaves this one on the plot, which is quicker than "
+                + "clicking None and then finding the channel again.",
+                "Right-click a row"),
+
             new("Pin a colour",
                 "Right-click a channel row, then Colour. The current scheme's palette is offered "
                 + "because those entries have been checked against this background for contrast "
@@ -350,11 +355,31 @@ public static class Guide
                 + "say which. The pin itself is stored in the log's own units, so switching between "
                 + "metric and imperial redraws the labels without moving the range."),
 
+            new("Smooth a noisy trace",
+                "Right-click a channel, then Smoothing: Light, Medium or Strong, which are medians "
+                + "of 5, 15 and 51 samples. The row then reads \"smoothed · median of 15\" so a "
+                + "quietened trace never passes for a clean one.",
+                "Right-click a row"),
+
+            new("Smoothing draws, it does not measure",
+                "Nothing that judges the engine reads through it. The insights, VE Calibration, the "
+                + "heat table, the scatter, the statistics and every export take the channel as "
+                + "logged — because a smoothed AFR hides exactly the single-sample lean excursion "
+                + "that damages a piston. What it changes is the line and the figure read off it, "
+                + "which is a question about eyesight."),
+
+            new("Why a median, and why samples",
+                "A mean smears a spike across the whole window — one bad sample in fifteen moves "
+                + "the line for fifteen — while a median throws it away and keeps the edges, so a "
+                + "real step between two pressures survives. The window counts samples rather than "
+                + "seconds because noise of this kind is per reading, and a window stated in time "
+                + "smooths nothing on a slow log and destroys a fast one."),
+
             new("Back to automatic",
-                "Unpins both the colour and the scale for that channel at once, so it takes "
-                + "whichever palette entry it is handed and its own range again. Pinned choices "
-                + "live in channels.json beside your presets and filters; deleting that file "
-                + "clears the lot."),
+                "Unpins the colour, the scale and the smoothing for that channel at once, so it "
+                + "takes whichever palette entry it is handed and its own range and its own "
+                + "samples again. Pinned choices live in channels.json beside your presets and "
+                + "filters; deleting that file clears the lot."),
         ]),
 
         new("Live connection",

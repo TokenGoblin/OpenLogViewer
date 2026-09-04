@@ -67,6 +67,9 @@ easy to add — the delimited reader is one file.
 | Two traces are the same colour | A pinned colour is in use | Pinned colours are not re-picked. Right-click ▸ **Back to automatic** |
 | A duplicate channel name appears twice | The firmware emits it twice in different units | Expected — MS3 emits `Fuel Consumption` in both GPH and l/hr. They are disambiguated by units |
 | A calculated channel has no data | An input channel is not in this log | The sidebar reports which definition did not fit |
+| A trace looks clean but the histogram disagrees with it | The channel is smoothed | Smoothing is drawing only; every measurement reads the channel as logged. The row says `smoothed · median of N` |
+| A trace is smoother than the log should be | Smoothing was pinned on that channel in an earlier session | It persists by channel name. Right-click ▸ **Back to automatic** |
+| Only one channel is plotted and the rest unticked | **Plot only this channel** was used | Re-tick what you want, or click **Common** |
 
 ## Connecting to a controller
 
@@ -161,6 +164,7 @@ Full detail: [AI agent access (MCP)](mcp-server.md).
 | Presets and filters are gone after reinstalling | *(This should not happen)* | Both live in `%APPDATA%\OpenLogViewer` and survive uninstall. Check the folder |
 | A new install has nothing in it | A new install is a blank slate by design | Copy the five JSON files from `%APPDATA%\OpenLogViewer` on the old machine |
 | A hand edit to a settings file was lost | The application was running and overwrote it | Close the application first |
+| A pinned colour, scale or smoothing will not save | `channels.json` is at its 500-channel limit | Right-click a channel you no longer pin ▸ **Back to automatic**, then try again |
 | A hand edit had no effect | For `units`, the value is matched case-sensitively | Use `AsReported`, `Metric` or `Imperial` |
 | A settings file is ignored entirely | It is malformed | A malformed file is treated as absent rather than stopping the application. Validate the JSON |
 | Recordings are being uploaded to OneDrive | The data folder was moved into a redirected folder | Move it back out. `%USERPROFILE%` is not redirected |

@@ -174,13 +174,30 @@ Managed from **ƒ Add calculated channel**.
 
 `%APPDATA%\OpenLogViewer\channels.json`
 
-Pinned colours and pinned scales, held by channel name.
+Per-channel appearance, held by channel name: **pinned colour**, **pinned scale**
+and **smoothing level**.
+
+| Held | Values |
+| --- | --- |
+| Colour | A colour from the scheme's palette, or none |
+| Scale | A minimum and a maximum, or none |
+| Smoothing | `None`, `Light`, `Medium` or `Strong` — a median of 1, 5, 15 or 51 samples |
 
 A pinned scale is stored **in the log's own units**, so switching between metric
 and imperial redraws the labels without moving the range.
 
-Managed by right-clicking a channel row. Deleting this file returns every channel
-to automatic colours and scales.
+Smoothing here affects **drawing only**. Every measurement — insights, VE
+calibration, the histogram, the scatter, the statistics and every export — reads
+the channel as logged. See [User guide ▸
+Smoothing](user-guide.md#smoothing).
+
+> **NOTICE:** The file holds at most **500 channels**. Past that limit a new
+> entry is refused and the application says so, rather than quietly evicting one
+> you set earlier.
+
+Managed by right-clicking a channel row; **Back to automatic** clears all three
+for that channel. Deleting this file returns every channel to automatic colours,
+scales and no smoothing.
 
 ## ssm-parameters.json
 

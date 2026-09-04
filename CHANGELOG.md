@@ -44,6 +44,29 @@ still the manual carried inside the application, because a laptop plugged into a
 car in a garage with no signal is exactly where somebody needs to look something
 up.
 
+### Smoothing and "Plot only this channel" are documented at last
+
+Both are shipping features of the channel right-click menu, and neither appeared
+in the README, in `docs/`, or in the guide inside the application. Smoothing was
+the more serious omission: it changes what a trace looks like, and a reader who
+has not been told otherwise could reasonably assume it changes what is measured.
+
+It does not. **Nothing that judges the engine reads through it** — the insights,
+VE calibration, the heat table, the scatter, the statistics and every export take
+the channel as logged, because a smoothed AFR hides exactly the single-sample
+lean excursion that damages a piston. That is now said in all three places,
+along with why it is a median rather than a mean and why its window counts
+samples rather than seconds.
+
+Two pages written in the audit above were wrong as a result and are corrected:
+`configuration.md` described `channels.json` as holding colours and scales when
+it also holds smoothing, and the user guide's pinning section did not mention it
+either. The 500-channel limit on that file was undocumented too.
+
+`GuideTests` gained cases for the features this and the audit turned up, so the
+guide going quiet about any of them now fails a test rather than waiting for
+somebody to notice.
+
 ### The wiki is built from the documentation, not kept beside it
 
 `tools/build-wiki.ps1` generates a GitHub or GitLab wiki from `docs/`. A wiki is
