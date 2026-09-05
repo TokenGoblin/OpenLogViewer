@@ -399,6 +399,55 @@ panels and live graphs, never a field, so each opened blank; an agent following 
 wasted a quarter of its calls. The count is now **105 with none blank**, and a Speeduino is
 unchanged at 60. See [ini-and-channels.md](Firmware-definitions-and-channels#the-settings-interface).
 
+### Verified on a Speeduino, 2026-09-05
+
+Driven over plain HTTP JSON-RPC against `127.0.0.1:7071`, with the application
+armed and connected to a Speeduino 202501 on COM14. **64 tools** listed.
+
+**The restore planner refuses a table it cannot store whole.** A tune was read
+off the board, one `veTable` cell set beyond what the firmware holds, and three
+cells before it set to storable values differing from the board's.
+`plan_restore` returned:
+
+```json
+{ "planned": true, "empty": true, "writes": 0, "bytes": 0,
+  "rejected": ["veTable: 999 will not fit at cell 3"],
+  "signaturesAgree": true }
+```
+
+`compare_with_saved_tune` on the same file reported `differences: []` — the
+rejected constant was left exactly as the ECU has it, so there is nothing to
+disagree about. Against a build without that guard the same file planned three
+bytes of `veTable`, while still reporting the table as left alone.
+
+**The gate held, and can be timed.** A one-cell table edit was staged through
+`select_cells` and `edit_table`, then `write_table_to_ecu` was called. The call
+did not return for **20.7 seconds** — until a person answered the dialog — and
+answering Cancel returned:
+
+```json
+{ "sent": false, "declined": true, "message": "Nothing was sent.",
+  "pending": { "tableCells": 1, "settings": 0, "settingsPagesWaitingToBurn": 0 } }
+```
+
+The refusal leaves the edit pending rather than discarding it, which is the right
+answer: declining to send is not the same as undoing somebody's work.
+
+**The dialog is modal on the interface thread, so it blocks every tool, not just
+the write.** Any other call made while it is open queues behind it. That is worth
+knowing before an agent is left running unattended: a write nobody answers stops
+the whole server until somebody does.
+
+> **NOTICE:** During this session a write *was* confirmed by accident while
+> automating the dialog from outside the application, and reached the Speeduino's
+> working memory. Nothing was burned, and reconnecting — which resets the board —
+> restored it; the tune was afterwards byte-identical to the one saved before.
+> The gate behaved correctly throughout. What this shows is the ordinary hazard
+> of driving a confirmation dialog with synthetic input, not a fault in it.
+
+Both boards were read back at the end of the session and every constant matched
+the pre-test read.
+
 ### Still to be proven
 
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
