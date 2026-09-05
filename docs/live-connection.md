@@ -231,6 +231,17 @@ without a scale.
 
 OBD2 gauges are drawn differently; see [OBD2 ▸ Gauges](obd2.md#gauges).
 
+## Settings pages on a live connection
+
+The **Settings** half of the Calibration view is built from the firmware's own
+menus, and a menu entry can name a dialog, a curve or a table. All three appear
+on a live connection.
+
+**Verified on a live rusEFI** (`master.2024.11.17.uaefi`): 107 settings pages, the
+same number the tune gives when opened from a file. Two of them — **VE** and
+**Boost control target** — are table-backed, and were missing from live sessions
+until the menu was built after the table list rather than before it.
+
 ## What a session sends
 
 **Reading is what a session does; writing takes asking for.**

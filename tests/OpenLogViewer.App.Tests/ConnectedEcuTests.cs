@@ -225,4 +225,33 @@ public class ConnectedEcuTests : IDisposable
         Assert.False(vm.CanWriteSettings);
         Assert.False(vm.CanBurnSettings);
     }
+
+    // ----- the settings menu on a live connection ----------------------------
+
+    /// <summary>
+    /// A settings entry that names a table survives a live connection.
+    ///
+    /// <para>
+    /// BuildSettingsMenu decides whether an entry names a table by looking one
+    /// up in EcuTables, and drops the entry outright when it finds none. On the
+    /// live path it ran before EcuTables had been refilled — both other paths,
+    /// opening a definition and opening a saved tune, fill the list first — so
+    /// against an empty list every table-backed page vanished.
+    /// </para>
+    /// <para>
+    /// Measured on a live rusEFI: 105 settings pages against 107 for the same
+    /// tune opened from a file. The two missing were "VE" and "Boost control
+    /// target".
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ASettingsEntryNamingATableSurvivesConnecting()
+    {
+        MainViewModel vm = Connected(out _);
+
+        string[] entries = [.. vm.SettingsMenu.Where(m => !m.IsHeading).Select(m => m.Title)];
+
+        Assert.Contains("VE Table", entries);
+        Assert.Contains(vm.SettingsMenu.Where(m => !m.IsHeading), m => m.IsTable);
+    }
 }

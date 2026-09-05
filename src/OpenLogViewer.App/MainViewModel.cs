@@ -3143,12 +3143,23 @@ public sealed partial class MainViewModel : ObservableObject
             _curveNames = Named(_ecuCurves, _ecuTune);
             _derived = DerivedChannels.Read(iniText);
             _settingsEdit = new TuneSettingsEdit(tune);
-            BuildSettingsMenu();
 
+            // The tables first, and then the menu that classifies against them.
+            //
+            // This ran the other way round, and only here — opening a definition
+            // and opening a saved tune both fill the list before they build the
+            // menu. BuildSettingsMenu decides whether an entry names a table by
+            // looking one up in EcuTables, and drops the entry outright when it
+            // finds none; against an empty list every table-backed page in the
+            // firmware's menus disappeared. On a live Speeduino that was all of
+            // them, and the same firmware opened from its .ini showed them,
+            // which is what makes this kind of fault so hard to see.
             foreach (TuneTable table in Ordered(tune.Tables(_ecuTableDefinitions)))
                 EcuTables.Add(table);
 
             EcuTableChoices.Refresh();
+
+            BuildSettingsMenu();
 
             EcuTuneSummary =
                 $"{layout.TotalSize:N0} bytes read from the ECU in {clock.ElapsedMilliseconds:N0} ms · "
