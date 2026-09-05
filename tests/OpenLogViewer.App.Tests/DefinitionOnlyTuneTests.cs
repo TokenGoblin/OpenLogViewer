@@ -85,6 +85,44 @@ public class DefinitionOnlyTuneTests : IDisposable
         Assert.Contains("definition rather than a tune", vm.WriteTableToEcu().Message);
     }
 
+    /// <summary>
+    /// Every one of them, not just the write.
+    ///
+    /// <para>
+    /// Three of the five carried no such refusal at all. The properties behind
+    /// the buttons did — <c>CanBurn</c>, <c>CanBurnSettings</c> — so the interface
+    /// looked right, and every MCP write tool calls these methods directly and
+    /// never asks a button anything. A burn is the one that cannot be undone by
+    /// turning the key off, so a foreign firmware's page reaching flash is the
+    /// worst of the five and was among the three.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void NoWriteOrBurnPathWillSendAPlaceholder()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        Assert.True(vm.OpenDefinition(WriteIni(Firmware)));
+        Assert.True(vm.TuneIsPlaceholder);
+
+        (string Path, string Message)[] answers =
+        [
+            ("write_table", vm.WriteTableToEcu().Message),
+            ("burn_table", vm.BurnTableToEcu().Message),
+            ("write_settings", vm.WriteSettingsToEcu().Message),
+            ("burn_settings", vm.BurnSettingsToEcu().Message),
+            ("write_curve", vm.WriteCurveToEcu().Message),
+        ];
+
+        string[] wrong = [.. answers
+            .Where(a => !a.Message.Contains("definition rather than a tune", StringComparison.Ordinal))
+            .Select(a => $"{a.Path}: {a.Message}")];
+
+        Assert.True(
+            wrong.Length == 0,
+            "these did not refuse a placeholder tune:\n  " + string.Join("\n  ", wrong));
+    }
+
     [Fact]
     public void OpeningASecondDefinitionLeavesNoPageFromTheFirst()
     {

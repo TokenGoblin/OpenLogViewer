@@ -218,7 +218,18 @@ public sealed class Elm327Source : ILiveSource
         // Before anything whose answer is kept. The protocol search happens on
         // the first request the car ever sees, and it is narrated: this spends
         // it, so discovery is asked of an adapter that has already settled.
-        if (reset.Length > 0) elm.WarmUp();
+        //
+        // Gated on whether anything ANSWERED, unlike the naming above. The two
+        // questions come apart on a clone whose banner omits "ELM": it has no
+        // name to give and is perfectly alive, and skipping its warm-up left the
+        // protocol search to happen during the capability query — a short or
+        // empty parameter list, the misleading "check the ignition is on", and a
+        // protocol still reading as undetermined so batching never even tried.
+        //
+        // Reverting this along with the naming was a mistake made once already.
+        // Noise must not be NAMED; noise is still worth warming up, because the
+        // cost is one request and the alternative is misreading a live adapter.
+        if (elm.AnsweredReset) elm.WarmUp();
 
         IReadOnlyList<byte> supported = Supported(elm);
         IReadOnlyList<Obd2Pid> pids = Obd2Pids.Known(supported);

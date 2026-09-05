@@ -203,6 +203,36 @@ public class Obd2AdapterTests
     }
 
     /// <summary>
+    /// A clone that gives no name is still warmed up.
+    ///
+    /// The warm-up spends the protocol search on a request nobody reads. Skipped,
+    /// that search lands on the capability query instead, and the narration an
+    /// adapter emits during it ("SEARCHING...") is hex-parseable — so the car
+    /// comes back with a short parameter list and a protocol still reading as
+    /// undetermined, which also silently rules out batching.
+    /// </summary>
+    [Fact]
+    public void AnAdapterWithNoNameIsStillWarmedUp()
+    {
+        var fake = new FakeElm { Elm327Name = "OBDII v2.1", Product = "OBDII v2.1" };
+
+        fake.Answers[0x00] = [0b0001_1000, 0b0011_1010, 0b1000_0000, 0b0000_0000];
+        fake.Answers[0x04] = [0x7F];
+        fake.Answers[0x05] = [0x5A];
+        fake.Answers[0x0B] = [0x64];
+        fake.Answers[0x0C] = [0x1A, 0xF8];
+        fake.Answers[0x0D] = [0x40];
+        fake.Answers[0x0F] = [0x46];
+        fake.Answers[0x11] = [0x33];
+
+        using Elm327Source source = Elm327Source.Connect(fake);
+
+        // Seven is what this car declares. A skipped warm-up loses some of them
+        // to the protocol search that then happens mid-query.
+        Assert.Equal(7, source.Parameters.Count);
+    }
+
+    /// <summary>
     /// And the session that rests on it comes back from a key-off.
     ///
     /// Recover reads "nothing came back" as a dead session and ends it. Reading

@@ -1950,13 +1950,7 @@ public sealed partial class MainViewModel : ObservableObject
         // What the tune is, before what is on screen: the same refusal every
         // other write makes, and reachable from a scripted run where no button
         // is consulted.
-        if (TuneIsPlaceholder)
-            return "This is a firmware definition rather than a tune — every value in it reads as "
-                   + "zero, so nothing here may be sent to a controller.";
-
-        if (TuneIsFromFile)
-            return "This tune was opened from a file rather than read off the controller, so it "
-                   + "cannot be sent back. Read the ECU's own tune first.";
+        if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
 
         if (!HasOpenCurves) return "No curve is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
@@ -2342,6 +2336,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public WriteResult WriteSettingsToEcu()
     {
+        if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
+
         if (_settingsEdit is not { } edit) return "No tune has been read.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_tuneLayout is not { } layout || _ecuTune is not { } tune) return "No tune has been read.";
@@ -2431,6 +2427,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public WriteResult BurnSettingsToEcu()
     {
+        if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
+
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_tuneLayout is not { } layout) return "No tune has been read.";
 
@@ -2864,19 +2862,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public WriteResult WriteTableToEcu()
     {
-        // What the tune is comes before what is on screen. The same refusal the
-        // settings and the burn make, and for the same reason: a placeholder
-        // tune is all zeros and a tune from a file belongs to whatever saved it.
-        // Asked first so that the answer does not depend on whether a table
-        // happens to be open — a greyed button is not the whole guard, since
-        // this is reachable from a scripted run as well.
-        if (TuneIsPlaceholder)
-            return "This is a firmware definition rather than a tune — every value in it reads as "
-                   + "zero, so nothing here may be sent to a controller.";
-
-        if (TuneIsFromFile)
-            return "This tune was opened from a file rather than read off the controller, so it "
-                   + "cannot be sent back. Read the ECU's own tune first.";
+        // What the tune is comes before what is on screen.
+        if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
 
         if (TableEdit is not { } edit) return "No table is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
@@ -2946,8 +2933,41 @@ public sealed partial class MainViewModel : ObservableObject
     /// difference is the only thing standing between a change that can be undone
     /// with the ignition key and one that cannot.
     /// </summary>
+    /// <summary>
+    /// Whether the tune in hand is one that may be sent to a controller at all,
+    /// as a refusal or null.
+    ///
+    /// <para>
+    /// A placeholder tune is a firmware definition with a zero in every field,
+    /// and a tune opened from a file belongs to whatever saved it. Sending
+    /// either overwrites a running engine's settings with somebody else's.
+    /// </para>
+    /// <para>
+    /// One method rather than the same two checks repeated at five call sites,
+    /// because repeating them is exactly how three of the five came to be
+    /// missing them. <c>CanBurn</c> and <c>CanBurnSettings</c> carry the same
+    /// conditions, which greys the buttons — and a greyed button is not the
+    /// guard. Every one of these is reachable from an MCP tool that calls the
+    /// method directly and never sees a button.
+    /// </para>
+    /// </summary>
+    private WriteResult? TuneMayNotLeaveThisWindow()
+    {
+        if (TuneIsPlaceholder)
+            return "This is a firmware definition rather than a tune — every value in it reads as "
+                   + "zero, so nothing here may be sent to a controller.";
+
+        if (TuneIsFromFile)
+            return "This tune was opened from a file rather than read off the controller, so it "
+                   + "cannot be sent back. Read the ECU's own tune first.";
+
+        return null;
+    }
+
     public WriteResult BurnTableToEcu()
     {
+        if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
+
         if (TableEdit is not { } edit) return "No table is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
