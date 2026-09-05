@@ -250,6 +250,28 @@ it. There is deliberately no command-line flag that carries one out.
 That last one is the failure this is built to avoid. An ECU takes a clobbered
 byte without complaint, and the read-back agrees with what was sent.
 
+### A restore that cannot store one cell, on both boards
+
+The case that matters most, because getting it wrong writes part of a fuel table
+while reporting that it wrote none of it.
+
+A tune was read from each board, one table cell was set beyond what the firmware
+can hold, and three cells before it were set to storable values that differ from
+what the board has. `--plan-restore` then reported what a restore would do —
+without doing any of it:
+
+| Board | Cell size | What the plan says |
+| --- | --- | --- |
+| Speeduino 202501 | 1 byte | Nothing would change. 1 in the file could not be stored and would be left alone too |
+| rusEFI `master.2024.11.17.uaefi` | 2 bytes | Nothing would change. 1 in the file could not be stored and would be left alone too |
+
+The same files against a build without the guard planned **3 bytes** on the
+Speeduino and **6 bytes** on the rusEFI — the three storable cells of `veTable`
+in each — in the same breath as saying that table would be left alone.
+
+Both tunes were read back afterwards and were byte-identical to the ones saved
+before the test. Nothing was written to either board.
+
 ### Elsewhere
 
 - Read, write and burn verified on a Speeduino over USB and on a rusEFI board.
