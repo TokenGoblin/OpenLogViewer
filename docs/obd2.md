@@ -120,11 +120,21 @@ address is the whole of what it is reached by.
 
 | Address | Used by |
 | --- | --- |
-| `192.168.0.10:35000` | Vgate iCar Pro and most dongles built like it. Verified |
-| `192.168.4.1:35000` | Other Wi-Fi ELM327 clones. Widely reported, not verified here |
+| `192.168.0.10:35000` | Vgate iCar Pro and most dongles built like it |
+| `192.168.4.1:35000` | Other Wi-Fi ELM327 clones |
 
 Any other address can be given with `--connect-wifi <address>`. See
 [Command line](command-line.md).
+
+> **NOTICE:** **The Wi-Fi path has not been exercised against a real dongle by
+> this application.** The first address is where a Vgate iCar Pro is known to
+> answer — confirmed on a 2014 Subaru, but by different software talking to the
+> same dongle. The second is widely reported and has not been checked at all.
+> Both are cheap guesses to make: a wrong address refuses the connection in a
+> second and says so, where a wrong scaling factor would produce a gauge that is
+> confidently incorrect. Treat this page's Wi-Fi section as the design rather
+> than as a measurement, and see [what has been
+> verified](#what-has-been-verified) for what has actually been on a car.
 
 > **CAUTION:** **A network with no route to the internet is one Windows treats as
 > a mistake.** It will leave it for one that has some, often within seconds. The
@@ -172,13 +182,17 @@ It is **probed, never assumed**, and the probe can only answer yes on evidence:
 
 ### Adapters that cannot survive being asked
 
-> **NOTICE:** A Vgate iCar Pro Wi-Fi does not *refuse* a batched request. It
-> answers one, completely and on time, and then the TCP session is simply gone —
-> every read afterwards returns nothing while the socket still reports itself
-> connected.
+The failure this guards against is a dongle that does not *refuse* a batched
+request but answers one — completely and on time — after which the TCP session is
+simply gone: every read afterwards returns nothing while the socket still reports
+itself connected. So the batch that killed the link looks like a success, and
+what identifies it is the silence that follows.
 
-So the batch that killed the link looks like a success, and what identifies it is
-the silence that follows.
+> **NOTICE:** **That failure has not been reproduced with this application.** It
+> is reported of the Vgate iCar Pro Wi-Fi and the machinery below is built to
+> survive it, but nothing here has watched it happen. If you have one of these
+> dongles, the batch probe is the thing worth watching — see [what has been
+> verified](#what-has-been-verified).
 
 Learning this costs a dropped link, so **the verdict is written to the settings
 file against that adapter** and a dongle with form is not probed again. The probe
@@ -259,6 +273,22 @@ reason. See [AI agent access (MCP)](mcp-server.md).
 | Fuel trim scale | Every reading landed on an exact raw byte, which fixes the scale |
 | Fuel trim offset | Long-term trim sat at +1.56 %, two counts off the 128 that means "no correction". A wrong offset would leave a healthy engine showing a large standing correction |
 | Lambda | Oscillated 0.97 to 1.22 about 1.00, which is closed loop doing what closed loop does |
+
+Every row above was measured on a car through a **wired or Bluetooth LE**
+adapter.
+
+### What has not been
+
+| Not tested | Consequence |
+| --- | --- |
+| **Any Wi-Fi dongle** | The transport, the address list and the "join its network first" advice are untested against hardware by this application |
+| **Batched requests killing a link** | The two-strike memory, the refusal to re-probe and the settings entry that records it are all built for a failure nothing here has watched happen |
+| **A non-"ELM" clone across a key-off** | The recovery path for adapters whose banner omits the word is proven against a fake and no further |
+| **OBD2 through an AI agent** | `connect_obd2_wifi`, `connect_obd2_ble` and `scan_faults` have not been driven against a car |
+
+None of these is known to be broken. They are simply not known to work, and this
+page says which is which rather than letting the confident parts vouch for the
+rest.
 
 ## Limitations
 

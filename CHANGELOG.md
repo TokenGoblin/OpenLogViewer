@@ -44,6 +44,23 @@ still the manual carried inside the application, because a laptop plugged into a
 car in a garage with no signal is exactly where somebody needs to look something
 up.
 
+### The OBD2 page stops claiming the Wi-Fi path was verified
+
+It said the Vgate address was **Verified**, and stated as fact that a Vgate iCar
+Pro answers a batched request completely and then silently drops the TCP session.
+Neither is backed by this software meeting that dongle. The only provenance in
+the repository is a comment in `WifiEcuTransport` saying the address was
+confirmed on a 2014 Subaru **by different software talking to the same dongle**.
+
+So the page now separates what has been measured on a car — every row of it
+through a wired or Bluetooth LE adapter — from what has not: any Wi-Fi dongle,
+the batched-request death the two-strike memory exists to survive, the recovery
+path for clones whose banner omits "ELM", and OBD2 driven through an AI agent.
+
+None of those is known to be broken. They are not known to work, and letting the
+confident parts vouch for the rest is how a reader ends up trusting the wrong
+half.
+
 ### The wiki shipped corrupted, and now cannot again
 
 The first build of it was mojibake. Windows PowerShell reads a file with no
