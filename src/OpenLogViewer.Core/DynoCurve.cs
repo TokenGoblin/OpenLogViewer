@@ -108,6 +108,18 @@ public sealed record DynoCurve
 
     public required IReadOnlyList<string> Cautions { get; init; }
 
+    /// <summary>
+    /// The share of the car's effort that went into the air, averaged over the
+    /// pull.
+    ///
+    /// How much the road-load coefficients are worth on this particular run, and
+    /// therefore how much a coastdown would buy. Two or three per cent on a hard
+    /// pull in a low gear, where the answer is nearly all mass times
+    /// acceleration; a third or more on a long top-gear run, where it is nearly
+    /// all air. NaN for a curve that did not come from road load.
+    /// </summary>
+    public double AeroShare { get; init; } = double.NaN;
+
     public IEnumerable<DynoPoint> Drawn => Points.Where(p => !p.IsEmpty);
 
     public bool IsEmpty => !Drawn.Any();
@@ -306,25 +318,52 @@ public sealed record DynoCurve
         double cf = AirDensity.Factor(correction, air);
 
         var power = new double[count];
+        double aeroShare = 0;
+        int shares = 0;
 
         for (int i = 0; i < count; i++)
         {
             power[i] = RoadLoad.Horsepower(
                 vehicle, gear, motion.Value[i], motion.SlopePerSecond[i], density) * cf;
+
+            double share = RoadLoad
+                .Forces(vehicle, gear, motion.Value[i], motion.SlopePerSecond[i], density)
+                .AeroShare;
+
+            if (!double.IsFinite(share)) continue;
+
+            aeroShare += share;
+            shares++;
         }
 
-        (int from, int to) = Trim(times, s);
+        aeroShare = shares > 0 ? aeroShare / shares : double.NaN;
+
+        (int from, int to) = Trim(times, s.WindowSeconds, s.TrimWindows);
 
         var cautions = new List<string>();
 
         foreach (PullFault fault in pull.Faults) cautions.Add(DynoRun.Describe(fault));
 
-        if (!vehicle.RoadLoadMeasured)
+        // Said in proportion to what it is worth, which the pull decides rather
+        // than the vehicle. On a hard pull in a low gear the air takes two or
+        // three per cent of the effort, and being forty per cent wrong about the
+        // drag area moves the answer by one — calling it "the largest guess in
+        // this figure" there is simply false, and points away from the mass and
+        // the gear, which are worth far more.
+        if (!vehicle.RoadLoadMeasured && aeroShare >= 0.10)
         {
             cautions.Add(
-                "The drag area and rolling resistance were taken from the vehicle as entered rather "
-                + "than measured. A coastdown replaces both, and they are the largest guess in this "
-                + "figure.");
+                $"The air is taking {aeroShare:P0} of the effort here, and the drag area it is worked "
+                + "out from was entered rather than measured. A coastdown replaces it, and at this "
+                + "share it is worth having.");
+        }
+        else if (!vehicle.RoadLoadMeasured)
+        {
+            cautions.Add(
+                $"The drag area and rolling resistance were entered rather than measured, and a "
+                + $"coastdown would measure them — but the air is only taking {aeroShare:P0} of the "
+                + "effort on this pull, so they barely signify. What this figure rests on is the mass "
+                + "and the gear.");
         }
 
         if (correction != PowerCorrection.None && vehicle.Boosted)
@@ -338,7 +377,7 @@ public sealed record DynoCurve
         return Build(
             rpm.AsSpan(from, to - from), power.AsSpan(from, to - from),
             PowerMethodKind.RoadLoad, RoadLoadBasis(vehicle, pull, air),
-            correction, cf, cautions, s);
+            correction, cf, cautions, s, aeroShare);
     }
 
     /// <summary>
@@ -361,7 +400,8 @@ public sealed record DynoCurve
         PowerCorrection correction,
         double correctionFactor,
         IReadOnlyList<string>? cautions = null,
-        DynoSettings? settings = null)
+        DynoSettings? settings = null,
+        double aeroShare = double.NaN)
     {
         if (rpm.Length != horsepower.Length)
         {
@@ -446,12 +486,13 @@ public sealed record DynoCurve
             RpmStep = step,
             Samples = samples,
             Cautions = notes,
+            AeroShare = aeroShare,
         };
     }
 
     // ----- odds and ends ---------------------------------------------------------
 
-    private static (int From, int To) Trim(double[] times, DynoSettings s)
+    private static (int From, int To) Trim(double[] times, double window, double trimWindows)
     {
         if (times.Length == 0) return (0, 0);
 
@@ -460,7 +501,7 @@ public sealed record DynoCurve
         // window at each end — not a quarter of one, which is what dividing by
         // two again would leave and what left the top rung of the curve reading
         // a quarter low.
-        double edge = s.WindowSeconds * s.TrimWindows;
+        double edge = window * trimWindows;
 
         if (!(edge > 0)) return (0, times.Length);
 

@@ -336,12 +336,13 @@ public static class DynoRun
         }
 
         // A window has to hold samples either side of the one being fitted. Where
-        // the log is slower than that, every slope comes back unknown, no run
-        // ever looks like it is rising, and the search would otherwise report
-        // "nothing here has engine speed rising for long enough" — blaming the
-        // driving for what is a property of the recording. A two to four hertz
-        // OBD2 session, which this application itself produces over a dongle,
-        // lands squarely in it.
+        // it does not, every slope comes back unknown, no run ever looks like it
+        // is rising, and the search would otherwise report "nothing here has
+        // engine speed rising for long enough" — blaming the driving for what is
+        // a property of the recording.
+        //
+        // A two to four hertz OBD2 session, which this application itself
+        // produces over a dongle, lands squarely in it.
         double interval = log.MedianSampleInterval;
 
         if (interval > 0 && interval * 2 >= s.WindowSeconds)

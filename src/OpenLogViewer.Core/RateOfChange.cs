@@ -74,6 +74,56 @@ public static class RateOfChange
     private const int PointsForCurve = 4;
 
     /// <summary>
+    /// How unevenly a log is stamped, in seconds — nought for a clock that keeps
+    /// perfect time.
+    ///
+    /// <para>
+    /// A diagnostic, not an input. Real recordings are stamped far more coarsely
+    /// than they are written: a MegaSquirt writing fifteen times a second stamps
+    /// to about a sixty-seventh, so samples land in pairs on one stamp with a
+    /// doubled gap after. On two twenty-five minute logs off the same controller,
+    /// six and fourteen per cent of all intervals were exactly nought — which is
+    /// why differencing consecutive samples here would divide by zero, and why
+    /// the fit is done against the timestamps rather than against the sample
+    /// numbers.
+    /// </para>
+    /// <para>
+    /// It is deliberately <em>not</em> used to size the window. That was tried:
+    /// the fit only needs the elapsed time across the whole window to be right,
+    /// and a nought-then-double pair still spans the correct total, so lengthening
+    /// the window on the strength of this over-corrects. On the pair of logs above
+    /// it asked for half a second on one and two seconds on its sibling, and the
+    /// two-second window swallowed two of that log's three pulls. The window stays
+    /// where the caller puts it.
+    /// </para>
+    /// <para>
+    /// The spread of the middle eighty per cent of the intervals, so that a
+    /// single hole in the recording does not stand for the whole of it.
+    /// </para>
+    /// </summary>
+    public static double TimestampRoughness(LogDocument log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+
+        if (log.SampleCount < 8) return 0;
+
+        var gaps = new List<double>(log.SampleCount - 1);
+
+        for (int i = 1; i < log.SampleCount; i++)
+        {
+            double dt = log.Time.At(i) - log.Time.At(i - 1);
+
+            if (double.IsFinite(dt) && dt >= 0) gaps.Add(dt);
+        }
+
+        if (gaps.Count < 8) return 0;
+
+        gaps.Sort();
+
+        return gaps[(int)(gaps.Count * 0.9)] - gaps[(int)(gaps.Count * 0.1)];
+    }
+
+    /// <summary>
     /// Fits the channel and returns both the fitted value and its rate of change.
     ///
     /// <paramref name="gapThreshold"/> is the interval past which two samples are

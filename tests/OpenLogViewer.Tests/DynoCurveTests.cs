@@ -299,6 +299,55 @@ public class DynoCurveTests
     }
 
     [Fact]
+    public void HowMuchTheRoadLoadGuessMattersIsSaidInProportion()
+    {
+        // Measured on a real pull: in a low gear the air takes about three per
+        // cent of the effort, so being forty per cent wrong about the drag area
+        // moves the answer by one. Calling it "the largest guess in this figure"
+        // there is simply false, and points away from the mass and the gear,
+        // which between them are worth an order of magnitude more.
+        //
+        // Up in top gear at three times the speed it is a different story, and
+        // the same sentence has to change with it.
+        VehicleSpec car = Car();
+
+        LogDocument low = Drive(car, gear: 2);
+        LogDocument high = Drive(car, gear: 6);
+
+        DynoCurve slow = DynoCurve.FromRoadLoad(low, car, OnePull(low, car), Air);
+        DynoCurve fast = DynoCurve.FromRoadLoad(high, car, OnePull(high, car), Air);
+
+        Assert.InRange(slow.AeroShare, 0.005, 0.10);
+        Assert.True(fast.AeroShare > 0.20, $"top gear only reached {fast.AeroShare:P0}");
+
+        Assert.Contains(slow.Cautions, c => c.Contains("barely signify", StringComparison.Ordinal));
+        Assert.DoesNotContain(slow.Cautions, c => c.Contains("worth having", StringComparison.Ordinal));
+
+        Assert.Contains(fast.Cautions, c => c.Contains("worth having", StringComparison.Ordinal));
+        Assert.DoesNotContain(fast.Cautions, c => c.Contains("barely signify", StringComparison.Ordinal));
+
+        // And being wrong about it costs what the share says it costs.
+        double slowShift = Shift(low, car, 2);
+        double fastShift = Shift(high, car, 6);
+
+        Assert.True(slowShift < 0.03, $"a low-gear pull moved {slowShift:P1} on a big CdA change");
+        Assert.True(fastShift > slowShift * 3, $"top gear moved only {fastShift:P1}");
+    }
+
+    /// <summary>How much peak power moves when the drag area is taken 40% higher.</summary>
+    private static double Shift(LogDocument log, VehicleSpec car, int gear)
+    {
+        DynoPull pull = OnePull(log, car);
+
+        double a = DynoCurve.FromRoadLoad(log, car, pull, Air).PeakPower.Horsepower;
+        double b = DynoCurve
+            .FromRoadLoad(log, car with { DragAreaM2 = car.DragAreaM2 * 1.4 }, pull, Air)
+            .PeakPower.Horsepower;
+
+        return Math.Abs(b - a) / a;
+    }
+
+    [Fact]
     public void AFitFromACoastdownMarksTheVehicleAsMeasured()
     {
         VehicleSpec car = Car();

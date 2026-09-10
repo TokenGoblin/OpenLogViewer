@@ -225,6 +225,93 @@ public class RateOfChangeTests
     }
 
     [Fact]
+    public void SamplesSharingATimestampAreFittedRatherThanDividedBy()
+    {
+        // Not a hypothetical. A MegaSquirt writing fifteen times a second stamps
+        // to about a sixty-seventh of one, so samples land in pairs on a single
+        // stamp with a doubled gap after — on two real twenty-five minute logs,
+        // six and fourteen per cent of every interval was exactly nought.
+        //
+        // Differencing consecutive samples there divides by nothing. Fitting
+        // against the timestamps does not: two readings at the same instant are
+        // two readings the fit weighs equally, and the window they sit in still
+        // spans the time it spans.
+        var times = new List<double>();
+        var values = new List<double>();
+
+        // 15 Hz written onto a 67 ms clock: every third sample collides with the
+        // one before it, and the interval after that doubles. Carrying a little
+        // sensor noise, because a clean straight line survives being chopped into
+        // three-sample pieces and so proves nothing about whether it was.
+        double stamp = 0;
+
+        for (int i = 0; i < 150; i++)
+        {
+            if (i % 3 != 1) stamp += 0.067;
+
+            times.Add(stamp);
+            values.Add(4 + (9 * stamp) + (0.05 * Math.Sin(i * 2.7)));
+        }
+
+        Assert.Contains(
+            Enumerable.Range(1, times.Count - 1),
+            i => times[i] - times[i - 1] == 0);
+
+        ChannelFit fit = RateOfChange.Fit([.. values], [.. times], 0.5);
+
+        double worst = 0;
+
+        foreach (int i in Interior(values.Count, 15, 0.5))
+        {
+            Assert.False(double.IsNaN(fit.SlopePerSecond[i]));
+            Assert.False(double.IsInfinity(fit.SlopePerSecond[i]));
+
+            worst = Math.Max(worst, Math.Abs(fit.SlopePerSecond[i] - 9));
+        }
+
+        // A window holding seven or eight readings averages that noise down to
+        // 0.09 a second. Treating each collision as a break leaves runs of three,
+        // which cannot, and it degrades to 0.35 — so the threshold sits between
+        // the two rather than somewhere either would clear.
+        Assert.True(worst < 0.2, $"the slope was off by as much as {worst:N2} a second");
+    }
+
+    [Fact]
+    public void HowUnevenlyALogIsStampedCanBeAsked()
+    {
+        // Reported rather than acted on. It was briefly used to size the window
+        // and that over-corrected — a nought-then-double pair still spans the
+        // right total time, so the fit does not need the window lengthened for
+        // it. Kept because it is the difference between a log worth
+        // differentiating and one worth apologising for.
+        (double[] even, double[] tEven) = Sample(x => x * 3, 0, 8, 15);
+
+        Assert.Equal(0, RateOfChange.TimestampRoughness(Log(even, tEven)), 6);
+
+        var rough = new List<double>();
+        var values = new List<double>();
+        double stamp = 0;
+
+        for (int i = 0; i < 200; i++)
+        {
+            if (i % 2 == 1) stamp += 0.134;
+
+            rough.Add(stamp);
+            values.Add(stamp * 3);
+        }
+
+        Assert.True(RateOfChange.TimestampRoughness(Log([.. values], [.. rough])) > 0.1);
+    }
+
+    private static LogDocument Log(double[] values, double[] times) => new()
+    {
+        FilePath = "x",
+        Time = new LogChannel("Time", "s", 3, times, preservePrecision: true),
+        Channels = [new LogChannel("V", "", 3, values, preservePrecision: true)],
+        FormatName = "test",
+    };
+
+    [Fact]
     public void TimeRunningBackwardsBreaksTheRunRatherThanFittingThroughIt()
     {
         // A log stitched from two sessions. Without the break, the end of the
