@@ -47,6 +47,12 @@ public enum PullFault
 
     /// <summary>No throttle channel, so nothing could confirm the pedal was down.</summary>
     ThrottleNotChecked,
+
+    /// <summary>
+    /// The road speed channel does not say what it is in, and more than one
+    /// reading of it lands on a gear the car has.
+    /// </summary>
+    SpeedUnitAmbiguous,
 }
 
 /// <summary>What the gearing said about a stretch of log.</summary>
@@ -85,6 +91,19 @@ public sealed record GearFit(
     /// because nothing was measured, and those are different complaints.
     /// </summary>
     public bool Checked => double.IsFinite(SpreadPercent);
+
+    /// <summary>
+    /// Whether more than one reading of an unlabelled speed channel fitted.
+    ///
+    /// Miles an hour and kilometres an hour differ by 1.609, and a great many
+    /// gearboxes step between two of their gears by very nearly that — the
+    /// default first-to-second here is 1.595, which is nine parts in a thousand
+    /// away. So a second-gear pull on an unlabelled mph log also fits "first
+    /// gear, kilometres an hour", and does so well inside the tolerance a real
+    /// tyre size needs. Picking the nearer of the two would be deciding a factor
+    /// of 1.6 on every horsepower by which guess had the smaller rounding error.
+    /// </summary>
+    public bool Ambiguous { get; init; }
 }
 
 /// <summary>One wide-open stretch of a log, and what is wrong with it.</summary>
@@ -444,6 +463,7 @@ public static class DynoRun
         if (rpm.At(last) - rpm.At(first) < s.MinimumRpmSpan) faults.Add(PullFault.TooNarrow);
         if (hz < s.MinimumSampleRateHz) faults.Add(PullFault.TooSlowlySampled);
         if (throttle is null) faults.Add(PullFault.ThrottleNotChecked);
+        if (gearing.Ambiguous) faults.Add(PullFault.SpeedUnitAmbiguous);
 
         double liftAt = double.NaN;
 
@@ -568,20 +588,50 @@ public static class DynoRun
             ? [new ChannelUnits.SpeedUnit(road.Units, declared)]
             : ChannelUnits.SpeedUnits;
 
-        GearFit? best = null;
+        List<GearFit> tried = [];
 
         foreach (ChannelUnits.SpeedUnit unit in candidates)
         {
-            GearFit fit = FitOneUnit(vehicle, rpm, road, first, last, unit, s);
-
-            // The unit that puts the ratio nearest a real gear is the unit. Where
-            // the channel declared itself there is only one candidate and this
-            // decides nothing.
-            if (best is null || Better(fit, best)) best = fit;
+            tried.Add(FitOneUnit(vehicle, rpm, road, first, last, unit, s));
         }
 
-        return best!;
+        // The unit that puts the ratio nearest a real gear is the unit. Where the
+        // channel declared itself there is only one candidate and this decides
+        // nothing.
+        GearFit best = tried[0];
+
+        foreach (GearFit fit in tried)
+        {
+            if (Better(fit, best)) best = fit;
+        }
+
+        if (!best.Recognised || candidates.Count == 1) return best;
+
+        // Unless a second unit fits about as well, in which case nothing has been
+        // established. See the remarks on GearFit.Ambiguous: the two commonest
+        // speed units are a factor apart that gearboxes routinely step by, so
+        // this is a real coincidence rather than a defensive one.
+        GearFit? rival = tried
+            .Where(f => f.Recognised && f.SpeedUnit != best.SpeedUnit)
+            .OrderBy(f => f.ErrorPercent)
+            .FirstOrDefault();
+
+        if (rival is null || rival.ErrorPercent >= AmbiguousWithin * best.ErrorPercent) return best;
+
+        return best with { Gear = 0, Ambiguous = true };
     }
+
+    /// <summary>
+    /// How much better the winning unit has to fit than the next one before it is
+    /// believed.
+    ///
+    /// Three times, which sounds generous and is not: on a synthetic log the true
+    /// unit fits to a hundredth of a per cent and the impostor to nearly one, a
+    /// margin of seventy. What eats the margin is the car — an entered tyre size
+    /// a couple of per cent out moves the true fit further than the gap between
+    /// the two candidates, and then the impostor simply wins.
+    /// </summary>
+    private const double AmbiguousWithin = 3;
 
     private static bool Better(GearFit candidate, GearFit incumbent)
     {
@@ -678,13 +728,20 @@ public static class DynoRun
         double top = Quantile(values, 0.99);
 
         // A throttle logged as a fraction of one rather than as a percentage.
+        //
         // Told from the values here, where ChannelUnits.ToFraction deliberately
-        // will not: that one converts every sample, and a duty cycle really can
-        // sit under one per cent all log. This is the largest reading of a pedal
-        // across a whole session, and no pedal peaks at one per cent. Getting it
-        // wrong the other way costs a confident refusal of a log full of genuine
-        // pulls.
-        double scale = top is > 0 and <= 1.5 ? 100 : 1;
+        // will not: that one converts every sample and a duty cycle really can
+        // sit under one per cent all log, whereas this is the largest reading of
+        // a pedal across a whole session.
+        //
+        // The window is tight on purpose. A fraction that reached full throttle
+        // reads within a few per cent of one, so anything at all above that is a
+        // percentage — including a percentage that never opened, which is the
+        // case a looser window gets exactly backwards. A cruise-only log topping
+        // out at 1.2% would be rescaled to 120, sail past the threshold, and set
+        // full throttle at 1.16% — after which every brush of the pedal is a
+        // dyno pull.
+        double scale = top is >= 0.5 and <= 1.05 ? 100 : 1;
 
         return top * scale >= s.MinimumWideOpenPercent
             ? new WideOpenThrottle(top, s.ThrottleTolerancePercent / scale)
@@ -794,6 +851,9 @@ public static class DynoRun
         PullFault.GearNotChecked => "no road speed channel, so the gear could not be checked",
         PullFault.ThrottleNotChecked =>
             "no throttle channel, so nothing here confirms the pedal was on the floor throughout",
+        PullFault.SpeedUnitAmbiguous =>
+            "the road speed channel does not say what it is in, and both miles and kilometres an "
+            + "hour fit a gear this car has — label the channel, or say which it is",
         _ => fault.ToString(),
     };
 }

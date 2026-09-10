@@ -311,6 +311,7 @@ public class DynoCurveTests
             Agreement = 0.998,
             Samples = 400,
             BothDirections = true,
+            InGear = false,
             Cautions = [],
         };
 
@@ -437,6 +438,80 @@ public class DynoCurveTests
         // And outside the curve there is no answer rather than the nearest one.
         Assert.True(double.IsNaN(curve.HorsepowerAt(curve.ToRpm + 500)));
         Assert.True(double.IsNaN(curve.HorsepowerAt(curve.FromRpm - 500)));
+    }
+
+    [Fact]
+    public void TheTwoEndpointsReadAsThemselves()
+    {
+        // The top of a pull is the one figure anybody reads off by name, and the
+        // combined edge test this replaces handed back the value at the bottom
+        // for it — silently, because both ends went through one branch that only
+        // ever returned the first rung.
+        VehicleSpec car = Car();
+        LogDocument log = Drive(car);
+
+        DynoCurve curve = DynoCurve.FromRoadLoad(log, car, OnePull(log, car), Air);
+
+        DynoPoint[] drawn = [.. curve.Drawn];
+
+        Assert.Equal(drawn[0].Horsepower, curve.HorsepowerAt(curve.FromRpm), 9);
+        Assert.Equal(drawn[^1].Horsepower, curve.HorsepowerAt(curve.ToRpm), 9);
+
+        Assert.Equal(drawn[0].PoundFeet, curve.PoundFeetAt(curve.FromRpm), 9);
+        Assert.Equal(drawn[^1].PoundFeet, curve.PoundFeetAt(curve.ToRpm), 9);
+
+        // The two ends are not the same figure, which is the whole complaint.
+        Assert.NotEqual(curve.HorsepowerAt(curve.FromRpm), curve.HorsepowerAt(curve.ToRpm), 3);
+    }
+
+    [Fact]
+    public void ARungOfNoPowerIsNotMistakenForTheCrossover()
+    {
+        // Power is clamped at nought where the car was slowing, so a pull with a
+        // lift in it has rungs reading zero — and zero horsepower is also zero
+        // pound-feet, so their difference is zero there too. The crossover exists
+        // to confirm the units, and reporting the lift as the crossover turns a
+        // driver's foot into an apparent arithmetic fault.
+        var rpm = new List<double>();
+        var hp = new List<double>();
+
+        for (int r = 3000; r <= 7000; r += 100)
+        {
+            rpm.Add(r);
+
+            // A hole at 3,500 where the throttle came off.
+            hp.Add(r is >= 3400 and <= 3600 ? 0 : TruthHp(Math.Min(r, 6800)));
+        }
+
+        DynoCurve curve = DynoCurve.Build(
+            [.. rpm], [.. hp], PowerMethodKind.RoadLoad, "with a lift in it",
+            PowerCorrection.None, 1);
+
+        Assert.Equal(RoadLoad.TorqueConstant, curve.CrossoverRpm, 0);
+    }
+
+    [Fact]
+    public void StepsNothingLandedInAreDescribedAsThatRatherThanAsThin()
+    {
+        // With the default of one reading per step, nothing is ever dropped for
+        // being thin — so every gap is a step nothing landed in, and the note
+        // used to read "fewer than 1 readings" and recommend the wrong remedy.
+        var rpm = new List<double>();
+        var hp = new List<double>();
+
+        // 100 rpm steps asked of a log that only visited every 300.
+        for (int r = 3000; r <= 6000; r += 300)
+        {
+            rpm.Add(r);
+            hp.Add(TruthHp(r));
+        }
+
+        DynoCurve curve = DynoCurve.Build(
+            [.. rpm], [.. hp], PowerMethodKind.RoadLoad, "sparse",
+            PowerCorrection.None, 1);
+
+        Assert.Contains(curve.Cautions, c => c.Contains("no reading land in them", StringComparison.Ordinal));
+        Assert.DoesNotContain(curve.Cautions, c => c.Contains("fewer than 1", StringComparison.Ordinal));
     }
 
     [Fact]

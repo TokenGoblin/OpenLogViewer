@@ -139,6 +139,14 @@ public sealed record DynoCurve
 
             for (int i = 1; i < drawn.Length; i++)
             {
+                // A rung of no power at all is not a crossing. Power is clamped
+                // at nought where the car was slowing, and a pull with a driver's
+                // lift in it — which is kept and flagged rather than thrown away —
+                // has rungs like that. Both figures are zero there, their
+                // difference is zero, and the check meant to confirm the units
+                // would report the lift as the crossover instead.
+                if (drawn[i - 1].Horsepower == 0 || drawn[i].Horsepower == 0) continue;
+
                 double before = drawn[i - 1].Horsepower - drawn[i - 1].PoundFeet;
                 double after = drawn[i].Horsepower - drawn[i].PoundFeet;
 
@@ -188,10 +196,15 @@ public sealed record DynoCurve
         DynoPoint[] drawn = [.. Drawn];
 
         if (drawn.Length == 0) return double.NaN;
-        if (rpm <= drawn[0].Rpm || rpm >= drawn[^1].Rpm)
-        {
-            return rpm < drawn[0].Rpm || rpm > drawn[^1].Rpm ? double.NaN : of(drawn[0]);
-        }
+
+        // Outside the curve there is no answer. On either edge there is exactly
+        // one — and it must be that edge's, which the combined test this replaces
+        // got wrong at the top: asking for the highest engine speed drawn came
+        // back with the value at the lowest, silently, and the top of a pull is
+        // the one figure anybody reads off by name.
+        if (rpm < drawn[0].Rpm || rpm > drawn[^1].Rpm) return double.NaN;
+        if (rpm == drawn[0].Rpm) return of(drawn[0]);
+        if (rpm == drawn[^1].Rpm) return of(drawn[^1]);
 
         for (int i = 1; i < drawn.Length; i++)
         {
@@ -379,12 +392,13 @@ public sealed record DynoCurve
 
         var points = new List<DynoPoint>();
         int samples = 0;
+        int thin = 0;
 
         foreach (int rung in totals.Keys.Order())
         {
             (double sum, int n) = totals[rung];
 
-            if (n < s.MinimumSamplesPerStep) continue;
+            if (n < s.MinimumSamplesPerStep) { thin++; continue; }
 
             double hp = sum / n;
 
@@ -400,13 +414,25 @@ public sealed record DynoCurve
         if (points.Count > 1)
         {
             int expected = ((int)(points[^1].Rpm - points[0].Rpm) / step) + 1;
+            int missing = expected - points.Count;
 
-            if (points.Count < expected)
+            // Told apart rather than lumped together, because the two have
+            // different remedies. A step nothing landed in wants a wider step or
+            // a slower pull; a step that was dropped for holding too few readings
+            // wants the threshold lowering, and saying "fewer than 1 readings" —
+            // which is what the default setting produced — describes neither.
+            if (missing > thin)
             {
                 notes.Add(
-                    $"{expected - points.Count} of {expected} steps had fewer than "
-                    + $"{s.MinimumSamplesPerStep} readings and are not drawn. A wider step, or a "
-                    + "slower pull, fills them in.");
+                    $"{missing - thin} of {expected} steps had no reading land in them and are not "
+                    + "drawn. A wider step, or a slower pull, fills them in.");
+            }
+
+            if (thin > 0)
+            {
+                notes.Add(
+                    $"{thin} of {expected} steps held fewer than {s.MinimumSamplesPerStep} readings "
+                    + "and were dropped.");
             }
         }
 

@@ -24,6 +24,17 @@ public sealed record CoastdownRun
     /// </summary>
     public required int Gear { get; init; }
 
+    /// <summary>
+    /// What the road speed channel had to be multiplied by, carried with the run.
+    ///
+    /// Because a coast cannot work its own units out. Find can be told them, and
+    /// then Fit has to be told the same thing again or it re-derives from a
+    /// channel that never said — coming back all unknown, reporting nothing
+    /// usable, and changing the vehicle not at all. Carried here, it cannot be
+    /// forgotten between the two calls.
+    /// </summary>
+    public required double SpeedToMetresPerSecond { get; init; }
+
     public bool InGear => Gear > 0;
 
     public double Seconds => EndSeconds - StartSeconds;
@@ -82,10 +93,21 @@ public sealed record CoastdownFit
 
     public required bool BothDirections { get; init; }
 
+    /// <summary>
+    /// Whether any run behind this fit was rolling in gear rather than in neutral.
+    ///
+    /// Fatal, not advisory. Engine braking is far larger than either coefficient
+    /// being measured and lands almost entirely in the rolling resistance, so the
+    /// figures come back positive, plausible, and several times too big — which
+    /// is worse than coming back broken. It was said in the cautions and nothing
+    /// read them; now it is in <see cref="Usable"/>, which ApplyTo obeys.
+    /// </summary>
+    public required bool InGear { get; init; }
+
     /// <summary>Everything worth knowing before the figures are used.</summary>
     public required IReadOnlyList<string> Cautions { get; init; }
 
-    public bool Usable => DragAreaM2 > 0 && RollingResistance > 0;
+    public bool Usable => !InGear && DragAreaM2 > 0 && RollingResistance > 0;
 
     /// <summary>
     /// The vehicle with its two guessed coefficients replaced by these measured
@@ -309,6 +331,7 @@ public static class Coastdown
                 FromSpeedMs = motion.Value[first],
                 ToSpeedMs = motion.Value[last],
                 Gear = GearOf(vehicle, rpm, speeds, first, last, s),
+                SpeedToMetresPerSecond = factor,
             };
 
             if (run.SpeedSquaredSpread < s.MinimumSpeedSquaredSpread) { tooNarrow++; continue; }
@@ -352,6 +375,7 @@ public static class Coastdown
             Agreement = line.Agreement,
             Samples = samples,
             BothDirections = false,
+            InGear = run.InGear,
             Cautions = cautions,
         };
     }
@@ -415,6 +439,7 @@ public static class Coastdown
             Agreement = Math.Min(outward.Agreement, back.Agreement),
             Samples = outward.Samples + back.Samples,
             BothDirections = true,
+            InGear = outward.InGear || back.InGear,
             Cautions = cautions,
         };
     }
@@ -448,9 +473,10 @@ public static class Coastdown
 
         if (road is null) return new Line(double.NaN, double.NaN, double.NaN);
 
-        double factor = double.IsFinite(factorOverride)
-            ? factorOverride
-            : ChannelUnits.SpeedToMetresPerSecond(road);
+        // What the run was found with, unless the caller overrides it again.
+        double factor = double.IsFinite(factorOverride) ? factorOverride : run.SpeedToMetresPerSecond;
+
+        if (!(factor > 0)) factor = ChannelUnits.SpeedToMetresPerSecond(road);
 
         if (!(factor > 0)) return new Line(double.NaN, double.NaN, double.NaN);
 
@@ -509,7 +535,7 @@ public static class Coastdown
             cautions.Add(
                 $"This run was in {run.Gear}, not neutral. Engine braking is far larger than either "
                 + "coefficient being measured and lands almost entirely in the rolling resistance, "
-                + "so the figures are not usable.");
+                + "so nothing here is usable and none of it will be applied to the vehicle.");
         }
 
         if (line.Slope < 0)

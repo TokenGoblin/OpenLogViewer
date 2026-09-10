@@ -386,6 +386,64 @@ public class DynoRunTests
     }
 
     [Fact]
+    public void TwoSpeedUnitsThatBothFitAreRefusedRatherThanChosenBetween()
+    {
+        // Miles and kilometres an hour differ by 1.609. This gearbox steps from
+        // first to second by 3.27/2.05, which is 1.595 — nine parts in a thousand
+        // away. So a second-gear pull on an unlabelled mph log also fits "first
+        // gear, kilometres an hour", and the gap between the two readings is
+        // smaller than the error an entered tyre size routinely carries.
+        //
+        // Here the log is written in mph in second, and read by a vehicle whose
+        // rolling deflection is half a per cent out — which is nothing, and is
+        // enough. The false reading now fits *better* than the true one, so
+        // picking the nearer does not merely risk the wrong answer, it returns
+        // it: every road speed 1.61 times out, and effective mass taken in first
+        // instead of second on top.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 2)
+            .Pull(gear: 2, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20)
+            .Build(speedUnits: "mph", label: "");
+
+        VehicleSpec slightlyOff = Car() with { RollingDeflectionPercent = 3.5 };
+
+        DynoPull pull = Assert.Single(DynoRun.Find(log, slightlyOff).Pulls);
+
+        Assert.True(pull.Gearing.Ambiguous);
+        Assert.False(pull.Gearing.Recognised);
+        Assert.Contains(PullFault.SpeedUnitAmbiguous, pull.Faults);
+
+        // Labelling the channel settles it, which is the remedy the fault names.
+        LogDocument labelled = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 2)
+            .Pull(gear: 2, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20)
+            .Build(speedUnits: "mph");
+
+        DynoPull told = Assert.Single(DynoRun.Find(labelled, slightlyOff).Pulls);
+
+        Assert.False(told.Gearing.Ambiguous);
+        Assert.Equal(2, told.Gearing.Gear);
+    }
+
+    [Fact]
+    public void AnUnlabelledChannelIsStillReadWhereOnlyOneUnitFits()
+    {
+        // The refusal has to be narrow enough to leave the ordinary case working.
+        // A fourth-gear pull has no rival reading: nothing else this gearbox does
+        // is 1.609 away from fourth.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20)
+            .Build(speedUnits: "mph", label: "");
+
+        DynoPull pull = Assert.Single(DynoRun.Find(log, Car() with { RollingDeflectionPercent = 3.5 }).Pulls);
+
+        Assert.False(pull.Gearing.Ambiguous);
+        Assert.Equal(4, pull.Gearing.Gear);
+        Assert.Equal("mph", pull.Gearing.SpeedUnit);
+    }
+
+    [Fact]
     public void AGearboxThatDoesNotMatchTheLogIsSaidToNotMatch()
     {
         // Somebody has entered the wrong final drive, or the wrong tyre. Rather
@@ -604,6 +662,31 @@ public class DynoRunTests
 
         Assert.True(pull.IsClean, $"faults: {string.Join(", ", pull.Faults)}");
         Assert.Equal(4, pull.Gearing.Gear);
+    }
+
+    [Fact]
+    public void APercentageThrottleThatNeverOpenedIsNotReadAsAFraction()
+    {
+        // The other side of the fraction rule, and the one it used to get exactly
+        // backwards. A throttle in per cent on a log where the pedal never left
+        // the bottom tops out around one — indistinguishable, by that number
+        // alone, from a fraction at full throttle.
+        //
+        // Read as a fraction it becomes 120%, sails past the threshold, and sets
+        // full throttle at 1.16% — after which every brush of the pedal is a dyno
+        // pull and the log's gentlest acceleration is offered as one. The window
+        // is now tight enough to tell them apart: a fraction at full throttle
+        // reads within a few per cent of one, and anything above that is a
+        // percentage.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 60, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 5000, seconds: 8, hz: 20, tpsAt: _ => 120)
+            .Build(throttleScale: 0.01, throttleUnits: "");
+
+        PullSearchResult found = DynoRun.Find(log, Car());
+
+        Assert.Empty(found.Pulls);
+        Assert.Contains("never went far enough open", found.Summary, StringComparison.Ordinal);
     }
 
     [Fact]

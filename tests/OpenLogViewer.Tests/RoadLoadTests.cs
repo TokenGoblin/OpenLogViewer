@@ -224,9 +224,10 @@ public class RoadLoadTests
     }
 
     [Theory]
-    [InlineData(-1)]
+    [InlineData(0)]
     [InlineData(7)]
     [InlineData(99)]
+    [InlineData(-2)]
     public void AGearTheCarDoesNotHaveIsRefusedRatherThanAnswered(int gear)
     {
         // The tempting answer is the neutral figure, since there is no ratio to
@@ -237,6 +238,23 @@ public class RoadLoadTests
         // arrive here with a gear the car has not got.
         Assert.True(double.IsNaN(Car().EffectiveMassKg(gear)));
         Assert.True(double.IsNaN(Car().MassFactor(gear)));
+    }
+
+    [Fact]
+    public void NeutralDoesNotShareItsNumberWithAGearNobodyRecognised()
+    {
+        // The two meanings must not collide. Pull detection reports zero when the
+        // ratio matched no gear the car has, and that must be refused; neutral is
+        // a real state and must be answered. While both were zero, the one case
+        // the refusal existed for was the one case that quietly got the neutral
+        // figure instead — understating effective mass by up to a fifth and
+        // reporting a power figure that much low as though it were fine.
+        VehicleSpec car = Car();
+
+        Assert.NotEqual(0, VehicleSpec.Neutral);
+
+        Assert.True(double.IsFinite(car.EffectiveMassKg(VehicleSpec.Neutral)));
+        Assert.True(double.IsNaN(car.EffectiveMassKg(0)));
     }
 
     [Fact]

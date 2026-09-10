@@ -142,10 +142,17 @@ public sealed record VehicleSpec
     public double WheelRadiusM => RollingCircumferenceMm / (2 * Math.PI) / 1000;
 
     /// <summary>
-    /// The driveline disconnected — what a coastdown is measured in, and the one
-    /// gear number below one that means something.
+    /// The driveline disconnected — what a coastdown is measured in.
+    ///
+    /// <b>Deliberately not zero.</b> Zero is what pull detection hands back when
+    /// the ratio matched no gear the car has, and the two meanings must not share
+    /// a value: one of them wants the neutral effective mass and the other wants
+    /// to be refused. They did share it, and the result was that the single case
+    /// the refusal below was written for — a pull whose gear could not be
+    /// recognised — quietly got the neutral figure instead, understating
+    /// effective mass by up to a fifth.
     /// </summary>
-    public const int Neutral = 0;
+    public const int Neutral = -1;
 
     /// <summary>The gear ratio of a gear counted from one, or NaN if there is no such gear.</summary>
     public double RatioOf(int gear) =>
@@ -192,13 +199,12 @@ public sealed record VehicleSpec
         double ratio = TotalRatio(gear);
 
         // Any other gear the vehicle does not have is refused rather than
-        // answered. Quietly dropping the engine term — which is what returning
-        // the neutral figure for an unknown gear amounts to — understates
-        // effective mass by four per cent in the tallest gear and twenty-two in
-        // the lowest, and a power figure that much low reads as a number rather
-        // than as a mistake. Pull detection hands out a gear of zero whenever
-        // the ratio matched nothing, so this is reachable rather than
-        // theoretical.
+        // answered — zero included, which is what pull detection hands back when
+        // the ratio matched nothing. Quietly dropping the engine term, which is
+        // what returning the neutral figure for an unknown gear amounts to,
+        // understates effective mass by four per cent in the tallest gear and
+        // twenty-two in the lowest, and a power figure that much low reads as a
+        // number rather than as a mistake.
         if (!(ratio > 0)) return double.NaN;
 
         return MassKg + wheels + (EngineInertiaKgM2 * ratio * ratio / rSquared);

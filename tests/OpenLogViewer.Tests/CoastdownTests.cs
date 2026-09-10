@@ -275,6 +275,36 @@ public class CoastdownTests
         CoastdownFit fit = Coastdown.Fit(log, car, Air, run);
 
         Assert.Contains(fit.Cautions, c => c.Contains("not neutral", StringComparison.Ordinal));
+
+        // And refused, not merely remarked upon. Engine braking makes both terms
+        // come back positive and plausible, so nothing about the numbers says
+        // anything is wrong — the caution was written and nothing read it, which
+        // is how a rolling resistance several times too big got stamped onto a
+        // vehicle as measured.
+        Assert.True(fit.InGear);
+        Assert.False(fit.Usable);
+
+        VehicleSpec after = fit.ApplyTo(car);
+
+        Assert.Same(car, after);
+        Assert.False(after.RoadLoadMeasured);
+    }
+
+    [Fact]
+    public void OneRunInGearSpoilsThePairItIsCombinedWith()
+    {
+        VehicleSpec car = Car();
+
+        LogDocument good = Coast(car, 45, 14);
+        LogDocument bad = Coast(car, 45, 14, gearRolledIn: 5);
+
+        CoastdownFit paired = Coastdown.Combine(
+            Coastdown.Fit(good, car, Air, Only(good, car)),
+            Coastdown.Fit(bad, car, Air, Only(bad, car)));
+
+        Assert.True(paired.InGear);
+        Assert.False(paired.Usable);
+        Assert.Same(car, paired.ApplyTo(car));
     }
 
     [Fact]
@@ -384,7 +414,17 @@ public class CoastdownTests
         // pays for the coast.
         CoastdownSearchResult told = Coastdown.Find(bare, car, speedToMetresPerSecond: 1 / 3.6);
 
-        Assert.Single(told.Runs);
+        CoastdownRun run = Assert.Single(told.Runs);
+
+        // And the unit travels with the run, so fitting it does not have to be
+        // told the same thing a second time. It used to: Fit re-derived from a
+        // channel that never said, came back entirely unknown, reported nothing
+        // usable, and changed the vehicle not at all — without an error anywhere.
+        CoastdownFit fit = Coastdown.Fit(bare, car, Air, run);
+
+        Assert.True(fit.Usable);
+        Assert.Equal(TrueDragArea, fit.DragAreaM2, 2);
+        Assert.Equal(TrueRolling, fit.RollingResistance, 4);
     }
 
     [Theory]
@@ -443,6 +483,7 @@ public class CoastdownTests
             Agreement = double.NaN,
             Samples = 0,
             BothDirections = false,
+            InGear = false,
             Cautions = [],
         };
 
