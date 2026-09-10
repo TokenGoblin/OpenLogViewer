@@ -105,6 +105,7 @@ public sealed record CoastdownFit
         {
             DragAreaM2 = DragAreaM2,
             RollingResistance = RollingResistance,
+            RoadLoadMeasured = true,
         };
     }
 

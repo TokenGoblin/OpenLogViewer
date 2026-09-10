@@ -114,6 +114,17 @@ public sealed record VehicleSpec
     /// <summary>Whether the engine is force fed, which decides the default correction.</summary>
     public bool Boosted { get; init; }
 
+    /// <summary>
+    /// Whether the drag area and rolling resistance came off a coastdown rather
+    /// than out of a table.
+    ///
+    /// Set by <see cref="CoastdownFit.ApplyTo"/> and by nothing else. It changes
+    /// no arithmetic; it exists so a figure can say which of its inputs were
+    /// measured, which is the difference between a number worth quoting and a
+    /// number worth comparing against yesterday's.
+    /// </summary>
+    public bool RoadLoadMeasured { get; init; }
+
     // ----- derived ---------------------------------------------------------------
 
     /// <summary>What the tyre actually covers in one turn, in millimetres.</summary>

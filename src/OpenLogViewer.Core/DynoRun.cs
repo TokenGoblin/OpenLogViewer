@@ -59,12 +59,18 @@ public enum PullFault
 /// </param>
 /// <param name="ErrorPercent">How far the measured ratio sits from the gear it was matched to.</param>
 /// <param name="SpeedUnit">What the road speed channel turned out to be in.</param>
+/// <param name="SpeedToMetresPerSecond">
+/// What to multiply that channel by, carried alongside the name of the unit
+/// because it is the number everything downstream actually wants and working it
+/// back out from the name would be a second chance to get it wrong.
+/// </param>
 public sealed record GearFit(
     int Gear,
     double RpmPerMetrePerSecond,
     double SpreadPercent,
     double ErrorPercent,
-    string SpeedUnit)
+    string SpeedUnit,
+    double SpeedToMetresPerSecond = double.NaN)
 {
     public bool Recognised => Gear > 0;
 
@@ -604,7 +610,11 @@ public static class DynoRun
         }
 
         if (ratios.Count < 3)
-            return new GearFit(0, double.NaN, double.NaN, double.PositiveInfinity, unit.Unit);
+        {
+            return new GearFit(
+                0, double.NaN, double.NaN, double.PositiveInfinity,
+                unit.Unit, unit.ToMetresPerSecond);
+        }
 
         ratios.Sort();
 
@@ -635,7 +645,7 @@ public static class DynoRun
 
         if (bestError > s.GearTolerancePercent) gear = 0;
 
-        return new GearFit(gear, median, spread, bestError, unit.Unit);
+        return new GearFit(gear, median, spread, bestError, unit.Unit, unit.ToMetresPerSecond);
     }
 
     // ----- odds and ends ----------------------------------------------------------
