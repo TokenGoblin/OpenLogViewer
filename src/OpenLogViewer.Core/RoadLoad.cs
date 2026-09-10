@@ -1,4 +1,4 @@
-﻿namespace OpenLogViewer.Core;
+namespace OpenLogViewer.Core;
 
 /// <summary>
 /// Where the engine's effort went at one instant, in newtons.
@@ -141,6 +141,12 @@ public static class RoadLoad
             return double.NaN;
 
         double watts = Forces(vehicle, gear, speedMs, accelerationMs2, densityKgM3).Total * speedMs;
+
+        // Unknown stays unknown. The clamp below reads NaN as "not greater than
+        // zero" and would hand back a confident nought — the silent wrong answer
+        // this codebase forbids everywhere else, and reachable here through an
+        // effective mass that refused to be computed.
+        if (double.IsNaN(watts)) return double.NaN;
 
         return watts > 0 ? watts : 0;
     }

@@ -96,16 +96,16 @@ public static class RateOfChange
                 "A channel and its time base must be the same length.", nameof(times));
         }
 
-        var fitted = new double[n];
-        var slope = new double[n];
-
-        if (n == 0) return new ChannelFit(fitted, slope);
-
         if (!(windowSeconds > 0))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(windowSeconds), "The window must be a positive time.");
         }
+
+        var fitted = new double[n];
+        var slope = new double[n];
+
+        if (n == 0) return new ChannelFit(fitted, slope);
 
         // Which run of uninterrupted samples each one belongs to. Worked out once
         // rather than per sample, since every window has to be clipped to it.

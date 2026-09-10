@@ -203,6 +203,54 @@ public class RoadLoadTests
         Assert.True(double.IsNaN(RoadLoad.Watts(Car(), 4, 0, 3, 1.225)));
     }
 
+    // ----- gears the car does not have ------------------------------------------
+
+    [Fact]
+    public void NeutralIsAStateRatherThanAnUnknownGear()
+    {
+        // With the driveline disconnected the engine's inertia genuinely is not
+        // being accelerated. That is the condition a coastdown is measured in,
+        // so it has to be expressible — and distinguishable from not knowing.
+        VehicleSpec car = Car();
+
+        double neutral = car.EffectiveMassKg(VehicleSpec.Neutral);
+
+        Assert.True(double.IsFinite(neutral));
+        Assert.True(neutral < car.EffectiveMassKg(6));
+
+        // Exactly the mass plus the wheels, with nothing for the engine.
+        Assert.Equal(car.MassKg + (car.WheelInertiaKgM2 / (car.WheelRadiusM * car.WheelRadiusM)),
+                     neutral, 6);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(7)]
+    [InlineData(99)]
+    public void AGearTheCarDoesNotHaveIsRefusedRatherThanAnswered(int gear)
+    {
+        // The tempting answer is the neutral figure, since there is no ratio to
+        // square. It understates effective mass by four per cent in the tallest
+        // gear and twenty-two in the lowest, and a power figure that much low
+        // reads as a number rather than as a mistake. Pull detection hands out a
+        // gear of zero whenever the ratio matched nothing, so a caller really can
+        // arrive here with a gear the car has not got.
+        Assert.True(double.IsNaN(Car().EffectiveMassKg(gear)));
+        Assert.True(double.IsNaN(Car().MassFactor(gear)));
+    }
+
+    [Fact]
+    public void AnUnknownGearMakesThePowerUnknownRatherThanNought()
+    {
+        // The clamp that keeps a lift from reading as negative power reads NaN as
+        // "not greater than zero" and would hand back a confident nought. Missing
+        // readings propagate; they are not quietly zero.
+        double watts = RoadLoad.Watts(Car(), gear: 99, speedMs: 40, accelerationMs2: 3, densityKgM3: 1.225);
+
+        Assert.True(double.IsNaN(watts), $"got {watts}");
+        Assert.True(double.IsNaN(RoadLoad.Horsepower(Car(), 99, 40, 3, 1.225)));
+    }
+
     // ----- the constants --------------------------------------------------------
 
     [Fact]

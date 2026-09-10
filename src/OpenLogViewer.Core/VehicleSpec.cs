@@ -1,4 +1,4 @@
-﻿namespace OpenLogViewer.Core;
+namespace OpenLogViewer.Core;
 
 /// <summary>
 /// The car, as far as working power out of how hard it accelerated needs to know.
@@ -130,6 +130,12 @@ public sealed record VehicleSpec
     /// </summary>
     public double WheelRadiusM => RollingCircumferenceMm / (2 * Math.PI) / 1000;
 
+    /// <summary>
+    /// The driveline disconnected — what a coastdown is measured in, and the one
+    /// gear number below one that means something.
+    /// </summary>
+    public const int Neutral = 0;
+
     /// <summary>The gear ratio of a gear counted from one, or NaN if there is no such gear.</summary>
     public double RatioOf(int gear) =>
         gear >= 1 && gear <= GearRatios.Count ? GearRatios[gear - 1] : double.NaN;
@@ -161,17 +167,30 @@ public sealed record VehicleSpec
     public double EffectiveMassKg(int gear)
     {
         double r = WheelRadiusM;
-        double ratio = TotalRatio(gear);
 
         if (!(r > 0)) return double.NaN;
 
         double rSquared = r * r;
         double wheels = WheelInertiaKgM2 / rSquared;
-        double engine = double.IsNaN(ratio)
-            ? 0
-            : EngineInertiaKgM2 * ratio * ratio / rSquared;
 
-        return MassKg + wheels + engine;
+        // Neutral is a state, not an absence of information. With the driveline
+        // disconnected the engine's inertia genuinely is not being accelerated,
+        // which is the condition a coastdown is measured in.
+        if (gear == Neutral) return MassKg + wheels;
+
+        double ratio = TotalRatio(gear);
+
+        // Any other gear the vehicle does not have is refused rather than
+        // answered. Quietly dropping the engine term — which is what returning
+        // the neutral figure for an unknown gear amounts to — understates
+        // effective mass by four per cent in the tallest gear and twenty-two in
+        // the lowest, and a power figure that much low reads as a number rather
+        // than as a mistake. Pull detection hands out a gear of zero whenever
+        // the ratio matched nothing, so this is reachable rather than
+        // theoretical.
+        if (!(ratio > 0)) return double.NaN;
+
+        return MassKg + wheels + (EngineInertiaKgM2 * ratio * ratio / rSquared);
     }
 
     /// <summary>

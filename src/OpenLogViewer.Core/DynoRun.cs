@@ -1,4 +1,4 @@
-﻿namespace OpenLogViewer.Core;
+namespace OpenLogViewer.Core;
 
 /// <summary>Where the road speed for a pull is taken from.</summary>
 public enum SpeedSource
@@ -67,6 +67,18 @@ public sealed record GearFit(
     string SpeedUnit)
 {
     public bool Recognised => Gear > 0;
+
+    /// <summary>
+    /// Whether the ratio was actually measured, as against attempted.
+    ///
+    /// The distinction matters because a channel can exist and carry nothing
+    /// usable. A car with no receiver logs its GPS speed as a flat zero all
+    /// session, and every sample of it is discarded as too slow to divide by —
+    /// which leaves no ratio, no gear, and a pull that would otherwise be
+    /// reported as having matched no gear the vehicle has. It matched nothing
+    /// because nothing was measured, and those are different complaints.
+    /// </summary>
+    public bool Checked => double.IsFinite(SpreadPercent);
 }
 
 /// <summary>One wide-open stretch of a log, and what is wrong with it.</summary>
@@ -120,6 +132,16 @@ public sealed record DynoPull
         3 => "3rd",
         _ => $"{gear}th",
     };
+}
+
+/// <summary>Where full throttle sits on this log, in the channel's own units.</summary>
+/// <param name="WideOpen">The reading the pedal reaches when it is on the floor.</param>
+/// <param name="Tolerance">How far under that still counts, in those same units.</param>
+internal readonly record struct WideOpenThrottle(double WideOpen, double Tolerance)
+{
+    public bool Usable => double.IsFinite(WideOpen);
+
+    public double Floor => WideOpen - Tolerance;
 }
 
 /// <summary>What counts as a pull.</summary>
@@ -272,7 +294,7 @@ public static class DynoRun
         LogChannel? throttle = ChannelRoles.Find(log, ChannelRole.Throttle);
         LogChannel? road = ChannelRoles.Find(log, ChannelRole.VehicleSpeed);
 
-        double wideOpen = WideOpenLevel(throttle, s);
+        WideOpenThrottle pedal = WideOpenLevel(throttle, s);
 
         // A throttle channel that never went far open is not the same as having
         // none. Having none means the pedal cannot be checked, and runs are
@@ -280,7 +302,7 @@ public static class DynoRun
         // positive evidence that nothing here was a pull, and offering the
         // briskest bit of part-throttle acceleration instead would be worse than
         // finding nothing.
-        if (throttle is not null && double.IsNaN(wideOpen))
+        if (throttle is not null && !pedal.Usable)
         {
             return new PullSearchResult(
                 [],
@@ -288,11 +310,29 @@ public static class DynoRun
                 + "so none of it is a pull.");
         }
 
+        // A window has to hold samples either side of the one being fitted. Where
+        // the log is slower than that, every slope comes back unknown, no run
+        // ever looks like it is rising, and the search would otherwise report
+        // "nothing here has engine speed rising for long enough" — blaming the
+        // driving for what is a property of the recording. A two to four hertz
+        // OBD2 session, which this application itself produces over a dongle,
+        // lands squarely in it.
+        double interval = log.MedianSampleInterval;
+
+        if (interval > 0 && interval * 2 >= s.WindowSeconds)
+        {
+            return new PullSearchResult(
+                [],
+                $"This log is sampled about {1 / interval:N0} times a second, which is too slow to "
+                + $"differentiate over a {s.WindowSeconds:N2} s window — the fit needs samples either "
+                + $"side of each one, and at this rate it has none. A window of {interval * 5:N1} s or "
+                + "more would work, at the cost of smoothing the curve.");
+        }
+
         ChannelFit rise = RateOfChange.Fit(log, rpm, s.WindowSeconds);
 
         List<DynoPull> pulls = [];
         int rejectedShort = 0;
-        int rejectedNarrow = 0;
         int rejectedPartThrottle = 0;
 
         foreach ((int rising, int until) in RisingRuns(log, rise, rpm, s))
@@ -310,8 +350,8 @@ public static class DynoRun
             // therefore starts a quarter of a second early, in whatever the car
             // was doing beforehand. Left alone, the curve begins at an engine
             // speed the engine was never pulling at.
-            if (!double.IsNaN(wideOpen)
-                && !TrimToWideOpen(throttle!, wideOpen - s.ThrottleTolerancePercent, ref first, ref last))
+            if (pedal.Usable
+                && !TrimToWideOpen(throttle!, pedal.Floor, ref first, ref last))
             {
                 // Nothing in the run was at full throttle, so it is an
                 // acceleration rather than a pull.
@@ -320,16 +360,20 @@ public static class DynoRun
             }
 
             double seconds = log.Time.At(last) - log.Time.At(first);
-            double span = rpm.At(last) - rpm.At(first);
 
-            if (seconds < s.MinimumSeconds) { rejectedShort++; continue; }
-            if (span < s.MinimumRpmSpan) { rejectedNarrow++; continue; }
+            // Discarded outright only below one fitting window, which is the
+            // point at which there is no derivative to be had at all. Anything
+            // longer is offered with its shortcomings recorded against it, the
+            // way a thinly sampled run already was — a run that is nearly long
+            // enough is still the person's to judge, and dropping it silently
+            // tells them nothing.
+            if (seconds < s.WindowSeconds) { rejectedShort++; continue; }
 
-            pulls.Add(Describe(log, vehicle, s, rpm, throttle, road, rise, first, last, wideOpen));
+            pulls.Add(Describe(log, vehicle, s, rpm, throttle, road, rise, first, last, pedal));
         }
 
-        return new PullSearchResult(pulls, Summarise(
-            pulls, throttle, road, wideOpen, rejectedShort, rejectedNarrow, rejectedPartThrottle));
+        return new PullSearchResult(
+            pulls, Summarise(pulls, throttle, rejectedShort, rejectedPartThrottle));
     }
 
     // ----- finding the runs -------------------------------------------------------
@@ -381,7 +425,7 @@ public static class DynoRun
     private static DynoPull Describe(
         LogDocument log, VehicleSpec vehicle, PullSettings s,
         LogChannel rpm, LogChannel? throttle, LogChannel? road, ChannelFit rise,
-        int first, int last, double wideOpen)
+        int first, int last, WideOpenThrottle pedal)
     {
         double seconds = log.Time.At(last) - log.Time.At(first);
         double hz = seconds > 0 ? (last - first) / seconds : 0;
@@ -397,14 +441,19 @@ public static class DynoRun
 
         double liftAt = double.NaN;
 
-        if (!double.IsNaN(wideOpen))
+        // Whether the throttle came off is tracked apart from where it did. The
+        // two were the same value, so an engine speed that could not be read
+        // would have taken the fault away with it. As things stand a run holds
+        // only samples whose fit succeeded, so that could not actually happen —
+        // but a fact riding on a value which is allowed to go missing is one
+        // reordering away from being lost, and this one is the difference
+        // between a driver's lift and a hole in the engine's curve.
+        if (pedal.Usable && Lifted(throttle!, rise, first, last, pedal.Floor, out liftAt))
         {
-            liftAt = FirstLift(log, throttle!, rise, first, last, wideOpen - s.ThrottleTolerancePercent);
-
-            if (double.IsFinite(liftAt)) faults.Add(PullFault.ThrottleLifted);
+            faults.Add(PullFault.ThrottleLifted);
         }
 
-        if (road is null)
+        if (road is null || !gearing.Checked)
         {
             faults.Add(PullFault.GearNotChecked);
         }
@@ -421,7 +470,7 @@ public static class DynoRun
         // trusted. It stops being trustworthy exactly when it stops keeping step
         // with the road, which is the drift above.
         SpeedSource source =
-            road is not null && gearing.SpreadPercent > s.RatioTolerancePercent
+            gearing.Checked && gearing.SpreadPercent > s.RatioTolerancePercent
                 ? SpeedSource.VehicleSpeedChannel
                 : SpeedSource.EngineSpeedAndGear;
 
@@ -454,18 +503,24 @@ public static class DynoRun
     /// the axis the curve is drawn on, and a notch in a curve is only explicable
     /// once you can see it lines up with the lift.
     /// </summary>
-    private static double FirstLift(
-        LogDocument log, LogChannel throttle, ChannelFit rise, int first, int last, double floor)
+    private static bool Lifted(
+        LogChannel throttle, ChannelFit rise, int first, int last, double floor, out double atRpm)
     {
+        atRpm = double.NaN;
+
         for (int i = first; i <= last; i++)
         {
             double tps = throttle.At(i);
 
-            if (double.IsFinite(tps) && tps < floor) return rise.Value[i];
+            if (!double.IsFinite(tps) || tps >= floor) continue;
+
+            atRpm = rise.Value[i];
+
+            return true;
 
         }
 
-        return double.NaN;
+        return false;
     }
 
     // ----- the gear ---------------------------------------------------------------
@@ -592,9 +647,11 @@ public static class DynoRun
     /// single spike above the sensor's real ceiling does not move the reference
     /// and disqualify every genuine pull below it.
     /// </summary>
-    private static double WideOpenLevel(LogChannel? throttle, PullSettings s)
+    private static WideOpenThrottle WideOpenLevel(LogChannel? throttle, PullSettings s)
     {
-        if (throttle is null) return double.NaN;
+        var none = new WideOpenThrottle(double.NaN, double.NaN);
+
+        if (throttle is null) return none;
 
         List<double> values = [];
 
@@ -604,13 +661,24 @@ public static class DynoRun
             if (double.IsFinite(v)) values.Add(v);
         }
 
-        if (values.Count < 4) return double.NaN;
+        if (values.Count < 4) return none;
 
         values.Sort();
 
         double top = Quantile(values, 0.99);
 
-        return top >= s.MinimumWideOpenPercent ? top : double.NaN;
+        // A throttle logged as a fraction of one rather than as a percentage.
+        // Told from the values here, where ChannelUnits.ToFraction deliberately
+        // will not: that one converts every sample, and a duty cycle really can
+        // sit under one per cent all log. This is the largest reading of a pedal
+        // across a whole session, and no pedal peaks at one per cent. Getting it
+        // wrong the other way costs a confident refusal of a log full of genuine
+        // pulls.
+        double scale = top is > 0 and <= 1.5 ? 100 : 1;
+
+        return top * scale >= s.MinimumWideOpenPercent
+            ? new WideOpenThrottle(top, s.ThrottleTolerancePercent / scale)
+            : none;
     }
 
     /// <summary>
@@ -637,7 +705,7 @@ public static class DynoRun
             shut = i;
         }
 
-        if (open < 0 || shut <= open) return false;
+        if (open < 0) return false;
 
         first = open;
         last = shut;
@@ -667,8 +735,7 @@ public static class DynoRun
     /// which one applies to them.
     /// </summary>
     private static string Summarise(
-        IReadOnlyList<DynoPull> pulls, LogChannel? throttle, LogChannel? road,
-        double wideOpen, int shortRuns, int narrowRuns, int partThrottle)
+        IReadOnlyList<DynoPull> pulls, LogChannel? throttle, int shortRuns, int partThrottle)
     {
         if (pulls.Count > 0)
         {
@@ -681,8 +748,8 @@ public static class DynoRun
                     ? "every one of them has something worth reading first"
                     : $"{clean} with nothing to report";
 
-            string gearing = road is null
-                ? " No road speed channel, so the gear was taken on trust rather than measured."
+            string gearing = pulls.All(p => p.Faults.Contains(PullFault.GearNotChecked))
+                ? " Nothing usable to measure the gear against, so it was taken on trust."
                 : "";
 
             return $"{found} found — {state}.{gearing}";
@@ -696,8 +763,7 @@ public static class DynoRun
         }
 
         if (partThrottle > 0) reasons.Add($"{partThrottle} were not at full throttle");
-        if (shortRuns > 0) reasons.Add($"{shortRuns} were too brief to differentiate");
-        if (narrowRuns > 0) reasons.Add($"{narrowRuns} covered too little of the rev range");
+        if (shortRuns > 0) reasons.Add($"{shortRuns} were too brief to differentiate at all");
 
         return reasons.Count == 0
             ? "Nothing in this log has engine speed rising for long enough to be a pull."

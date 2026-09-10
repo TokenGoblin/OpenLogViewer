@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 
 namespace OpenLogViewer.Core;
 
@@ -222,14 +222,6 @@ public static class ChannelUnits
             "fts" or "fps" => 0.3048,
             _ => double.NaN,
         };
-    }
-
-    /// <summary>A speed channel in metres a second, where the units are known.</summary>
-    public static string ToMetresPerSecond(LogChannel channel)
-    {
-        double factor = SpeedToMetresPerSecond(channel);
-
-        return Scale(channel, double.IsNaN(factor) ? 1 : factor);
     }
 
     private static string Scale(LogChannel channel, double factor) =>

@@ -153,7 +153,7 @@ public class DynoRunTests
         /// </param>
         public LogDocument Build(
             string speedUnits = "km/h", bool withSpeed = true, bool withThrottle = true,
-            string? label = null)
+            string? label = null, double throttleScale = 1, string throttleUnits = "%")
         {
             double factor = speedUnits switch
             {
@@ -164,7 +164,11 @@ public class DynoRunTests
 
             List<LogChannel> channels = [new LogChannel("RPM", "rpm", 0, [.. _rpm])];
 
-            if (withThrottle) channels.Add(new LogChannel("TPS", "%", 1, [.. _tps]));
+            if (withThrottle)
+            {
+                channels.Add(new LogChannel(
+                    "TPS", throttleUnits, 3, [.. _tps.Select(v => v * throttleScale)]));
+            }
 
             if (withSpeed)
             {
@@ -491,18 +495,131 @@ public class DynoRunTests
     }
 
     [Fact]
-    public void AShortBlipIsTooBriefToDifferentiate()
+    public void ARunShorterThanOneFittingWindowIsNotOfferedAtAll()
     {
+        // Below a single window there is no derivative to be had, so there is
+        // nothing to offer and nothing to caveat.
         LogDocument log = new Recording()
             .Steady(4, 20, 3000, 18, gear: 2)
-            .Pull(gear: 2, fromRpm: 3000, toRpm: 5200, seconds: 0.9, hz: 20)
-            .Steady(3, 20, 3000, 4)
+            .Pull(gear: 2, fromRpm: 3000, toRpm: 4200, seconds: 0.35, hz: 20)
+            .Steady(3, 20, 4200, 4, gear: 2)
             .Build();
 
         PullSearchResult found = DynoRun.Find(log, Car());
 
         Assert.Empty(found.Pulls);
         Assert.Contains("brief", found.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARunThatIsShortButUsableIsOfferedWithThatSaidAgainstIt()
+    {
+        // Long enough to differentiate, short enough to be worth a warning. It
+        // is the person's judgement whether to trust it, and dropping it
+        // silently tells them nothing — the same policy a thinly sampled run
+        // already gets.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 2)
+            .Pull(gear: 2, fromRpm: 3000, toRpm: 5200, seconds: 1.3, hz: 20)
+            .Steady(3, 20, 5200, 4, gear: 2)
+            .Build();
+
+        DynoPull pull = Assert.Single(DynoRun.Find(log, Car()).Pulls);
+
+        Assert.Contains(PullFault.TooShort, pull.Faults);
+        Assert.Equal(2, pull.Gearing.Gear);
+    }
+
+    [Fact]
+    public void ALogSampledTooSlowlyToDifferentiateSaysSoRatherThanBlamingTheDriving()
+    {
+        // Three samples a second leaves a half-second window with nothing either
+        // side of the sample being fitted, so every slope comes back unknown and
+        // no run ever looks like it is rising. Reporting that as "nothing here
+        // has engine speed rising for long enough" blames the driving for a
+        // property of the recording — and an OBD2 session over a dongle, which
+        // this application itself produces, lands squarely in it.
+        LogDocument log = new Recording()
+            .Steady(4, 3, 3000, 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 8, hz: 3)
+            .Build();
+
+        PullSearchResult found = DynoRun.Find(log, Car());
+
+        Assert.Empty(found.Pulls);
+        Assert.Contains("too slow to differentiate", found.Summary, StringComparison.Ordinal);
+        Assert.Contains("window", found.Summary, StringComparison.Ordinal);
+
+        // And it is a property of the window rather than of the log: widen the
+        // window and the same recording yields its pull.
+        PullSearchResult wider = DynoRun.Find(log, Car(), new PullSettings { WindowSeconds = 2.0 });
+
+        Assert.Single(wider.Pulls);
+    }
+
+    [Fact]
+    public void ASpeedChannelThatCarriesNothingMeansTheGearWasNotChecked()
+    {
+        // A car with no receiver logs its GPS speed as a flat zero all session.
+        // Every sample is discarded as too slow to divide by, so there is no
+        // ratio — which is not the same as a ratio that matched no gear, and
+        // saying so would send somebody looking at their gearbox figures.
+        var recording = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20);
+
+        LogDocument built = recording.Build();
+
+        var dead = new LogDocument
+        {
+            FilePath = built.FilePath,
+            Time = built.Time,
+            Channels =
+            [
+                .. built.Channels.Where(c => c.Name != "VSS"),
+                new LogChannel("VSS", "km/h", 1, new double[built.SampleCount]),
+            ],
+            FormatName = built.FormatName,
+        };
+
+        DynoPull pull = Assert.Single(DynoRun.Find(dead, Car()).Pulls);
+
+        Assert.Contains(PullFault.GearNotChecked, pull.Faults);
+        Assert.DoesNotContain(PullFault.GearNotRecognised, pull.Faults);
+        Assert.False(pull.Gearing.Checked);
+    }
+
+    [Fact]
+    public void AThrottleLoggedAsAFractionIsStillReadAsAThrottle()
+    {
+        // Some firmware reports proportions as nought to one. Compared against a
+        // threshold of seventy it tops out at 0.98, looks like a pedal that never
+        // moved, and the whole log is confidently refused.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20)
+            .Build(throttleScale: 0.01, throttleUnits: "");
+
+        DynoPull pull = Assert.Single(DynoRun.Find(log, Car()).Pulls);
+
+        Assert.True(pull.IsClean, $"faults: {string.Join(", ", pull.Faults)}");
+        Assert.Equal(4, pull.Gearing.Gear);
+    }
+
+    [Fact]
+    public void ALiftIsFoundInAFractionalThrottleToo()
+    {
+        // The tolerance has to be scaled along with the reference, or four per
+        // cent of throttle becomes four whole units and nothing is ever a lift.
+        LogDocument log = new Recording()
+            .Steady(4, 20, 3000, 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20,
+                  tpsAt: p => p is > 0.55 and < 0.62 ? 78 : 98)
+            .Build(throttleScale: 0.01, throttleUnits: "");
+
+        DynoPull pull = Assert.Single(DynoRun.Find(log, Car()).Pulls);
+
+        Assert.Contains(PullFault.ThrottleLifted, pull.Faults);
     }
 
     // ----- what it says ----------------------------------------------------------
