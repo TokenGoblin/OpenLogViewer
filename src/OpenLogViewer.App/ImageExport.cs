@@ -47,7 +47,22 @@ public static class ImageExport
             // RenderTargetBitmap.Render draws a visual at its position within its
             // parent, so the plot — which sits to the right of a 300px sidebar —
             // would come out shifted by that much and clipped at the right edge.
-            dc.DrawRectangle(new VisualBrush(element) { Stretch = Stretch.None }, null, bounds);
+            //
+            // Pinned to the top left, because a VisualBrush centres by default and
+            // it centres the element's *unclipped* bounds. Anything inside that
+            // overflows its parent — a column of labels wider than the column it
+            // sits in, which the window clips and nobody notices — then drags the
+            // whole picture sideways by half the overflow, and the saved image is
+            // missing a strip of one edge that is plainly there on screen.
+            dc.DrawRectangle(
+                new VisualBrush(element)
+                {
+                    Stretch = Stretch.None,
+                    AlignmentX = AlignmentX.Left,
+                    AlignmentY = AlignmentY.Top,
+                },
+                null,
+                bounds);
         }
 
         target.Render(visual);

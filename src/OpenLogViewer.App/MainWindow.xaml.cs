@@ -378,6 +378,30 @@ public partial class MainWindow : Window
         _faults.Close();
     }
 
+    private DynoWindow? _dyno;
+
+    /// <summary>
+    /// The dyno, kept alive the way the calculators and the power estimate are.
+    ///
+    /// The use of it is to try a weight, look at the curve and try another, so a
+    /// window that forgot the car every time it closed would make that a
+    /// retyping exercise.
+    /// </summary>
+    private void OnDynoClick(object sender, RoutedEventArgs e)
+    {
+        if (_dyno is null)
+        {
+            _dyno = new DynoWindow(_vm) { Owner = this };
+            _dyno.Closed += (_, _) => _dyno = null;
+
+            return;
+        }
+
+        if (_dyno.WindowState == WindowState.Minimized) _dyno.WindowState = WindowState.Normal;
+
+        _dyno.Activate();
+    }
+
     private PowerWindow? _power;
 
     /// <summary>
@@ -403,6 +427,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the power estimate and draws it, for a scripted run.</summary>
+    /// <summary>
+    /// Draws the dyno over whatever log was opened, for a screenshot.
+    ///
+    /// The same trick the power estimate uses, and for the same reason: a window
+    /// that can only be reached by clicking cannot be checked without a person
+    /// to click it.
+    /// </summary>
+    public void CaptureDyno(string path)
+    {
+        OnDynoClick(this, new RoutedEventArgs());
+
+        if (_dyno is null) return;
+
+        _dyno.UpdateLayout();
+        ImageExport.Save(_dyno.Content as FrameworkElement ?? _dyno, path);
+
+        _dyno.Close();
+    }
+
     public void CapturePower(string path)
     {
         OnEstimatePowerClick(this, new RoutedEventArgs());

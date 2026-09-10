@@ -38,7 +38,8 @@ public partial class App : Application
     private static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--dyno",
+        "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
         "--insights",
@@ -206,6 +207,15 @@ public partial class App : Application
             string tab = e.Args[calc + 1];
             string to = e.Args[calc + 2];
             RunThenExit(window, () => window.CaptureCalculators(tab, to));
+            return;
+        }
+
+        // "--dyno out.png" draws the dyno over whatever log was opened.
+        int dyno = Array.IndexOf(e.Args, "--dyno");
+        if (dyno >= 0 && dyno + 1 < e.Args.Length)
+        {
+            string to = e.Args[dyno + 1];
+            RunThenExit(window, () => window.CaptureDyno(to));
             return;
         }
 

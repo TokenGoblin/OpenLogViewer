@@ -167,6 +167,9 @@
                 <MenuItem Header="Estimate _power…" Click="OnEstimatePowerClick"
                           IsEnabled="{Binding HasDocument}"
                           ToolTip="Calculated channels that estimate horsepower from the log"/>
+                <MenuItem Header="_Dyno…" Click="OnDynoClick"
+                          IsEnabled="{Binding HasDocument}"
+                          ToolTip="Power from how hard the car accelerated, held against the fuel and the air"/>
             </MenuItem>
 
             <!--
