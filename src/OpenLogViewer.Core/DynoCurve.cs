@@ -674,12 +674,13 @@ public sealed record DynoCurve
         double cf = AirDensity.Factor(correction, air);
         double density = TuningMath.Density(engine.Fuel);
 
-        // Once a cycle or twice — which is not the same question as batch against
-        // sequential, and is the one that matters. Firing the injectors together
-        // rather than timing them to each cylinder changes nothing about how much
-        // fuel goes in; opening each of them twice per two turns instead of once
-        // changes all of it, and pays the dead time twice over into the bargain.
-        double divisor = engine.TwoSquirtsPerCycle ? 600 : 1200;
+        // How often one injector opens per two turns of the crank — not the
+        // squirt count, and not batch against sequential. See the remarks on
+        // EngineSpec.OpeningsPerEngineCycle: alternating banks take every other
+        // squirt, so two squirts a cycle is one opening each.
+        double openings = Math.Max(engine.OpeningsPerEngineCycle, 0.01);
+
+        LogChannel? supply = ChannelRoles.Find(log, ChannelRole.BatteryVoltage);
 
         double toMs = width is null ? 1 : ChannelUnits.TimeToMilliseconds(width);
 
@@ -704,8 +705,24 @@ public sealed record DynoCurve
             //
             // The pulse width can have the dead time taken off. A duty cycle
             // cannot, because by then the two are added together.
+            // The dead time at the supply of the moment. An injector is a
+            // solenoid and a battery sagging under load opens it more slowly, so
+            // a flat figure over-states the fuel exactly where the engine is
+            // working hardest.
+            double dead = engine.InjectorDeadTimeMs;
+
+            if (supply is not null && engine.DeadTimeMsPerVolt > 0)
+            {
+                double v = supply.At(at);
+
+                if (double.IsFinite(v) && v > 0)
+                {
+                    dead += engine.DeadTimeMsPerVolt * (engine.DeadTimeAtVolts - v);
+                }
+            }
+
             double percent = width is not null
-                ? Math.Max((width.At(at) * toMs) - engine.InjectorDeadTimeMs, 0) * rpm[i] / divisor
+                ? Math.Max((width.At(at) * toMs) - dead, 0) * rpm[i] * openings / 1200
                 : ChannelUnits.Fraction(duty!, duty!.At(at)) * 100;
 
             peakDuty = Math.Max(peakDuty, percent);
@@ -736,13 +753,13 @@ public sealed record DynoCurve
                 + "time than there is. Either they fire twice a cycle rather than once, or the pulse "
                 + "width is not in the units it looks like.");
         }
-        else if (peakDuty < 25 && !engine.TwoSquirtsPerCycle)
+        else if (peakDuty < 25 && openings <= 1)
         {
             cautions.Add(
                 $"The injectors only reach {peakDuty:N0}% duty at the top of this pull, which is idle "
-                + "for an engine at full throttle. Two squirts a cycle would double it — and a "
+                + "for an engine at full throttle. Opening twice a cycle would double it — and a "
                 + "controller's own duty figure cannot tell you which this is, because MegaSquirt "
-                + "reports the one-squirt number either way.");
+                + "reports the once-a-cycle number either way.");
         }
 
         if (width is null && duty is not null)
@@ -764,7 +781,7 @@ public sealed record DynoCurve
             rpm, power,
             PowerMethodKind.Injectors,
             $"{engine.Cylinders} × {engine.InjectorCcPerMinute:N0} cc/min, "
-            + $"{(engine.TwoSquirtsPerCycle ? "two squirts a cycle" : "one squirt a cycle")}, "
+            + $"{engine.OpeningsPerEngineCycle:N0} opening(s) a cycle, "
             + $"{engine.InjectorDeadTimeMs:N2} ms dead, {TuningMath.Name(engine.Fuel)}, "
             + $"BSFC {engine.Bsfc:N2} assumed, peak duty {peakDuty:N0}%",
             correction, cf, cautions, s, double.NaN, PowerReference.Crank);

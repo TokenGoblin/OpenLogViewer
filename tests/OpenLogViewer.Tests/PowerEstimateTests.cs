@@ -258,7 +258,7 @@ public class PowerEstimateTests
 
         double once = Value(log, BigInjectors, PowerEstimate.InjectorPowerChannel);
         double twice = Value(
-            log, BigInjectors with { TwoSquirtsPerCycle = true }, PowerEstimate.InjectorPowerChannel);
+            log, BigInjectors with { OpeningsPerEngineCycle = 2 }, PowerEstimate.InjectorPowerChannel);
 
         // Not "batch against sequential", which is a different setting and makes
         // no difference to the fuel: firing the injectors together rather than

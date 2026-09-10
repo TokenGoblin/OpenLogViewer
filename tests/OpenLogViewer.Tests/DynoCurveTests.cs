@@ -634,6 +634,57 @@ public class DynoCurveTests
     }
 
     [Fact]
+    public void TheDeadTimeFollowsTheSupplyAsItSags()
+    {
+        // An injector is a solenoid, and a battery under load opens it more
+        // slowly. The tune carries a factor for it — 0.12 ms a volt on the car
+        // this was written against, whose supply fell from 13.4 to 11.9 through
+        // one pull. Held flat, the dead time is understated exactly where the
+        // engine is working hardest, and the fuel with it.
+        var engine = new EngineSpec
+        {
+            Litres = 3.43, Cylinders = 6, Bsfc = 0.50,
+            InjectorCcPerMinute = 850, InjectorDeadTimeMs = 1.51,
+            DeadTimeAtVolts = 13.8,
+        };
+
+        List<double> times = [], rpms = [], pws = [], tps = [], volts = [];
+
+        for (int i = 0; i < 140; i++)
+        {
+            times.Add(i / 20.0);
+            rpms.Add(3000 + (i * 22));
+            pws.Add(8.5);
+            tps.Add(i is > 8 and < 132 ? 98 : 15);
+            volts.Add(13.8 - (i * 2.8 / 140));      // sagging as the pull goes on
+        }
+
+        var log = new LogDocument
+        {
+            FilePath = "x", FormatName = "test",
+            Time = new LogChannel("Time", "s", 3, [.. times], preservePrecision: true),
+            Channels =
+            [
+                new LogChannel("RPM", "rpm", 0, [.. rpms]),
+                new LogChannel("TPS", "%", 1, [.. tps]),
+                new LogChannel("PW", "ms", 2, [.. pws]),
+                new LogChannel("Batt V", "v", 1, [.. volts]),
+            ],
+        };
+
+        DynoPull pull = OnePull(log, Car());
+
+        double flat = DynoCurve.FromInjectors(log, engine, pull, Air).PeakPower.Horsepower;
+        double followed = DynoCurve
+            .FromInjectors(log, engine with { DeadTimeMsPerVolt = 0.12 }, pull, Air)
+            .PeakPower.Horsepower;
+
+        // Less fuel once the longer opening is paid for, and by enough to see.
+        Assert.True(followed < flat, $"flat {flat:N1}, followed {followed:N1}");
+        Assert.InRange(1 - (followed / flat), 0.02, 0.12);
+    }
+
+    [Fact]
     public void AnImpossibleDutyCycleSaysWhichWayRoundTheInjectorsFire()
     {
         // Firing twice a cycle rather than once is a factor of two on everything,
@@ -643,7 +694,7 @@ public class DynoCurveTests
         {
             Litres = 3.43, Cylinders = 6, Bsfc = 0.50,
             InjectorCcPerMinute = 850, InjectorDeadTimeMs = 1.5,
-            TwoSquirtsPerCycle = true,
+            OpeningsPerEngineCycle = 2,
         };
 
         List<double> times = [], rpms = [], pws = [], tps = [];

@@ -43,27 +43,53 @@ public sealed record EngineSpec
     public double InjectorDeadTimeMs { get; init; } = 1.0;
 
     /// <summary>
-    /// True where each injector opens twice per engine cycle rather than once.
+    /// How many times each injector opens per engine cycle — per two turns of the
+    /// crank on a four-stroke.
     ///
     /// <para>
-    /// <b>Not the same question as batch against sequential</b>, and conflating
-    /// the two is easy because "batch" is what people say. Batch, or
-    /// simultaneous, describes the injectors firing together instead of being
-    /// timed to each cylinder's intake stroke — and it makes no difference
-    /// whatever to how much fuel goes in. How many times each injector opens per
-    /// two turns of the crank is a separate setting, and it makes all the
-    /// difference: it doubles the duty a given pulse width represents, and it
-    /// doubles how often the dead time is paid.
+    /// <b>Not "batch or sequential", and not the squirt count either.</b> Both
+    /// were tried here and both are wrong, for the same reason: they describe the
+    /// arrangement rather than the thing the arithmetic needs, which is simply
+    /// how often one injector opens.
     /// </para>
     /// <para>
-    /// A controller's own duty figure will not settle it either. MegaSquirt
-    /// reports pulse width times engine speed over twelve hundred whatever the
-    /// squirt count is, so a two-squirt engine reads half what it is really
-    /// doing — and a one-squirt engine reads correctly. The two are
-    /// indistinguishable from that number alone.
+    /// Batch — simultaneous, or alternating — means the injectors fire as a group
+    /// rather than timed to each cylinder's intake stroke, and by itself it
+    /// changes nothing about how much fuel goes in. Squirts per cycle is how many
+    /// injection <em>events</em> there are per cycle. The two combine, and not by
+    /// multiplying: with simultaneous firing every injector opens on every event,
+    /// but with alternating the injectors are split into two banks that take
+    /// every other event, so two squirts a cycle means each injector opens once.
+    /// </para>
+    /// <para>
+    /// On the car this was worked out against, MegaSquirt is set to three for its
+    /// divider on six cylinders — two squirts a cycle — and to alternating, which
+    /// is one opening per injector. Taking it as two put the volumetric
+    /// efficiency the measured mixture implies at a hundred and sixty-six per
+    /// cent, which a cylinder cannot do. Taking it as one put it at eighty-three,
+    /// and the fuel consumption at 0.60, and both are exactly where a rich
+    /// turbocharged engine sits.
+    /// </para>
+    /// <para>
+    /// It is not an integer because a bank arrangement need not divide evenly.
     /// </para>
     /// </summary>
-    public bool TwoSquirtsPerCycle { get; init; }
+    public double OpeningsPerEngineCycle { get; init; } = 1;
+
+    /// <summary>
+    /// How much longer the injector takes to open for every volt the supply is
+    /// down, in milliseconds a volt.
+    ///
+    /// An injector is a solenoid, and a tired battery under load opens it more
+    /// slowly. Zero leaves the dead time flat. MegaSquirt calls it the battery
+    /// factor and every tune carries one; on the car here it is 0.12, and the
+    /// supply fell from 13.4 volts to 11.9 through a single pull, which is a
+    /// fifth of a millisecond — three per cent of the fuel at the top of it.
+    /// </summary>
+    public double DeadTimeMsPerVolt { get; init; }
+
+    /// <summary>The supply the dead time above was measured at.</summary>
+    public double DeadTimeAtVolts { get; init; } = 13.8;
 
     /// <summary>
     /// True where the logged fuel pressure is already the difference across the
@@ -296,11 +322,10 @@ public static class PowerEstimate
         else
         {
             // Per cent, so the channel reads the way an ECU reports it. The
-            // divisor is 120,000 ms in a minute of firing once every two turns,
-            // over 100 for the percentage — halved again where each injector
-            // opens twice a cycle, which both doubles the openings and doubles
-            // the dead time paid for them.
-            double divisor = spec.TwoSquirtsPerCycle ? 600 : 1200;
+            // 1,200 is the 120,000 ms in a minute of opening once every two
+            // turns, over 100 for the percentage; opening more often than that
+            // scales it, and pays the dead time again each time.
+            double divisor = 1200 / Math.Max(spec.OpeningsPerEngineCycle, 0.01);
 
             channels.Add(new MathChannel
             {
@@ -369,7 +394,7 @@ public static class PowerEstimate
             "Injectors",
             $"{spec.Cylinders} × {spec.InjectorCcPerMinute:N0} cc/min"
             + (duty is null ? $", {spec.InjectorDeadTimeMs:N2} ms dead time" : $", duty from {duty.Name}")
-            + $", {(spec.TwoSquirtsPerCycle ? "two squirts a cycle" : "one squirt a cycle")}, {pressureNote}"
+            + $", {spec.OpeningsPerEngineCycle:N0} opening(s) a cycle, {pressureNote}"
             + $", {TuningMath.Name(spec.Fuel)}, BSFC {spec.Bsfc:N2}",
             channels);
     }
