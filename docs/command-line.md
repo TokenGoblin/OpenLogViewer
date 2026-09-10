@@ -169,6 +169,7 @@ for documentation and regression captures.
 | `--top-menu` | Header, then a `.png` path | One of the menu bar's drop-downs, e.g. `--top-menu View out.png` |
 | `--calculators` | Tab name, then a `.png` path | One calculator, e.g. `--calculators Injectors out.png` |
 | `--power` | A `.png` path | The power estimate over the loaded log |
+| `--dyno` | A `.png` path | The virtual dyno over the loaded log |
 | `--faults` | A `.png` path | The fault codes for the current OBD2 connection. Needs a `--connect` ahead of it |
 
 ## The dump tool
@@ -215,5 +216,6 @@ Ignition (24)
 ## Related
 
 - [Configuration](configuration.md) — the persistent equivalents of some of these
+- [Virtual dyno](virtual-dyno.md) — what `--dyno` captures
 - [Development](development.md)
 - [AI agent access (MCP)](mcp-server.md)

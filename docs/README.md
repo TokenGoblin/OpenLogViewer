@@ -28,6 +28,7 @@ deliberately leaves out.
 | [Histogram and scatter](histogram-and-scatter.md) | Binning a log into a table, and plotting samples unaveraged |
 | [VE calibration](ve-calibration.md) | Suggesting a fuel table from logged mixture against target |
 | [Calculated channels](calculated-channels.md) | Defining new channels from existing ones; expression syntax |
+| [Virtual dyno](virtual-dyno.md) | Power and torque from a full-throttle pull, by three independent routes |
 
 ## Live connection
 

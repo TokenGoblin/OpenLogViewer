@@ -9,6 +9,7 @@ Every setting, its default, its valid values, and where it is kept.
 - [filters.json](#filtersjson)
 - [math.json](#mathjson)
 - [channels.json](#channelsjson)
+- [vehicle.json](#vehiclejson)
 - [ssm-parameters.json](#ssm-parametersjson)
 - [Settings reachable from the interface](#settings-reachable-from-the-interface)
 - [Editing the files by hand](#editing-the-files-by-hand)
@@ -55,6 +56,7 @@ losing the recording that was about to start.
     filters.json
     math.json
     channels.json
+    vehicle.json
 ```
 
 `%APPDATA%` is normally `C:\Users\<you>\AppData\Roaming`.
@@ -169,6 +171,23 @@ expression. One that does not fit the open log is reported in the sidebar rather
 than dropped.
 
 Managed from **ƒ Add calculated channel**.
+
+## vehicle.json
+
+`%APPDATA%\OpenLogViewer\vehicle.json`
+
+The car the [virtual dyno](virtual-dyno.md) works against: mass, final drive,
+gear ratios, tyre, driveline loss, displacement, injector flow, BSFC and
+cylinder filling. Held as text, exactly as it was typed.
+
+**Only fields that differ from what the tune supplied are kept.** A dyno reads
+a good deal about the car out of the tune the log carries, and those figures
+should follow the log they came from. Were every field stored, the next log —
+from a different car, with a different tune — would silently be worked out
+against the last one's weight.
+
+One car, not a garage. Managed from the fields in **Tools ▸ Dyno…**; **Forget
+what I entered** empties it.
 
 ## channels.json
 
