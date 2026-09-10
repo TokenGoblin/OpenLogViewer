@@ -53,6 +53,12 @@ public enum PullFault
     /// reading of it lands on a gear the car has.
     /// </summary>
     SpeedUnitAmbiguous,
+
+    /// <summary>
+    /// The gear was not read off a road speed but worked out, by finding the one
+    /// that reconciles road load with the air. See <see cref="GearAgreement"/>.
+    /// </summary>
+    GearFromAgreement,
 }
 
 /// <summary>What the gearing said about a stretch of log.</summary>
@@ -877,6 +883,9 @@ public static class DynoRun
         PullFault.SpeedUnitAmbiguous =>
             "the road speed channel does not say what it is in, and both miles and kilometres an "
             + "hour fit a gear this car has — label the channel, or say which it is",
+        PullFault.GearFromAgreement =>
+            "the gear was worked out rather than measured, by finding the one that makes the air and "
+            + "the acceleration agree — convincing, but not the same as having read it off a sensor",
         _ => fault.ToString(),
     };
 }

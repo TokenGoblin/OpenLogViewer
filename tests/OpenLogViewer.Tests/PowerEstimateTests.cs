@@ -366,15 +366,20 @@ public class PowerEstimateTests
     public void TheSpreadIsWhatSaysAVeTableIsWrong()
     {
         // The diagnostic. The injectors are counting real fuel; the speed density
-        // figure believes a VE that is twenty per cent optimistic. The spread is
-        // what makes that visible rather than leaving two plausible numbers.
+        // figure believes a VE that is optimistic. The spread is what makes that
+        // visible rather than leaving two plausible numbers.
+        //
+        // 108% rather than the 120% this once used. A cylinder cannot fill to
+        // 120% of itself, so a table reading that is not an optimistic volumetric
+        // efficiency — it is a fuelling table, which is a different quantity, and
+        // is now refused as one rather than believed.
         LogDocument log = Log(
             ("RPM", "rpm", [7000, 7000, 7000]),
             ("MAP", "kPa", [101.325, 101.325, 101.325]),
             ("IAT", "C", [20, 20, 20]),
             ("AFR", "afr", [12.5, 12.5, 12.5]),
             ("PW", "ms", [4.176, 4.176, 4.176]),
-            ("VE", "%", [120, 120, 120]));
+            ("VE", "%", [108, 108, 108]));
 
         var spec = new EngineSpec
         {
@@ -384,8 +389,8 @@ public class PowerEstimateTests
 
         double spread = Value(log, spec, PowerEstimate.SpreadChannel);
 
-        // The injector figure sits about a sixth below the inflated air figure.
-        Assert.InRange(spread, -20, -14);
+        // The injector figure sits below the inflated air figure by enough to see.
+        Assert.InRange(spread, -12, -3);
     }
 
     // ----- mass air flow, torque and the wheels --------------------------------

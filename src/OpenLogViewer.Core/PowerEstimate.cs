@@ -148,6 +148,11 @@ public static class PowerEstimate
         LogChannel? iat = ChannelRoles.Find(log, ChannelRole.IntakeAir);
         LogChannel? mixture = ChannelRoles.Find(log, ChannelRole.Mixture);
         LogChannel? ve = ChannelRoles.Find(log, ChannelRole.VolumetricEfficiency);
+
+        // A controller's VE table is not necessarily a volumetric efficiency, and
+        // where it is provably not one it must not be used as though it were.
+        if (ve is not null && LooksLikeFuellingTable(ve)) ve = null;
+
         LogChannel? maf = ChannelRoles.Find(log, ChannelRole.MassAirFlow);
         LogChannel? pulseWidth = ChannelRoles.Find(log, ChannelRole.InjectorPulseWidth);
         LogChannel? duty = ChannelRoles.Find(log, ChannelRole.InjectorDuty);
@@ -464,6 +469,51 @@ public static class PowerEstimate
     /// same either way. Anything that goes meaningfully below zero is a gauge; a
     /// true absolute pressure has nowhere below vacuum to go.
     /// </summary>
+    /// <summary>
+    /// The highest a real volumetric efficiency can plausibly reach, per cent.
+    ///
+    /// A little over a hundred, because a well-tuned engine at resonance really
+    /// does fill better than static conditions would allow. Much over it is not a
+    /// cylinder filling more than full; it is a different quantity wearing the
+    /// same name.
+    /// </summary>
+    public const double HighestPlausibleVe = 110;
+
+    /// <summary>
+    /// Whether a channel called "VE" is a fuelling table rather than a
+    /// volumetric efficiency.
+    ///
+    /// <para>
+    /// The MegaSquirt family — and Speeduino and rusEFI after it — compute the
+    /// pulse width from a table they call VE, but the table's scale is set by the
+    /// injector calibration rather than by physics. Tuners routinely scale it so
+    /// the numbers land somewhere convenient, and on a boosted engine it goes
+    /// wherever it needs to: on a real turbocharged log it reaches 136.5%.
+    /// </para>
+    /// <para>
+    /// A cylinder cannot fill to 136% of itself. Taken as a volumetric efficiency
+    /// that number inflates the air by more than a third, and with it every
+    /// horsepower worked out from the air — which is how a 3.4 litre six came to
+    /// be credited with 658.
+    /// </para>
+    /// <para>
+    /// This catches the case that is provably not a volumetric efficiency. It
+    /// cannot confirm the other way: a table that never exceeds a hundred is
+    /// still a table, and may still be scaled to something other than filling.
+    /// That is why using one is reported rather than assumed to be fine.
+    /// </para>
+    /// </summary>
+    internal static bool LooksLikeFuellingTable(LogChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        // Against the declared units, since a channel already expressed as a
+        // fraction of one is on a different scale entirely.
+        double top = ChannelUnits.Fraction(channel, channel.Max) * 100;
+
+        return top > HighestPlausibleVe;
+    }
+
     internal static bool LooksLikeGauge(LogChannel channel)
     {
         for (int i = 0; i < channel.Length; i++)

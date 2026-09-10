@@ -19,6 +19,24 @@ public enum PowerMethodKind
     EcuTorque,
 }
 
+/// <summary>
+/// Where in the driveline a figure is quoted.
+///
+/// Not decoration. A road test measures at the wheels and cannot measure
+/// anywhere else; anything worked out from the fuel or the air is what the
+/// engine made before the driveline took its share. The two differ by fifteen
+/// per cent or so on a rear-drive manual, and subtracting one from the other
+/// without saying so credits the gearbox to the tuning.
+/// </summary>
+public enum PowerReference
+{
+    /// <summary>What reached the road. What a road test measures.</summary>
+    Wheels,
+
+    /// <summary>What the engine made. What fuel and air imply.</summary>
+    Crank,
+}
+
 /// <summary>One rung of the curve.</summary>
 /// <param name="Rpm">The engine speed this step stands for.</param>
 /// <param name="Horsepower">Power there.</param>
@@ -97,6 +115,9 @@ public sealed record DynoCurve
     /// <summary>What the figure rests on, including anything that was assumed.</summary>
     public required string Basis { get; init; }
 
+    /// <summary>Where in the driveline these figures are quoted.</summary>
+    public required PowerReference Reference { get; init; }
+
     public required PowerCorrection Correction { get; init; }
 
     public required double CorrectionFactor { get; init; }
@@ -121,6 +142,36 @@ public sealed record DynoCurve
     public double AeroShare { get; init; } = double.NaN;
 
     public IEnumerable<DynoPoint> Drawn => Points.Where(p => !p.IsEmpty);
+
+    /// <summary>
+    /// The same curve quoted at the other end of the driveline.
+    ///
+    /// The conversion is exact arithmetic on a number that is not a measurement:
+    /// no road test can see the driveline's share, because it and the engine's
+    /// output only ever appear added together. Converting is how two methods are
+    /// compared at all; it does not make either of them better known.
+    /// </summary>
+    public DynoCurve At(PowerReference reference, VehicleSpec vehicle)
+    {
+        ArgumentNullException.ThrowIfNull(vehicle);
+
+        if (reference == Reference) return this;
+
+        double remaining = 1 - (vehicle.DrivetrainLossPercent / 100);
+
+        if (!(remaining > 0)) return this;
+
+        double factor = reference == PowerReference.Crank ? 1 / remaining : remaining;
+
+        return this with
+        {
+            Reference = reference,
+            Points = [.. Points.Select(p => new DynoPoint(
+                p.Rpm, p.Horsepower * factor, p.PoundFeet * factor, p.Samples))],
+            Basis = Basis + $", restated at the {(reference == PowerReference.Crank ? "crank" : "wheels")} "
+                          + $"on a declared {vehicle.DrivetrainLossPercent:N0}% driveline loss",
+        };
+    }
 
     public bool IsEmpty => !Drawn.Any();
 
@@ -377,7 +428,208 @@ public sealed record DynoCurve
         return Build(
             rpm.AsSpan(from, to - from), power.AsSpan(from, to - from),
             PowerMethodKind.RoadLoad, RoadLoadBasis(vehicle, pull, air),
-            correction, cf, cautions, s, aeroShare);
+            correction, cf, cautions, s, aeroShare, PowerReference.Wheels);
+    }
+
+    /// <summary>
+    /// A curve from the air the manifold implies, which cannot see the gearbox.
+    ///
+    /// <para>
+    /// The other half of the argument. Road load knows nothing about combustion
+    /// and everything about the car; this knows nothing about the car and
+    /// everything about combustion — how much air went in, from the pressure,
+    /// the temperature and the engine speed, and what was burned with it, from
+    /// the wideband. It does not know or care what gear the pull was in, what
+    /// the car weighs, or how much air it pushes aside.
+    /// </para>
+    /// <para>
+    /// That independence is the whole value. Where the two agree the figure is
+    /// worth believing; where they do not, the disagreement is about an input,
+    /// and which input it is can usually be read off the shape. And on a car with
+    /// no road speed sensor it does something road load cannot do alone: it fixes
+    /// the gear, because only one gear makes the two agree. See
+    /// <see cref="GearAgreement"/>.
+    /// </para>
+    /// <para>
+    /// What it rests on instead is the fuel consumption, which nobody measured,
+    /// and how completely the cylinder fills, which is either read from the
+    /// controller's own table or assumed. Both are declared in the basis. The
+    /// figure is at the crank by construction — this is what the engine made,
+    /// before the driveline took anything.
+    /// </para>
+    /// </summary>
+    public static DynoCurve FromSpeedDensity(
+        LogDocument log,
+        EngineSpec engine,
+        DynoPull pull,
+        Ambient air,
+        PowerCorrection correction = PowerCorrection.None,
+        DynoSettings? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(pull);
+
+        DynoSettings s = settings ?? new DynoSettings();
+
+        LogChannel? speed = ChannelRoles.Find(log, ChannelRole.EngineSpeed);
+        LogChannel? manifold = ChannelRoles.Find(log, ChannelRole.ManifoldPressure);
+        LogChannel? charge = ChannelRoles.Find(log, ChannelRole.IntakeAir);
+
+        if (speed is null || manifold is null || charge is null)
+        {
+            return Nothing(
+                PowerMethodKind.SpeedDensity,
+                Needed(
+                    (speed, "engine speed"),
+                    (manifold, "manifold pressure"),
+                    (charge, "charge temperature")));
+        }
+
+        LogChannel? mixture = ChannelRoles.Find(log, ChannelRole.Mixture);
+        LogChannel? filling = ChannelRoles.Find(log, ChannelRole.VolumetricEfficiency);
+
+        // Kept apart from `filling` so the caution can say what was rejected and
+        // why, rather than silently falling back to the assumed figure.
+        LogChannel? fuellingTable = null;
+
+        if (filling is not null && PowerEstimate.LooksLikeFuellingTable(filling))
+        {
+            fuellingTable = filling;
+            filling = null;
+        }
+        LogChannel? ambient = ChannelRoles.Find(log, ChannelRole.Barometric);
+
+        // A manifold pressure that goes below nothing is a gauge reading, and has
+        // to have the day's pressure added before the gas law will take it. Told
+        // from the values because the units cannot say it — "psi" is written the
+        // same either way.
+        bool gauge = PowerEstimate.LooksLikeGauge(manifold);
+        double toKpa = ChannelUnits.PressureToKilopascals(manifold);
+
+        int count = pull.Last - pull.First + 1;
+
+        var rpm = new double[count];
+        var power = new double[count];
+        var times = new double[count];
+
+        double cf = AirDensity.Factor(correction, air);
+
+        for (int i = 0; i < count; i++)
+        {
+            int at = pull.First + i;
+
+            times[i] = log.Time.At(at);
+            rpm[i] = speed.At(at);
+
+            double kpa = manifold.At(at) * toKpa;
+
+            if (gauge)
+            {
+                kpa += ambient is not null
+                    ? ambient.At(at) * ChannelUnits.PressureToKilopascals(ambient)
+                    : air.PressureKpa;
+            }
+
+            double kelvin = ChannelUnits.Kelvin(charge, charge.At(at));
+
+            double ve = filling is not null
+                ? ChannelUnits.Fraction(filling, filling.At(at))
+                : engine.VolumetricEfficiency / 100;
+
+            double afr = mixture is not null
+                ? ChannelUnits.AirFuelRatio(mixture, mixture.At(at), engine.Fuel)
+                : engine.Lambda * TuningMath.Stoichiometric(engine.Fuel);
+
+            // The ideal gas law, halved for the two turns a four-stroke takes to
+            // fill once — the 574 that turns litres, rpm and kilopascals into
+            // kilograms a minute.
+            double airKgPerMinute = engine.Litres * ve * rpm[i] * kpa / (574 * kelvin);
+
+            power[i] = afr > 0 && engine.Bsfc > 0
+                ? airKgPerMinute * KgPerMinuteToLbPerHour / (afr * engine.Bsfc) * cf
+                : double.NaN;
+        }
+
+        // Not trimmed, unlike road load. The trim is there because a derivative
+        // has support on one side only at the ends of a pull — and there is no
+        // derivative anywhere in this. Every reading here is worked out from that
+        // sample and no other, so the first and last are as good as the middle.
+        //
+        // Trimming anyway threw away the top of every pull, which on a
+        // turbocharged engine is exactly where the boost, and the power, are.
+        var cautions = new List<string>();
+
+        foreach (PullFault fault in pull.Faults)
+        {
+            // The gear is not an input here, so its absence is not a fault of this
+            // figure. Saying so would be borrowing somebody else's doubt.
+            if (fault is PullFault.GearNotChecked or PullFault.GearNotRecognised
+                or PullFault.RatioDrifted or PullFault.SpeedUnitAmbiguous)
+            {
+                continue;
+            }
+
+            cautions.Add(DynoRun.Describe(fault));
+        }
+
+        cautions.Add(
+            $"Everything here is divided by a brake specific fuel consumption of {engine.Bsfc:N2}, "
+            + "which was assumed rather than measured. The shape of the curve does not depend on it; "
+            + "the height of it depends on nothing else.");
+
+        if (fuellingTable is not null)
+        {
+            cautions.Add(
+                $"\"{fuellingTable.Name}\" reaches {fuellingTable.Max:N0}%, so it is the controller's "
+                + "fuelling table rather than a volumetric efficiency — a cylinder cannot fill to more "
+                + $"than itself. {engine.VolumetricEfficiency:N0}% was assumed instead. Taking the table "
+                + "at face value would have inflated the air, and every horsepower with it, by about "
+                + $"{(fuellingTable.Max / engine.VolumetricEfficiency) - 1:P0}.");
+        }
+        else if (filling is null)
+        {
+            cautions.Add(
+                $"This log does not report how completely the cylinder fills, so "
+                + $"{engine.VolumetricEfficiency:N0}% was assumed. It multiplies the answer directly.");
+        }
+        else
+        {
+            cautions.Add(
+                $"Filling was taken from \"{filling.Name}\". That is the controller's own table, and "
+                + "whether it is scaled to true volumetric efficiency is a question about the tune "
+                + "rather than about the log.");
+        }
+
+        return Build(
+            rpm, power,
+            PowerMethodKind.SpeedDensity, SpeedDensityBasis(engine, mixture, filling, gauge, air),
+            correction, cf, cautions, s, double.NaN, PowerReference.Crank);
+    }
+
+    /// <summary>Kilograms of air per minute to pounds per hour.</summary>
+    private const double KgPerMinuteToLbPerHour = 132.27735731092654;
+
+    private static string SpeedDensityBasis(
+        EngineSpec engine, LogChannel? mixture, LogChannel? filling, bool gauge, Ambient air) =>
+        $"{engine.Litres:N2} L, "
+        + (filling is not null ? $"filling from {filling.Name}" : $"filling assumed {engine.VolumetricEfficiency:N0}%")
+        + ", "
+        + (mixture is not null ? $"mixture from {mixture.Name}" : $"lambda assumed {engine.Lambda:N2}")
+        + $", {TuningMath.Name(engine.Fuel)}, BSFC {engine.Bsfc:N2} assumed"
+        + (gauge ? ", manifold pressure read as gauge" : "")
+        + $", {air}";
+
+    private static string Needed(params (LogChannel? Channel, string Name)[] wanted)
+    {
+        string[] absent = [.. wanted.Where(w => w.Channel is null).Select(w => w.Name)];
+
+        return absent.Length switch
+        {
+            0 => "nothing — it should have been offered",
+            1 => $"this log has no {absent[0]}",
+            _ => "this log has no " + string.Join(", no ", absent[..^1]) + $" and no {absent[^1]}",
+        };
     }
 
     /// <summary>
@@ -401,7 +653,8 @@ public sealed record DynoCurve
         double correctionFactor,
         IReadOnlyList<string>? cautions = null,
         DynoSettings? settings = null,
-        double aeroShare = double.NaN)
+        double aeroShare = double.NaN,
+        PowerReference reference = PowerReference.Wheels)
     {
         if (rpm.Length != horsepower.Length)
         {
@@ -481,6 +734,7 @@ public sealed record DynoCurve
             Points = points,
             Method = method,
             Basis = basis,
+            Reference = reference,
             Correction = correction,
             CorrectionFactor = correctionFactor,
             RpmStep = step,
@@ -535,6 +789,7 @@ public sealed record DynoCurve
             Points = [],
             Method = method,
             Basis = $"nothing could be drawn: {why}",
+            Reference = PowerReference.Wheels,
             Correction = PowerCorrection.None,
             CorrectionFactor = 1,
             RpmStep = 0,
@@ -583,6 +838,15 @@ public sealed record DynoComparison(
         ArgumentNullException.ThrowIfNull(now);
         ArgumentNullException.ThrowIfNull(before);
 
+        if (now.Reference != before.Reference && !now.IsEmpty && !before.IsEmpty)
+        {
+            return new DynoComparison(
+                [], double.NaN, double.NaN,
+                $"One of these is quoted at the {Where(now.Reference)} and the other at the "
+                + $"{Where(before.Reference)}. Subtracting them would credit the driveline to "
+                + "whatever changed — restate one of them first.");
+        }
+
         if (now.RpmStep != before.RpmStep && !now.IsEmpty && !before.IsEmpty)
         {
             return new DynoComparison(
@@ -608,6 +872,9 @@ public sealed record DynoComparison(
 
         return new DynoComparison(steps, peakPower, peakTorque, Describe(steps, peakPower, peakTorque));
     }
+
+    private static string Where(PowerReference reference) =>
+        reference == PowerReference.Crank ? "crank" : "wheels";
 
     /// <summary>The rung where the two differ most, which is where to go looking.</summary>
     public DynoDelta BiggestChange

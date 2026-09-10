@@ -174,6 +174,76 @@ public static class ChannelUnits
         return channel.Name;
     }
 
+    // ----- reading a value rather than building an expression ---------------------
+    //
+    // The methods above return fragments of expression because the conversion has
+    // to happen inside a calculated channel, where every sample goes through it.
+    // These return the number, for the analysis that walks the samples itself.
+    // Same tables either way, so the two cannot drift apart.
+
+    /// <summary>What to multiply a pressure channel by to get kilopascals.</summary>
+    public static double PressureToKilopascals(LogChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return Simplify(channel.Units) switch
+        {
+            "psi" or "psig" or "psia" => TuningMath.KpaPerPsi,
+            "bar" => 100,
+            "mbar" or "millibar" => 0.1,
+            "inhg" or "hg" => 3.386389,
+            "hpa" => 0.1,
+            "pa" => 0.001,
+            _ => 1,
+        };
+    }
+
+    /// <summary>
+    /// A temperature reading in degrees Celsius.
+    ///
+    /// A function rather than a factor, because Fahrenheit needs the offset taken
+    /// off before the scaling and a multiplier alone would put every reading
+    /// forty degrees out — which on an absolute temperature is about fifteen per
+    /// cent of the air an engine is being credited with.
+    /// </summary>
+    public static double Celsius(LogChannel channel, double reading)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return Simplify(channel.Units) switch
+        {
+            "f" or "degf" or "fahrenheit" => (reading - 32) * 5 / 9,
+            "k" or "kelvin" => reading - 273.15,
+            _ => reading,
+        };
+    }
+
+    /// <summary>The same reading in kelvin, which is what the gas law wants.</summary>
+    public static double Kelvin(LogChannel channel, double reading) =>
+        Celsius(channel, reading) + 273.15;
+
+    /// <summary>
+    /// A mixture reading as an air-fuel ratio on the given fuel, whichever way the
+    /// channel reports it.
+    /// </summary>
+    public static double AirFuelRatio(LogChannel channel, double reading, Fuel fuel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return IsLambda(channel) ? reading * TuningMath.Stoichiometric(fuel) : reading;
+    }
+
+    /// <summary>
+    /// A proportion reading as a fraction of one, whether it was logged as a
+    /// percentage or already as a fraction.
+    /// </summary>
+    public static double Fraction(LogChannel channel, double reading)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return Simplify(channel.Units) is "%" or "percent" or "pct" ? reading / 100 : reading;
+    }
+
     /// <summary>
     /// One plausible reading of an unlabelled speed channel.
     /// </summary>
