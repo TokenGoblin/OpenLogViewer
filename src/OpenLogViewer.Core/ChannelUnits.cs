@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace OpenLogViewer.Core;
 
@@ -172,6 +172,64 @@ public static class ChannelUnits
         ArgumentNullException.ThrowIfNull(channel);
 
         return channel.Name;
+    }
+
+    /// <summary>
+    /// One plausible reading of an unlabelled speed channel.
+    /// </summary>
+    /// <param name="Unit">What it would be called.</param>
+    /// <param name="ToMetresPerSecond">What to multiply a reading by.</param>
+    public readonly record struct SpeedUnit(string Unit, double ToMetresPerSecond);
+
+    /// <summary>
+    /// The units a road speed is plausibly logged in, commonest first.
+    ///
+    /// Offered as a list because a great many logs record a speed and say nothing
+    /// about what it is in — and unlike a pressure or a temperature, the values
+    /// cannot settle it: seventy is a perfectly ordinary reading in either miles
+    /// or kilometres an hour. What can settle it is the gearing, which is known.
+    /// Only one of these makes engine speed over road speed land on a gear the
+    /// car actually has, so the caller tries each and keeps the one that fits.
+    /// </summary>
+    public static IReadOnlyList<SpeedUnit> SpeedUnits { get; } =
+    [
+        new("mph", 0.44704),
+        new("km/h", 1 / 3.6),
+        new("m/s", 1),
+        new("kn", 0.514444),
+        new("ft/s", 0.3048),
+    ];
+
+    /// <summary>
+    /// What to multiply a speed channel by to get metres a second, or NaN where
+    /// the channel does not say.
+    ///
+    /// NaN rather than a guess, deliberately. Assuming miles an hour on a log
+    /// that was in kilometres understates every road speed by a factor of 1.6,
+    /// which understates the power by the same and looks entirely believable
+    /// while doing it.
+    /// </summary>
+    public static double SpeedToMetresPerSecond(LogChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return Simplify(channel.Units) switch
+        {
+            "mph" or "mih" or "milesperhour" => 0.44704,
+            "kph" or "kmh" or "kmph" or "kilometresperhour" => 1 / 3.6,
+            "ms" or "mpers" or "metrespersecond" => 1,
+            "kn" or "kt" or "kts" or "knot" or "knots" => 0.514444,
+            "fts" or "fps" => 0.3048,
+            _ => double.NaN,
+        };
+    }
+
+    /// <summary>A speed channel in metres a second, where the units are known.</summary>
+    public static string ToMetresPerSecond(LogChannel channel)
+    {
+        double factor = SpeedToMetresPerSecond(channel);
+
+        return Scale(channel, double.IsNaN(factor) ? 1 : factor);
     }
 
     private static string Scale(LogChannel channel, double factor) =>
