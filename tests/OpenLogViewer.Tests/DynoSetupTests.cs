@@ -41,6 +41,15 @@ public class DynoSetupTests
         $"""
          <msq>
            <versionInfo fileFormat="5.0" signature="MS2Extra comms340vU"/>
+           <pcVariable name="tsVehicleWeight">3450.0</pcVariable>
+           <pcVariable name="tsWeightUnits">"lbs"</pcVariable>
+           <pcVariable name="tsVehicleDragCoef">0.34</pcVariable>
+           <pcVariable name="tsFrontalArea">19.3</pcVariable>
+           <pcVariable name="tsFrontalUnits">"sqft"</pcVariable>
+           <pcVariable name="tsTireDiameter">25.5</pcVariable>
+           <pcVariable name="tsDistanceUnits">"Miles Per Hour"</pcVariable>
+           <pcVariable name="tsFinalDriveRatio">3.7</pcVariable>
+           <pcVariable name="tsSpeedSource">"GPS Speed"</pcVariable>
            <page>
              <constant name="nCylinders">{cylinders}</constant>
              <constant name="divider">{divider}</constant>
@@ -216,15 +225,95 @@ public class DynoSetupTests
 
         Assert.True(setup.Measured.Count() >= 10, $"only {setup.Measured.Count()} came off the recording");
 
-        // The car is nobody's business but the driver's, and says so.
-        Assert.Contains(setup.Inputs, i => i.Name == "Mass" && i.Source == InputSource.Entered);
+        // The gearing is nobody's business but the driver's, and says so. The
+        // mass this tune happens to carry; a tune that did not would leave it
+        // entered.
+        Assert.Contains(setup.Inputs, i => i.Name == "Gearing" && i.Source == InputSource.Entered);
+        Assert.Contains(
+            DynoSetup.Read(Log(null), Car(), Entered()).Inputs,
+            i => i.Name == "Mass" && i.Source == InputSource.Entered);
 
-        // The two nobody has measured are called out as guesses rather than
-        // sitting quietly among the rest.
-        Assert.Contains(setup.Assumed, i => i.Name.StartsWith("Drag area", StringComparison.Ordinal));
+        // The drag area this tune happens to carry, so it is not a guess here.
+        // On a recording that carries none it would be, and is.
+        Assert.Contains(setup.Measured, i => i.Name == "Drag area");
+        Assert.Contains(
+            DynoSetup.Read(Log(null), Car(), Entered()).Assumed,
+            i => i.Name.StartsWith("Drag area", StringComparison.Ordinal));
+
+        // The driveline loss stays a guess whatever anybody carries, because no
+        // road test can see it.
         Assert.Contains(setup.Assumed, i => i.Name == "Driveline loss");
-
         Assert.Contains(setup.Assumed, i => i.Note.Contains("No road test can measure it", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheCarComesOutOfTheTuningProgramsOwnSettingsToo()
+    {
+        // TunerStudio keeps a record of the vehicle for features of its own —
+        // weight, drag, tyre, final drive — and they are exactly the figures the
+        // dyno would otherwise have to ask for. They live in the tune as PC
+        // variables rather than as controller settings.
+        DynoInputs setup = DynoSetup.Read(Log(Tune()), Car(), Entered());
+
+        Assert.Equal(3450 * 0.45359237, setup.Vehicle.MassKg, 1);
+        Assert.Equal(0.34 * 19.3 * 0.09290304, setup.Vehicle.DragAreaM2, 4);
+        Assert.Equal(25.5 * 25.4, setup.Vehicle.TyreDiameterMm, 1);
+
+        Assert.Contains(setup.Measured, i => i.Name == "Mass");
+        Assert.Contains(setup.Measured, i => i.Name == "Drag area");
+        Assert.Contains(setup.Measured, i => i.Name == "Tyre diameter");
+    }
+
+    [Fact]
+    public void TheTunesFinalDriveIsReportedButNotApplied()
+    {
+        // The one figure a tuning program is routinely left at its default, and
+        // it scales every road speed. Taking it silently over what somebody
+        // entered would be trusting a value nobody may have looked at.
+        DynoInputs setup = DynoSetup.Read(Log(Tune()), Car(), Entered());
+
+        Assert.Equal(Car().FinalDrive, setup.Vehicle.FinalDrive, 3);
+
+        DynoInput told = Assert.Single(setup.Inputs, i => i.Name.StartsWith("Final drive", StringComparison.Ordinal));
+
+        Assert.Contains("3.70", told.Value, StringComparison.Ordinal);
+        Assert.Contains("left at its default", told.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASpeedSourceOfGpsExplainsTheEmptyChannel()
+    {
+        // Every log off this car has a road speed channel reading a flat nought
+        // for twenty-five minutes, and the tune says why: the controller is set
+        // to take speed from a receiver the car has not got. The program's own
+        // power and torque channels are empty for the same reason.
+        DynoInputs setup = DynoSetup.Read(Log(Tune(), flatRoadSpeed: true), Car(), Entered());
+
+        DynoInput source = Assert.Single(setup.Inputs, i => i.Name == "Road speed source");
+
+        Assert.Equal("GPS", source.Value);
+        Assert.Contains("flat nought", source.Note, StringComparison.Ordinal);
+
+        // And the channel itself is still reported as missing rather than present.
+        Assert.Contains(setup.Missing, i => i.Name == "Road speed");
+    }
+
+    [Fact]
+    public void AStatedTyreDiameterBeatsASidewall()
+    {
+        // A catalogue and a tuning program both quote the overall diameter. The
+        // sidewall is a description that has to be converted; the diameter is the
+        // measurement.
+        var car = Car() with { Tyre = new Tyre(205, 60, 15), OverallDiameterMm = 648 };
+
+        Assert.Equal(648, car.TyreDiameterMm, 3);
+        Assert.NotEqual(car.Tyre.DiameterMm, car.TyreDiameterMm, 1);
+
+        // And it is the one the gearing uses.
+        Assert.Equal(
+            Gearing.RollingCircumferenceMm(648, car.RollingDeflectionPercent),
+            car.RollingCircumferenceMm,
+            6);
     }
 
     [Fact]

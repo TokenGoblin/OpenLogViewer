@@ -37,6 +37,9 @@ public sealed record DynoInputs
     /// <summary>The engine as far as the log and its tune could describe it.</summary>
     public required EngineSpec Engine { get; init; }
 
+    /// <summary>And the car, likewise.</summary>
+    public required VehicleSpec Vehicle { get; init; }
+
     /// <summary>Which routes to a figure this recording can support.</summary>
     public required IReadOnlyList<PowerMethodKind> Available { get; init; }
 
@@ -98,16 +101,18 @@ public static class DynoSetup
         var inputs = new List<DynoInput>();
 
         EngineSpec engine = FromTune(log, entered, inputs);
+        VehicleSpec car = FromTune(log, vehicle, inputs);
 
         ReadChannels(log, inputs);
-        ReadVehicle(vehicle, inputs);
+        ReadVehicle(car, inputs);
 
-        (var available, var unavailable) = WhatCanBeDrawn(log, vehicle);
+        (var available, var unavailable) = WhatCanBeDrawn(log, car);
 
         return new DynoInputs
         {
             Inputs = inputs,
             Engine = engine,
+            Vehicle = car,
             Available = available,
             Unavailable = unavailable,
             Summary = Summarise(inputs, available, unavailable),
@@ -241,6 +246,134 @@ public static class DynoSetup
 
     private static string? Text(MsqFile tune, string name) => tune.Value(name);
 
+    /// <summary>
+    /// The car as the tuning program has it, over whatever was entered.
+    ///
+    /// <para>
+    /// TunerStudio keeps its own record of the vehicle — weight, drag
+    /// coefficient, frontal area, tyre diameter, final drive — because it has
+    /// features of its own that want them. They live in the tune as PC variables
+    /// rather than as controller settings, and they are exactly the figures the
+    /// dyno would otherwise have to ask for.
+    /// </para>
+    /// <para>
+    /// Not all of them are filled in, and the ones that are not sit at nought or
+    /// at a default. Nought is refused; a figure that is merely suspicious is
+    /// taken and reported, because a value somebody may have set is better
+    /// evidence than one nobody has.
+    /// </para>
+    /// </summary>
+    public static VehicleSpec FromTune(LogDocument log, VehicleSpec entered, List<DynoInput>? into = null)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(entered);
+
+        List<DynoInput> inputs = into ?? [];
+
+        if (log.EmbeddedTune is not { Length: > 0 } text) return entered;
+
+        MsqFile tune;
+
+        try
+        {
+            tune = MsqFile.Read(text);
+        }
+        catch (LogFormatException)
+        {
+            return entered;
+        }
+
+        VehicleSpec vehicle = entered;
+
+        const double PoundToKilogram = 0.45359237;
+        const double SquareFootToSquareMetre = 0.09290304;
+
+        if (Pc(tune, "tsVehicleWeight") is { } weight and > 0)
+        {
+            bool pounds = (PcText(tune, "tsWeightUnits") ?? "").Contains("lb", StringComparison.OrdinalIgnoreCase);
+            double kg = pounds ? weight * PoundToKilogram : weight;
+
+            vehicle = vehicle with { KerbMassKg = kg, OccupantMassKg = 0 };
+
+            inputs.Add(new DynoInput(
+                "Mass", $"{kg:N0} kg", InputSource.Tune,
+                $"{weight:N0} {(pounds ? "lb" : "kg")} in the tuning program. Whether the driver is "
+                + "inside it is a question for whoever typed it."));
+        }
+
+        if (Pc(tune, "tsVehicleDragCoef") is { } cd and > 0
+            && Pc(tune, "tsFrontalArea") is { } area and > 0)
+        {
+            bool squareFeet = (PcText(tune, "tsFrontalUnits") ?? "")
+                .Contains("sqft", StringComparison.OrdinalIgnoreCase);
+
+            double m2 = squareFeet ? area * SquareFootToSquareMetre : area;
+
+            vehicle = vehicle with { DragAreaM2 = cd * m2 };
+
+            inputs.Add(new DynoInput(
+                "Drag area", $"{cd * m2:N3} m²", InputSource.Tune,
+                $"Cd {cd:N2} across {area:N1} {(squareFeet ? "sq ft" : "m²")}."));
+        }
+
+        if (Pc(tune, "tsTireDiameter") is { } diameter and > 0)
+        {
+            // Stated in whatever the distance units say, which for a program set
+            // to miles per hour means inches.
+            bool inches = (PcText(tune, "tsDistanceUnits") ?? "")
+                .Contains("Miles", StringComparison.OrdinalIgnoreCase);
+
+            double mm = inches ? diameter * 25.4 : diameter;
+
+            vehicle = vehicle with { OverallDiameterMm = mm };
+
+            inputs.Add(new DynoInput(
+                "Tyre diameter", $"{mm:N0} mm", InputSource.Tune,
+                $"{diameter:N1} {(inches ? "in" : "mm")} in the tuning program."));
+        }
+
+        if (Pc(tune, "tsFinalDriveRatio") is { } final and > 0)
+        {
+            inputs.Add(new DynoInput(
+                "Final drive (per the tune)", $"{final:N2}", InputSource.Tune,
+                "Not applied over what was entered: this is the one figure a tuning program is "
+                + "routinely left at its default, and it scales every road speed. Worth comparing "
+                + "against what was entered."));
+        }
+
+        if ((PcText(tune, "tsSpeedSource") ?? "").Contains("GPS", StringComparison.OrdinalIgnoreCase))
+        {
+            inputs.Add(new DynoInput(
+                "Road speed source", "GPS", InputSource.Tune,
+                "The controller is set to take road speed from a receiver. Where there is none the "
+                + "channel records a flat nought all session, which is why the gear cannot be "
+                + "measured — and why the program's own power and torque channels are empty too."));
+        }
+
+        return vehicle;
+    }
+
+    /// <summary>
+    /// A tuning program's own setting, as text.
+    ///
+    /// Kept apart from the controller's constants for the reason MsqFile keeps
+    /// them apart: they have no page and no offset, and looking one up among the
+    /// other's finds nothing at all — quietly, which is how a weight in pounds
+    /// came back as though it were kilograms.
+    /// </summary>
+    private static string? PcText(MsqFile tune, string name) =>
+        tune.PcVariables.TryGetValue(name, out string? raw) ? raw : null;
+
+    private static double? Pc(MsqFile tune, string name) =>
+        tune.PcVariables.TryGetValue(name, out string? raw)
+        && double.TryParse(
+            raw.Trim('"'),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double v)
+            ? v
+            : null;
+
     // ----- the channels ---------------------------------------------------------------
 
     private static void ReadChannels(LogDocument log, List<DynoInput> inputs)
@@ -273,22 +406,30 @@ public static class DynoSetup
 
     private static void ReadVehicle(VehicleSpec vehicle, List<DynoInput> inputs)
     {
-        inputs.Add(new DynoInput(
-            "Mass", $"{vehicle.MassKg:N0} kg", InputSource.Entered,
-            "Nothing in a recording knows it, and the answer moves with it directly."));
+        if (!inputs.Any(i => i.Name == "Mass"))
+        {
+            inputs.Add(new DynoInput(
+                "Mass", $"{vehicle.MassKg:N0} kg", InputSource.Entered,
+                "Nothing in a recording knows it, and the answer moves with it directly."));
+        }
 
         inputs.Add(new DynoInput(
             "Gearing", $"{vehicle.GearRatios.Count} gears on {vehicle.FinalDrive:N2}",
             InputSource.Entered,
             "Check it against the shifts in the log before trusting any figure that rests on a gear."));
 
-        inputs.Add(new DynoInput(
-            "Drag area and rolling resistance",
-            $"CdA {vehicle.DragAreaM2:N2}, Crr {vehicle.RollingResistance:N4}",
-            vehicle.RoadLoadMeasured ? InputSource.Entered : InputSource.Assumed,
-            vehicle.RoadLoadMeasured
-                ? "measured by a coastdown"
-                : "A coastdown measures both. On a hard pull in a low gear they barely signify."));
+        // Only where the tune did not already give one — and only this entry,
+        // because the driveline loss below is a guess whatever anybody carries.
+        if (!inputs.Any(i => i.Name == "Drag area"))
+        {
+            inputs.Add(new DynoInput(
+                "Drag area and rolling resistance",
+                $"CdA {vehicle.DragAreaM2:N2}, Crr {vehicle.RollingResistance:N4}",
+                vehicle.RoadLoadMeasured ? InputSource.Entered : InputSource.Assumed,
+                vehicle.RoadLoadMeasured
+                    ? "measured by a coastdown"
+                    : "A coastdown measures both. On a hard pull in a low gear they barely signify."));
+        }
 
         inputs.Add(new DynoInput(
             "Driveline loss", $"{vehicle.DrivetrainLossPercent:N0}%",

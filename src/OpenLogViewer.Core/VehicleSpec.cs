@@ -85,6 +85,20 @@ public sealed record VehicleSpec
     public Tyre Tyre { get; init; } = new(245, 40, 18);
 
     /// <summary>
+    /// The tyre's overall diameter in millimetres, where that is known directly
+    /// rather than through a sidewall.
+    ///
+    /// A catalogue quotes one, and so does a tuning program: TunerStudio keeps
+    /// the figure in inches and never asks for a sidewall at all. Given here it
+    /// wins over <see cref="Tyre"/>, because it is the measurement and the
+    /// sidewall is a description that has to be converted.
+    /// </summary>
+    public double? OverallDiameterMm { get; init; }
+
+    /// <summary>The diameter actually used: the stated one, or the sidewall's.</summary>
+    public double TyreDiameterMm => OverallDiameterMm ?? Tyre.DiameterMm;
+
+    /// <summary>
     /// How much less than its geometric circumference the loaded tyre travels.
     /// See <see cref="Gearing.RollingDeflectionPercent"/> — three per cent, and
     /// the difference between a speed that is right and one that is optimistic.
@@ -129,7 +143,7 @@ public sealed record VehicleSpec
 
     /// <summary>What the tyre actually covers in one turn, in millimetres.</summary>
     public double RollingCircumferenceMm =>
-        Gearing.RollingCircumferenceMm(Tyre.DiameterMm, RollingDeflectionPercent);
+        Gearing.RollingCircumferenceMm(TyreDiameterMm, RollingDeflectionPercent);
 
     /// <summary>
     /// The radius that turns wheel rotation into road distance, in metres.
