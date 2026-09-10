@@ -250,17 +250,22 @@ public class PowerEstimateTests
     }
 
     [Fact]
-    public void BatchInjectionIsWorthExactlyTwiceSequential()
+    public void TwoSquirtsACycleIsWorthExactlyTwiceOne()
     {
         LogDocument log = Log(
             ("RPM", "rpm", [7000, 7000, 7000]),
             ("PW", "ms", [4, 4, 4]));
 
-        double sequential = Value(log, BigInjectors, PowerEstimate.InjectorPowerChannel);
-        double batch = Value(
-            log, BigInjectors with { BatchInjection = true }, PowerEstimate.InjectorPowerChannel);
+        double once = Value(log, BigInjectors, PowerEstimate.InjectorPowerChannel);
+        double twice = Value(
+            log, BigInjectors with { TwoSquirtsPerCycle = true }, PowerEstimate.InjectorPowerChannel);
 
-        Assert.Equal(2, batch / sequential, 6);
+        // Not "batch against sequential", which is a different setting and makes
+        // no difference to the fuel: firing the injectors together rather than
+        // timing them to each cylinder changes nothing about how long they are
+        // open. How many times each opens per two turns of the crank changes
+        // everything, and this is that.
+        Assert.Equal(2, twice / once, 6);
     }
 
     [Fact]

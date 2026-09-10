@@ -43,12 +43,27 @@ public sealed record EngineSpec
     public double InjectorDeadTimeMs { get; init; } = 1.0;
 
     /// <summary>
-    /// True where the injectors fire twice per cycle rather than once.
+    /// True where each injector opens twice per engine cycle rather than once.
     ///
-    /// Doubles the duty a given pulse width represents, so getting it wrong is a
-    /// factor of two on everything downstream.
+    /// <para>
+    /// <b>Not the same question as batch against sequential</b>, and conflating
+    /// the two is easy because "batch" is what people say. Batch, or
+    /// simultaneous, describes the injectors firing together instead of being
+    /// timed to each cylinder's intake stroke — and it makes no difference
+    /// whatever to how much fuel goes in. How many times each injector opens per
+    /// two turns of the crank is a separate setting, and it makes all the
+    /// difference: it doubles the duty a given pulse width represents, and it
+    /// doubles how often the dead time is paid.
+    /// </para>
+    /// <para>
+    /// A controller's own duty figure will not settle it either. MegaSquirt
+    /// reports pulse width times engine speed over twelve hundred whatever the
+    /// squirt count is, so a two-squirt engine reads half what it is really
+    /// doing — and a one-squirt engine reads correctly. The two are
+    /// indistinguishable from that number alone.
+    /// </para>
     /// </summary>
-    public bool BatchInjection { get; init; }
+    public bool TwoSquirtsPerCycle { get; init; }
 
     /// <summary>
     /// True where the logged fuel pressure is already the difference across the
@@ -282,9 +297,10 @@ public static class PowerEstimate
         {
             // Per cent, so the channel reads the way an ECU reports it. The
             // divisor is 120,000 ms in a minute of firing once every two turns,
-            // over 100 for the percentage — halved again for batch, which fires
-            // twice as often.
-            double divisor = spec.BatchInjection ? 600 : 1200;
+            // over 100 for the percentage — halved again where each injector
+            // opens twice a cycle, which both doubles the openings and doubles
+            // the dead time paid for them.
+            double divisor = spec.TwoSquirtsPerCycle ? 600 : 1200;
 
             channels.Add(new MathChannel
             {
@@ -353,7 +369,7 @@ public static class PowerEstimate
             "Injectors",
             $"{spec.Cylinders} × {spec.InjectorCcPerMinute:N0} cc/min"
             + (duty is null ? $", {spec.InjectorDeadTimeMs:N2} ms dead time" : $", duty from {duty.Name}")
-            + $", {(spec.BatchInjection ? "batch" : "sequential")}, {pressureNote}"
+            + $", {(spec.TwoSquirtsPerCycle ? "two squirts a cycle" : "one squirt a cycle")}, {pressureNote}"
             + $", {TuningMath.Name(spec.Fuel)}, BSFC {spec.Bsfc:N2}",
             channels);
     }

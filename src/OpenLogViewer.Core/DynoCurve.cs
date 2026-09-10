@@ -674,9 +674,12 @@ public sealed record DynoCurve
         double cf = AirDensity.Factor(correction, air);
         double density = TuningMath.Density(engine.Fuel);
 
-        // Once a cycle or twice. The divisor is the milliseconds in a minute of
-        // firing every second revolution, over a hundred for the percentage.
-        double divisor = engine.BatchInjection ? 600 : 1200;
+        // Once a cycle or twice — which is not the same question as batch against
+        // sequential, and is the one that matters. Firing the injectors together
+        // rather than timing them to each cylinder changes nothing about how much
+        // fuel goes in; opening each of them twice per two turns instead of once
+        // changes all of it, and pays the dead time twice over into the bargain.
+        double divisor = engine.TwoSquirtsPerCycle ? 600 : 1200;
 
         double toMs = width is null ? 1 : ChannelUnits.TimeToMilliseconds(width);
 
@@ -733,12 +736,13 @@ public sealed record DynoCurve
                 + "time than there is. Either they fire twice a cycle rather than once, or the pulse "
                 + "width is not in the units it looks like.");
         }
-        else if (peakDuty < 25 && !engine.BatchInjection)
+        else if (peakDuty < 25 && !engine.TwoSquirtsPerCycle)
         {
             cautions.Add(
                 $"The injectors only reach {peakDuty:N0}% duty at the top of this pull, which is idle "
-                + "for an engine at full throttle. Firing twice a cycle would double it — worth "
-                + "checking which this controller does.");
+                + "for an engine at full throttle. Two squirts a cycle would double it — and a "
+                + "controller's own duty figure cannot tell you which this is, because MegaSquirt "
+                + "reports the one-squirt number either way.");
         }
 
         if (width is null && duty is not null)
@@ -760,7 +764,7 @@ public sealed record DynoCurve
             rpm, power,
             PowerMethodKind.Injectors,
             $"{engine.Cylinders} × {engine.InjectorCcPerMinute:N0} cc/min, "
-            + $"{(engine.BatchInjection ? "batch" : "sequential")}, "
+            + $"{(engine.TwoSquirtsPerCycle ? "two squirts a cycle" : "one squirt a cycle")}, "
             + $"{engine.InjectorDeadTimeMs:N2} ms dead, {TuningMath.Name(engine.Fuel)}, "
             + $"BSFC {engine.Bsfc:N2} assumed, peak duty {peakDuty:N0}%",
             correction, cf, cautions, s, double.NaN, PowerReference.Crank);

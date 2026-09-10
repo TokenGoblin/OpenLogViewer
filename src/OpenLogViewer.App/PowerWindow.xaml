@@ -146,7 +146,7 @@
 
                     <CheckBox Grid.Row="3" Grid.ColumnSpan="3" x:Name="Batch" Margin="0,6,0,0"
                               Foreground="{DynamicResource Text}" Click="OnToggled"
-                              Content="Batch injection — fires twice a cycle rather than once"/>
+                              Content="Each injector opens twice an engine cycle (not the same as batch firing)"/>
 
                     <CheckBox Grid.Row="4" Grid.ColumnSpan="3" x:Name="Differential" Margin="0,4,0,0"
                               Foreground="{DynamicResource Text}" Click="OnToggled"

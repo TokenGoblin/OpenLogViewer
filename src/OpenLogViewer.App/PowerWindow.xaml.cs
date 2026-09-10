@@ -115,7 +115,7 @@ public partial class PowerWindow : Window
             InjectorCcPerMinute = Value(InjectorCc, defaults.InjectorCcPerMinute),
             InjectorRatedKpa = Value(RatedKpa, defaults.InjectorRatedKpa),
             InjectorDeadTimeMs = Value(DeadTime, defaults.InjectorDeadTimeMs),
-            BatchInjection = Batch.IsChecked == true,
+            TwoSquirtsPerCycle = Batch.IsChecked == true,
             FuelPressureIsDifferential = Differential.IsChecked == true,
             DrivetrainLossPercent = Value(Loss, 0),
         };

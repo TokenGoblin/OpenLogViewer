@@ -643,7 +643,7 @@ public class DynoCurveTests
         {
             Litres = 3.43, Cylinders = 6, Bsfc = 0.50,
             InjectorCcPerMinute = 850, InjectorDeadTimeMs = 1.5,
-            BatchInjection = true,
+            TwoSquirtsPerCycle = true,
         };
 
         List<double> times = [], rpms = [], pws = [], tps = [];
