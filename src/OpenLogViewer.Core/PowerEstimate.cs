@@ -266,7 +266,15 @@ public static class PowerEstimate
         var channels = new List<MathChannel>();
         string dutyPercent;
 
-        if (duty is not null)
+        // The pulse width first, and the controller's own duty only as a fallback.
+        //
+        // A duty cycle reported by the controller has the dead time inside it — a
+        // MegaSquirt's is the pulse width times engine speed over twelve hundred,
+        // to the decimal, with nothing taken off. But an injector held open for
+        // its opening time flows nothing, so that figure counts fuel that never
+        // left the rail. The width can have the dead time subtracted; a duty
+        // cannot, because the two are already added together by then.
+        if (duty is not null && (rpm is null || pulseWidth is null))
         {
             dutyPercent = duty.Name;
         }

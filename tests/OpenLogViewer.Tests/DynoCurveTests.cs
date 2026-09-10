@@ -564,6 +564,116 @@ public class DynoCurveTests
     }
 
     [Fact]
+    public void TheInjectorRouteTakesTheDeadTimeOffThePulseWidth()
+    {
+        // A controller's reported duty has the dead time inside it. A MegaSquirt
+        // logging 42.6% at 5,976 rpm on an 8.55 ms pulse is reporting the pulse
+        // width times engine speed over twelve hundred, to the decimal, with
+        // nothing taken off — and an injector held open for its opening time
+        // flows nothing at all.
+        //
+        // So the width is used and the duty is not, wherever there is a width.
+        // On a 1.5 ms injector at six thousand that is a fifth of the fuel.
+        var engine = new EngineSpec
+        {
+            Litres = 3.43, Cylinders = 6, Fuel = Fuel.Petrol, Bsfc = 0.50,
+            InjectorCcPerMinute = 850, InjectorDeadTimeMs = 1.5,
+        };
+
+        List<double> times = [], rpms = [], pws = [], duties = [], tps = [];
+
+        for (int i = 0; i < 140; i++)
+        {
+            double t = i / 20.0;
+            double rpm = 3000 + (i * 22);
+
+            times.Add(t);
+            rpms.Add(rpm);
+            pws.Add(8.55);
+            duties.Add(8.55 * rpm / 1200);      // exactly what a MegaSquirt reports
+            tps.Add(i is > 8 and < 132 ? 98 : 15);
+        }
+
+        LogChannel time = new("Time", "s", 3, [.. times], preservePrecision: true);
+
+        LogChannel[] common =
+        [
+            new LogChannel("RPM", "rpm", 0, [.. rpms]),
+            new LogChannel("TPS", "%", 1, [.. tps]),
+        ];
+
+        var withWidth = new LogDocument
+        {
+            FilePath = "w", Time = time, FormatName = "test",
+            Channels = [.. common, new LogChannel("PW", "ms", 2, [.. pws]),
+                        new LogChannel("DutyCycle1", "%", 1, [.. duties])],
+        };
+
+        var dutyOnly = new LogDocument
+        {
+            FilePath = "d", Time = time, FormatName = "test",
+            Channels = [.. common, new LogChannel("DutyCycle1", "%", 1, [.. duties])],
+        };
+
+        DynoPull a = OnePull(withWidth, Car());
+        DynoPull b = OnePull(dutyOnly, Car());
+
+        DynoCurve fromWidth = DynoCurve.FromInjectors(withWidth, engine, a, Air);
+        DynoCurve fromDuty = DynoCurve.FromInjectors(dutyOnly, engine, b, Air);
+
+        Assert.Equal(PowerReference.Crank, fromWidth.Reference);
+
+        // The duty channel is there in both logs. It is only believed in the one
+        // that has nothing better, and it reads high when it is.
+        Assert.True(
+            fromDuty.PeakPower.Horsepower > fromWidth.PeakPower.Horsepower * 1.1,
+            $"width gave {fromWidth.PeakPower.Horsepower:N0}, duty {fromDuty.PeakPower.Horsepower:N0}");
+
+        Assert.Contains(fromDuty.Cautions, c => c.Contains("dead time inside it", StringComparison.Ordinal));
+        Assert.DoesNotContain(fromWidth.Cautions, c => c.Contains("dead time inside it", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnImpossibleDutyCycleSaysWhichWayRoundTheInjectorsFire()
+    {
+        // Firing twice a cycle rather than once is a factor of two on everything,
+        // and it announces itself: taken the wrong way round the injectors are
+        // open for more time than there is.
+        var engine = new EngineSpec
+        {
+            Litres = 3.43, Cylinders = 6, Bsfc = 0.50,
+            InjectorCcPerMinute = 850, InjectorDeadTimeMs = 1.5,
+            BatchInjection = true,
+        };
+
+        List<double> times = [], rpms = [], pws = [], tps = [];
+
+        for (int i = 0; i < 140; i++)
+        {
+            times.Add(i / 20.0);
+            rpms.Add(3000 + (i * 22));
+            pws.Add(14.0);                      // long, as a big injector at full song
+            tps.Add(i is > 8 and < 132 ? 98 : 15);
+        }
+
+        var log = new LogDocument
+        {
+            FilePath = "x", FormatName = "test",
+            Time = new LogChannel("Time", "s", 3, [.. times], preservePrecision: true),
+            Channels =
+            [
+                new LogChannel("RPM", "rpm", 0, [.. rpms]),
+                new LogChannel("TPS", "%", 1, [.. tps]),
+                new LogChannel("PW", "ms", 2, [.. pws]),
+            ],
+        };
+
+        DynoCurve curve = DynoCurve.FromInjectors(log, engine, OnePull(log, Car()), Air);
+
+        Assert.Contains(curve.Cautions, c => c.Contains("more time than there is", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AnEmptyCurveHasNoPeakToReport()
     {
         DynoCurve nothing = DynoCurve.Build(

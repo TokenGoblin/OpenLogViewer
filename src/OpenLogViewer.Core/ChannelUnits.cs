@@ -181,6 +181,19 @@ public static class ChannelUnits
     // These return the number, for the analysis that walks the samples itself.
     // Same tables either way, so the two cannot drift apart.
 
+    /// <summary>What to multiply a time channel by to get milliseconds.</summary>
+    public static double TimeToMilliseconds(LogChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        return Simplify(channel.Units) switch
+        {
+            "s" or "sec" or "second" or "seconds" => 1000,
+            "us" or "usec" or "microsecond" or "microseconds" => 0.001,
+            _ => 1,
+        };
+    }
+
     /// <summary>What to multiply a pressure channel by to get kilopascals.</summary>
     public static double PressureToKilopascals(LogChannel channel)
     {

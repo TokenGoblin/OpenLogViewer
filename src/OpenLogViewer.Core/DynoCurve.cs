@@ -610,6 +610,162 @@ public sealed record DynoCurve
     /// <summary>Kilograms of air per minute to pounds per hour.</summary>
     private const double KgPerMinuteToLbPerHour = 132.27735731092654;
 
+    /// <summary>Grams a minute to pounds an hour.</summary>
+    private const double GramsPerMinuteToLbPerHour = 0.13227735731092654;
+
+    /// <summary>
+    /// A curve from the fuel the injectors delivered, which knows nothing about
+    /// the air or the gearbox.
+    ///
+    /// <para>
+    /// The third route, and the one that settles an argument the other two cannot.
+    /// Road load and speed density disagree about the power, but they disagree in
+    /// a way that could be either of two assumptions — how completely the cylinder
+    /// fills, or how much fuel a horsepower costs — and the air route needs both
+    /// of them so it cannot separate them.
+    /// </para>
+    /// <para>
+    /// This needs only the second. It counts fuel: how long each injector was held
+    /// open, less the time it takes to crack off its seat, times what it flows, by
+    /// how many there are. So held against speed density it isolates the filling,
+    /// and held against road load it isolates the fuel consumption. Two unknowns,
+    /// two independent comparisons.
+    /// </para>
+    /// <para>
+    /// What it wants in return is honest injector data, and that is not the number
+    /// on the box. A set sold as 850 cc/min measured 1,149 on a flow bench — a
+    /// third out, and a third straight onto the answer. It also wants to know
+    /// whether the injectors fire once a cycle or twice, which is a factor of two
+    /// and shows up as a duty cycle that is either impossible or implausible.
+    /// </para>
+    /// </summary>
+    public static DynoCurve FromInjectors(
+        LogDocument log,
+        EngineSpec engine,
+        DynoPull pull,
+        Ambient air,
+        PowerCorrection correction = PowerCorrection.None,
+        DynoSettings? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(pull);
+
+        DynoSettings s = settings ?? new DynoSettings();
+
+        LogChannel? speed = ChannelRoles.Find(log, ChannelRole.EngineSpeed);
+        LogChannel? width = ChannelRoles.Find(log, ChannelRole.InjectorPulseWidth);
+        LogChannel? duty = ChannelRoles.Find(log, ChannelRole.InjectorDuty);
+
+        if (speed is null || (width is null && duty is null))
+        {
+            return Nothing(
+                PowerMethodKind.Injectors,
+                speed is null
+                    ? "this log has no engine speed"
+                    : "this log has neither an injector pulse width nor a duty cycle");
+        }
+
+        int count = pull.Last - pull.First + 1;
+
+        var rpm = new double[count];
+        var power = new double[count];
+
+        double cf = AirDensity.Factor(correction, air);
+        double density = TuningMath.Density(engine.Fuel);
+
+        // Once a cycle or twice. The divisor is the milliseconds in a minute of
+        // firing every second revolution, over a hundred for the percentage.
+        double divisor = engine.BatchInjection ? 600 : 1200;
+
+        double toMs = width is null ? 1 : ChannelUnits.TimeToMilliseconds(width);
+
+        double peakDuty = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            int at = pull.First + i;
+
+            rpm[i] = speed.At(at);
+
+            // From the pulse width where there is one, and from the controller's
+            // own duty only where there is not.
+            //
+            // That is the opposite of the obvious order, and real data settled it.
+            // A MegaSquirt reporting 42.6% duty at 5,976 rpm on a 8.55 ms pulse is
+            // reporting 8.55 x 5976 / 1200 to the decimal — the commanded duty,
+            // with the dead time still in it. But an injector held open for its
+            // opening time flows nothing at all, so that figure over-states the
+            // fuel by however much of the pulse was spent getting off the seat:
+            // a fifth of it, at that engine speed, on a 1.5 ms injector.
+            //
+            // The pulse width can have the dead time taken off. A duty cycle
+            // cannot, because by then the two are added together.
+            double percent = width is not null
+                ? Math.Max((width.At(at) * toMs) - engine.InjectorDeadTimeMs, 0) * rpm[i] / divisor
+                : ChannelUnits.Fraction(duty!, duty!.At(at)) * 100;
+
+            peakDuty = Math.Max(peakDuty, percent);
+
+            double lbPerHour = engine.InjectorCcPerMinute * (percent / 100) * engine.Cylinders
+                               * density * GramsPerMinuteToLbPerHour;
+
+            power[i] = engine.Bsfc > 0 ? lbPerHour / engine.Bsfc * cf : double.NaN;
+        }
+
+        var cautions = new List<string>();
+
+        foreach (PullFault fault in pull.Faults)
+        {
+            if (fault is PullFault.GearNotChecked or PullFault.GearNotRecognised
+                or PullFault.RatioDrifted or PullFault.SpeedUnitAmbiguous)
+            {
+                continue;
+            }
+
+            cautions.Add(DynoRun.Describe(fault));
+        }
+
+        if (peakDuty > 100)
+        {
+            cautions.Add(
+                $"The injectors work out at {peakDuty:N0}% duty at the top of this pull, which is more "
+                + "time than there is. Either they fire twice a cycle rather than once, or the pulse "
+                + "width is not in the units it looks like.");
+        }
+        else if (peakDuty < 25 && !engine.BatchInjection)
+        {
+            cautions.Add(
+                $"The injectors only reach {peakDuty:N0}% duty at the top of this pull, which is idle "
+                + "for an engine at full throttle. Firing twice a cycle would double it — worth "
+                + "checking which this controller does.");
+        }
+
+        if (width is null && duty is not null)
+        {
+            cautions.Add(
+                $"Duty came from \"{duty.Name}\" because this log carries no pulse width. A "
+                + "controller's duty figure normally has the dead time inside it, and an injector "
+                + "held open for its opening time flows nothing — so this reads high, by about the "
+                + "share of each pulse spent getting off the seat.");
+        }
+
+        cautions.Add(
+            $"{engine.Cylinders} × {engine.InjectorCcPerMinute:N0} cc/min with "
+            + $"{engine.InjectorDeadTimeMs:N2} ms of dead time, and a brake specific fuel consumption "
+            + $"of {engine.Bsfc:N2} that was assumed. The injector figures are worth measuring on a "
+            + "bench: what is written on the box is regularly a third out.");
+
+        return Build(
+            rpm, power,
+            PowerMethodKind.Injectors,
+            $"{engine.Cylinders} × {engine.InjectorCcPerMinute:N0} cc/min, "
+            + $"{(engine.BatchInjection ? "batch" : "sequential")}, "
+            + $"{engine.InjectorDeadTimeMs:N2} ms dead, {TuningMath.Name(engine.Fuel)}, "
+            + $"BSFC {engine.Bsfc:N2} assumed, peak duty {peakDuty:N0}%",
+            correction, cf, cautions, s, double.NaN, PowerReference.Crank);
+    }
+
     private static string SpeedDensityBasis(
         EngineSpec engine, LogChannel? mixture, LogChannel? filling, bool gauge, Ambient air) =>
         $"{engine.Litres:N2} L, "
