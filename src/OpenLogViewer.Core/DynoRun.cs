@@ -703,10 +703,32 @@ public static class DynoRun
     /// <summary>
     /// Where full throttle is on this log, or NaN if the log never went there.
     ///
-    /// Taken at the ninety-ninth percentile rather than at the maximum, so a
-    /// single spike above the sensor's real ceiling does not move the reference
-    /// and disqualify every genuine pull below it.
+    /// <para>
+    /// The highest reading that a handful of others corroborate — not a
+    /// percentile, which is what this was and what a real log broke immediately.
+    /// A twenty-five minute drive with two full-throttle bursts in it spends
+    /// about one per cent of its samples anywhere near the stop, so the
+    /// ninety-ninth percentile lands in the middle of ordinary driving: on a log
+    /// reaching a genuine 100%, it read 59, decided the pedal had never gone far
+    /// enough open to say where full throttle was, and refused the whole
+    /// recording.
+    /// </para>
+    /// <para>
+    /// The percentile was chosen to resist one noisy sample sitting above the
+    /// sensor's ceiling, which is a real thing to want. But it was calibrated for
+    /// a log that is mostly pull, and a log is mostly driving. Corroboration gets
+    /// the same protection without the assumption: a spike is one sample, and
+    /// five readings at the top of the travel is a third of a second at 15 Hz —
+    /// far too long to be noise and far too short to miss the briefest pull worth
+    /// having.
+    /// </para>
     /// </summary>
+    /// <summary>
+    /// How many readings have to reach the top of the travel before it is taken
+    /// as the top of the travel rather than as noise.
+    /// </summary>
+    private const int WideOpenCorroboration = 5;
+
     private static WideOpenThrottle WideOpenLevel(LogChannel? throttle, PullSettings s)
     {
         var none = new WideOpenThrottle(double.NaN, double.NaN);
@@ -721,11 +743,11 @@ public static class DynoRun
             if (double.IsFinite(v)) values.Add(v);
         }
 
-        if (values.Count < 4) return none;
+        if (values.Count < WideOpenCorroboration) return none;
 
         values.Sort();
 
-        double top = Quantile(values, 0.99);
+        double top = values[^WideOpenCorroboration];
 
         // A throttle logged as a fraction of one rather than as a percentage.
         //

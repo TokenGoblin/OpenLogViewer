@@ -122,6 +122,34 @@ public class DynoRunTests
             return this;
         }
 
+        /// <summary>
+        /// Ordinary driving: engine speed wandering, throttle somewhere between a
+        /// tenth and a half, for as long as you like.
+        ///
+        /// What a real log is nearly all of. It exists because the tests were
+        /// written from logs that were nearly all pull, and a rule tuned on those
+        /// broke on the first real recording it met.
+        /// </summary>
+        public Recording Traffic(double seconds, double hz, int gear, double topThrottle = 45)
+        {
+            VehicleSpec car = Car();
+
+            for (double t = 0; t < seconds; t += 1 / hz)
+            {
+                double phase = Math.Sin((_now + t) * 0.7);
+                double rpm = 2200 + (600 * phase);
+
+                _t.Add(_now + t);
+                _rpm.Add(rpm);
+                _speed.Add(car.SpeedMsFromRpm(rpm, gear));
+                _tps.Add(12 + ((topThrottle - 12) * (0.5 + (0.5 * phase))));
+            }
+
+            _now += seconds;
+
+            return this;
+        }
+
         /// <summary>A shift: the throttle off and engine speed falling for a moment.</summary>
         public Recording Shift(double fromRpm, double toRpm, double seconds, double hz, int intoGear)
         {
@@ -662,6 +690,43 @@ public class DynoRunTests
 
         Assert.True(pull.IsClean, $"faults: {string.Join(", ", pull.Faults)}");
         Assert.Equal(4, pull.Gearing.Gear);
+    }
+
+    [Fact]
+    public void FullThrottleIsFoundOnALogThatIsMostlyOrdinaryDriving()
+    {
+        // The shape of a real recording, and the shape none of these tests had.
+        //
+        // Seven minutes of driving with one short burst in it. The burst is under
+        // one per cent of the samples, so a ninety-ninth percentile lands in the
+        // middle of the traffic — which is exactly what happened on the first
+        // real log this met: a throttle reaching a true 100% was read as topping
+        // out at 59, and the whole recording was refused as never having gone
+        // near full throttle.
+        //
+        // The reference is now the highest reading a handful of others
+        // corroborate, which resists the noisy sample the percentile was guarding
+        // against without assuming the log is mostly pull.
+        LogDocument log = new Recording()
+            .Traffic(seconds: 380, hz: 15, gear: 3)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 4800, seconds: 3.5, hz: 15)
+            .Traffic(seconds: 60, hz: 15, gear: 3)
+            .Build();
+
+        LogChannel tps = log.FindChannel("TPS")!;
+        int wideOpen = Enumerable.Range(0, tps.Length).Count(i => tps.At(i) > 90);
+
+        Assert.True(
+            wideOpen < log.SampleCount / 100,
+            $"the burst is {wideOpen * 100.0 / log.SampleCount:N1}% of the log, which is not the "
+            + "case this test is about");
+
+        PullSearchResult found = DynoRun.Find(log, Car());
+
+        DynoPull pull = Assert.Single(found.Pulls);
+
+        Assert.Equal(4, pull.Gearing.Gear);
+        Assert.InRange(pull.StartRpm, 2900, 3300);
     }
 
     [Fact]
