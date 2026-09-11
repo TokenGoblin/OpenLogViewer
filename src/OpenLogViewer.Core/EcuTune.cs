@@ -663,6 +663,13 @@ public sealed class EcuTune
     {
         if (constant.Page < 0 || constant.Page >= pages.Count) return null;
 
+        // Inside this constant, not merely inside the page — the same bound
+        // PokeInto has always applied on the way in. Without it an index past
+        // the end reads whatever setting is declared next and decodes it with
+        // this one's scale and units, so a row off the end of a short table
+        // comes back as a plausible number belonging to something else.
+        if (element < 0 || element >= Math.Max(1, constant.Columns * constant.Rows)) return null;
+
         byte[] page = pages[constant.Page];
         int at = constant.Offset + (element * constant.ElementSize);
 

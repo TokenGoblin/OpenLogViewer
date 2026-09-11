@@ -335,6 +335,44 @@ public class ReviewFixTests
         Assert.Equal(0, tune.ValueIn(tune.Pages, "cranking"));
     }
 
+    // ----- reading past the end of a constant ---------------------------------
+
+    private const string Neighbours = """
+        [Constants]
+        endianness = little
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+           shortTable = array,  U08, 0, [2], "%", 1, 0, 0, 255, 0
+           nextAlong  = scalar, U08, 2, "deg", 10, 0, 0, 2550, 0
+        """;
+
+    /// <summary>
+    /// The read path bounded an element against the page rather than against the
+    /// constant, so an index past the end of a short table walked into whatever
+    /// was declared next and decoded it with this constant's scale. PokeInto has
+    /// always bounded the other way; these now agree.
+    /// </summary>
+    [Fact]
+    public void ReadingPastTheEndOfAConstantIsRefusedRatherThanTheNextOne()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Neighbours);
+        EcuTune tune = EcuTune.FromPages(layout, [11, 22, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        Assert.Equal(11, tune.ValueIn(tune.Pages, "shortTable", 0));
+        Assert.Equal(22, tune.ValueIn(tune.Pages, "shortTable", 1));
+
+        // Element 2 is the neighbour's byte. Read as this table it came back as
+        // 33; it is not part of this table and there is no answer.
+        Assert.Null(tune.ValueIn(tune.Pages, "shortTable", 2));
+        Assert.Null(tune.ValueIn(tune.Pages, "shortTable", -1));
+
+        // And the neighbour still reads as itself, at its own scale.
+        Assert.Equal(330, tune.ValueIn(tune.Pages, "nextAlong"));
+    }
+
     [Fact]
     public void AFloatThatFitsIsStillWritten()
     {
