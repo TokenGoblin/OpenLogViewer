@@ -56,6 +56,7 @@ deliberately leaves out.
 | --- | --- |
 | [Architecture](architecture.md) | How the code is laid out and how data flows through it |
 | [Development](development.md) | Building, testing, the installer, and contributing |
+| [Known issues](known-issues.md) | Verified defects not yet fixed, and what has no test or no hardware behind it |
 | [Changelog](../CHANGELOG.md) | Release history |
 
 ---

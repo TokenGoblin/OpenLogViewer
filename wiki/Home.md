@@ -56,6 +56,7 @@ deliberately leaves out.
 | --- | --- |
 | [Architecture](Architecture) | How the code is laid out and how data flows through it |
 | [Development](Development) | Building, testing, the installer, and contributing |
+| [Known issues](Known-issues) | Verified defects not yet fixed, and what has no test or no hardware behind it |
 | [Changelog](https://github.com/TokenGoblin/OpenLogViewer/blob/main/CHANGELOG.md) | Release history |
 
 ---

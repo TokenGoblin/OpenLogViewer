@@ -87,6 +87,7 @@ $pages = [ordered] @{
     'mlg-format.md'            = 'MLG-log-format'
     'architecture.md'          = 'Architecture'
     'development.md'           = 'Development'
+    'known-issues.md'          = 'Known-issues'
 }
 
 # Where a repository file lives. GitLab's canonical path carries a "/-/" segment
