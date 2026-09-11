@@ -24,6 +24,32 @@ whether to power-cycle a car.
 Lower confidence than the rest: it needs the unplug to reproduce and has not been
 seen. See [verify it on hardware](#what-has-never-been-tested-on-hardware).
 
+## Performance and structure
+
+Measured on 2026-09-10 against a 20.9 MB log — 60,356 samples across 179
+channels — rather than estimated. None of these is a defect; each is a thing that
+will bite at a size nobody has reached yet.
+
+- **Loading blocks the UI thread.** That log decodes in 233 ms and the window is
+  frozen for all of it, with no progress shown. A large SD-card log would be
+  seconds.
+- **`MainViewModel` is 6,020 lines**, with 288 public members and 110 fields
+  across three partial files. It holds theme, filters, histogram, presets,
+  calculated channels, the channel list, the tune, the live session and the dyno.
+  This is the structural reason behind the recurring mistake of wiring new state
+  into one path and not its siblings: nobody can hold 288 members in their head.
+- **The plot rebuilds every trace on every mouse move.** `LogPlot.OnRender`
+  builds each visible channel's geometry from the samples and `OnMouseMove`
+  invalidates, so there is no cache between them. At the sizes measured that is a
+  few milliseconds and invisible; on a much larger log it is the first thing that
+  will feel heavy under the cursor. The fix is to cache the geometry against view
+  range and lane rect, and to draw the cursor, hover card and selection into a
+  separate visual so pointer movement never touches the traces.
+- **Text logs allocate about 59 MB parsing a 3 MB `.msl`**, nearly all of it
+  per-cell substrings. Retained memory is unaffected; this is load-time churn.
+  Carried forward from an earlier measurement and **not re-checked**, for want of
+  an `.msl` to measure.
+
 ## What has no test at all
 
 ### The seven drawn views

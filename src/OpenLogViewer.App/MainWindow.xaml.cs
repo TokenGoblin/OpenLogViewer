@@ -540,7 +540,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnAboutClick(object sender, RoutedEventArgs e)
     {
-        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+        // No number rather than a number that is wrong. This used to fall back to
+        // a literal "0.1.0", which is a second place the version had to be
+        // remembered at every release and would quietly start lying at the first
+        // one somebody forgot.
+        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
+                         ?? "(version unknown)";
 
         MessageBox.Show(
             this,

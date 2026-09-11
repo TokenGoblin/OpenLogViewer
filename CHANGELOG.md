@@ -2,8 +2,17 @@
 
 ## Unreleased
 
-Everything below landed in one run of work. Grouped by what it does for you
+Nothing yet.
+
+## 0.2.0 — 2026-09-11
+
+The first release with a version behind it. Grouped by what it does for you
 rather than by commit.
+
+**If you read one thing, read the first two entries.** Both are defects that were
+producing confident wrong answers about real engines — a log whose time column
+had a gap in it was being read as a count of samples, and a calculated channel
+could be quietly orphaned by removing the one it read. Neither announced itself.
 
 ### Logs with a gap in their time column stopped being read as sample counts
 
@@ -1419,28 +1428,9 @@ became 61 MB.
 
 ### Still open
 
-Re-measured 2026-09-10 rather than carried forward on trust — two of these had
-drifted a long way from what they say.
-
-- **Loading blocks the UI thread.** A 20.9 MB log — 60,356 samples across 179
-  channels — decodes in 233 ms, and the window is frozen for all of it with no
-  progress shown. A large SD-card log would be seconds.
-- **`MainViewModel` is 6,020 lines**, with 288 public members and 110 fields
-  across three partial files. This entry used to say "past 1,000 lines". It
-  holds theme, filters, histogram, presets, calculated channels, the channel
-  list, the tune, the live session and the dyno.
-- **The plot rebuilds every trace on every mouse move.** `LogPlot.OnRender`
-  builds each visible channel's geometry from the samples and `OnMouseMove`
-  invalidates, so there is no cache between them. At the sizes measured this is
-  a few milliseconds and invisible; on a much larger log it is the first thing
-  that will feel heavy under the cursor.
-- **Seven drawn views have no tests at all** — the plot, the scatter, the
-  histogram, the tune table, the gauges, the dyno and the curve, about 3,600
-  lines between them. Nothing in the suite constructs one. An attempt at
-  construct-and-render tests was made and withdrawn: it passed and failed the
-  same path between runs, so the harness needs work before the tests are worth
-  having.
-- **Text logs allocate about 59 MB parsing a 3 MB `.msl`**, nearly all of it
-  per-cell substrings. Retained memory is unaffected; this is load-time churn.
-  Carried forward from an earlier measurement and not re-checked — there was no
-  `.msl` to hand.
+Moved out of this file and into
+**[docs/known-issues.md](docs/known-issues.md)**, which is built into the wiki
+and checked by CI — so unlike a list kept here it cannot quietly go stale. It
+holds the verified defects that are not yet fixed, what has no test behind it,
+what has never met hardware, and the performance and structure notes that used
+to sit in this section.
