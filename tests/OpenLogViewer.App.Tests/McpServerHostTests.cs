@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net.Http;
+using System.Text.Json;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using OpenLogViewer.App.Mcp;
@@ -289,5 +290,43 @@ public sealed class McpServerHostTests : IAsyncLifetime
         }
 
         return arguments;
+    }
+
+    // ----- who the listener answers -------------------------------------------
+
+    /// <summary>
+    /// Over a real socket, because the rule itself is unit-tested elsewhere and
+    /// what this proves is different: that the check is actually in the
+    /// pipeline, ahead of everything else. A correct rule nobody calls is the
+    /// failure mode worth a socket.
+    /// </summary>
+    [Fact]
+    public async Task APostFromAnotherSiteIsRefusedBeforeItReachesATool()
+    {
+        using var http = new HttpClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{Port}/")
+        {
+            Content = new StringContent(
+                """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""",
+                System.Text.Encoding.UTF8,
+                "application/json"),
+        };
+
+        request.Headers.Add("Origin", "https://evil.test");
+
+        HttpResponseMessage response = await http.SendAsync(request);
+
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("cross-site", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>And the ordinary case still works: an agent sends no Origin.</summary>
+    [Fact]
+    public async Task APostWithNoOriginIsAnsweredAsBefore()
+    {
+        await using McpClient client = await ConnectAsync();
+
+        Assert.NotEmpty(await client.ListToolsAsync());
     }
 }

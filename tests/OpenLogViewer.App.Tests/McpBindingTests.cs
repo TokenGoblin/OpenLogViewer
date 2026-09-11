@@ -1,4 +1,5 @@
 using System.IO;
+using OpenLogViewer.App.Mcp;
 using Xunit;
 
 namespace OpenLogViewer.App.Tests;
@@ -60,4 +61,48 @@ public class McpBindingTests
 
         Assert.Contains("http://127.0.0.1:{port}", File.ReadAllText(host), StringComparison.Ordinal);
     }
+
+    // ----- and who is allowed to talk to it -----------------------------------
+    //
+    // Loopback keeps other machines out and does nothing about this one. A page
+    // in a browser can post to 127.0.0.1 as readily as an agent can, and a
+    // hostname that resolves there makes the browser treat it as that site's own
+    // origin — which is the rebinding attack the MCP transport spec requires an
+    // Origin check against.
+
+    [Fact]
+    public void AnAgentSendsNoOriginAndIsAllowed() =>
+        Assert.True(McpServerHost.OriginIsLocal(default));
+
+    [Theory]
+    [InlineData("http://127.0.0.1:7071")]
+    [InlineData("http://localhost:7071")]
+    [InlineData("http://[::1]:7071")]
+    public void APageServedFromThisMachineIsAllowed(string origin) =>
+        Assert.True(McpServerHost.OriginIsLocal(origin));
+
+    [Theory]
+    [InlineData("https://example.com")]
+    [InlineData("http://evil.test")]
+    [InlineData("https://127.0.0.1.attacker.test")]
+    [InlineData("http://192.168.0.10")]
+    public void APageServedFromAnywhereElseIsRefused(string origin) =>
+        Assert.False(McpServerHost.OriginIsLocal(origin));
+
+    /// <summary>A sandboxed frame or a file:// page, which names no site at all.</summary>
+    [Fact]
+    public void AnOriginOfNullIsRefused() =>
+        Assert.False(McpServerHost.OriginIsLocal("null"));
+
+    [Fact]
+    public void SomethingThatIsNotAnOriginAtAllIsRefused() =>
+        Assert.False(McpServerHost.OriginIsLocal("not a url"));
+
+    /// <summary>
+    /// No browser sends two. Somebody sending two is hoping the one that gets
+    /// read is not the one that gets checked.
+    /// </summary>
+    [Fact]
+    public void MoreThanOneOriginIsRefused() =>
+        Assert.False(McpServerHost.OriginIsLocal(new[] { "http://127.0.0.1", "https://evil.test" }));
 }

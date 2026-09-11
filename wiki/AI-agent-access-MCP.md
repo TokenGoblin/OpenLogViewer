@@ -48,6 +48,14 @@ The server binds **loopback only** (`127.0.0.1`), never a network-visible addres
 off this machine can reach it, armed or not — there is a test that greps the source to keep
 it that way.
 
+Loopback settles other machines and says nothing about this one, so there is a second rule
+for that: **a request carrying an `Origin` header is refused unless that origin is
+loopback.** A page in a browser can post to `127.0.0.1` as readily as an agent can, and a
+hostname that resolves there makes the browser treat it as that site's own origin — the
+DNS-rebinding case the MCP HTTP transport requires servers to reject. An agent speaking
+JSON-RPC is not a browsing context and sends no `Origin` at all, so it is unaffected; a
+cross-site caller gets `403` before the request reaches a tool.
+
 **From the command line.** `OpenLogViewer.App.exe --mcp` arms it at startup. That is not a
 setting and not persistence: it is typed afresh every launch, which is the same act as
 ticking the menu item.
@@ -305,7 +313,8 @@ mechanisms.
 - **In-memory edits stay in memory.** `edit_table` and `set_setting` move the same edit
   buffers the keyboard moves and nothing else. Only the five write tools reach a controller.
 
-- **Nothing leaves this machine.** The listener is loopback-only and off by default.
+- **Nothing leaves this machine.** The listener is loopback-only and off by default, and it
+  refuses any request that names a cross-site origin.
 
 ## What has been proven, and what has not
 
