@@ -80,7 +80,12 @@ public static class TuneFileTools
 
             string said = vm.SaveTuneToFile(path, comment);
 
-            return File.Exists(path)
+            // Asked of the save rather than of the file system. A file being
+            // there afterwards is not evidence this write put it there: saving
+            // over one TunerStudio holds open fails and leaves the old file
+            // exactly where it was, which looked like success and pointed at
+            // somebody else's tune.
+            return vm.TuneSaved
                 ? new { saved = true, path, message = said }
                 : (object)new { saved = false, reason = said };
         });
@@ -97,6 +102,13 @@ public static class TuneFileTools
             if (!File.Exists(path)) return new { compared = false, reason = $"There is no file at {path}." };
 
             string said = vm.CompareWithSavedTune(path);
+
+            if (!vm.TuneCompared) return new { compared = false, reason = said };
+
+            // A file that could not be read is not a comparison. Answering
+            // "compared: true, differences: []" to that is the worst wrong
+            // answer this server can give, because it reads as "the file
+            // matches the ECU" — which is what somebody checks before driving.
 
             return new
             {

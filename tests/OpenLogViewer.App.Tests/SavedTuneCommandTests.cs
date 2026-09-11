@@ -284,4 +284,107 @@ public class SavedTuneCommandTests : IDisposable
 
         Assert.Contains("no tune to compare", vm.CompareWithSavedTune(WriteTune(600)));
     }
+
+    // ----- a comparison that did not happen -----------------------------------
+
+    /// <summary>Not valid XML, so reading it throws rather than returning nothing.</summary>
+    private string WriteCorruptTune()
+    {
+        string path = Temp(".msq");
+        File.WriteAllText(path, "<msq><page number=\"0\"><constant name=\"crank");
+        return path;
+    }
+
+    /// <summary>
+    /// The failure that made this worth a property of its own. Compare against a
+    /// good file, then a corrupt one: the second answer used to be the first
+    /// one's list of differences, standing as the answer to a question about a
+    /// different file.
+    /// </summary>
+    [Fact]
+    public void AFileThatCannotBeReadDoesNotInheritTheLastComparison()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        vm.CompareWithSavedTune(WriteTune(400));
+        Assert.Single(vm.TuneDifferences);
+        Assert.True(vm.TuneCompared);
+
+        string outcome = vm.CompareWithSavedTune(WriteCorruptTune());
+
+        Assert.False(vm.TuneCompared);
+        Assert.Empty(vm.TuneDifferences);
+        Assert.Contains("Could not read", outcome);
+    }
+
+    /// <summary>
+    /// And on a fresh session the same failure leaves the list empty, which is
+    /// the more dangerous half: an empty list reads as "the file matches".
+    /// </summary>
+    [Fact]
+    public void AnEmptyListAfterAFailedReadIsNotAMatch()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        vm.CompareWithSavedTune(WriteCorruptTune());
+
+        Assert.Empty(vm.TuneDifferences);
+        Assert.False(vm.TuneCompared);
+    }
+
+    [Fact]
+    public void ASuccessfulSaveSaysItSaved()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        vm.SaveTuneToFile(Temp(".msq"));
+
+        Assert.True(vm.TuneSaved);
+    }
+
+    /// <summary>
+    /// A save that cannot be written must not be read as a success because a
+    /// file of that name happens to exist — which is exactly what saving over
+    /// one TunerStudio is holding open produces.
+    /// </summary>
+    [Fact]
+    public void ASaveOntoAHeldFileIsNotASave()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+        _harness.PutDefinition(vm, WriteIni());
+
+        Assert.True(vm.OpenSavedTune(WriteTune(600)), vm.EcuTuneSummary);
+
+        string held = Temp(".msq");
+        File.WriteAllText(held, "someone else's tune");
+
+        using (File.Open(held, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            vm.SaveTuneToFile(held);
+
+            Assert.False(vm.TuneSaved);
+        }
+
+        // And the file it would have claimed to have written is untouched.
+        Assert.Equal("someone else's tune", File.ReadAllText(held));
+    }
+
+    [Fact]
+    public void SavingWithNoTuneIsNotASave()
+    {
+        MainViewModel vm = _harness.NewViewModel(out _);
+
+        vm.SaveTuneToFile(Temp(".msq"));
+
+        Assert.False(vm.TuneSaved);
+    }
 }
