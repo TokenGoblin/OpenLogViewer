@@ -150,6 +150,7 @@ public static class LogInsights
         found.AddRange(PressureReference(engine));
         found.AddRange(IdleSteadiness(engine));
         found.AddRange(StuckChannels(engine));
+        found.AddRange(CountedRatherThanTimed(engine));
         found.AddRange(SampleRate(engine));
         found.AddRange(MixtureDelay(engine));
         found.AddRange(Coverage(engine));
@@ -1239,6 +1240,31 @@ public static class LogInsights
     /// part is a log that did not record the interesting part, and every average
     /// above is then weighted towards whatever the link kept up with.
     /// </summary>
+    /// <summary>
+    /// Says so when the log carries no time column and the samples are being
+    /// counted instead.
+    ///
+    /// This has to be said out loud rather than left to the axis label. A
+    /// counted base is still a number of seconds as far as everything
+    /// downstream is concerned, so the rates here, the sample rate below and
+    /// the dyno all read as ordinary answers — and they are out by whatever the
+    /// recording rate was.
+    /// </summary>
+    private static IEnumerable<LogInsight> CountedRatherThanTimed(Engine e)
+    {
+        if (e.Log.HasRealTimeBase) yield break;
+
+        yield return new LogInsight(
+            InsightLevel.Warning, "Recording",
+            "This log has no usable time column, so its samples are counted rather than timed.",
+            "Everything measured against time is affected: the duration shown, the sample rate, "
+            + "every rate of change, and the dyno — which is refused outright rather than "
+            + "answered wrongly. One sample is being treated as one second, so a recording made "
+            + "at 15 Hz reads as fifteen times longer and every rate fifteen times slower. "
+            + "Re-export the log with its time column, or record it again.",
+            $"{e.Count:N0} samples against a counted base", e.Count);
+    }
+
     private static IEnumerable<LogInsight> SampleRate(Engine e)
     {
         var gaps = new List<double>();

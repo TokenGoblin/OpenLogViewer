@@ -317,6 +317,17 @@ public static class DynoRun
                 [], "This log has no engine speed channel, so there is nothing to make a curve against.");
         }
 
+        // Power is a rate, so a counted-out time base does not produce a worse
+        // curve — it produces a confident one that is wrong by the logging rate,
+        // and nothing about it looks wrong. Refusing is the only honest answer.
+        if (!log.HasRealTimeBase)
+        {
+            return new PullSearchResult(
+                [], "This log carries no usable time column, so the samples are counted rather "
+                    + "than timed. Every rate in it — which is all a dyno measures — would be out "
+                    + "by the logging rate, so no curve is offered.");
+        }
+
         if (log.SampleCount < 4)
         {
             return new PullSearchResult([], "This log is too short to contain a pull.");

@@ -276,6 +276,17 @@ public static class Coastdown
                 + "disconnected.");
         }
 
+        // A coastdown is a deceleration, and a deceleration is a rate. See the
+        // same refusal in DynoRun.Find.
+        if (!log.HasRealTimeBase)
+        {
+            return new CoastdownSearchResult(
+                [],
+                "This log carries no usable time column, so the samples are counted rather than "
+                + "timed. A coastdown is a rate of slowing, so there is nothing here to measure "
+                + "it against.");
+        }
+
         double factor = double.IsFinite(speedToMetresPerSecond)
             ? speedToMetresPerSecond
             : ChannelUnits.SpeedToMetresPerSecond(road);

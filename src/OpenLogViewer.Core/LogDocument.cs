@@ -66,7 +66,55 @@ public sealed class LogDocument
     /// <summary>Source format label for display, e.g. "MLG v2" or "MSL".</summary>
     public required string FormatName { get; init; }
 
-    public double Duration => SampleCount == 0 ? 0 : Time.At(SampleCount - 1) - Time.At(0);
+    /// <summary>
+    /// Whether <see cref="Time"/> came from the file rather than being counted
+    /// out of the sample index.
+    ///
+    /// Anything that divides by an interval has to ask. A synthesised base is
+    /// still seconds-shaped and still plots, so an acceleration or a rate
+    /// computed against it looks entirely reasonable and is out by whatever the
+    /// logging rate happened to be — which for a 15 Hz recording is a factor of
+    /// fifteen, in the direction that flatters the number.
+    /// </summary>
+    public bool HasRealTimeBase { get; init; } = true;
+
+    /// <summary>
+    /// Seconds from the first sample to the last.
+    ///
+    /// Measured between the first and last <em>real</em> readings: a recording
+    /// whose first or last time is missing has a duration all the same, and
+    /// subtracting the raw ends would report it as NaN.
+    /// </summary>
+    public double Duration
+    {
+        get
+        {
+            if (SampleCount == 0) return 0;
+
+            var times = new TimeView(Time);
+            int first = TimeBase.FirstReal(times);
+            if (first < 0) return 0;
+
+            int last = TimeBase.LastReal(times);
+            return Time.At(last) - Time.At(first);
+        }
+    }
+
+    /// <summary>Reads a channel as a list of doubles without copying it.</summary>
+    private readonly struct TimeView(LogChannel channel) : IReadOnlyList<double>
+    {
+        public int Count => channel.Length;
+
+        public double this[int index] => channel.At(index);
+
+        public IEnumerator<double> GetEnumerator()
+        {
+            for (int i = 0; i < channel.Length; i++) yield return channel.At(i);
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
+    }
 
     private double? _medianInterval;
 

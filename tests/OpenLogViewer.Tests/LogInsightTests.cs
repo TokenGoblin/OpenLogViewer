@@ -511,6 +511,32 @@ public class LogInsightTests
         }
     }
 
+    // ----- a counted time base ------------------------------------------------
+
+    [Fact]
+    public void ACountedTimeBaseIsReportedAsAWarning()
+    {
+        LogDocument timed = Steady(Repeat(14.7, 200));
+
+        LogDocument counted = new LogDocument
+        {
+            FormatName = timed.FormatName,
+            FilePath = timed.FilePath,
+            Time = timed.Time,
+            Channels = timed.Channels,
+            HasRealTimeBase = false,
+        };
+
+        Assert.DoesNotContain(
+            LogInsights.From(timed), i => i.Title.Contains("counted rather than timed"));
+
+        LogInsight found = Assert.Single(
+            LogInsights.From(counted), i => i.Title.Contains("counted rather than timed"));
+
+        Assert.Equal(InsightLevel.Warning, found.Level);
+        Assert.Equal("Recording", found.Topic);
+    }
+
     private static int Rank(InsightLevel level) => level switch
     {
         InsightLevel.Warning => 4,

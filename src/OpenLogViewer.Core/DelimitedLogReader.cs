@@ -97,7 +97,7 @@ public sealed class DelimitedLogReader : ILogReader
         }
 
         int sampleCount = width > 0 ? columns[0].Length : 0;
-        LogChannel time = ResolveTimeBase(
+        (LogChannel time, bool realTime) = ResolveTimeBase(
             preciseTime, timeColumn, names, units, lines, dataIndex, delimiter, sampleCount);
 
         string[] preamble = lines.Take(headerIndex).ToArray();
@@ -108,6 +108,7 @@ public sealed class DelimitedLogReader : ILogReader
             FilePath = path,
             Channels = channels,
             Time = time,
+            HasRealTimeBase = realTime,
             Signature = preamble.Length > 0 ? Clean(preamble[0]) : null,
             CaptureInfo = preamble.Length > 1 ? Clean(preamble[1]) : null,
             RecordedAt = File.GetLastWriteTime(path),
@@ -417,7 +418,7 @@ public sealed class DelimitedLogReader : ILogReader
     /// Built from the separately parsed doubles rather than a stored channel: a
     /// time base keeps full precision, because it accumulates over the recording.
     /// </summary>
-    private static LogChannel ResolveTimeBase(
+    private static (LogChannel Channel, bool IsReal) ResolveTimeBase(
         double[]? raw, int index, string[] names, string[] units,
         string[] lines, int dataIndex, char delimiter, int sampleCount)
     {
@@ -425,7 +426,7 @@ public sealed class DelimitedLogReader : ILogReader
         {
             double factor = TimeScale(units[index]);
 
-            if (IsMonotonic(raw) && raw.Length > 0 && raw[^1] > raw[0])
+            if (TimeBase.NeverFalls(raw) && TimeBase.Rises(raw))
             {
                 double[] seconds = raw;
                 if (Math.Abs(factor - 1) > double.Epsilon)
@@ -434,17 +435,20 @@ public sealed class DelimitedLogReader : ILogReader
                     for (int i = 0; i < seconds.Length; i++) seconds[i] = raw[i] * factor;
                 }
 
-                return new LogChannel(names[index], "s", 3, seconds, preservePrecision: true);
+                // Filled, so the axis is a clean run of seconds even where a row
+                // was short of a time. The parsed column keeps the hole.
+                return (new LogChannel(
+                    names[index], "s", 3, TimeBase.Fill(seconds), preservePrecision: true), true);
             }
 
             // The column may hold wall-clock strings rather than numbers.
             if (TryReadTimestamps(lines, dataIndex, delimiter, index, sampleCount, out double[] elapsed))
-                return new LogChannel("Time", "s", 3, elapsed, preservePrecision: true);
+                return (new LogChannel("Time", "s", 3, elapsed, preservePrecision: true), true);
         }
 
         var synthetic = new double[sampleCount];
         for (int i = 0; i < sampleCount; i++) synthetic[i] = i;
-        return new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true);
+        return (new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true), false);
     }
 
     private static int FindTimeColumn(string[] names, string[] units)
@@ -495,14 +499,7 @@ public sealed class DelimitedLogReader : ILogReader
         for (int i = 0; i < stamps.Count; i++)
             elapsed[i] = (stamps[i] - stamps[0]).TotalSeconds;
 
-        return IsMonotonic(elapsed) && elapsed[^1] > 0;
-    }
-
-    private static bool IsMonotonic(double[] values)
-    {
-        for (int i = 1; i < values.Length; i++)
-            if (values[i] < values[i - 1]) return false;
-        return true;
+        return TimeBase.NeverFalls(elapsed) && TimeBase.Rises(elapsed);
     }
 
     // ----- labelling --------------------------------------------------------

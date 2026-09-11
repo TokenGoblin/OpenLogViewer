@@ -243,6 +243,39 @@ public class DynoRunTests
         Assert.InRange(pull.SampleRateHz, 19, 21);
     }
 
+    /// <summary>
+    /// The same pull, with the time base counted out of the sample index instead
+    /// of read from the file. Every number the dyno produces is a rate, so this
+    /// one has to be refused rather than answered: at 20 Hz the curve would be
+    /// perfectly shaped and twenty times too flat, with nothing about it to
+    /// suggest anything went wrong.
+    /// </summary>
+    [Fact]
+    public void ACountedTimeBaseIsRefusedRatherThanMeasured()
+    {
+        LogDocument timed = new Recording()
+            .Steady(seconds: 4, hz: 20, rpm: 3000, tps: 18, gear: 4)
+            .Pull(gear: 4, fromRpm: 3000, toRpm: 6800, seconds: 7, hz: 20)
+            .Build();
+
+        // Everything about the log is the same but the provenance of its clock.
+        LogDocument counted = new LogDocument
+        {
+            FilePath = timed.FilePath,
+            Time = timed.Time,
+            Channels = timed.Channels,
+            FormatName = timed.FormatName,
+            HasRealTimeBase = false,
+        };
+
+        Assert.True(DynoRun.Find(timed, Car()).Any);
+
+        PullSearchResult found = DynoRun.Find(counted, Car());
+
+        Assert.Empty(found.Pulls);
+        Assert.Contains("counted rather than timed", found.Summary);
+    }
+
     [Fact]
     public void AGearshiftEndsOnePullAndStartsAnother()
     {
