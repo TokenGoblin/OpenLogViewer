@@ -104,8 +104,8 @@ public static class LiveTools
         MainViewModel vm = null!,
         IWindowSource windows = null!,
         IUiDispatcher dispatcher = null!) =>
-        Connect(vm, windows, dispatcher,
-            window => _ = window.ConnectToWifi(address),
+        ConnectAsync(vm, windows, dispatcher,
+            window => window.ConnectToWifi(address),
             () => vm.ConnectObd2Wifi(address),
             address.Length == 0 ? "find a Wi-Fi adapter" : $"connect to {address}");
 
@@ -306,6 +306,43 @@ public static class LiveTools
             try
             {
                 if (windows.Window is { } window) viaWindow(window);
+                else headless();
+            }
+            catch (Exception e)
+                when (e is IOException or InvalidOperationException or TimeoutException
+                          or UnauthorizedAccessException or EcuProtocolException)
+            {
+                return new { connected = false, reason = $"Could not {what}: {e.Message}" };
+            }
+
+            return vm.IsLive
+                ? Describe(vm)
+                : (object)new { connected = false, reason = vm.LiveStatus };
+        });
+
+    /// <summary>
+    /// The same thing for a connection that is asynchronous, waited for to the
+    /// end rather than to its first await.
+    ///
+    /// <para>
+    /// Waiting is what makes the answer true — the old code discarded the task
+    /// and read <c>IsLive</c> before the socket was open, so it always reported
+    /// a failure. It is also what makes a second attempt safe: the dispatcher
+    /// lets one call through at a time, so a retry now queues behind the
+    /// connection in progress and meets the "already live" guard instead of
+    /// slipping past it and opening a second socket.
+    /// </para>
+    /// </summary>
+    private static Task<object> ConnectAsync(
+        MainViewModel vm, IWindowSource windows, IUiDispatcher dispatcher,
+        Func<MainWindow, Task> viaWindow, Action headless, string what) =>
+        dispatcher.InvokeAsync<object>(async () =>
+        {
+            if (vm.IsLive) return new { connected = false, reason = AlreadyLiveRefusal };
+
+            try
+            {
+                if (windows.Window is { } window) await viaWindow(window);
                 else headless();
             }
             catch (Exception e)

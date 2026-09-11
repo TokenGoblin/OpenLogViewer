@@ -19,6 +19,26 @@ public interface IUiDispatcher
     Task<T> InvokeAsync<T>(Func<T> action);
 
     Task InvokeAsync(Action action);
+
+    /// <summary>
+    /// Runs work that is itself asynchronous on the window's thread, and waits
+    /// for all of it rather than for the part before the first await.
+    ///
+    /// <para>
+    /// Connecting over Wi-Fi is the one connect that is genuinely asynchronous,
+    /// and without this its tool had to discard the task. It answered before the
+    /// socket was open, so it always said <c>connected: false</c> — and an agent
+    /// reading that and trying again got past the "already live" guard while the
+    /// first attempt was still in flight, which puts two sockets on a dongle
+    /// that accepts one.
+    /// </para>
+    /// <para>
+    /// The caller's thread waits; the window's thread does not, so the work is
+    /// free to await on it and its continuations still have a running loop to
+    /// come back to.
+    /// </para>
+    /// </summary>
+    Task<T> InvokeAsync<T>(Func<Task<T>> action);
 }
 
 /// <summary>
@@ -73,6 +93,25 @@ public sealed class SerializedUiDispatcher(IUiDispatcher inner) : IUiDispatcher,
         }
     }
 
+    /// <summary>
+    /// Held for the whole of the asynchronous work, not just for starting it.
+    /// A connection that is still opening is exactly the state no other tool
+    /// call may act on, so this is the case the semaphore matters most for.
+    /// </summary>
+    public async Task<T> InvokeAsync<T>(Func<Task<T>> action)
+    {
+        await _oneAtATime.WaitAsync().ConfigureAwait(false);
+
+        try
+        {
+            return await inner.InvokeAsync(action).ConfigureAwait(false);
+        }
+        finally
+        {
+            _oneAtATime.Release();
+        }
+    }
+
     public void Dispose() => _oneAtATime.Dispose();
 }
 
@@ -93,4 +132,13 @@ public sealed class WpfDispatcher(Dispatcher dispatcher) : IUiDispatcher
     public Task<T> InvokeAsync<T>(Func<T> action) => dispatcher.InvokeAsync(action).Task;
 
     public Task InvokeAsync(Action action) => dispatcher.InvokeAsync(action).Task;
+
+    /// <summary>
+    /// Two waits, and both are needed: the outer one is the delegate reaching
+    /// the window's thread and returning a task, the inner one is that task
+    /// running to completion. Awaiting only the first returns as soon as the
+    /// work hits its first await, which is the whole defect this exists to fix.
+    /// </summary>
+    public async Task<T> InvokeAsync<T>(Func<Task<T>> action) =>
+        await await dispatcher.InvokeAsync(action).Task.ConfigureAwait(false);
 }
