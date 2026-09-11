@@ -90,6 +90,38 @@ public class MathChannelWorkflowTests : IDisposable
         Assert.Empty(vm.MathChannels);
     }
 
+    /// <summary>
+    /// The removal still goes through — it is the user's file — but it has to
+    /// say what it took with it. Removing the airflow the power estimate's other
+    /// two channels read is exactly how a settings file ends up holding two
+    /// definitions that cannot build and no record of why.
+    /// </summary>
+    [Fact]
+    public void RemovingADefinitionOthersReadSaysWhatItBreaks()
+    {
+        MainViewModel vm = Loaded();
+        Define(vm, "Airflow", "RPM * 2");
+        Define(vm, "Power", "Airflow * 3");
+        Define(vm, "Torque", "Airflow / 4");
+
+        vm.RemoveMathChannel(vm.MathChannels.Single(c => c.Name == "Airflow"));
+
+        Assert.Contains("Power", vm.Hint);
+        Assert.Contains("Torque", vm.Hint);
+        Assert.Contains("no longer build", vm.Hint);
+    }
+
+    [Fact]
+    public void RemovingADefinitionNothingReadsSaysOnlyThat()
+    {
+        MainViewModel vm = Loaded();
+        Define(vm, "Double RPM", "RPM * 2");
+
+        vm.RemoveMathChannel(vm.MathChannels.Single());
+
+        Assert.Equal("Removed \"Double RPM\".", vm.Hint);
+    }
+
     [Fact]
     public void ARemovedChannelStopsBeingPlotted()
     {

@@ -5344,11 +5344,34 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void RemoveMathChannel(MathChannel channel)
     {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        // Asked before the removal, while the definition is still there to be
+        // read against. Removing one quietly is how the power estimate's three
+        // channels ended up as two that could not build: nothing said the
+        // airflow the other two read had gone with it.
+        IReadOnlyList<MathChannel> orphaned =
+            MathChannelBuilder.Dependents(channel.Name, _mathStore.Channels);
+
         if (!_mathStore.Remove(channel)) return;
 
         RefreshMathChannels();
         Reapply();
-        Hint = $"Removed \"{channel.Name}\".";
+
+        Hint = orphaned.Count == 0
+            ? $"Removed \"{channel.Name}\"."
+            : $"Removed \"{channel.Name}\" — {Naming(orphaned)} read it and will no longer build.";
+    }
+
+    /// <summary>Up to three names in a list, and a count for any beyond that.</summary>
+    private static string Naming(IReadOnlyList<MathChannel> channels)
+    {
+        string[] names = [.. channels.Take(3).Select(c => $"\"{c.Name}\"")];
+        string listed = names.Length == 1
+            ? names[0]
+            : string.Join(", ", names[..^1]) + " and " + names[^1];
+
+        return channels.Count > 3 ? $"{listed} and {channels.Count - 3} more" : listed;
     }
 
     /// <summary>Loads the definition back into the editor so it can be changed.</summary>

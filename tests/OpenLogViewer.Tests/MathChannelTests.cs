@@ -83,19 +83,25 @@ public class MathChannelTests : IDisposable
         Assert.Equal(-1.7 / 14.7 * 100, result.Channels[1].At(0), 3);
     }
 
+    /// <summary>
+    /// This used to assert the opposite, on the grounds that declaration order
+    /// was the only thing keeping a chain from being a cycle. It is not: a cycle
+    /// is now caught by the rounds running out with nothing placed, which
+    /// <see cref="TwoDefinitionsThatReadEachOtherAreReportedRatherThanLoopingForever"/>
+    /// covers. Order was costing correctness and buying nothing.
+    /// </summary>
     [Fact]
-    public void ADefinitionCannotReadOneDeclaredAfterIt()
+    public void ADefinitionMayReadOneDeclaredAfterIt()
     {
-        // Order is the only thing keeping this from being a cycle.
         MathChannelResult result = MathChannelBuilder.Build(Log(),
         [
             Definition("Second", "First * 2"),
             Definition("First", "RPM / 2"),
         ]);
 
-        Assert.Single(result.Channels);
-        Assert.Equal("First", result.Channels[0].Name);
-        Assert.Contains("First", Assert.Single(result.Problems).Reason);
+        Assert.Empty(result.Problems);
+        Assert.Equal(2, result.Channels.Count);
+        Assert.Equal(6000, result.Channels.Single(c => c.Name == "Second").At(3), 6);
     }
 
     [Fact]
@@ -257,4 +263,113 @@ public class MathChannelTests : IDisposable
     [Fact]
     public void AMissingFileIsSimplyNoChannels() =>
         Assert.Empty(new MathChannelStore(Path.Combine(Path.GetTempPath(), $"olv-none-{Guid.NewGuid():N}.json")).Channels);
+
+    // ----- definitions that read one another ---------------------------------
+
+    /// <summary>
+    /// A chain saved in the reverse of the order it has to build in — which is
+    /// what the editor produces, because it appends.
+    /// </summary>
+    [Fact]
+    public void AChainOfThreeResolvesWhateverOrderItIsSavedIn()
+    {
+        MathChannelResult result = MathChannelBuilder.Build(Log(), [
+            Definition("Third", "Second + 1"),
+            Definition("First", "RPM / 1000"),
+            Definition("Second", "First * 2"),
+        ]);
+
+        Assert.Empty(result.Problems);
+
+        // 6,000 rpm at the last sample: First 6, Second 12, Third 13.
+        Assert.Equal(13, result.Channels.Single(c => c.Name == "Third").At(3), 6);
+    }
+
+    [Fact]
+    public void TwoDefinitionsThatReadEachOtherAreReportedRatherThanLoopingForever()
+    {
+        MathChannelResult result = MathChannelBuilder.Build(Log(), [
+            Definition("Chicken", "Egg + 1"),
+            Definition("Egg", "Chicken + 1"),
+        ]);
+
+        Assert.Empty(result.Channels);
+        Assert.Equal(2, result.Problems.Count);
+    }
+
+    /// <summary>
+    /// Taken from the author's own settings, where the power estimate's three
+    /// definitions were saved without the airflow the other two read. Torque
+    /// reported "Unexpected '('" — true, because with the calculated power
+    /// missing the parser matched the log's own "Power" channel and choked on
+    /// the bracket, and useless, because the cause was two definitions away.
+    /// </summary>
+    [Fact]
+    public void AFailureNamesTheDefinitionThatBrokeRatherThanTheSymptom()
+    {
+        var log = new LogDocument
+        {
+            FilePath = "x",
+            Time = new LogChannel("Time", "s", 3, [0, 0.1], preservePrecision: true),
+            Channels = [new LogChannel("Power", "HP", 1, [0, 0]), new LogChannel("RPM", "RPM", 0, [800, 2000])],
+            FormatName = "test",
+        };
+
+        MathChannelResult result = MathChannelBuilder.Build(log, [
+            Definition("Power (speed density)", "Airflow (speed density) * 132.3"),
+            Definition("Torque (est)", "Power (speed density) * 5252 / max(RPM, 1)"),
+        ]);
+
+        Assert.Empty(result.Channels);
+
+        MathChannelProblem torque = result.Problems.Single(p => p.Name == "Torque (est)");
+
+        Assert.Contains("Power (speed density)", torque.Reason);
+        Assert.Contains("could not be built", torque.Reason);
+        Assert.DoesNotContain("Unexpected", torque.Reason);
+
+        // The one that actually broke still says what broke it.
+        Assert.Contains("Airflow", result.Problems.Single(p => p.Name == "Power (speed density)").Reason);
+    }
+
+    // ----- what reads what ----------------------------------------------------
+
+    [Fact]
+    public void DependentsFindsTheDefinitionsThatReadAChannel()
+    {
+        MathChannel[] all = [
+            Definition("Airflow", "MAP * RPM / 574"),
+            Definition("Power", "Airflow * 132.3"),
+            Definition("Torque", "Power * 5252 / RPM"),
+            Definition("Unrelated", "AFR - AFR Target 1"),
+        ];
+
+        Assert.Equal(["Power"], MathChannelBuilder.Dependents("Airflow", all).Select(c => c.Name));
+        Assert.Equal(["Torque"], MathChannelBuilder.Dependents("Power", all).Select(c => c.Name));
+        Assert.Empty(MathChannelBuilder.Dependents("Torque", all));
+    }
+
+    /// <summary>
+    /// Bounded the way the parser bounds a name, so removing the shorter of two
+    /// overlapping names does not claim the longer one reads it.
+    /// </summary>
+    [Fact]
+    public void DependentsStopsAtAWordBoundary()
+    {
+        MathChannel[] all = [
+            Definition("Power (speed density)", "Airflow * 132.3"),
+            Definition("Reads the long one", "Power (speed density) * 2"),
+            Definition("Reads neither", "PowerX * 2"),
+        ];
+
+        Assert.Equal(
+            ["Reads the long one"],
+            MathChannelBuilder.Dependents("Power (speed density)", all).Select(c => c.Name));
+
+        Assert.Empty(MathChannelBuilder.Dependents("Power", all));
+    }
+
+    [Fact]
+    public void ADefinitionIsNotItsOwnDependent() =>
+        Assert.Empty(MathChannelBuilder.Dependents("Loop", [Definition("Loop", "Loop + 1")]));
 }
