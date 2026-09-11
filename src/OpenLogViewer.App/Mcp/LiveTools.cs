@@ -138,7 +138,14 @@ public static class LiveTools
                 return new { connected = false, reason = e.Message };
             }
 
-            return Describe(vm);
+            // Asked, not assumed. Describe hardcodes connected = true, and this
+            // was the one connect route that returned it without checking — so
+            // an adapter that was found, opened and then failed to become a live
+            // session was reported as connected, with a channel list of nothing.
+            // Every other route here has always made this check.
+            return vm.IsLive
+                ? Describe(vm)
+                : (object)new { connected = false, reason = vm.LiveStatus };
         });
 
     [McpServerTool]
