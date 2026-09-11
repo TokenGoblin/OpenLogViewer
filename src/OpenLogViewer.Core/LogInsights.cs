@@ -496,8 +496,13 @@ public static class LogInsights
     {
         if (e.Afr is not { } afr || e.Target is not { } target || e.Map is not { } map) yield break;
 
+        // High load relative to atmospheric where that is known, and to the
+        // log's own peak where it is not. This one only needs a line above which
+        // the samples are the ones that matter, so a peak-relative line is a
+        // reasonable second best — unlike the boost finding, which is asking a
+        // question the peak cannot answer.
         double ambient = Ambient(e, map);
-        double threshold = ambient * 0.9;
+        double threshold = (double.IsFinite(ambient) ? ambient : Peak(e, map)) * 0.9;
 
         var errors = new List<double>();
         double highest = double.MinValue;
@@ -958,7 +963,19 @@ public static class LogInsights
         if (e.Map is not { } map) yield break;
 
         double ambient = Ambient(e, map);
-        if (ambient <= 0) yield break;
+
+        if (!(ambient > 0))
+        {
+            yield return Unanswered(
+                "Manifold pressure",
+                "Nothing in this log says what atmospheric pressure was.",
+                "Judging vacuum or boost needs a barometer channel, or a moment with the key on "
+                + "and the engine not turning — manifold pressure then is the barometer. This log "
+                + "has neither, and guessing it from the highest reading would call a boosted "
+                + "engine naturally aspirated.", 0);
+
+            yield break;
+        }
 
         double lowest = double.MaxValue, highest = double.MinValue;
         int running = 0;
@@ -1064,14 +1081,19 @@ public static class LogInsights
         string unit = boost.Units.Length > 0 ? " " + boost.Units : "";
 
         double ambient = Ambient(e, map);
-        bool againstBaro = ambient > 0 && Math.Abs(reference - ambient) < 2;
+        bool knownAmbient = ambient > 0 && double.IsFinite(ambient);
+        bool againstBaro = knownAmbient && Math.Abs(reference - ambient) < 2;
         bool againstSeaLevel = Math.Abs(reference - 101.3) < 2;
 
         string numbers =
             $"slope {slope:0.0000}{unit} per {map.Units}, zero at {reference:N1} "
-            + $"{map.Units}, barometer reads {ambient:N1}, {xs.Count:N0} samples";
+            + $"{map.Units}, "
+            // Said as unknown rather than printed as a number that was inferred
+            // from the manifold's own peak, which is not a barometer.
+            + (knownAmbient ? $"barometer reads {ambient:N1}" : "barometer not in this log")
+            + $", {xs.Count:N0} samples";
 
-        if (againstBaro && ambient > 0 && Math.Abs(ambient - 101.3) > 3)
+        if (againstBaro && Math.Abs(ambient - 101.3) > 3)
         {
             yield return new LogInsight(
                 InsightLevel.Note, "Pressure reference",
@@ -1113,6 +1135,38 @@ public static class LogInsights
     /// judge from a trace, because a plot's vertical scale flatters or damns it
     /// depending on nothing at all.
     /// </summary>
+    /// <summary>How long after a drive the engine is still settling, in seconds.</summary>
+    private const double SettlingAfterDriving = 2.0;
+
+    /// <summary>
+    /// Whether the engine has been above idle recently enough to still be
+    /// coming down from it.
+    ///
+    /// <para>
+    /// This is what separates an overrun from a hunt, and the rate of change is
+    /// not: a car that hunts by a couple of hundred rpm is changing speed as
+    /// fast, instant for instant, as one coasting down. What it never does is
+    /// come from above — a hunt oscillates about idle and stays there, while a
+    /// deceleration passes down through 1,500 on its way from being driven.
+    /// </para>
+    /// </summary>
+    private static bool ComingDownFromDriving(Engine e, LogChannel rpm, int at)
+    {
+        double when = e.Log.Time.At(at);
+        if (double.IsNaN(when)) return false;
+
+        for (int j = at - 1; j >= 0; j--)
+        {
+            double then = e.Log.Time.At(j);
+            if (double.IsNaN(then)) continue;
+            if (when - then > SettlingAfterDriving) return false;
+
+            if (rpm.At(j) >= 1500) return true;
+        }
+
+        return false;
+    }
+
     private static IEnumerable<LogInsight> IdleSteadiness(Engine e)
     {
         if (e.Rpm is not { } rpm) yield break;
@@ -1125,10 +1179,19 @@ public static class LogInsights
             if (e.Throttle is { } tps && tps.At(i) > 3) continue;
 
             double v = rpm.At(i);
+            if (double.IsNaN(v) || v >= 1500) continue;
 
-            // Below 1,500 with the throttle shut is idle or the overrun; the
-            // overrun is excluded by requiring the engine not to be dropping.
-            if (!double.IsNaN(v) && v < 1500) idle.Add(v);
+            // Below 1,500 with the throttle shut is idle *or* the overrun, and
+            // the comment here used to claim the overrun was excluded by
+            // requiring the engine not to be dropping. No such test existed.
+            //
+            // So a car that was driven and then idled had its whole coast down
+            // through 1,500 pooled in with its idle, and the spread of a
+            // deceleration is far wider than any hunt: a perfectly steady engine
+            // was reported as hunting on the strength of the driving before it.
+            if (ComingDownFromDriving(e, rpm, i)) continue;
+
+            idle.Add(v);
         }
 
         if (idle.Count < MinimumSamples * 2)
@@ -1507,6 +1570,20 @@ public static class LogInsights
     /// is used at 84 kPa as readily as at sea level, and a boost threshold set
     /// at 101 would call every altitude engine boosted.
     /// </summary>
+    /// <summary>The highest reading in a channel, for a scale rather than a datum.</summary>
+    private static double Peak(Engine e, LogChannel channel)
+    {
+        double highest = 0;
+
+        for (int i = 0; i < e.Count; i++)
+        {
+            double v = channel.At(i);
+            if (!double.IsNaN(v)) highest = Math.Max(highest, v);
+        }
+
+        return highest;
+    }
+
     private static double Ambient(Engine e, LogChannel map)
     {
         if (e.Baro is { } baro)
@@ -1518,14 +1595,26 @@ public static class LogInsights
             }
         }
 
-        double highest = 0;
+        // A stopped engine pulls no vacuum, so manifold pressure with the key on
+        // and the engine not turning is the barometer, measured by the sensor
+        // that matters rather than assumed.
+        var stopped = new List<double>();
 
         for (int i = 0; i < e.Count; i++)
         {
+            if (e.Running(i)) continue;
+
             double v = map.At(i);
-            if (!double.IsNaN(v)) highest = Math.Max(highest, v);
+            if (!double.IsNaN(v) && v > 50) stopped.Add(v);
         }
 
-        return highest;
+        if (stopped.Count >= 3) return Percentile(stopped, 50);
+
+        // And otherwise it is not known. It used to fall back to the highest
+        // manifold pressure in the log, which is atmospheric on a naturally
+        // aspirated engine and nothing of the kind on a boosted one — where it
+        // made "was there boost" mean "was the peak above the peak", so the
+        // boost finding could never fire on the logs it exists for.
+        return double.NaN;
     }
 }

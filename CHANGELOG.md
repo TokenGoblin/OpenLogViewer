@@ -53,6 +53,27 @@ Two more things that went with it:
   "Power (speed density)", which could not be built: 'Airflow' is not a channel
   in this log, nor a function.*
 
+### Insights stopped guessing at atmospheric pressure, and at the idle
+
+Two findings were reading engines wrongly, and both did it quietly.
+
+**Ambient pressure fell back to the highest manifold reading in the log.** That
+is roughly right on a naturally aspirated engine and nothing like right on a
+boosted one — it made "was there boost" mean "was the peak above the peak",
+which is never true, so the boost finding could not fire on the logs it exists
+for. It now comes from the barometer channel, or from manifold pressure with the
+key on and the engine stopped, which is the barometer measured by the sensor that
+matters. With neither, it says so instead of inventing a datum.
+
+**The idle pooled the coast-down in with the idle.** A comment claimed the
+overrun was excluded "by requiring the engine not to be dropping"; no such test
+existed. So a car that was driven and then idled had its whole deceleration
+through 1,500 rpm counted as idle, and a deceleration spreads far wider than any
+hunt — a perfectly steady engine was reported as hunting on the strength of the
+driving before it. What separates the two is not the rate of change, which is
+similar: it is that a hunt oscillates about idle and stays there, while a coast
+comes down from above.
+
 ### Three findings a review had raised and nobody had fixed
 
 Each was verified against the source first, given a failing test, fixed, and then

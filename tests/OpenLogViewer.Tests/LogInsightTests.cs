@@ -511,6 +511,121 @@ public class LogInsightTests
         }
     }
 
+    // ----- vacuum, boost and what atmospheric was -----------------------------
+
+    /// <summary>A log with no barometer channel, which is most of them.</summary>
+    private static LogDocument NoBarometer(double[] rpm, double[] map, double[]? tps = null)
+    {
+        int n = rpm.Length;
+
+        return new LogDocument
+        {
+            FormatName = "test",
+            FilePath = "test",
+            Time = Channel("Time", "s", [.. Enumerable.Range(0, n).Select(i => i * 0.1)]),
+            Channels =
+            [
+                Channel("RPM", "RPM", rpm),
+                Channel("MAP", "kPa", map),
+                Channel("TPS", "%", tps ?? Repeat(30.0, n)),
+                Channel("CLT", "°F", Repeat(190.0, n)),
+            ],
+        };
+    }
+
+    /// <summary>
+    /// Ambient used to fall back to the highest manifold pressure in the log,
+    /// which asks "was the peak above the peak" and is never true. A boosted log
+    /// could not produce the boost finding that exists for it.
+    /// </summary>
+    [Fact]
+    public void BoostIsSeenOnALogThatStartsWithTheEngineStopped()
+    {
+        int n = 300;
+
+        // Thirty samples of key-on, engine stopped: manifold pressure is the
+        // barometer then, and this car is at 86 kPa. Then it runs, pulling
+        // vacuum off throttle and making boost on it, which is the shape of
+        // every real log from a turbocharged engine.
+        double[] rpm = [.. Enumerable.Range(0, n).Select(i => i < 30 ? 0.0 : 4000.0)];
+        double[] map =
+        [
+            .. Enumerable.Range(0, n).Select(i =>
+                i < 30 ? 86.0
+                : i % 2 == 0 ? 35.0
+                : 210.0),
+        ];
+
+        LogInsight? found = Topic(NoBarometer(rpm, map), "Manifold pressure");
+
+        Assert.NotNull(found);
+        Assert.Contains("boost", found.Title, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("86", found.Evidence);
+    }
+
+    /// <summary>
+    /// And with nothing to measure atmospheric against, it says so rather than
+    /// inventing a datum from the manifold's own peak.
+    /// </summary>
+    [Fact]
+    public void WithNoBarometerAndNoKeyOnSampleTheQuestionIsLeftUnanswered()
+    {
+        int n = 300;
+
+        LogInsight? found = Topic(
+            NoBarometer(Repeat(4000.0, n), Repeat(210.0, n)), "Manifold pressure");
+
+        Assert.NotNull(found);
+        Assert.Equal(InsightLevel.Unanswered, found.Level);
+        Assert.Contains("atmospheric", found.Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ----- the idle, and the driving before it --------------------------------
+
+    /// <summary>
+    /// The coast down through 1,500 rpm used to be pooled in with the idle. A
+    /// deceleration spreads far wider than any hunt, so a perfectly steady
+    /// engine was called hunting on the strength of the driving before it — and
+    /// a comment claimed a guard against exactly this that the code never had.
+    /// </summary>
+    [Fact]
+    public void ACarDrivenAndThenIdlingSteadilyIsNotCalledHunting()
+    {
+        // Two seconds coasting from 1,500 rpm down to idle, then ten seconds
+        // sitting at 800 with the ordinary rpm or two of wander. The coast is
+        // what used to be pooled in: on its own it spreads the closed-throttle
+        // samples wide enough to clear the hunting threshold three times over,
+        // while the idle either side of it is as steady as an engine gets.
+        var rpm = new List<double>();
+        for (int i = 0; i < 20; i++) rpm.Add(1500 - (i * 35.0));
+        for (int i = 0; i < 100; i++) rpm.Add(800 + (i % 3) - 1);
+
+        int n = rpm.Count;
+
+        LogInsight? found = Topic(
+            NoBarometer([.. rpm], Repeat(40.0, n), Repeat(0.5, n)), "Idle");
+
+        Assert.NotNull(found);
+        Assert.NotEqual(InsightLevel.Watch, found.Level);
+        Assert.DoesNotContain("hunting", found.Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnEngineThatReallyHuntsIsStillCaughtAfterADrive()
+    {
+        var rpm = new List<double>();
+        for (int i = 0; i < 20; i++) rpm.Add(1500 - (i * 35.0));
+        for (int i = 0; i < 300; i++) rpm.Add(800 + (i % 2 == 0 ? 220 : -220));
+
+        int n = rpm.Count;
+
+        LogInsight? found = Topic(
+            NoBarometer([.. rpm], Repeat(40.0, n), Repeat(0.5, n)), "Idle");
+
+        Assert.NotNull(found);
+        Assert.Contains("hunting", found.Title, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ----- a counted time base ------------------------------------------------
 
     [Fact]
