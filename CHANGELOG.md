@@ -5,6 +5,71 @@
 Everything below landed in one run of work. Grouped by what it does for you
 rather than by commit.
 
+### Logs with a gap in their time column stopped being read as sample counts
+
+**Three of seven real MS3 recordings to hand were losing their time base
+entirely, and nothing said so.** TunerStudio writes a NaN into the first
+sample's Time often enough that it is ordinary. The reader decided whether to
+trust a time column by asking whether its last reading beat its first — and
+every comparison against NaN is false, so a sound column spanning 1,754 seconds
+was thrown away and replaced by a count of samples.
+
+A 29-minute drive was then reported as **7 hours 18 minutes**, and every number
+measured against time was out by the logging rate — about fifteen times, in the
+direction that flatters it. The virtual dyno is the worst of these: power is a
+rate, so it produced a perfectly shaped curve that was wrong throughout.
+
+- Both readers now judge a time column by its first and last **real** readings.
+  The delimited reader had the same blind spot with the opposite sign — it
+  tested each reading against the one before it, which a NaN in between also
+  makes false, so it accepted columns that plainly ran backwards. The rule lives
+  in one place now rather than being written out twice and disagreeing.
+- The time base itself is filled, so the axis is a clean run of seconds even
+  where the column it came from has a hole. The recorded Time channel keeps its
+  hole, because that is what the file says.
+- `LogDocument.HasRealTimeBase` says whether the base was read or counted, and
+  **the dyno and the coastdown now refuse a counted one** rather than answering
+  wrongly. Insights reports it as a warning, with what it affects.
+
+### A calculated channel no longer breaks when the one it reads is removed
+
+Definitions were applied in the order they happened to be saved, so a channel
+could only read one defined above it. The editor appends, so writing the pieces
+of an estimate in the order you think of them produced a set that did not build,
+with nothing in the file to show why. They are now placed by repeated passes
+until no more will go, which is order-independent; a genuine cycle is reported
+rather than looped on.
+
+Two more things that went with it:
+
+- **Removing a definition says what it breaks.** It used to go quietly. That is
+  how the power estimate's three channels became two that could not build — the
+  airflow the other two read had been removed and nothing mentioned them.
+- **A failure names the definition that actually broke.** A chain fails at its
+  root, but the parser can only complain about the name in front of it: with the
+  airflow gone, "Torque (est)" reported `Unexpected '('`, because it had matched
+  the log's own shorter "Power" channel and choked on the bracket left in the
+  name. True, and two definitions away from the cause. It now reads *It reads
+  "Power (speed density)", which could not be built: 'Airflow' is not a channel
+  in this log, nor a function.*
+
+### Three findings a review had raised and nobody had fixed
+
+Each was verified against the source first, given a failing test, fixed, and then
+had the defect put back to confirm the test caught it.
+
+- **`--insights` swallowed the log path.** It was listed among the switches that
+  take a value and takes none, so `--insights run.mlg` opened no log while
+  `run.mlg --insights` worked — which reads as an intermittent fault rather than
+  a rule. The list is now walked by a test that asserts every switch in it
+  consumes exactly one value.
+- **A float past what a float can hold was sent to the ECU.** Every integer type
+  was range-checked and F32 was not: the cast produced ±Infinity without
+  failing, and the write went out. On rusEFI nearly every setting is an F32.
+- **An even smoothing window threw.** The buffer was sized to the window, and a
+  window of four gathers five samples — two either side plus the sample. Every
+  level the application offers is odd, so it had never fired.
+
 ### The documentation was audited and restructured
 
 The README had become the entire product manual — 1,150 lines covering
