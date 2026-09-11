@@ -402,6 +402,17 @@ public sealed class CurveView : FrameworkElement
 
         Point pointer = e.GetPosition(this);
 
+        // Both tested, the way TuneTableView tests them. The button state alone
+        // is not enough — a drag that ends over another window releases the
+        // button where this control never sees it — and capture alone is not
+        // either, so they are asked together and a drag that has lost the
+        // pointer ends here rather than following it about.
+        if (_dragging >= 0 && (!IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed))
+        {
+            EndDrag();
+            return;
+        }
+
         if (_dragging >= 0)
         {
             if (_draggingX) curve.SetX(_dragging, BreakpointAt(pointer.X));
@@ -448,12 +459,35 @@ public sealed class CurveView : FrameworkElement
     {
         base.OnMouseLeftButtonUp(e);
 
+        EndDrag();
+    }
+
+    /// <summary>
+    /// Whatever takes the capture away — another window, a menu, an alt-tab —
+    /// ends the drag too.
+    ///
+    /// Without this the point stayed held: <c>_dragging</c> kept its index, and
+    /// every later pointer move over the control went on editing that
+    /// breakpoint with no button pressed. The table view has guarded exactly
+    /// this since it was written.
+    /// </summary>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+
+        EndDrag();
+    }
+
+    private void EndDrag()
+    {
         if (_dragging < 0) return;
 
         _dragging = -1;
         _heldX = null;
         _heldY = null;
-        ReleaseMouseCapture();
+
+        if (IsMouseCaptured) ReleaseMouseCapture();
+
         InvalidateVisual();
         RaiseEdited();
     }
