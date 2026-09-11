@@ -177,4 +177,34 @@ public class SmoothingTests
         // And the log still holds it, so anything measuring finds it.
         Assert.Equal(17.5, log.FindChannel("AFR")!.At(100));
     }
+
+    /// <summary>
+    /// An even window gathers one more sample than the window says — 4 takes two
+    /// either side, so five — and the buffer was sized to the window. Every level
+    /// the application offers is odd, so this never fired in the product and sat
+    /// waiting for the first caller to pass an even one.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(6)]
+    [InlineData(8)]
+    public void AnEvenWindowSmoothsRatherThanThrowing(int window)
+    {
+        double[] values = [.. Enumerable.Range(0, 40).Select(i => (double)(i % 7))];
+
+        double[] smoothed = Smoothing.Median(values, window);
+
+        Assert.Equal(values.Length, smoothed.Length);
+        Assert.All(smoothed, v => Assert.True(double.IsFinite(v)));
+    }
+
+    [Fact]
+    public void AnEvenWindowTakesTheSameSpanAsTheOddOneAboveIt()
+    {
+        // 4 and 5 both reach two samples either side, so they agree throughout.
+        double[] values = [.. Enumerable.Range(0, 30).Select(i => (double)((i * 13) % 11))];
+
+        Assert.Equal(Smoothing.Median(values, 5), Smoothing.Median(values, 4));
+    }
 }

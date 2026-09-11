@@ -299,4 +299,50 @@ public class ReviewFixTests
         Assert.Contains("left alone", plan.Summary, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ----- a float past what a float can hold ---------------------------------
+
+    private const string Floats = """
+        [Constants]
+        endianness = little
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+           cranking = scalar, F32, 0, "ms", 1, 0, 0, 1000, 2
+        """;
+
+    /// <summary>
+    /// Every integer type was range-checked and F32 was not, so a number past
+    /// what a float can hold became ±Infinity on the cast — silently, because
+    /// the cast does not fail — and was sent to the controller. On rusEFI nearly
+    /// every setting is an F32.
+    /// </summary>
+    [Theory]
+    [InlineData(1e39)]
+    [InlineData(-1e39)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NaN)]
+    public void AFloatThatWillNotFitIsRefusedRatherThanSentAsInfinity(double value)
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Floats);
+        EcuTune tune = EcuTune.FromPages(layout, new byte[16]);
+        TuneConstant cranking = tune.Constant("cranking")!;
+
+        Assert.False(tune.PokeInto(tune.Pages, cranking, 0, value));
+
+        // And the page is untouched, rather than holding a half-written number.
+        Assert.Equal(0, tune.ValueIn(tune.Pages, "cranking"));
+    }
+
+    [Fact]
+    public void AFloatThatFitsIsStillWritten()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Floats);
+        EcuTune tune = EcuTune.FromPages(layout, new byte[16]);
+        TuneConstant cranking = tune.Constant("cranking")!;
+
+        Assert.True(tune.PokeInto(tune.Pages, cranking, 0, 12.5));
+        Assert.Equal(12.5, tune.ValueIn(tune.Pages, "cranking")!.Value, 4);
+    }
 }

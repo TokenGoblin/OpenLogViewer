@@ -466,6 +466,16 @@ public sealed class EcuTune
 
             case RealtimeType.F32:
                 // A float keeps its fraction; rounding it would be the bug.
+                //
+                // Range-checked like every integer type, which it was not. A
+                // value past what a float can hold becomes ±Infinity on the cast
+                // — silently, because the cast does not fail — and was then sent
+                // to the controller. On rusEFI nearly every setting is F32, so
+                // this was the one type where a bad number in an .msq reached
+                // the ECU unexamined.
+                if (!double.IsFinite(value)
+                    || value is < -float.MaxValue or > float.MaxValue) return false;
+
                 if (little) BinaryPrimitives.WriteSingleLittleEndian(at, (float)value);
                 else BinaryPrimitives.WriteSingleBigEndian(at, (float)value);
                 return true;

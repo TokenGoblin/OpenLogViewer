@@ -35,14 +35,17 @@ public partial class App : Application
     }
 
     /// <summary>Switches that are followed by a value rather than standing alone.</summary>
-    private static readonly string[] TakesAValue =
+    internal static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
         "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--dyno",
         "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
-        "--insights",
+        // "--insights" is deliberately absent: it stands alone and opens the
+        // findings for whatever log is loaded. Listing it here made it swallow
+        // the following argument, so "--insights run.mlg" opened no log at all
+        // while "run.mlg --insights" worked — which reads as intermittent.
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi",
     ];
@@ -56,7 +59,7 @@ public partial class App : Application
     /// and the failure surfaces as a modal dialog before the window is shown,
     /// which looks exactly like the app hanging on startup.
     /// </summary>
-    private static string? LogPathIn(string[] args)
+    internal static string? LogPathIn(string[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
