@@ -90,6 +90,8 @@ OpenLogViewer.App.exe log.mlg --find "RPM > 4000 && TPS > 80"
 | `--connect-ble` | A device name or id | Connects to a Bluetooth LE OBD2 adapter |
 | `--connect-wifi` | `host:port`, or `auto` | Connects to a Wi-Fi OBD2 adapter. `auto` tries the known addresses |
 | `--connect-ssm` | A port | Connects to a Subaru over SSM |
+| `--connect-maxxecu-usb` | — | Connects to a MaxxECU over its USB cable. No port is given, because a MaxxECU on USB never becomes one |
+| `--maxxecu-serial` | A USB serial, e.g. `MX000000` | With `--connect-maxxecu-usb`, picks which ECU when more than one is plugged in |
 | `--connect-menu` | A menu entry | Connects via the entry with that label in the connect menu |
 | `--settle` | Milliseconds | Waits for the session to settle before doing anything else |
 | `--mcp` | — | Arms the local MCP server at startup |

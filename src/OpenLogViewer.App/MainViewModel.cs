@@ -3537,15 +3537,44 @@ public sealed partial class MainViewModel : ObservableObject
     ///
     /// Nothing of the TunerStudio path applies: there is no signature to ask
     /// for, no firmware INI, and no way to read the tune — so this gets gauges
-    /// and logging, and calibration stays empty. The fourteen channels are
-    /// fixed, because a subscription can only be replayed from one that was
-    /// captured and not composed.
+    /// and logging, and calibration stays empty.
+    ///
+    /// The same call for a USB cable and for a paired Bluetooth port. A MaxxECU
+    /// puts the identical protocol on both — its radio is a relay in front of
+    /// the controller, not a second way of asking — so there is nothing here to
+    /// branch on and nothing a caller has to know.
     /// </summary>
     public void ConnectMaxxEcu(string port)
     {
+        // Three attempts is a Bluetooth accommodation: establishing an RFCOMM
+        // link is reported to fail the first time after an ECU boots and succeed
+        // the second.
+        StartMaxxEcu(new SerialEcuTransport(port) { OpenAttempts = 3 }, port);
+    }
+
+    /// <summary>
+    /// Starts a session against a MaxxECU over its USB port.
+    ///
+    /// Its own entry because a MaxxECU's USB is not a serial port and cannot be
+    /// reached as one. Windows gives it no COM number at all — the driver
+    /// Maxxtuning ships installs the FTDI bus half and no virtual port — so it
+    /// appears in no list of ports, and the device is opened through FTDI's own
+    /// library instead. See <see cref="FtdiEcuTransport"/>.
+    /// </summary>
+    /// <param name="serial">
+    /// The serial in the ECU's own USB chip, or empty for whichever MaxxECU is
+    /// plugged in. It is what identifies the ECU across a replug.
+    /// </param>
+    public void ConnectMaxxEcuUsb(string serial = "")
+    {
         Disconnect();
 
-        var source = new MaxxEcuSource(new SerialEcuTransport(port) { OpenAttempts = 3 });
+        // A different protocol, not the same one over a different wire — so a
+        // different source. See MaxxUsbProtocol.
+        var source = new MaxxUsbSource(
+            new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate));
+
+        string where = serial.Length > 0 ? $"USB {serial}" : "USB";
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
         _live = new LiveSession(source, new LiveSessionSettings
@@ -3556,16 +3585,78 @@ public sealed partial class MainViewModel : ObservableObject
 
         _live.Start();
 
-        _livePort = port;
+        _livePort = where;
         _liveSignature = "MaxxECU";
         _liveVersion = "";
         _liveIni = "";
         _liveRecording = recording ?? "";
 
+        if (serial.Length > 0) SerialPortNames.RememberDevice(serial, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+
+        SeedMaxxGauges(source.Channels);
+
+        Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
+        Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
+        Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
+               + $"session found {source.Channels.Count} of them by asking rather than by being "
+               + "told. Its tune is not read, so calibration is not available.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
+        RaiseRecording();
+    }
+
+    /// <summary>
+    /// The part that is the same whichever link a MaxxECU is reached over.
+    ///
+    /// Written once rather than twice: the USB path was added after the
+    /// Bluetooth one, and everything from the gauges to remembering the device
+    /// is wiring that a second copy would have been free to forget.
+    /// </summary>
+    /// <param name="deviceId">
+    /// What to remember the ECU by: the port's own hardware id where it has a
+    /// port, and the USB serial where it does not.
+    /// </param>
+    private void StartMaxxEcu(IEcuTransport transport, string where, string deviceId = "")
+    {
+        Disconnect();
+
+        var source = new MaxxEcuSource(transport);
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
+
+        _live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
+
+        _live.Start();
+
+        _livePort = where;
+        _liveSignature = "MaxxECU";
+        _liveVersion = "";
+        _liveIni = "";
+        _liveRecording = recording ?? "";
+
+        // Remembered against the device, as every other connection path does and
+        // this one did not. Without it a MaxxECU never joins the "used before"
+        // group in the connect menu and never becomes the Ctrl+K reconnect.
+        if (deviceId.Length > 0) SerialPortNames.RememberDevice(deviceId, _liveSignature);
+        else SerialPortNames.Remember(where, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+
         SeedMaxxGauges();
 
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
-        Title = "Live: MaxxECU — OpenLogViewer";
+        Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
         Hint = $"{Opening(recording)} A MaxxECU sends a fixed set of channels, "
                + "and its tune cannot be read, so calibration is not available for it.";
 
@@ -4123,7 +4214,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// name, unit, scale and limits — so the dials come from the same place the
     /// decode does rather than from anything invented here.
     /// </summary>
-    private void SeedMaxxGauges()
+    private void SeedMaxxGauges() => SeedMaxxGauges(MaxxProtocol.Subscribed);
+
+    /// <param name="channels">
+    /// What this session actually carries. Fourteen over Bluetooth, where the
+    /// subscription fixes them; over USB, however many the ECU turned out to
+    /// name — which is why this is a parameter rather than a constant.
+    /// </param>
+    private void SeedMaxxGauges(IReadOnlyList<MaxxChannel> channels)
     {
         foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
 
@@ -4132,7 +4230,13 @@ public sealed partial class MainViewModel : ObservableObject
         _gaugeIni = null;
         _revCounterScaled = false;
 
-        IReadOnlyList<GaugeSpec> specs = MaxxGauges.For(MaxxProtocol.Subscribed, MaxxGauges.FindDefinitions());
+        IReadOnlyList<GaugeSpec> specs = MaxxGauges.For(channels, MaxxGauges.FindDefinitions());
+
+        // A hundred dials is a catalogue rather than a dashboard, so over USB
+        // only the ones anybody watches are put out. Every channel is still in
+        // the sidebar, still logged and still recorded — this is which of them
+        // start on screen.
+        bool everyOne = specs.Count <= 20;
 
         foreach (GaugeSpec spec in specs)
         {
@@ -4141,8 +4245,7 @@ public sealed partial class MainViewModel : ObservableObject
             item.ShownChanged += OnGaugeShownChanged;
             AllGauges.Add(item);
 
-            // Every one of them: fourteen is a dashboard, not a catalogue.
-            if (item.IsConnected)
+            if (item.IsConnected && (everyOne || Dashboard.Count < 12))
             {
                 item.Show(true);
                 Dashboard.Add(item);

@@ -161,7 +161,9 @@ public static class LiveTools
             $"connect over SSM on {port}");
 
     [McpServerTool]
-    [Description("Connects to a MaxxECU over a serial port.")]
+    [Description("Connects to a MaxxECU over a serial port, which is how a paired "
+                 + "Bluetooth one is reached. A MaxxECU on USB has no port: use "
+                 + "ConnectMaxxEcuUsb for that.")]
     public static Task<object> ConnectMaxxEcu(
         [Description("Port name.")] string port,
         MainViewModel vm,
@@ -171,6 +173,31 @@ public static class LiveTools
             window => window.ConnectToMaxxEcu(port),
             () => vm.ConnectMaxxEcu(port),
             $"connect to the MaxxECU on {port}");
+
+    [McpServerTool]
+    [Description("Connects to a MaxxECU over its USB cable. A MaxxECU's USB is an FTDI "
+                 + "device rather than a COM port, so it appears in no list of serial "
+                 + "ports; ListMaxxEcuUsb says which are plugged in.")]
+    public static Task<object> ConnectMaxxEcuUsb(
+        [Description("The ECU's USB serial, or empty for whichever one is plugged in.")]
+        string serial,
+        MainViewModel vm,
+        IWindowSource windows,
+        IUiDispatcher dispatcher) =>
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectToMaxxEcuUsb(serial ?? ""),
+            () => vm.ConnectMaxxEcuUsb(serial ?? ""),
+            $"connect to the MaxxECU on USB{(serial is { Length: > 0 } ? $" ({serial})" : "")}");
+
+    [McpServerTool]
+    [Description("Lists the MaxxECUs plugged in over USB, with the serial each is opened by.")]
+    public static object ListMaxxEcuUsb() =>
+        new
+        {
+            available = FtdiEcuTransport.IsAvailable,
+            devices = FtdiEcuTransport.MaxxEcus()
+                .Select(d => new { d.Serial, d.Description, inUseByAnotherProgram = d.IsOpen }),
+        };
 
     [McpServerTool]
     [Description("Closes the live connection, and the recording with it if one is running.")]

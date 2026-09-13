@@ -26,6 +26,11 @@
          "-bench" ones were written over the wire from the boards themselves. -->
     <None Include="Fixtures\*.channels" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\*.logged" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- Request and reply pairs recorded off the same ECU over USB, which is a
+         different protocol from the Bluetooth one above and was recovered by
+         watching MTune rather than from any documentation. -->
+    <None Include="Fixtures\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

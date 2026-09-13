@@ -186,8 +186,13 @@ as something an agent can act on rather than as an opaque error.
 ### Live
 
 `list_serial_ports`, `list_ble_adapters`, `connect_serial`, `connect_obd2`,
-`connect_obd2_wifi`, `connect_obd2_ble`, `connect_ssm`, `connect_maxx_ecu`, `disconnect`,
+`connect_obd2_wifi`, `connect_obd2_ble`, `connect_ssm`, `connect_maxx_ecu`,
+`list_maxx_ecu_usb`, `connect_maxx_ecu_usb`, `disconnect`,
 `get_live_status`, `read_live_channels`, `start_recording`, `stop_recording`.
+
+`connect_maxx_ecu` takes a port, which is how a paired Bluetooth MaxxECU is reached.
+A MaxxECU on USB has no port at all — it is an FTDI device — so it has its own pair of
+tools, and `list_maxx_ecu_usb` is the one that says which are plugged in.
 
 **No tool scans for something to attach to and attaches to it.** Every connect tool takes a
 port or an address, because a MicroSquirt in a running car and a Speeduino on a bench look

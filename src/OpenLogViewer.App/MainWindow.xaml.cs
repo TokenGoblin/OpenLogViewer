@@ -1051,7 +1051,24 @@ public partial class MainWindow : Window
             Add(scan);
         }
 
-        if (wired.Length + paired.Length + adapters.Count == 0)
+        // A MaxxECU on USB, which belongs here with the other devices that are
+        // actually plugged in rather than down among the entries that are always
+        // offered. It cannot come from the port list: a MaxxECU on USB never
+        // becomes a COM port, because the driver MaxxECU ships installs FTDI's
+        // bus driver without the virtual-port half. Anybody hunting for it among
+        // the ports is looking somewhere it has never been.
+        MenuItem[] usbMaxxEcus = [.. MaxxEcuUsbItems()];
+
+        if (usbMaxxEcus.Length > 0)
+        {
+            if (wired.Length + paired.Length + adapters.Count > 0) Add(new Separator());
+
+            foreach (MenuItem item in usbMaxxEcus) Add(item);
+        }
+
+        // Counted in, or the menu says "Nothing found" directly above a MaxxECU
+        // it has just found.
+        if (wired.Length + paired.Length + adapters.Count + usbMaxxEcus.Length == 0)
             Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
 
         // Always offered, unlike everything above it. A Wi-Fi dongle appears in
@@ -1426,6 +1443,125 @@ public partial class MainWindow : Window
         await StartLiveOverWifi(address, quiet: true);
 
         App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
+    }
+
+    /// <summary>
+    /// An entry for each MaxxECU plugged in over USB.
+    ///
+    /// These cannot come from the port list, because a MaxxECU on USB never
+    /// becomes a COM port: the driver Maxxtuning ships installs FTDI's bus
+    /// driver without the virtual-port half, so Windows lists the ECU under
+    /// "Universal Serial Bus controllers" and gives it no port number at all.
+    /// Anybody hunting for it among the COM ports is looking somewhere it has
+    /// never been.
+    ///
+    /// Listed only when one is actually plugged in, unlike the paired Bluetooth
+    /// entries above: a cable is present or it is not, and there is nothing to
+    /// offer when it is not.
+    /// </summary>
+    private IEnumerable<MenuItem> MaxxEcuUsbItems()
+    {
+        IReadOnlyList<FtdiDevice> found;
+
+        try
+        {
+            found = FtdiEcuTransport.MaxxEcus();
+        }
+        catch (Exception e)
+        {
+            // A menu is never worth a crash, and a machine without the FTDI
+            // library simply has no MaxxECU to offer.
+            App.Report($"Could not list the USB MaxxECUs: {e.Message}");
+            yield break;
+        }
+
+        foreach (FtdiDevice device in found)
+        {
+            var item = new MenuItem
+            {
+                Header = Decorate($"{device.Label} (USB)", Seen(device.Serial)),
+                ToolTip = device.IsOpen
+                    ? "Already open in another program — MTune holds it for as long as it is "
+                      + "connected, and two programs cannot share it."
+                    : "A MaxxECU on its USB cable. It is an FTDI device rather than a COM port, "
+                      + "which is why it is not in the list of ports above.",
+            };
+
+            item.Click += async (_, _) => await StartMaxxEcuUsb(device);
+
+            yield return item;
+        }
+    }
+
+    /// <summary>
+    /// Connects to a MaxxECU over USB, off the interface thread.
+    ///
+    /// Opening one is quick, but arming it is not: the ECU answers the
+    /// activation with its configuration and label dumps before the first
+    /// reading, and the session is not reported as live until a reading has
+    /// actually arrived.
+    /// </summary>
+    private async Task StartMaxxEcuUsb(FtdiDevice device, bool quiet = false)
+    {
+        ConnectButton.IsEnabled = false;
+        _vm.SetHint($"Connecting to {device.Label} over USB…");
+
+        try
+        {
+            Exception? failure = await Task.Run(() =>
+            {
+                try
+                {
+                    _vm.ConnectMaxxEcuUsb(device.Serial);
+                    return null;
+                }
+                catch (Exception e)
+                {
+                    return e;
+                }
+            });
+
+            if (failure is not null)
+            {
+                Record(device.Serial, "no answer");
+
+                if (quiet) App.Report($"Could not connect to {device.Label}: {failure}");
+                else
+                    MessageBox.Show(this,
+                        $"Could not connect to {device.Label} over USB.\n\n{failure.Message}",
+                        "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                _vm.SetHint($"{device.Label} did not answer.");
+                return;
+            }
+
+            Record(device.Serial, "answered");
+        }
+        finally
+        {
+            ConnectButton.IsEnabled = true;
+        }
+
+        LiveSessionStarted();
+    }
+
+    /// <summary>Opens a MaxxECU over USB, for a scripted run or an agent.</summary>
+    public void ConnectToMaxxEcuUsb(string serial = "")
+    {
+        FtdiDevice? device = FtdiEcuTransport.MaxxEcus()
+            .FirstOrDefault(d => serial.Length == 0
+                                 || d.Serial.Equals(serial, StringComparison.OrdinalIgnoreCase));
+
+        if (device is null)
+        {
+            App.Report(serial.Length > 0
+                ? $"no MaxxECU on USB with serial {serial}"
+                : "no MaxxECU is plugged in over USB");
+
+            return;
+        }
+
+        _ = StartMaxxEcuUsb(device, quiet: true);
     }
 
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)

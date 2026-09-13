@@ -2,7 +2,57 @@
 
 ## Unreleased
 
-Nothing yet.
+### A MaxxECU can now be connected over USB, with every channel it sends
+
+**A MaxxECU's USB port is not a COM port and never becomes one.** The driver
+MaxxECU ships installs FTDI's bus driver with no virtual-serial-port half, so
+Windows lists the ECU under *Universal Serial Bus controllers* and gives it no
+port number — which meant the "Serial / USB" this documented had never been
+possible. Looking for it among the COM ports finds nothing, and nothing is wrong
+with the cable.
+
+It is reached through FTDI's own library instead, and it appears in **Connect ▾**
+as its own entry when one is plugged in.
+
+USB also turned out to speak **a different protocol from Bluetooth** — no shared
+byte of framing, no activation to replay — so it is a different implementation
+rather than the same one over another wire. It is the better of the two:
+
+- **Every channel the ECU sends, not a fixed fourteen.** 136 on the unit this was
+  proven against. The USB stream names each value it carries, so the session asks
+  the ECU what it has rather than being told in advance, and names, units and
+  decimals come from MTune's own channel definitions.
+- Verified on a MaxxECU Race: battery 13.80 V, MAP 86.8 kPa against a barometric
+  86.7 kPa with the engine stopped, both unplugged temperature sensors pegged at
+  their −39.9 °C floor.
+
+### The MaxxECU checksum was identified, so its messages can be composed
+
+The Bluetooth path could only ever **replay** messages captured from MTune, which
+is why its channel list was frozen at fourteen: the checksum had defeated an
+exhaustive search of 16-bit CRCs. It is the STM32's own CRC peripheral —
+CRC-32/MPEG-2 fed as little-endian 32-bit words, which is what hid it from a
+byte-oriented search — and it is now verified against **411 of 411** recorded
+frames. Composing the captured activation and subscription reproduces them byte
+for byte.
+
+The frame reader checks it, so a trailer that happens to occur inside a payload
+is now rejected by arithmetic rather than accepted as a frame.
+
+### A MaxxECU session says it is live only once a reading has arrived
+
+Opening the link and arming it were being reported as a connection. A paired
+Bluetooth port whose ECU is switched off opens perfectly happily, so the window
+said "Live — MaxxECU", drew empty gauges, and dropped the session seconds later
+from a background thread — which reads as a link that worked and then broke
+rather than one that was never there.
+
+### A MaxxECU is remembered, like every other controller
+
+It was the one connection path that never recorded what answered, so a MaxxECU
+never joined the "used before" group in the connect menu and never became the
+**Ctrl+K** reconnect. Devices with no COM port — which is every MaxxECU on USB —
+are remembered by their USB serial.
 
 ## 0.2.0 — 2026-09-11
 

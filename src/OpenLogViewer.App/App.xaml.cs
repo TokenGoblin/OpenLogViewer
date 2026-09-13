@@ -48,6 +48,13 @@ public partial class App : Application
         // while "run.mlg --insights" worked — which reads as intermittent.
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi",
+        // The serial that "--connect-maxxecu-usb" may be narrowed with. It is a
+        // switch of its own rather than a value after that one, because the
+        // value is optional — one MaxxECU needs no naming — and a switch listed
+        // here swallows whatever follows it whether or not that was meant for
+        // it. That is the "--insights" trap above, and it turns
+        // "--connect-maxxecu-usb run.mlg" into a session with no log open.
+        "--maxxecu-serial",
     ];
 
     /// <summary>
@@ -158,6 +165,17 @@ public partial class App : Application
 
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
+
+        // "--connect-maxxecu-usb" opens a MaxxECU over its USB cable. There is no
+        // port to give it: a MaxxECU on USB never becomes a COM port. Add
+        // "--maxxecu-serial MX000000" where more than one is plugged in.
+        if (e.Args.Contains("--connect-maxxecu-usb"))
+        {
+            int named = Array.IndexOf(e.Args, "--maxxecu-serial");
+
+            window.ConnectToMaxxEcuUsb(
+                named >= 0 && named + 1 < e.Args.Length ? e.Args[named + 1] : "");
+        }
 
         // "--connect-wifi 192.168.0.10:35000" opens a Wi-Fi OBD2 dongle, which
         // is reachable by address and by nothing else. The address may be left

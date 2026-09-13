@@ -85,6 +85,10 @@ easy to add — the delimited reader is one file.
 | The session dies the moment it starts | **Read the block in one request** is on and the firmware cannot do it | **Tools ▸ Read the block in one request**, turn it off |
 | The board resets when connecting | Normal on Arduino-based boards such as a Speeduino | Unburned tune changes are lost. Burn before reconnecting |
 | The indicator goes hollow and amber | The link was lost | This is normal for key-off. It is waited on for 60 s and the session resumes into the same recording |
+| A MaxxECU on USB is in no list of ports | It never becomes a COM port | This is normal and not a fault. Its USB is an FTDI device, so it has its own entry in **Connect ▾** reading `MaxxECU (…) (USB)`. See [MaxxECU](Live-connection#maxxecu) |
+| "…is already open in another program" for a MaxxECU on USB | MTune holds it | MTune keeps the USB device for as long as it is connected. Disconnect there first |
+| A MaxxECU on USB is not listed even when plugged in | The FTDI library is missing, or the ECU is unpowered | `ftd2xx.dll` arrives with MTune and with MaxxECU's driver package. The ECU's USB chip enumerates on USB power alone, so check the ECU has 12 V as well |
+| A MaxxECU on USB says nothing answered as a MaxxECU | The ECU has no 12 V | Its USB chip powers up from the cable alone, so it is listed whether or not the ECU is running. Check main power |
 
 ## OBD2 adapters
 
