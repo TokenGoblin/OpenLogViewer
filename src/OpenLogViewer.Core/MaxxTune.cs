@@ -214,9 +214,17 @@ public static class MaxxTune
     /// <para>
     /// Recovered from the firmware rather than from the wire: no capture of MTune
     /// writing a tune exists, so the command and the field order here are what
-    /// the 1.151 dispatcher and the packet handler read, cross-checked against
-    /// the two writes MTune's connect handshake does send. See
-    /// <c>MAXXECU_USB_PROTOCOL_RECOVERED.md</c>.
+    /// the 1.151 dispatcher reads, cross-checked against the two writes MTune's
+    /// connect handshake does send. See <c>MAXXECU_USB_PROTOCOL_RECOVERED.md</c>.
+    /// </para>
+    /// <para>
+    /// The offset goes where a read's offset goes, which was not obvious and is
+    /// now settled. The dispatcher appears to take the offset from byte 4 and the
+    /// length from byte 2 — backwards — because it is not handed the packet at
+    /// all: the packet handler copies the header into a state struct whose
+    /// <c>+0x04</c> offset is filled from wire bytes 2–3 and whose <c>+0x02</c>
+    /// length comes from bytes 4–5. Read and write then address one and the same
+    /// buffer, so the addresses in MTune's definitions are write addresses too.
     /// </para>
     /// </summary>
     /// <param name="transport">An open link to the ECU.</param>

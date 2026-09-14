@@ -132,7 +132,8 @@ still read and cannot be named, and the connection says so.
 > mistake. A MaxxECU applies a write to the running tune and persists it itself,
 > in one step. **Nothing in OpenLogViewer writes a MaxxECU** — the tables are
 > shown, not sent — and that will not change until a write has been aimed at a
-> known address and read back from it.
+> known address on real hardware and read back from it, with the original put
+> back afterwards.
 
 The first two seconds of a USB session are spent listening, which is how long it
 takes to hear what the ECU is sending. Longer does not help — measured against

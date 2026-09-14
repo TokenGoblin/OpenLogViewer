@@ -187,14 +187,30 @@ definitions, which are what name the tables and scale them.
 Its **tune write** is proven only in the one respect that cannot go wrong. The
 ECU accepted a 256-byte write and read it back, but the bytes written were the
 ones already there, with the offset and the length set to the same number — so
-both readings of those two header fields describe the same operation and that
-operation changes nothing. The reason for the care is that the firmware's
-dispatcher, as decompiled, reads the offset from byte 4 and the length from
-byte 2, which is the opposite of the read path, of the packet handler beside it
-and of the wire. **Until that is settled, a write cannot be aimed**, and nothing
-in the application can reach `MaxxTune.Write` — there is no Send to ECU on that
-path. A MaxxECU has no burn, so a misplaced write would be permanent as it
-landed.
+both readings of the two header fields describe the same operation and that
+operation changes nothing.
+
+That care was taken because the firmware's dispatcher appeared to read the offset
+from byte 4 and the length from byte 2, the opposite of the read path. **That is
+now settled and there was no contradiction**: the dispatcher is not handed the
+packet. The packet handler copies the header into a state struct whose `+0x04`
+offset is filled from wire bytes 2–3 and whose `+0x02` length comes from bytes
+4–5, and read and write address the same buffer — so a read's offset is a
+write's offset, and the addresses in MTune's definitions are write addresses too.
+
+So a write **can** now be aimed, and has not been. What is missing is the one
+test that matters: change a harmless setting, confirm that exactly those bytes
+moved and nothing else did, and put the original back. Until that has been run,
+nothing in the application can reach `MaxxTune.Write` — there is no Send to ECU
+on that path, and a MaxxECU has no burn, so a misplaced write would be permanent
+as it landed.
+
+The handshake write `0x07` is also explained now, and it is not nothing: it
+clears a byte that **gates reading the tune** — `0x11` arms that gate from
+`tune[0x382E]` and a `0x05` read refuses with `0x60` while it is set. On the
+bench Race `tune[0x382E]` is zero, so the gate was already clear and the replay
+changed nothing, which is why the 15-of-15 comparison found nothing moved. On an
+ECU where that byte is not zero, the same command would do something.
 
 A MaxxECU over **Bluetooth** has not been reached since the connect-time proving
 read was added. No MaxxECU Bluetooth module is paired with this machine, so it
