@@ -3569,6 +3569,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         Disconnect();
 
+        // The tune first, while the cable is still nobody's.
+        //
+        // A MaxxECU has one USB device and one program may hold it, so the tune
+        // cannot be read alongside the telemetry poll — it has to happen before
+        // the session takes the cable or not at all. Four seconds, once, which is
+        // about what a MegaSquirt spends on the same errand.
+        byte[]? blob = ReadMaxxTune(serial);
+
         // A different protocol, not the same one over a different wire — so a
         // different source. See MaxxUsbProtocol.
         var source = new MaxxUsbSource(
@@ -3598,14 +3606,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         SeedMaxxGauges(source.Channels);
 
+        string tune = blob is null ? "" : AdoptMaxxTune(blob);
+
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
         Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
         Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
                + $"session found {source.Channels.Count} of them by listening rather than by "
                + "being told — a channel it sends only when the value changes, so what is here "
                + "depends on what was moving. RPM, coolant, lambda and the rest worth having are "
-               + "logged whether they moved or not, and read zero until the ECU first reports "
-               + "them. Its tune is not read, so calibration is not available.";
+               + $"logged whether they moved or not, and read zero until the ECU first reports them.{tune}";
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));
@@ -3613,6 +3622,83 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(CanRecord));
         Raise(nameof(CanReconnect));
         RaiseRecording();
+    }
+
+    /// <summary>
+    /// Reads the ECU's tune, or gives up quietly.
+    ///
+    /// Quietly because a tune is not what somebody connected for. The session is
+    /// worth having without it — on a machine that has never had MTune there are
+    /// no definitions to read it with, and on one that has, the read can still
+    /// fail — and none of that is a reason to refuse to log.
+    /// </summary>
+    private byte[]? ReadMaxxTune(string serial)
+    {
+        try
+        {
+            using var transport = new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate);
+            transport.Open();
+
+            return MaxxTune.Read(transport);
+        }
+        catch (Exception e)
+        {
+            App.Report($"The MaxxECU's tune could not be read: {e.Message}");
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Turns the blob into tables and settings, and hands them to the rest of
+    /// the application as though they had come from an INI.
+    /// </summary>
+    /// <returns>A sentence for the connection hint.</returns>
+    private string AdoptMaxxTune(byte[] blob)
+    {
+        try
+        {
+            IReadOnlyList<MaxxSettingDefinition> definitions =
+                MaxxTuneDefinitions.Read(MaxxTuneDefinitions.Find());
+
+            if (definitions.Count == 0)
+                return " Its tune was read but cannot be named: MTune is not installed here, and "
+                       + "its settings definitions are what say what the bytes mean.";
+
+            (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(
+                blob, definitions, MaxxChannelDefinitions.Read(MaxxGauges.FindDefinitions()));
+
+            _tuneLayout = layout;
+            _ecuTune = EcuTune.FromPages(layout, blob);
+            _ecuTableDefinitions = tables;
+            _settingsEdit = new TuneSettingsEdit(_ecuTune);
+
+            foreach (TuneTable table in Ordered(_ecuTune.Tables(tables))) EcuTables.Add(table);
+
+            EcuTableChoices.Refresh();
+
+            EcuTuneSummary =
+                $"{MaxxTune.BlobSize:N0} bytes read from the ECU · {EcuTables.Count} tables · "
+                + $"{_ecuTune.Scalars().Count:N0} settings";
+
+            return $" Its tune was read too — {EcuTables.Count} tables, named from MTune's own "
+                   + "definitions.";
+        }
+        catch (Exception e)
+        {
+            App.Report($"The MaxxECU's tune could not be decoded: {e}");
+
+            return " Its tune was read but could not be decoded.";
+        }
+        finally
+        {
+            Raise(nameof(HasEcuTune));
+            Raise(nameof(NoEcuTune));
+            Raise(nameof(ShowNoTuneNotice));
+            Raise(nameof(EcuTableSummary));
+            Raise(nameof(EcuTuneSummary));
+            RaiseWriteGates();
+        }
     }
 
     /// <summary>
