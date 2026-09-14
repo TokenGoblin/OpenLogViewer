@@ -133,6 +133,14 @@ should be able to tell which you are looking at.
 That RAM step is a safety feature, not an inconvenience: **a change that turns
 out to be wrong is undone by turning the key off.**
 
+> **NOTICE:** **This is not how a MaxxECU works, and nothing here writes one.**
+> A MaxxECU has no burn: a write is applied to the running tune and persisted by
+> the ECU itself in one step, so there is no RAM step to fall back on and turning
+> the key off undoes nothing. Its tune can be **read** over USB and its tables
+> looked at — see [Live connection](Live-connection#the-tune-over-usb) — but
+> Send and Burn are not offered for one, and will not be until a write has been
+> aimed at a known address and read back from it.
+
 ### Sending
 
 Press **Send to ECU**.
@@ -287,8 +295,9 @@ before the test. Nothing was written to either board.
   have not burned.
 - **A tune opened from a file cannot be sent** — use Restore.
 - **A definition file opened as a tune reads all zeros** and cannot be saved.
-- **Nothing persists without a burn.** A sent change is gone at the next power
-  cycle.
+- **Nothing persists without a burn** — on every controller that can be written
+  here. A MaxxECU is the exception and cannot be written at all: it has no burn,
+  so a write there would be permanent as it landed.
 - **Opening the serial port resets some boards.** On an Arduino-based board such
   as a Speeduino, connecting resets it — so unburned changes are lost.
 

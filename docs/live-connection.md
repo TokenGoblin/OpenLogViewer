@@ -41,17 +41,17 @@ against a file applies to the ECU too.
 ## MaxxECU
 
 A MaxxECU speaks its own protocol rather than TunerStudio's, so it needs no
-definition file — and equally, its tune cannot be read, so calibration and tune
-editing are not available for one. It gets gauges, logging and every analysis
-that works on a log.
+definition file. Over USB its **tune is read too**, so the tables are there to
+look at alongside the logging; over Bluetooth it is not. It gets gauges, logging
+and every analysis that works on a log either way.
 
 It offers three links. Two of them are reached here.
 
-| Link | How it appears | Channels |
-| --- | --- | --- |
-| **USB** | Not a COM port — see below | **Every channel the ECU sends** — 136 on the unit this was proven against |
-| **Bluetooth** | A paired COM port named `MaxxECU_<serial>` | A fixed fourteen |
-| **Wi-Fi** | The ECU's own access point | Not implemented |
+| Link | How it appears | Channels | Tune |
+| --- | --- | --- | --- |
+| **USB** | Not a COM port — see below | **Every channel the ECU sends** | **Read** — 186 tables on the unit this was proven against |
+| **Bluetooth** | A paired COM port named `MaxxECU_<serial>` | A fixed fourteen | Not read |
+| **Wi-Fi** | The ECU's own access point | Not implemented | — |
 
 Both working links are verified on a MaxxECU Race. **Prefer USB**: it is faster,
 and it carries everything the ECU measures rather than a fixed list.
@@ -94,9 +94,45 @@ says so if you forget.
 
 **The channels are discovered, not configured.** Over USB a MaxxECU names every
 value it sends, so the session asks the ECU what it has rather than being told in
-advance — 136 channels on the unit this was proven against, against fourteen over
-Bluetooth. Names, units and decimals come from MTune's own channel definitions
-where MTune is installed, and channels appear by number where it is not.
+advance, against a fixed fourteen over Bluetooth. Names, units and decimals come
+from MTune's own channel definitions where MTune is installed, and channels
+appear by number where it is not.
+
+**How many you get depends on what was moving.** A MaxxECU sends a channel only
+when its value changes, so what a session hears in the couple of seconds it
+listens is whatever happened to be moving then. On the bench ECU this was proven
+against, that is 136 channels on the first connect of a day and about 50 on the
+next — listening longer does not help, because the large number is a queued
+backlog being drained rather than a full list.
+
+So the channels worth having are logged whether they moved or not: engine speed,
+manifold pressure, coolant, intake air temperature, lambda, throttle, battery,
+ignition advance and the rest of the fourteen a MaxxECU subscribes to for its own
+Bluetooth dash, plus throttle position. **One that the ECU has not reported yet
+reads zero until it does** — right for engine speed with the key off, wrong for a
+coolant temperature, and over as soon as the value first moves. Without this,
+connecting before starting the engine — which is the ordinary order — left every
+one of them out of the log for the whole session.
+
+### The tune, over USB
+
+Connecting reads the ECU's whole tune, which takes about four seconds and happens
+before the logging starts, because only one program may hold the USB device.
+The tables then appear under **Calibration** like any other ECU's: 186 of them on
+the unit this was proven against, named from MTune's own settings definitions.
+
+This needs **MTune installed**, for the same reason reading a MegaSquirt needs
+its INI: `ecuSettingsDefinitions.xml` is what says which bytes are which setting,
+what they are scaled by and what the firmware will accept. Without it the tune is
+still read and cannot be named, and the connection says so.
+
+> **NOTICE:** **A MaxxECU has no burn, so it has no undo.** On every other
+> controller here a write lands in working memory and is lost at the next power
+> cycle unless it is burned, which makes turning the key off the way out of a
+> mistake. A MaxxECU applies a write to the running tune and persists it itself,
+> in one step. **Nothing in OpenLogViewer writes a MaxxECU** — the tables are
+> shown, not sent — and that will not change until a write has been aimed at a
+> known address and read back from it.
 
 The first two seconds of a USB session are spent listening: the ECU sends its
 whole state at the start and only the changes afterwards, so that is how long it

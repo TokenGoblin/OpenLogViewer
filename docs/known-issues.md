@@ -39,6 +39,22 @@ What is left:
 - Everything outside the core set is still whatever happened to be moving, so two
   logs of the same car can have different columns.
 
+### A MaxxECU's settings are read and then cannot be looked at
+
+`MainViewModel.AdoptMaxxTune`. Reading the tune decodes **8,752 settings**
+besides the 186 tables, and every one of them is in the tune model and reachable
+by name. None of them is reachable by a person: the Settings half of Calibration
+is built from an INI's page descriptions — which dialog holds which field, and
+when each applies — and MTune's definitions have nothing of the sort. So
+`BuildSettingsMenu` is not called on that path and the list stays empty.
+
+The tables are the half worth having and they are there. What is missing is
+everything that is not a table: sensor calibrations, limits, enable switches, the
+injector and trigger setup. The definitions do carry a usable grouping — every
+name begins with the subsystem, `IATSensor`, `Fuel`, `Ign`, `Boost` — so a
+searchable list under those headings would show them without needing page
+descriptions that do not exist.
+
 ### A burn interrupted by unplugging can lose its own message
 
 `EcuConnection.cs`, in `BurnPage`. The `finally` puts `WriteTimeout` back without
@@ -136,7 +152,24 @@ the wrong baud rate being refused, a thirty-second soak at 36.5 rounds a second
 with no retry, and the two writes of MTune's connect handshake (`0x3B` then
 `0x07`), which the ECU acknowledged exactly as it acknowledges MTune. What those
 two writes are *for* is still unknown — they change nothing observable in the
-telemetry — and no other write has ever been sent.
+telemetry.
+
+Its **tune read** is proven on the same unit and from the application: 65,536
+bytes in about four seconds, 186 tables, VE and ignition maps decoding to the
+numbers the ECU is running. The decode is checked against MTune's own settings
+definitions, which are what name the tables and scale them.
+
+Its **tune write** is proven only in the one respect that cannot go wrong. The
+ECU accepted a 256-byte write and read it back, but the bytes written were the
+ones already there, with the offset and the length set to the same number — so
+both readings of those two header fields describe the same operation and that
+operation changes nothing. The reason for the care is that the firmware's
+dispatcher, as decompiled, reads the offset from byte 4 and the length from
+byte 2, which is the opposite of the read path, of the packet handler beside it
+and of the wire. **Until that is settled, a write cannot be aimed**, and nothing
+in the application can reach `MaxxTune.Write` — there is no Send to ECU on that
+path. A MaxxECU has no burn, so a misplaced write would be permanent as it
+landed.
 
 A MaxxECU over **Bluetooth** has not been reached since the connect-time proving
 read was added. No MaxxECU Bluetooth module is paired with this machine, so it
