@@ -91,11 +91,18 @@ public sealed class LiveSession : IDisposable
     private readonly ILiveSource _source;
     private readonly LiveSessionSettings _settings;
 
-    private readonly string[] _names;
-    private readonly string[] _units;
-    private readonly int[] _digits;
+    /// <summary>
+    /// The channels being recorded.
+    ///
+    /// Not readonly, because a source that learns its channels from the ECU has
+    /// none to offer until it has been opened — see <see cref="Start"/>. Fixed
+    /// from that moment on: a log's columns cannot change once it has rows.
+    /// </summary>
+    private string[] _names = [];
+    private string[] _units = [];
+    private int[] _digits = [];
 
-    private readonly List<float>[] _columns;
+    private List<float>[] _columns = [];
     private readonly List<double> _time = [];
     private readonly Lock _gate = new();
 
@@ -132,10 +139,7 @@ public sealed class LiveSession : IDisposable
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _settings = settings ?? new LiveSessionSettings();
 
-        _names = [.. source.Names];
-        _units = [.. source.Units];
-        _digits = [.. source.Digits];
-        _columns = [.. _names.Select(_ => new List<float>())];
+        Adopt();
     }
 
     /// <summary>A session over the TunerStudio protocol, which is most of them.</summary>
@@ -201,11 +205,21 @@ public sealed class LiveSession : IDisposable
     public void Start()
     {
         if (IsRunning) return;
-        if (_names.Length == 0) throw new InvalidOperationException("No channels to record.");
 
         _error = null;
         _failures = 0;
         _source.Open();
+
+        // Most sources know their channels from a definition file and have them
+        // before anything is opened. One does not: a MaxxECU over USB names its
+        // channels in the telemetry itself, so the list exists only once the ECU
+        // has been listened to. Asking again after opening is what lets a source
+        // of that shape be recorded at all — checking before it, which is where
+        // this check used to sit, refused every such session before the cable
+        // was ever spoken to.
+        if (_names.Length == 0) Adopt();
+
+        if (_names.Length == 0) throw new InvalidOperationException("No channels to record.");
 
         _clock.Restart();
 
@@ -221,6 +235,22 @@ public sealed class LiveSession : IDisposable
         };
 
         _worker.Start();
+    }
+
+    /// <summary>
+    /// Takes the channel list from a source that only has one once it is open.
+    ///
+    /// Done once, before the first row: everything downstream — the columns, the
+    /// recording's header, the snapshot handed to the plot — is sized from this,
+    /// and a list that grew later would leave rows already written short of the
+    /// columns they are supposed to have.
+    /// </summary>
+    private void Adopt()
+    {
+        _names = [.. _source.Names];
+        _units = [.. _source.Units];
+        _digits = [.. _source.Digits];
+        _columns = [.. _names.Select(_ => new List<float>())];
     }
 
     /// <summary>

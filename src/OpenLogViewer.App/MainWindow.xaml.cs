@@ -1487,58 +1487,54 @@ public partial class MainWindow : Window
                       + "which is why it is not in the list of ports above.",
             };
 
-            item.Click += async (_, _) => await StartMaxxEcuUsb(device);
+            item.Click += (_, _) => StartMaxxEcuUsb(device);
 
             yield return item;
         }
     }
 
     /// <summary>
-    /// Connects to a MaxxECU over USB, off the interface thread.
+    /// Connects to a MaxxECU over USB.
     ///
-    /// Opening one is quick, but arming it is not: the ECU answers the
-    /// activation with its configuration and label dumps before the first
-    /// reading, and the session is not reported as live until a reading has
-    /// actually arrived.
+    /// On the interface thread, like every other connection here, and not off it
+    /// as this once was. Connecting builds the gauges, and the collections those
+    /// live in are bound to the window: WPF refuses to have them changed from
+    /// anywhere but the thread that owns them, so the background call failed
+    /// every time with a message about CollectionView that named nothing to do
+    /// with a MaxxECU. The wait it was avoiding is the two seconds the ECU is
+    /// listened to at connect, which is shorter than the three a MegaSquirt
+    /// spends reading its settings on the interface thread already.
     /// </summary>
-    private async Task StartMaxxEcuUsb(FtdiDevice device, bool quiet = false)
+    private void StartMaxxEcuUsb(FtdiDevice device, bool quiet = false)
     {
         ConnectButton.IsEnabled = false;
         _vm.SetHint($"Connecting to {device.Label} over USB…");
+        Mouse.OverrideCursor = Cursors.Wait;
 
         try
         {
-            Exception? failure = await Task.Run(() =>
-            {
-                try
-                {
-                    _vm.ConnectMaxxEcuUsb(device.Serial);
-                    return null;
-                }
-                catch (Exception e)
-                {
-                    return e;
-                }
-            });
-
-            if (failure is not null)
-            {
-                Record(device.Serial, "no answer");
-
-                if (quiet) App.Report($"Could not connect to {device.Label}: {failure}");
-                else
-                    MessageBox.Show(this,
-                        $"Could not connect to {device.Label} over USB.\n\n{failure.Message}",
-                        "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
-
-                _vm.SetHint($"{device.Label} did not answer.");
-                return;
-            }
-
+            _vm.ConnectMaxxEcuUsb(device.Serial);
             Record(device.Serial, "answered");
+        }
+        // Everything, as on the serial path and for the same reason: a
+        // connection that fails is never worth taking the application down, and
+        // the list of types a failing one can throw is not knowable from here.
+        catch (Exception e)
+        {
+            Record(device.Serial, "no answer");
+
+            if (quiet) App.Report($"Could not connect to {device.Label}: {e}");
+            else
+                MessageBox.Show(this,
+                    $"Could not connect to {device.Label} over USB.\n\n{e.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            _vm.SetHint($"{device.Label} did not answer.");
+            return;
         }
         finally
         {
+            Mouse.OverrideCursor = null;
             ConnectButton.IsEnabled = true;
         }
 
@@ -1561,7 +1557,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _ = StartMaxxEcuUsb(device, quiet: true);
+        StartMaxxEcuUsb(device, quiet: true);
     }
 
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)

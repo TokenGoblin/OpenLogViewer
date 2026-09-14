@@ -8,9 +8,48 @@ A finding earns a place here by being reproduced, not by being suspected. Each
 says what actually goes wrong, because "review comment 7" is unusable six months
 later.
 
-Last reviewed against the source: **2026-09-11**.
+Last reviewed against the source: **2026-09-13**.
 
 ## Open defects
+
+### A MaxxECU over USB logs only the channels that happened to be moving
+
+`MaxxUsbSource.Learn()`. Over USB a MaxxECU names its own channels, and it sends
+a channel only when that channel's value changes — so the list is learnt by
+listening for two seconds and writing down what arrives. What arrives depends on
+what the engine is doing, and the columns of a log cannot change once it has
+rows, so whatever is missing from those two seconds is missing from the whole
+session.
+
+Measured on the bench MaxxECU Race on 2026-09-13:
+
+| connect | channels |
+| --- | --- |
+| first of the day, ECU left running for hours | 136, then 134 |
+| every connect after that | 49–55 |
+
+Listening longer does not help: a raw listen plateaued at 55 ids after one
+second and had found nothing new by sixty. The large first number is a backlog
+drained, not a full dump — the ECU had queued a change for nearly every channel
+while nothing was reading it.
+
+What the short list costs is the channels anybody would actually want. With the
+engine off, the 50 learnt are input voltages, counters and the few values that
+jitter; **engine speed, coolant, intake air temperature, lambda and ignition
+angle are all absent**, because none of them had moved. Connect first and start
+the engine second — which is the ordinary order — and they are absent for the
+rest of the session.
+
+Three ways out, none yet chosen:
+
+1. Always include a core set of ids by definition — RPM, MAP, CLT, IAT, lambda,
+   TPS, battery, ignition — whether or not they have moved, and add what the ECU
+   names on top.
+2. Let a channel first seen mid-session become a column, back-filled behind it.
+   Honest, and the largest change: the recording's header is written at the
+   first row.
+3. Say so in the interface — the hint already reports the number found — and
+   leave the choice of when to connect to whoever is driving.
 
 ### A burn interrupted by unplugging can lose its own message
 
@@ -101,3 +140,16 @@ of it.
 Elsewhere: read, write and burn are proven on a Speeduino and a rusEFI uaEFI, and
 read is proven on a MicroSquirt. **The MicroSquirt write path has never been
 exercised** — it is in a car — and should be run on a bench board first.
+
+A MaxxECU over **USB** is proven on the bench Race, on 2026-09-13, from the
+application and not only from the library: connect, learn, read, record to a
+file and read that file back, plus recovery, contention with another program,
+the wrong baud rate being refused, a thirty-second soak at 36.5 rounds a second
+with no retry, and the two writes of MTune's connect handshake (`0x3B` then
+`0x07`), which the ECU acknowledged exactly as it acknowledges MTune. What those
+two writes are *for* is still unknown — they change nothing observable in the
+telemetry — and no other write has ever been sent.
+
+A MaxxECU over **Bluetooth** has not been reached since the connect-time proving
+read was added. No MaxxECU Bluetooth module is paired with this machine, so it
+could not be tried.
