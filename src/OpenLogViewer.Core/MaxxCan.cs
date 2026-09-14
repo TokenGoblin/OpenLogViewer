@@ -70,16 +70,27 @@ public static class MaxxCan
     public const byte Snapshot = 0x10;
 
     /// <summary>
-    /// How far into that window the ECU will read.
+    /// The bound the firmware enforces: it refuses unless
+    /// <c>offset + length</c> is <b>below</b> this.
     ///
-    /// The firmware refuses unless <c>offset + length</c> is below this. Taken
-    /// from the handler's own bound rather than from watching MTune, which asks
-    /// for more than it can have: its last read of the window is 3,072 plus 216,
-    /// and the ECU answers that one <c>0x30</c> — out of range — on every single
-    /// connect. Reading what a host program requests is not the same as reading
-    /// what the ECU allows.
+    /// <para>
+    /// So this is not the size of the window. The readable window is 3,200 bytes,
+    /// offsets 0 to 3,199, and 3,201 is the first total the ECU will not answer.
+    /// The two are easy to conflate and the difference is the last byte.
+    /// </para>
+    /// <para>
+    /// Taken from the handler rather than from watching MTune, which asks for
+    /// more than it can have: its last read of the window is 3,072 plus 216, and
+    /// the ECU answers that one <c>0x30</c> — out of range — on every connect.
+    /// A host program's request is evidence of what it wants, not of what it
+    /// gets, and the reply sitting under each request in a capture is the half
+    /// that says which.
+    /// </para>
     /// </summary>
     public const int SnapshotLimit = 0xC81;
+
+    /// <summary>Bytes of the runtime snapshot that can actually be read.</summary>
+    public const int SnapshotWindow = SnapshotLimit - 1;
 
     /// <summary>
     /// Where the dropped-frame count sits in that window.

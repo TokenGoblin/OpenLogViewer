@@ -208,10 +208,12 @@ public class MaxxCanTests
         Assert.Equal(0x2000881E - 0x20007DAC, MaxxCan.DropCountAt);
         Assert.Equal(2674, MaxxCan.DropCountAt);
 
-        // Two bytes of it, inside the bound the firmware enforces — which is
-        // 3,201 and not the 3,288 MTune asks for and is refused.
-        Assert.True(MaxxCan.DropCountAt + 2 < MaxxCan.SnapshotLimit);
+        // Two bytes of it, inside the bound the firmware enforces. The bound is
+        // exclusive, so the window is 3,200 bytes and 3,201 is the first total
+        // refused — not the 3,288 MTune asks for and is told 0x30 about.
+        Assert.True(MaxxCan.DropCountAt + 2 <= MaxxCan.SnapshotWindow);
         Assert.Equal(3201, MaxxCan.SnapshotLimit);
+        Assert.Equal(3200, MaxxCan.SnapshotWindow);
     }
 
     /// <summary>
