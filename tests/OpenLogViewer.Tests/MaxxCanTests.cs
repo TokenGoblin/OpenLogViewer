@@ -191,4 +191,32 @@ public class MaxxCanTests
             MaxxProtocol.Crc32(request.AsSpan(0, 6)),
             BitConverter.ToUInt32(request, 6));
     }
+
+    /// <summary>
+    /// The dropped-frame counter is inside the window the runtime-snapshot command
+    /// will answer, so reading it needs no command of its own.
+    ///
+    /// Worth pinning as arithmetic rather than a remembered number: the counter is
+    /// at 0x2000881E, the window starts at 0x20007DAC and runs 3,288 bytes, and if
+    /// either of those ever turns out different the offset is wrong in a way that
+    /// reads plausible rubbish rather than failing.
+    /// </summary>
+    [Fact]
+    public void TheDropCounterIsInsideTheSnapshotWindow()
+    {
+        Assert.Equal(0x2000881E - 0x20007DAC, MaxxCan.DropCountAt);
+        Assert.Equal(2674, MaxxCan.DropCountAt);
+        Assert.InRange(MaxxCan.DropCountAt, 0, 3288 - 2);
+    }
+
+    /// <summary>
+    /// The analyzer's enable flag is where the firmware reads it, and it is a
+    /// setting somebody can be shown by name rather than an address to poke.
+    /// </summary>
+    [Fact]
+    public void TheEnableFlagIsANamedSettingAtTheAddressTheFirmwareReads()
+    {
+        Assert.Equal(52658, MaxxCan.EnableAt);
+        Assert.Equal("CAN Analyzer Enable", MaxxCan.EnableSetting);
+    }
 }

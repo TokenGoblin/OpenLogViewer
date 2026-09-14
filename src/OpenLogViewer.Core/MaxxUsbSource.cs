@@ -323,5 +323,53 @@ public sealed class MaxxUsbSource : ILiveSource
         lock (_cable) return MaxxTune.Checksums(_transport);
     }
 
+    /// <summary>
+    /// Empties the ECU's CAN ring, between two rounds of the poll loop.
+    ///
+    /// The ring gives up what it returns, so a reply this drops is a frame
+    /// nobody sees again — which is why the failure here is silence rather than
+    /// a retry. Asking a second time would not fetch the same frames, it would
+    /// fetch the next ones, and the gap would go unrecorded.
+    /// </summary>
+    public IReadOnlyList<CanFrame> ReadCanFrames(int most)
+    {
+        int wanted = most * MaxxCan.RecordLength;
+        var reply = new byte[MaxxUsbProtocol.ReplyLength(wanted)];
+
+        lock (_cable)
+        {
+            _transport.Write(MaxxCan.Ask(most));
+
+            return _transport.Read(reply, ReplyTimeout) == reply.Length
+                   && MaxxUsbProtocol.TryReadReply(reply, wanted, out byte[] data)
+                ? MaxxCan.Frames(data)
+                : [];
+        }
+    }
+
+    /// <summary>
+    /// How many frames the ECU says it has lost, across its receive buffer and
+    /// the analyzer ring together.
+    ///
+    /// Lives in the runtime snapshot rather than the tune, so it is read with the
+    /// command that returns that — and it is the number that decides whether a
+    /// capture can be called complete.
+    /// </summary>
+    public int? CanDropCount()
+    {
+        var reply = new byte[MaxxUsbProtocol.ReplyLength(2)];
+
+        lock (_cable)
+        {
+            _transport.Write(MaxxUsbProtocol.Request(
+                MaxxUsbProtocol.Read, MaxxCan.Snapshot, MaxxCan.DropCountAt, 2));
+
+            return _transport.Read(reply, ReplyTimeout) == reply.Length
+                   && MaxxUsbProtocol.TryReadReply(reply, 2, out byte[] data)
+                ? data[0] | (data[1] << 8)
+                : null;
+        }
+    }
+
     public void Dispose() => _transport.Dispose();
 }

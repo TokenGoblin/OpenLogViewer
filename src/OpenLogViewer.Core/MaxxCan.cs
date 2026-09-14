@@ -62,6 +62,34 @@ public static class MaxxCan
     public const int EnableAt = 0xCDB2;
 
     /// <summary>
+    /// The command that reads the ECU's runtime memory rather than its tune.
+    ///
+    /// A window of 3,288 bytes, and the only way to see anything the firmware
+    /// keeps outside the tune — which includes the one number that says whether a
+    /// capture is complete.
+    /// </summary>
+    public const byte Snapshot = 0x10;
+
+    /// <summary>
+    /// Where the dropped-frame count sits in that window.
+    ///
+    /// <para>
+    /// The firmware counts losses at <c>0x2000881E</c> and the window begins at
+    /// <c>0x20007DAC</c>, which puts the counter 2,674 bytes into it — inside the
+    /// 3,288 the command will answer, so no new command is needed to read it.
+    /// </para>
+    /// <para>
+    /// One counter, not two. The receive interrupts and the analyzer ring all
+    /// increment this same place, so it covers both the frames the driver could
+    /// not buffer and the frames the ring could not hold. That is what lets a
+    /// capture claim to be complete: nought here means nothing was missed, short
+    /// of the controller's own hardware queue overrunning, which takes the
+    /// receive interrupt being starved rather than merely a busy bus.
+    /// </para>
+    /// </summary>
+    public const int DropCountAt = 0x2000881E - 0x20007DAC;
+
+    /// <summary>
     /// Pulls frames out of a reply.
     ///
     /// The record is a length and flags byte, a 32-bit identifier, a 32-bit
