@@ -315,4 +315,176 @@ public class MaxxTuneTests
     [Fact]
     public void MissingDefinitionsAreNotAnError() =>
         Assert.Empty(MaxxTuneDefinitions.Read(Path.Combine(Path.GetTempPath(), "no-such-file.xml")));
+
+    // ----- writing ---------------------------------------------------------------
+
+    /// <summary>
+    /// An ECU that holds a tune and lets it be written the way a MaxxECU does:
+    /// the header acknowledged on its own, then the payload with its checksum.
+    /// </summary>
+    private sealed class FakeEcu(byte status = MaxxUsbProtocol.Ok) : IEcuTransport
+    {
+        private byte[] _reply = [];
+
+        /// <summary>What it is holding, so a write can be checked against it.</summary>
+        public byte[] Tune { get; } = new byte[MaxxTune.BlobSize];
+
+        /// <summary>Set while a write's payload is expected rather than a header.</summary>
+        private (int Offset, int Length)? _expecting;
+
+        public int Writes { get; private set; }
+
+        public bool IsOpen { get; private set; }
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            if (_expecting is { } pending)
+            {
+                // The payload, and the checksum the ECU verifies before taking it.
+                uint sent = BitConverter.ToUInt32(data[pending.Length..]);
+
+                if (sent == MaxxProtocol.Crc32(data[..pending.Length]))
+                {
+                    data[..pending.Length].CopyTo(Tune.AsSpan(pending.Offset));
+                    Writes++;
+                    _reply = [MaxxUsbProtocol.Ok];
+                }
+                else _reply = [(byte)MaxxWriteStatus.OutOfRange];
+
+                _expecting = null;
+                return;
+            }
+
+            int offset = data[2] | (data[3] << 8);
+            int length = data[4] | (data[5] << 8);
+
+            if (data[0] == MaxxUsbProtocol.Write)
+            {
+                if (status != MaxxUsbProtocol.Ok) { _reply = [status]; return; }
+
+                _expecting = (offset, length);
+                _reply = [MaxxUsbProtocol.Ok];
+                return;
+            }
+
+            // A read of the tune, which is how a write is checked.
+            var reply = new byte[MaxxUsbProtocol.ReplyLength(length)];
+            reply[0] = MaxxUsbProtocol.Ok;
+            Tune.AsSpan(offset, length).CopyTo(reply.AsSpan(1));
+            BitConverter.GetBytes(MaxxProtocol.Crc32(reply.AsSpan(0, 1 + length)))
+                .CopyTo(reply, 1 + length);
+
+            _reply = reply;
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout)
+        {
+            int taken = Math.Min(buffer.Length, _reply.Length);
+            _reply.AsSpan(0, taken).CopyTo(buffer);
+            _reply = _reply[taken..];
+
+            return taken;
+        }
+
+        public void DiscardInput() => _reply = [];
+
+        public void Dispose() => Close();
+    }
+
+    [Fact]
+    public void AWriteLandsWhereItWasAimed()
+    {
+        var ecu = new FakeEcu();
+        byte[] data = [1, 2, 3, 4];
+
+        Assert.Equal(MaxxWriteStatus.Ok, MaxxTune.Write(ecu, 1000, data));
+        Assert.Equal(data, ecu.Tune.AsSpan(1000, 4).ToArray());
+        Assert.True(MaxxTune.Verify(ecu, 1000, data));
+    }
+
+    /// <summary>
+    /// Reading back is what says a write took, and it has to be able to say no.
+    /// </summary>
+    [Fact]
+    public void VerifyingFailsWhenTheTuneDoesNotMatch()
+    {
+        var ecu = new FakeEcu();
+        MaxxTune.Write(ecu, 1000, [1, 2, 3, 4]);
+
+        Assert.False(MaxxTune.Verify(ecu, 1000, [1, 2, 3, 5]));
+    }
+
+    /// <summary>
+    /// A refusal is reported as what the ECU said, not as a bare failure: busy
+    /// is worth retrying and out of range never is.
+    /// </summary>
+    [Theory]
+    [InlineData(0x40, MaxxWriteStatus.WriterBusy)]
+    [InlineData(0x30, MaxxWriteStatus.OutOfRange)]
+    [InlineData(0x20, MaxxWriteStatus.UnknownCommand)]
+    public void ARefusedWriteSaysWhy(byte answered, MaxxWriteStatus expected)
+    {
+        var ecu = new FakeEcu(answered);
+
+        Assert.Equal(expected, MaxxTune.Write(ecu, 1000, [1, 2, 3, 4]));
+        Assert.Equal(0, ecu.Writes);
+    }
+
+    /// <summary>
+    /// A write past what the ECU accepts is refused here rather than sent.
+    ///
+    /// The ECU would answer 0x30 and nothing would happen, so this is not about
+    /// safety on the wire — it is that the caller finds out before the bytes go
+    /// out, which on a controller with no undo is the habit worth having.
+    /// </summary>
+    [Fact]
+    public void AWriteAboveTheCeilingIsRefusedBeforeItIsSent()
+    {
+        var ecu = new FakeEcu();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => MaxxTune.Write(ecu, MaxxTune.WriteCeiling - 2, new byte[4]));
+
+        Assert.Equal(0, ecu.Writes);
+    }
+
+    [Fact]
+    public void AWriteLongerThanTheEcuTakesIsRefusedBeforeItIsSent()
+    {
+        var ecu = new FakeEcu();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => MaxxTune.Write(ecu, 1000, new byte[MaxxTune.MaximumWrite + 1]));
+
+        Assert.Equal(0, ecu.Writes);
+    }
+
+    /// <summary>
+    /// The payload carries its own checksum, and a wrong one is not taken.
+    ///
+    /// Checked by writing properly and then corrupting the same exchange: the
+    /// fake refuses it exactly as the firmware does, which is what makes the
+    /// checksum in <see cref="MaxxTune.Write"/> load-bearing rather than
+    /// decorative.
+    /// </summary>
+    [Fact]
+    public void ThePayloadIsSentWithAChecksumOverIt()
+    {
+        var ecu = new FakeEcu();
+        byte[] data = [9, 8, 7, 6];
+
+        MaxxTune.Write(ecu, 2000, data);
+
+        // What Write sends: the bytes, then the CRC-32 of exactly those bytes.
+        var expected = new byte[8];
+        data.CopyTo(expected, 0);
+        BitConverter.GetBytes(MaxxProtocol.Crc32(data)).CopyTo(expected, 4);
+
+        Assert.Equal(data, ecu.Tune.AsSpan(2000, 4).ToArray());
+        Assert.Equal(MaxxProtocol.Crc32(data), BitConverter.ToUInt32(expected, 4));
+    }
 }

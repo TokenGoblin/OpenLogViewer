@@ -25,6 +25,39 @@ public sealed record MaxxTable(
     int CellsAt);
 
 /// <summary>
+/// What the ECU said about a write. The numbers are the firmware's own status
+/// bytes, so an unfamiliar one can be reported as itself rather than as
+/// "failed".
+/// </summary>
+public enum MaxxWriteStatus
+{
+    /// <summary>It took the bytes.</summary>
+    Ok = 0x80,
+
+    /// <summary>Nothing came back at all.</summary>
+    NoAnswer = 0,
+
+    /// <summary>
+    /// The command was not recognised. Also what the ECU answers a write to a
+    /// command that does not exist, which is how MTune's handshake `0x3B` was
+    /// found not to be a command at all.
+    /// </summary>
+    UnknownCommand = 0x20,
+
+    /// <summary>The offset or the length is out of range.</summary>
+    OutOfRange = 0x30,
+
+    /// <summary>Refused: something else is writing.</summary>
+    WriterBusy = 0x40,
+
+    /// <summary>Refused: something else is reading.</summary>
+    ReaderBusy = 0x60,
+
+    /// <summary>Refused: the flash path is busy.</summary>
+    FlashBusy = 0x61,
+}
+
+/// <summary>
 /// A MaxxECU's tune, read off the ECU over USB and shaped into the same
 /// <see cref="TuneLayout"/> everything else here already works on.
 ///
@@ -143,6 +176,110 @@ public static class MaxxTune
         }
 
         return blob;
+    }
+
+    /// <summary>
+    /// The highest offset the ECU will write to. Above this it answers 0x30.
+    /// </summary>
+    public const int WriteCeiling = 0xF2E7;
+
+    /// <summary>
+    /// The most the ECU will take in one write.
+    ///
+    /// The firmware refuses a payload of 531 or more outright. This stays at the
+    /// 256 the read uses, because a write is the half with no undo and there is
+    /// nothing to be gained by being close to a limit.
+    /// </summary>
+    public const int MaximumWrite = 256;
+
+    /// <summary>
+    /// Sends a run of bytes into the ECU's tune.
+    ///
+    /// <para>
+    /// <b>There is no burn, and so there is no undo.</b> Every other controller
+    /// this program writes to follows the MegaSquirt convention, where a write
+    /// lands in working memory and is lost at the next power cycle unless it is
+    /// burned — which makes turning the key off the way out of a mistake. A
+    /// MaxxECU does not work that way: the write goes into the running tune with
+    /// interrupts disabled and the ECU queues its own persist to an external
+    /// store, so it is applied and permanent in one step. Anything calling this
+    /// must have read the range first and kept the original bytes, because the
+    /// ECU will not keep them and nothing else will either.
+    /// </para>
+    /// <para>
+    /// A write is two exchanges. The header goes out and is acknowledged on its
+    /// own; only then does the payload follow, with its own checksum over it. The
+    /// ECU answers each with a status byte — see <see cref="MaxxWriteStatus"/>.
+    /// </para>
+    /// <para>
+    /// Recovered from the firmware rather than from the wire: no capture of MTune
+    /// writing a tune exists, so the command and the field order here are what
+    /// the 1.151 dispatcher and the packet handler read, cross-checked against
+    /// the two writes MTune's connect handshake does send. See
+    /// <c>MAXXECU_USB_PROTOCOL_RECOVERED.md</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="transport">An open link to the ECU.</param>
+    /// <param name="offset">Where in the tune to put them.</param>
+    /// <param name="data">The bytes, at most <see cref="MaximumWrite"/> of them.</param>
+    /// <returns>What the ECU said about it.</returns>
+    public static MaxxWriteStatus Write(IEcuTransport transport, int offset, ReadOnlySpan<byte> data)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfZero(data.Length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(data.Length, MaximumWrite);
+
+        if (offset + data.Length > WriteCeiling)
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                $"A MaxxECU will not be written above {WriteCeiling}, and this would reach "
+                + $"{offset + data.Length}.");
+
+        var status = new byte[1];
+        var timeout = TimeSpan.FromMilliseconds(600);
+
+        transport.Write(MaxxUsbProtocol.Request(MaxxUsbProtocol.Write, ReadTune, offset, data.Length));
+
+        if (transport.Read(status, timeout) != 1) return MaxxWriteStatus.NoAnswer;
+        if (status[0] != MaxxUsbProtocol.Ok) return (MaxxWriteStatus)status[0];
+
+        // The payload and its own checksum, which the ECU checks before it takes
+        // any of it. Sent as one write so the two cannot be separated on the wire
+        // by anything that reads from the same device.
+        var payload = new byte[data.Length + 4];
+        data.CopyTo(payload);
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            payload.AsSpan(data.Length), MaxxProtocol.Crc32(data));
+
+        transport.Write(payload);
+
+        if (transport.Read(status, timeout) != 1) return MaxxWriteStatus.NoAnswer;
+
+        return status[0] == MaxxUsbProtocol.Ok ? MaxxWriteStatus.Ok : (MaxxWriteStatus)status[0];
+    }
+
+    /// <summary>
+    /// Reads back what was just written and says whether it took.
+    ///
+    /// Worth doing on every write and not only when something looks wrong. The
+    /// ECU acknowledging a write says it accepted the bytes, not that they are
+    /// what is now in the tune — and on a controller with no burn to withhold,
+    /// reading back is the only confirmation there is.
+    /// </summary>
+    public static bool Verify(IEcuTransport transport, int offset, ReadOnlySpan<byte> expected)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+
+        var reply = new byte[MaxxUsbProtocol.ReplyLength(expected.Length)];
+        var timeout = TimeSpan.FromMilliseconds(600);
+
+        transport.Write(MaxxUsbProtocol.Request(
+            MaxxUsbProtocol.Read, ReadTune, offset, expected.Length));
+
+        return transport.Read(reply, timeout) == reply.Length
+               && MaxxUsbProtocol.TryReadReply(reply, expected.Length, out byte[] got)
+               && got.AsSpan().SequenceEqual(expected);
     }
 
     /// <summary>
