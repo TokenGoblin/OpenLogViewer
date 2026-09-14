@@ -1,4 +1,4 @@
-namespace OpenLogViewer.Core;
+﻿namespace OpenLogViewer.Core;
 
 /// <summary>
 /// A MaxxECU's CAN bus, read over the USB cable that is already carrying the
@@ -24,7 +24,7 @@ public sealed class MaxxCanSource : ICanSource
     private readonly MaxxUsbSource _ecu;
     private readonly bool _ownsEcu;
 
-    private int? _droppedAtStart;
+    private int? _lastCount;
 
     /// <summary>
     /// Watches the bus of an ECU something else is already talking to.
@@ -72,9 +72,11 @@ public sealed class MaxxCanSource : ICanSource
     public void Open()
     {
         // Whatever the ECU had already lost is not this capture's loss, so the
-        // count starts from here rather than from whenever the ECU booted.
-        _droppedAtStart = DropCount();
-        Dropped = _droppedAtStart is null ? null : 0;
+        // count starts from here rather than from whenever the ECU booted — the
+        // counter is free-running and nothing resets it, arming the analyzer
+        // included.
+        _lastCount = DropCount();
+        Dropped = _lastCount is null ? null : 0;
     }
 
     /// <summary>
@@ -103,12 +105,18 @@ public sealed class MaxxCanSource : ICanSource
             if (some.Count < MaxxCan.MostPerRead) break;
         }
 
-        if (DropCount() is { } now && _droppedAtStart is { } started)
+        if (DropCount() is { } now && _lastCount is { } last)
         {
-            // Sixteen bits and it wraps, so this is a distance rather than a
-            // subtraction — a counter that rolled over must not report fewer
-            // losses than it did an instant ago.
-            Dropped = (int)((uint)(now - started) & 0xFFFF);
+            // Added up rather than subtracted from the start.
+            //
+            // The counter is sixteen bits and free-running, so on a bus losing
+            // frames steadily it comes all the way round in well under a minute.
+            // Subtracting the baseline would then report the remainder — a
+            // capture that lost seventy thousand frames would claim it lost four
+            // and a half thousand, which is worse than admitting ignorance
+            // because it looks like a measurement.
+            Dropped = (Dropped ?? 0) + MaxxCan.Since(last, now);
+            _lastCount = now;
         }
 
         return frames;

@@ -64,19 +64,38 @@ public static class MaxxCan
     /// <summary>
     /// The command that reads the ECU's runtime memory rather than its tune.
     ///
-    /// A window of 3,288 bytes, and the only way to see anything the firmware
-    /// keeps outside the tune — which includes the one number that says whether a
-    /// capture is complete.
+    /// The only way to see anything the firmware keeps outside the tune — which
+    /// includes the one number that says whether a capture is complete.
     /// </summary>
     public const byte Snapshot = 0x10;
+
+    /// <summary>
+    /// How far into that window the ECU will read.
+    ///
+    /// The firmware refuses unless <c>offset + length</c> is below this. Taken
+    /// from the handler's own bound rather than from watching MTune, which asks
+    /// for more than it can have: its last read of the window is 3,072 plus 216,
+    /// and the ECU answers that one <c>0x30</c> — out of range — on every single
+    /// connect. Reading what a host program requests is not the same as reading
+    /// what the ECU allows.
+    /// </summary>
+    public const int SnapshotLimit = 0xC81;
 
     /// <summary>
     /// Where the dropped-frame count sits in that window.
     ///
     /// <para>
     /// The firmware counts losses at <c>0x2000881E</c> and the window begins at
-    /// <c>0x20007DAC</c>, which puts the counter 2,674 bytes into it — inside the
-    /// 3,288 the command will answer, so no new command is needed to read it.
+    /// <c>0x20007DAC</c>, which puts the counter 2,674 bytes into it — inside
+    /// <see cref="SnapshotLimit"/>, so no new command is needed to read it.
+    /// </para>
+    /// <para>
+    /// Sixteen bits, and free-running: nothing resets it, including arming the
+    /// analyzer or clearing its ring. So a capture takes a reading at the start
+    /// and adds up the distances between readings afterwards, rather than
+    /// subtracting one number from another — at a few thousand losses a second
+    /// the counter comes all the way round in half a minute, and a capture that
+    /// subtracted would report the remainder.
     /// </para>
     /// <para>
     /// One counter, not two. The receive interrupts and the analyzer ring all
@@ -88,6 +107,18 @@ public static class MaxxCan
     /// </para>
     /// </summary>
     public const int DropCountAt = 0x2000881E - 0x20007DAC;
+
+    /// <summary>
+    /// How far a sixteen-bit counter has moved between two readings.
+    ///
+    /// A distance and not a subtraction. The counter wraps at 65,536 and is never
+    /// reset, so on a bus losing frames steadily it comes all the way round in
+    /// well under a minute — and a reading taken after that is numerically
+    /// smaller than the one before it. Subtracting gives a negative, or with
+    /// unsigned arithmetic an enormous positive; both are reported as fact by
+    /// something whose whole job is saying honestly how much was missed.
+    /// </summary>
+    public static int Since(int last, int now) => (int)((uint)(now - last) & 0xFFFF);
 
     /// <summary>
     /// Pulls frames out of a reply.

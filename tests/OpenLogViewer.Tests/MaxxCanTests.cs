@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using OpenLogViewer.Core;
 using Xunit;
 
@@ -197,7 +197,8 @@ public class MaxxCanTests
     /// will answer, so reading it needs no command of its own.
     ///
     /// Worth pinning as arithmetic rather than a remembered number: the counter is
-    /// at 0x2000881E, the window starts at 0x20007DAC and runs 3,288 bytes, and if
+    /// at 0x2000881E, the window starts at 0x20007DAC and the firmware's bound is 3,201,
+    /// and if
     /// either of those ever turns out different the offset is wrong in a way that
     /// reads plausible rubbish rather than failing.
     /// </summary>
@@ -206,8 +207,31 @@ public class MaxxCanTests
     {
         Assert.Equal(0x2000881E - 0x20007DAC, MaxxCan.DropCountAt);
         Assert.Equal(2674, MaxxCan.DropCountAt);
-        Assert.InRange(MaxxCan.DropCountAt, 0, 3288 - 2);
+
+        // Two bytes of it, inside the bound the firmware enforces — which is
+        // 3,201 and not the 3,288 MTune asks for and is refused.
+        Assert.True(MaxxCan.DropCountAt + 2 < MaxxCan.SnapshotLimit);
+        Assert.Equal(3201, MaxxCan.SnapshotLimit);
     }
+
+    /// <summary>
+    /// Losses are counted as a distance, so a counter that wrapped still reports
+    /// more rather than less.
+    ///
+    /// Sixteen bits, free-running, never reset. On a bus shedding frames steadily
+    /// it comes all the way round in well under a minute, and a capture that
+    /// subtracted its starting reading would report the remainder — seventy
+    /// thousand frames lost, reported as four and a half thousand. That is worse
+    /// than admitting ignorance, because it looks like a measurement.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(10, 25, 15)]
+    [InlineData(65_530, 4, 10)]
+    [InlineData(65_535, 0, 1)]
+    [InlineData(0, 65_535, 65_535)]
+    public void LossesAreCountedAsADistanceAndNotASubtraction(int last, int now, int expected) =>
+        Assert.Equal(expected, MaxxCan.Since(last, now));
 
     /// <summary>
     /// The analyzer's enable flag is where the firmware reads it, and it is a
