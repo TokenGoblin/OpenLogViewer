@@ -196,4 +196,132 @@ public class MaxxUsbTests
         Assert.Throws<ArgumentOutOfRangeException>(() => MaxxUsbProtocol.Request(0, 0x12, 0, 70000));
         Assert.Throws<ArgumentOutOfRangeException>(() => MaxxUsbProtocol.Request(0, 0x12, -1, 1));
     }
+
+    // ----- what the ECU does not mention ---------------------------------------
+
+    /// <summary>
+    /// An ECU that answers, and sends only the handful of channels that happen to
+    /// be moving — which is what a real one does with the engine off.
+    /// </summary>
+    private sealed class QuietEcu(params int[] sends) : IEcuTransport
+    {
+        private byte[] _reply = [];
+        private bool _sent;
+
+        public bool IsOpen { get; private set; }
+
+        public void Open() => IsOpen = true;
+
+        public void Close() => IsOpen = false;
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            byte command = data[1];
+            int length = data[4] | (data[5] << 8);
+
+            _reply = command switch
+            {
+                MaxxUsbProtocol.Hello => Answer([0x00]),
+                MaxxUsbProtocol.Waiting => Answer(Waiting()),
+                MaxxUsbProtocol.Take => Answer(Telemetry(length)),
+                _ => Answer(new byte[length]),
+            };
+        }
+
+        /// <summary>The whole state once, then nothing, because nothing changes.</summary>
+        private byte[] Waiting()
+        {
+            int bytes = _sent ? 0 : sends.Length * 4;
+
+            return [(byte)(bytes & 0xFF), (byte)(bytes >> 8)];
+        }
+
+        private byte[] Telemetry(int length)
+        {
+            _sent = true;
+
+            var payload = new byte[length];
+
+            for (int i = 0; i < sends.Length && (i * 4) + 4 <= length; i++)
+            {
+                payload[i * 4] = (byte)(sends[i] & 0xFF);
+                payload[(i * 4) + 1] = (byte)(sends[i] >> 8);
+                payload[(i * 4) + 2] = 1;
+            }
+
+            return payload;
+        }
+
+        private static byte[] Answer(byte[] data)
+        {
+            var reply = new byte[data.Length + MaxxUsbProtocol.ReplyOverhead];
+
+            reply[0] = MaxxUsbProtocol.Ok;
+            data.CopyTo(reply, 1);
+            BitConverter.GetBytes(MaxxProtocol.Crc32(reply.AsSpan(0, 1 + data.Length)))
+                .CopyTo(reply, 1 + data.Length);
+
+            return reply;
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout)
+        {
+            int taken = Math.Min(buffer.Length, _reply.Length);
+            _reply.AsSpan(0, taken).CopyTo(buffer);
+            _reply = _reply[taken..];
+
+            return taken;
+        }
+
+        public void DiscardInput() => _reply = [];
+
+        public void Dispose() => Close();
+    }
+
+    /// <summary>
+    /// The channels anybody connects to see are columns even when the ECU has not
+    /// mentioned them.
+    ///
+    /// They were not, and the cost was the whole session: a MaxxECU sends a
+    /// channel only when its value changes, so connecting with the engine off —
+    /// cable first, key second — learnt input voltages and counters and left out
+    /// engine speed, coolant, lambda and ignition angle. A log's columns cannot
+    /// change once it has rows, so they stayed out for the rest of the drive.
+    /// </summary>
+    [Fact]
+    public void TheChannelsWorthLoggingAreColumnsEvenWhenNothingHasMoved()
+    {
+        // Three channels, as a bench ECU with nothing running offers: a raw
+        // input voltage, manifold pressure and the battery.
+        using var source = new MaxxUsbSource(new QuietEcu(0, 20, 21));
+        source.Open();
+
+        int[] found = [.. source.Channels.Select(c => c.Id)];
+
+        Assert.Contains(61, found);   // RPM
+        Assert.Contains(18, found);   // coolant
+        Assert.Contains(5, found);    // lambda
+        Assert.Contains(60, found);   // ignition angle
+        Assert.Contains(19, found);   // throttle position
+
+        Assert.All(MaxxUsbSource.AlwaysLogged, id => Assert.Contains(id, found));
+
+        // And what the ECU did send is still there.
+        Assert.Contains(0, found);
+        Assert.Contains(20, found);
+    }
+
+    /// <summary>
+    /// The core set is the one MaxxECU chose for its own Bluetooth dash, so a
+    /// channel means the same thing over either link, with throttle position
+    /// added because that set leaves it out.
+    /// </summary>
+    [Fact]
+    public void TheCoreSetIsWhatBluetoothSubscribesToPlusTheThrottle()
+    {
+        Assert.All(MaxxProtocol.Subscribed, c => Assert.Contains(c.Id, MaxxUsbSource.AlwaysLogged));
+
+        Assert.Contains(19, MaxxUsbSource.AlwaysLogged);
+        Assert.Equal(MaxxProtocol.Subscribed.Count + 1, MaxxUsbSource.AlwaysLogged.Count);
+    }
 }

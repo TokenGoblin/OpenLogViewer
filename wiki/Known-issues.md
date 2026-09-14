@@ -12,44 +12,32 @@ Last reviewed against the source: **2026-09-13**.
 
 ## Open defects
 
-### A MaxxECU over USB logs only the channels that happened to be moving
+### A MaxxECU over USB still has a channel list that depends on the drive
 
-`MaxxUsbSource.Learn()`. Over USB a MaxxECU names its own channels, and it sends
-a channel only when that channel's value changes — so the list is learnt by
-listening for two seconds and writing down what arrives. What arrives depends on
-what the engine is doing, and the columns of a log cannot change once it has
-rows, so whatever is missing from those two seconds is missing from the whole
-session.
+Largely fixed on 2026-09-13; what remains is written down here because the shape
+of it will surprise somebody.
 
-Measured on the bench MaxxECU Race on 2026-09-13:
+Over USB a MaxxECU names its own channels and sends one **only when its value
+changes**, so a list learnt by listening is a list of whatever was moving.
+Measured on the bench Race: 136 channels on the first connect of a day, 49–55 on
+every connect after. Listening longer does not help — a raw listen had 51 ids
+after a second and 55 after sixty. The large first number is a queued backlog
+being drained, not a full dump.
 
-| connect | channels |
-| --- | --- |
-| first of the day, ECU left running for hours | 136, then 134 |
-| every connect after that | 49–55 |
+With the engine off that left out engine speed, coolant, lambda and ignition
+angle — and a log's columns cannot change once it has rows, so connecting before
+turning the key lost them for the whole session.
+`MaxxUsbSource.AlwaysLogged` now makes the fifteen channels worth having into
+columns whatever the ECU has said: the fourteen MaxxECU subscribes to for its own
+Bluetooth dash, plus throttle position.
 
-Listening longer does not help: a raw listen plateaued at 55 ids after one
-second and had found nothing new by sixty. The large first number is a backlog
-drained, not a full dump — the ECU had queued a change for nearly every channel
-while nothing was reading it.
+What is left:
 
-What the short list costs is the channels anybody would actually want. With the
-engine off, the 50 learnt are input voltages, counters and the few values that
-jitter; **engine speed, coolant, intake air temperature, lambda and ignition
-angle are all absent**, because none of them had moved. Connect first and start
-the engine second — which is the ordinary order — and they are absent for the
-rest of the session.
-
-Three ways out, none yet chosen:
-
-1. Always include a core set of ids by definition — RPM, MAP, CLT, IAT, lambda,
-   TPS, battery, ignition — whether or not they have moved, and add what the ECU
-   names on top.
-2. Let a channel first seen mid-session become a column, back-filled behind it.
-   Honest, and the largest change: the recording's header is written at the
-   first row.
-3. Say so in the interface — the hint already reports the number found — and
-   leave the choice of when to connect to whoever is driving.
+- A core channel the ECU has not yet reported **reads zero** until it does. Right
+  for engine speed with the key off, wrong for a coolant temperature, and it
+  lasts until the value first moves.
+- Everything outside the core set is still whatever happened to be moving, so two
+  logs of the same car can have different columns.
 
 ### A burn interrupted by unplugging can lose its own message
 

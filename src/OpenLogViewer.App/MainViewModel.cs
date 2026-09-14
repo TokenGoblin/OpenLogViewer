@@ -3601,8 +3601,11 @@ public sealed partial class MainViewModel : ObservableObject
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
         Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
         Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
-               + $"session found {source.Channels.Count} of them by asking rather than by being "
-               + "told. Its tune is not read, so calibration is not available.";
+               + $"session found {source.Channels.Count} of them by listening rather than by "
+               + "being told — a channel it sends only when the value changes, so what is here "
+               + "depends on what was moving. RPM, coolant, lambda and the rest worth having are "
+               + "logged whether they moved or not, and read zero until the ECU first reports "
+               + "them. Its tune is not read, so calibration is not available.";
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));

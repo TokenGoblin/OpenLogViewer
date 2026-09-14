@@ -15,11 +15,16 @@ namespace OpenLogViewer.Core;
 /// channels and not a block, and the reading this hands back is the accumulated
 /// picture rather than what arrived in the last message.
 ///
-/// That is also why the channel list has to be learnt rather than declared. The
-/// first payload after a connection is the ECU's full state, so opening listens
-/// until the channels stop being new and then fixes the list; a channel that
-/// first appears later — one that had never moved — cannot be added, because a
-/// log's columns cannot change once it has rows.
+/// That is also why the channel list has to be learnt rather than declared —
+/// and why learning it is not enough on its own. Opening listens for a couple of
+/// seconds and takes what arrives, but what arrives is only what moved, so the
+/// list depends on what the engine was doing rather than on what the ECU has.
+/// On a bench Race that is 136 channels on the first connect of the day and
+/// fifty on the next, and listening longer does not help: the first number is a
+/// queued backlog being drained and the plateau is reached in about a second.
+/// <see cref="AlwaysLogged"/> is what stops that deciding which channels a log
+/// has, because a channel that first appears later cannot be added — a log's
+/// columns cannot change once it has rows.
 /// </summary>
 public sealed class MaxxUsbSource : ILiveSource
 {
@@ -34,12 +39,12 @@ public sealed class MaxxUsbSource : ILiveSource
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromMilliseconds(400);
 
     /// <summary>
-    /// How long to keep listening at connect before deciding the channel list is
-    /// complete.
+    /// How long to keep listening at connect before fixing the channel list.
     ///
-    /// The ECU sends its whole state in the first payloads and only changes
-    /// after that, so this is long enough to have seen the state and short
-    /// enough not to be a wait anybody notices.
+    /// Two seconds because a longer wait buys nothing: measured against a bench
+    /// Race, a raw listen had found 51 ids after one second, 55 after five, and
+    /// 55 after sixty. Everything a channel-by-channel listen is going to hear,
+    /// it hears at once.
     /// </summary>
     private static readonly TimeSpan LearnFor = TimeSpan.FromSeconds(2);
 
@@ -86,6 +91,35 @@ public sealed class MaxxUsbSource : ILiveSource
     }
 
     /// <summary>
+    /// Channels that become columns whether or not the ECU has mentioned them.
+    ///
+    /// Learning the list by listening has one flaw, and it is not a small one: a
+    /// MaxxECU sends a channel only when its value changes, so what is heard in
+    /// the first two seconds is whatever happened to be moving. Connect with the
+    /// engine off — which is the ordinary order, cable first and key second —
+    /// and engine speed, coolant, lambda and ignition angle have all been still,
+    /// so none of them is a column, and a log's columns cannot change once it
+    /// has rows. Measured on a bench Race: fifty channels of input voltages and
+    /// counters, and not one of the things anybody connects to see.
+    ///
+    /// These are the fourteen MaxxECU itself subscribes to for its Bluetooth
+    /// dash — <see cref="MaxxProtocol.Subscribed"/>, so the two links agree on
+    /// what matters — with throttle position added, which that set leaves out.
+    /// A MaxxECU has all of them whatever is wired to it.
+    ///
+    /// One that has not been sent yet reads zero until the ECU first reports it,
+    /// which is what any channel does between being discovered and its first
+    /// update. Zero is wrong for a coolant temperature and right for engine
+    /// speed, and it lasts only until the value moves — where being absent from
+    /// the log lasts for the whole session.
+    /// </summary>
+    public static IReadOnlyList<int> AlwaysLogged { get; } =
+        [.. MaxxProtocol.Subscribed.Select(c => c.Id).Append(ThrottlePosition).Order()];
+
+    /// <summary>Throttle position, which the Bluetooth subscription has no room for.</summary>
+    private const int ThrottlePosition = 19;
+
+    /// <summary>
     /// Listens until the ECU stops naming channels it has not named before, then
     /// fixes that as the channel list.
     /// </summary>
@@ -99,7 +133,7 @@ public sealed class MaxxUsbSource : ILiveSource
             throw new EcuProtocolException(
                 "The MaxxECU answered but sent no channels, so there is nothing to log.");
 
-        _ids = [.. _values.Keys.Order()];
+        _ids = [.. _values.Keys.Union(AlwaysLogged).Order()];
 
         IReadOnlyDictionary<int, string> units = MaxxChannelTable.Units();
         IReadOnlyDictionary<int, MaxxChannelDefinition> defined =
