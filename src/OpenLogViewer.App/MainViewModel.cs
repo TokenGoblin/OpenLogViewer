@@ -3087,7 +3087,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     private string _projectTuneName = "";
 
-    private void ReadTuneFromEcu(EcuConnection connection, string iniText)
+    /// <summary>
+    /// Puts down whatever tune was held, before another is picked up.
+    ///
+    /// Its own method because there is more than one way in — an ECU over the
+    /// TunerStudio protocol, a definition file, a saved tune, and a MaxxECU over
+    /// USB — and every one of them has to forget the same nine or ten things.
+    /// The MaxxECU path was written without this and forgot most of them: its
+    /// tables were appended to the last firmware's rather than replacing them,
+    /// and a placeholder flag left over from an opened definition file marked a
+    /// tune read off a real ECU as invented.
+    /// </summary>
+    private void ForgetTune()
     {
         _ecuTune = null;
         _tuneLayout = null;
@@ -3120,6 +3131,11 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(OpenDialog));
         Raise(nameof(OpenMenuEntry));
         EcuTuneSummary = "";
+    }
+
+    private void ReadTuneFromEcu(EcuConnection connection, string iniText)
+    {
+        ForgetTune();
 
         try
         {
@@ -3575,6 +3591,7 @@ public sealed partial class MainViewModel : ObservableObject
         // cannot be read alongside the telemetry poll — it has to happen before
         // the session takes the cable or not at all. Four seconds, once, which is
         // about what a MegaSquirt spends on the same errand.
+        _maxxTuneTrouble = "";
         byte[]? blob = ReadMaxxTune(serial);
 
         // A different protocol, not the same one over a different wire — so a
@@ -3606,7 +3623,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SeedMaxxGauges(source.Channels);
 
-        string tune = blob is null ? "" : AdoptMaxxTune(blob);
+        string tune = AdoptMaxxTune(blob);
 
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
         Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
@@ -3643,21 +3660,40 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            App.Report($"The MaxxECU's tune could not be read: {e.Message}");
+            // Kept, not only logged. The log is a file nobody is looking at, and
+            // the difference between "this ECU's tune cannot be read" and "the
+            // Calibration tab is empty for some reason" is the whole of what
+            // somebody needs to know here.
+            _maxxTuneTrouble = e.Message;
+            App.Report($"The MaxxECU's tune could not be read: {e}");
 
             return null;
         }
     }
+
+    /// <summary>Why the last MaxxECU tune read did not happen, if it did not.</summary>
+    private string _maxxTuneTrouble = "";
 
     /// <summary>
     /// Turns the blob into tables and settings, and hands them to the rest of
     /// the application as though they had come from an INI.
     /// </summary>
     /// <returns>A sentence for the connection hint.</returns>
-    private string AdoptMaxxTune(byte[] blob)
+    private string AdoptMaxxTune(byte[]? blob)
     {
+        // First, and whatever happens next — including the tune not having been
+        // read at all. Failing to pick a tune up has to put the last one down,
+        // or a Calibration tab goes on showing a Speeduino's tables under a
+        // MaxxECU heading, which is worse than an empty one because it looks
+        // like it worked.
+        ForgetTune();
+
         try
         {
+            if (blob is null)
+                return " Its tune could not be read, so calibration is not available"
+                       + (_maxxTuneTrouble.Length > 0 ? $": {_maxxTuneTrouble}" : ".");
+
             IReadOnlyList<MaxxSettingDefinition> definitions =
                 MaxxTuneDefinitions.Read(MaxxTuneDefinitions.Find());
 
@@ -3688,6 +3724,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             App.Report($"The MaxxECU's tune could not be decoded: {e}");
 
+            // Half a tune is not a tune. A decode that fell over partway has
+            // left some of this assigned and some of it not, and what it would
+            // put on screen is a mixture nobody can tell from a whole one.
+            ForgetTune();
+
             return " Its tune was read but could not be decoded.";
         }
         finally
@@ -3697,7 +3738,12 @@ public sealed partial class MainViewModel : ObservableObject
             Raise(nameof(ShowNoTuneNotice));
             Raise(nameof(EcuTableSummary));
             Raise(nameof(EcuTuneSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
             RaiseWriteGates();
+
+            // The first one is the biggest, which is the one worth opening on.
+            SelectedEcuTable = EcuTables.FirstOrDefault();
         }
     }
 

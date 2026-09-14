@@ -259,6 +259,39 @@ public class MaxxTuneTests
         Assert.Equal(6, layout.Constants.Count);
     }
 
+    /// <summary>
+    /// A setting whose name collides with a generated axis name does not take
+    /// the axis over.
+    ///
+    /// The axis constants are invented here — "VE Table 1 X" — and the ECU's own
+    /// settings are not, so nothing stops the definitions containing that name
+    /// already. A constant is found by name and the later one wins, so the table
+    /// would read its breakpoints out of that setting, at that setting's scale,
+    /// with nothing on screen to say so.
+    /// </summary>
+    [Fact]
+    public void ASettingCannotTakeOverATablesAxis()
+    {
+        byte[] blob = WithVeTable();
+
+        // Something plausible at an address nowhere near the axis.
+        BinaryPrimitives.WriteInt16LittleEndian(blob.AsSpan(9000), 1234);
+
+        IReadOnlyList<MaxxSettingDefinition> definitions =
+        [
+            .. VeDefinition(),
+            new("VE Table 1 X", "int16", 9000, 1, 1, -30000, 30000),
+        ];
+
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, definitions);
+        TuneTable table = EcuTune.FromPages(layout, blob).Tables(tables).Single();
+
+        // The breakpoints are the table's own, not the setting's single value.
+        Assert.Equal(16, table.X.Breakpoints.Length);
+        Assert.Equal(200, table.X.Breakpoints[0], 3);
+        Assert.Equal(7000, table.X.Breakpoints[15], 3);
+    }
+
     // ----- the definitions file -------------------------------------------------
 
     /// <summary>

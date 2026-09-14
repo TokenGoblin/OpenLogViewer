@@ -364,8 +364,17 @@ public static class MaxxTune
 
                 string name = Unique(table.Name, taken);
 
-                constants.Add(Axis($"{name} X", table.XAxisAt, table.Columns, table.XChannel, channels));
-                constants.Add(Axis($"{name} Y", table.YAxisAt, table.Rows, table.YChannel, channels));
+                // The axis names go through the same claim as the table's own.
+                // They are constants like any other and are looked up by name, so
+                // a setting the definitions happen to call "VE Table 1 X" would
+                // otherwise be declared later and quietly replace the axis — and
+                // the table would read its breakpoints out of that setting's
+                // bytes, at that setting's scale.
+                string x = Unique($"{name} X", taken);
+                string y = Unique($"{name} Y", taken);
+
+                constants.Add(Axis(x, table.XAxisAt, table.Columns, table.XChannel, channels));
+                constants.Add(Axis(y, table.YAxisAt, table.Rows, table.YChannel, channels));
 
                 constants.Add(new TuneConstant
                 {
@@ -386,8 +395,8 @@ public static class MaxxTune
                     Id = name,
                     Title = name,
                     Values = name,
-                    XBins = $"{name} X",
-                    YBins = $"{name} Y",
+                    XBins = x,
+                    YBins = y,
                     XChannel = ChannelName(table.XChannel, channels),
                     YChannel = ChannelName(table.YChannel, channels),
                 });
