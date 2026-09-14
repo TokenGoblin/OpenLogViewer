@@ -323,18 +323,62 @@ public static class MaxxTune
     }
 
     /// <summary>
-    /// Whether a table's cells and their checksum can be sent as one write.
+    /// Whether a table's cells and their checksum go in one write.
     ///
-    /// They have to be, on a controller with no burn: two writes leave a moment
-    /// where the ECU holds a grid whose checksum does not match it, and what the
-    /// firmware does in that moment has not been established. A 6 × 6 fits; a
-    /// 16 × 11 VE table does not.
+    /// A 6 × 6 does; a 16 × 11 VE table does not, at four bytes per cell pair
+    /// plus the checksum against a 256-byte limit. It is worth knowing which,
+    /// because a table sent in one write is never briefly inconsistent and one
+    /// sent in several is — see <see cref="WritesFor"/>.
     /// </summary>
     public static bool FitsInOneWrite(MaxxTable table)
     {
         ArgumentNullException.ThrowIfNull(table);
 
         return (table.Columns * table.Rows * 2) + 4 <= MaximumWrite;
+    }
+
+    /// <summary>
+    /// Splits a table's record into the writes that carry it, checksum last.
+    ///
+    /// <para>
+    /// A record longer than <see cref="MaximumWrite"/> cannot arrive at once, and
+    /// between the first piece landing and the last the ECU holds a grid its
+    /// stored checksum disagrees with. That was worth refusing until the
+    /// firmware said what it does about it, and it turns out to do very little:
+    /// the evaluator recomputes the checksum every time it evaluates a table and,
+    /// on a mismatch, returns nought for that one evaluation and ticks a counter
+    /// — the channels MTune calls <c>Table error counter</c> and
+    /// <c>Table error last</c>. Nothing latches, nothing limps, and the table is
+    /// not zeroed; the next evaluation after the last piece lands reads normally
+    /// again.
+    /// </para>
+    /// <para>
+    /// So the window is real and brief, and what matters is that it is as short
+    /// as it can be and ends definitively. The checksum sits at the end of the
+    /// record, so sending the pieces in order puts it in the last one: the table
+    /// disagrees with itself from the first write until the last byte of the last
+    /// write, and not a moment longer.
+    /// </para>
+    /// <para>
+    /// A cold nought for one evaluation is harmless on a bench and is not
+    /// something to do to an engine under load. Whoever calls this should say so
+    /// to whoever is about to press the button.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<(int Offset, byte[] Data)> WritesFor(
+        ReadOnlySpan<byte> blob, MaxxTable table, ReadOnlySpan<short> cells)
+    {
+        byte[] record = Record(blob, table, cells);
+        var pieces = new List<(int, byte[])>();
+
+        for (int at = 0; at < record.Length; at += MaximumWrite)
+        {
+            int length = Math.Min(MaximumWrite, record.Length - at);
+
+            pieces.Add((table.CellsAt + at, record.AsSpan(at, length).ToArray()));
+        }
+
+        return pieces;
     }
 
     /// <summary>

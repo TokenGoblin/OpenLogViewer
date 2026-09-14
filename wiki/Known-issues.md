@@ -212,22 +212,40 @@ What is still not offered to anybody: nothing in the application can reach
 `MaxxTune.Write`, there is no Send to ECU on that path, and one thing below has
 to be settled before there is.
 
-### A big MaxxECU table cannot be sent without a moment of disagreeing with itself
+### A big MaxxECU table reads as 0 for one evaluation while it is being sent
 
 Each table record carries a CRC-32 over its cells that the firmware verifies
 **every time it evaluates the table**, so the cells and the checksum have to
-arrive together. They can, while they fit in one write: Fuel ASE is 6 × 6, which
-is 72 bytes of cells and 76 with the checksum, and the ECU takes it in one go —
-that is what was proven above.
+arrive together. They do while they fit in one write: Fuel ASE is 6 × 6, which is
+72 bytes of cells and 76 with the checksum, and the ECU takes it in one go.
 
-A write is capped at 256 bytes, so anything past 126 cells cannot be sent that
-way. **VE Table 1 is 16 × 11 — 352 bytes** — and would need at least two writes,
-leaving a window of a millisecond or so where the ECU holds a grid whose checksum
-does not match it. What the firmware does in that window has not been
-established: it might ignore the table, fall back to something, or set a fault.
-`MaxxTune.FitsInOneWrite` reports which case a table is in, and until the
-question is answered, the honest position is that only tables it answers true for
-can be written safely.
+A write is capped at 256 bytes, so anything past 126 cells cannot be. **VE Table 1
+is 16 × 11 — 352 bytes** — and needs two, leaving a window where the ECU holds a
+grid its stored checksum disagrees with.
+
+This was refused outright while nobody could say what the firmware did in that
+window. It was then read out of the evaluator: on a mismatch it returns **nought
+for that one evaluation** and ticks two counters — the channels MTune calls
+*Table error counter* and *Table error last*. Nothing latches, there is no fault
+code and no limp, and the table is not zeroed; the next evaluation after the last
+piece lands reads normally. The result cache is keyed on the record's checksum
+and the write path clears it, so the re-evaluation happens on the next read.
+
+So the big tables are writable, and `MaxxTune.WritesFor` keeps the window as
+short as it can be: the checksum is at the end of the record, so sending the
+pieces in order puts it in the last one and the table stops disagreeing with
+itself on the final byte. What remains is a judgement rather than a defect — **a
+cold nought for one evaluation is nothing on a bench and is not something to do
+to an engine under load** — so the confirmation says so, and says it louder when
+engine speed in the same session is above idle.
+
+One more thing about every write, not just a split one: **the ECU clears its
+whole table cache**, not the entry for the table that changed. The clearing
+routine takes no argument and zeroes the entire key array in one loop, so it
+cannot be selective. The first read after any write therefore re-evaluates every
+map on the ECU — one fresh evaluation each, which is cheap, but it is all of them
+and not the one that was touched. The confirmation says so when the engine is
+turning.
 
 The handshake write `0x07` is also explained now, and it is not nothing: it
 clears a byte that **gates reading the tune** — `0x11` arms that gate from

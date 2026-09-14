@@ -133,13 +133,13 @@ should be able to tell which you are looking at.
 That RAM step is a safety feature, not an inconvenience: **a change that turns
 out to be wrong is undone by turning the key off.**
 
-> **NOTICE:** **This is not how a MaxxECU works, and nothing here writes one.**
-> A MaxxECU has no burn: a write is applied to the running tune and persisted by
-> the ECU itself in one step, so there is no RAM step to fall back on and turning
-> the key off undoes nothing. Its tune can be **read** over USB and its tables
-> looked at — see [Live connection](Live-connection#the-tune-over-usb) — but
-> Send and Burn are not offered for one, and will not be until a write has been
-> aimed at a known address and read back from it.
+> **NOTICE:** **This is not how a MaxxECU works.** A MaxxECU has no burn: a write
+> is applied to the running tune and saved by the ECU itself in one step, so
+> there is no RAM step to fall back on and turning the key off undoes nothing.
+> **Send to ECU** works on one over USB and **Burn** is not offered, because
+> there is nothing to burn. The way back is the file OpenLogViewer writes before
+> every send — see
+> [Live connection](Live-connection#the-tune-over-usb).
 
 ### Sending
 

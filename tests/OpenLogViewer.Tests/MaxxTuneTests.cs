@@ -632,6 +632,64 @@ public class MaxxTuneTests
         Assert.True(MaxxTune.FitsInOneWrite(MaxxTune.TableAt(small, "Fuel ASE Table data", 400)!));
     }
 
+    /// <summary>
+    /// A table that fits goes in one write, so it is never inconsistent with its
+    /// own checksum for even a moment.
+    /// </summary>
+    [Fact]
+    public void ATableThatFitsIsSentAsOneWrite()
+    {
+        var blob = new byte[MaxxTune.BlobSize];
+        short[] axis = [10, 20, 30, 40, 50, 60];
+        Compose(blob, 400, 100, 61, 20, axis, axis, new short[6, 6]);
+
+        MaxxTable table = MaxxTune.TableAt(blob, "Fuel ASE Table data", 400)!;
+        IReadOnlyList<(int Offset, byte[] Data)> pieces =
+            MaxxTune.WritesFor(blob, table, new short[36]);
+
+        (int offset, byte[] data) = Assert.Single(pieces);
+        Assert.Equal(table.CellsAt, offset);
+        Assert.Equal((36 * 2) + 4, data.Length);
+    }
+
+    /// <summary>
+    /// A table too big for one write is split, and the checksum goes in the last
+    /// piece.
+    ///
+    /// That ordering is the whole safety property. Between the first piece
+    /// landing and the last, the ECU holds a grid its stored checksum disagrees
+    /// with and reads the table as nought for one evaluation; putting the
+    /// checksum anywhere but last would leave it disagreeing after the cells were
+    /// already right.
+    /// </summary>
+    [Fact]
+    public void ABigTableIsSplitWithTheChecksumLast()
+    {
+        byte[] blob = WithVeTable();
+        MaxxTable table = MaxxTune.TableAt(blob, "VE Table 1 data", 1578)!;
+
+        short[] cells = [.. Enumerable.Range(0, table.Columns * table.Rows).Select(i => (short)(300 + i))];
+        IReadOnlyList<(int Offset, byte[] Data)> pieces = MaxxTune.WritesFor(blob, table, cells);
+
+        Assert.True(pieces.Count > 1, "a 16 by 11 table does not fit in one write");
+        Assert.All(pieces, p => Assert.InRange(p.Data.Length, 1, MaxxTune.MaximumWrite));
+
+        // Nose to tail from the first cell, with no gap and no overlap.
+        Assert.Equal(table.CellsAt, pieces[0].Offset);
+
+        for (int i = 1; i < pieces.Count; i++)
+            Assert.Equal(pieces[i - 1].Offset + pieces[i - 1].Data.Length, pieces[i].Offset);
+
+        // The whole record, and the checksum at the end of the last piece.
+        byte[] whole = [.. pieces.SelectMany(p => p.Data)];
+        Assert.Equal(MaxxTune.Record(blob, table, cells), whole);
+
+        (int last, byte[] tail) = pieces[^1];
+        Assert.Equal(
+            table.CellsAt + (cells.Length * 2) + 4,
+            last + tail.Length);
+    }
+
     [Fact]
     public void AWriteLandsWhereItWasAimed()
     {

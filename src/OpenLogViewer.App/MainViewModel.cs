@@ -2617,21 +2617,50 @@ public sealed partial class MainViewModel : ObservableObject
         && (_ecuConnection is not null || CanWriteThisMaxxTable);
 
     /// <summary>
-    /// Whether the open table is one a MaxxECU will take.
+    /// Whether the open table is one this MaxxECU session knows where to put.
     ///
-    /// Not every one of them is. A table's cells and the checksum the firmware
-    /// checks them against have to arrive in a single write, and this ECU takes
-    /// 256 bytes at a time — so the big maps cannot be sent at all until somebody
-    /// establishes what the firmware does while a grid and its checksum disagree.
-    /// The button is shut rather than the refusal being left for after the
-    /// confirmation, because a person should not be asked to approve something
-    /// that was going to be refused.
+    /// Only that it was read from this ECU, now. The size used to matter as well:
+    /// a table too big for one write is briefly inconsistent with its own
+    /// checksum, and that was refused outright while nobody could say what the
+    /// firmware did about it. It reads the table as nought for one evaluation and
+    /// ticks a counter — so the big maps are writable, and the caution belongs in
+    /// the confirmation rather than in a shut button.
     /// </summary>
     private bool CanWriteThisMaxxTable =>
         _maxxSource is not null
         && TableEdit is { } edit
-        && _maxxTables.FirstOrDefault(t => t.Name == edit.Name) is { } table
-        && MaxxTune.FitsInOneWrite(table);
+        && _maxxTables.Any(t => t.Name == edit.Name);
+
+    /// <summary>
+    /// Engine speed as the live session last saw it, or null when it is stopped
+    /// or not being reported.
+    ///
+    /// For one purpose: saying so before a write that would be unwise on a
+    /// turning engine. A number read from the session beats asking somebody to
+    /// remember.
+    /// </summary>
+    private double? RunningRpm
+    {
+        get
+        {
+            if (_live is not { } live) return null;
+
+            int at = live.Names.ToList().FindIndex(
+                n => n.Equals("RPM", StringComparison.OrdinalIgnoreCase));
+
+            if (at < 0) return null;
+
+            LogDocument snapshot = live.Snapshot();
+
+            if (at >= snapshot.Channels.Count) return null;
+
+            ReadOnlySpan<float> samples = snapshot.Channels[at].Samples;
+
+            // Above a speed nothing reads by accident, so a stopped engine
+            // reporting noise does not produce a warning about itself.
+            return samples.Length > 0 && samples[^1] > 50 ? samples[^1] : null;
+        }
+    }
 
     /// <summary>
     /// Whether burning is possible at all, which needs a controller on the other
@@ -2971,17 +3000,31 @@ public sealed partial class MainViewModel : ObservableObject
         if (_maxxTables.FirstOrDefault(t => t.Name == edit.Name) is not { } table)
             return $"{edit.Name} is not one of the tables read from this ECU.";
 
-        if (!MaxxTune.FitsInOneWrite(table))
-            return $"{edit.Name} is {table.Columns} by {table.Rows}, which is too big to send to a "
-                   + "MaxxECU in one go. Its cells and the checksum the firmware checks them against "
-                   + "have to arrive together, and this ECU takes 256 bytes at a time — so sending "
-                   + "it would leave a moment where the ECU holds a table that does not match its "
-                   + "own checksum. Nothing was sent.";
-
         if (edit.Encode(tune) is not { } write)
             return "This table cannot be encoded, so nothing was sent.";
 
         int cells = edit.ChangedCount;
+
+        // A table too big for one write is briefly inconsistent with its own
+        // checksum while the pieces land, and the firmware answers that by
+        // reading the table as nought for one evaluation. Harmless stopped;
+        // not a thing to do to an engine pulling.
+        bool atOnce = MaxxTune.FitsInOneWrite(table);
+
+        string caution = atOnce
+            ? ""
+            : $"\n\n{edit.Name} is {table.Columns} by {table.Rows}, which is too big to send at "
+              + "once. While the pieces land the ECU reads this table as 0 for one evaluation, "
+              + "then normally again.";
+
+        // True of every write to one of these, not only a split one: the ECU
+        // throws away its whole table cache rather than the entry for the table
+        // that changed, so the read after a write re-evaluates all of them. One
+        // fresh evaluation each and cheap — but it is every map, not this one,
+        // and that is worth knowing before it happens to a turning engine.
+        if (RunningRpm is { } rpm)
+            caution += $"\n\nTHE ENGINE IS TURNING — {rpm:N0} RPM. Every table on the ECU "
+                       + "re-evaluates on the first read after any write, not just this one.";
 
         if (!_confirm.Confirm(new WriteRequest(
                 WriteKind.Table,
@@ -2990,7 +3033,8 @@ public sealed partial class MainViewModel : ObservableObject
                 + "applies the change to the running tune and saves it itself, so turning the key "
                 + "off will not undo it.\n\n"
                 + "The tune as it stands now is written to a file first, and that file is the only "
-                + "way back.")))
+                + "way back."
+                + caution)))
         {
             return "Nothing was sent.";
         }
@@ -3016,16 +3060,29 @@ public sealed partial class MainViewModel : ObservableObject
             for (int i = 0; i < grid.Length; i++)
                 grid[i] = BitConverter.ToInt16(write.Data, i * 2);
 
-            byte[] record = MaxxTune.Record(before, table, grid);
-            MaxxWriteStatus status = source.WriteTune(table.CellsAt, record);
+            // Checksum last, so the table stops disagreeing with itself on the
+            // last byte that lands rather than at some point after it.
+            IReadOnlyList<(int Offset, byte[] Data)> pieces =
+                MaxxTune.WritesFor(before, table, grid);
 
-            if (status != MaxxWriteStatus.Ok)
-                return $"The MaxxECU refused the write ({status}). Nothing was changed, and the "
-                       + $"tune as it was is in {backup}.";
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                MaxxWriteStatus status = source.WriteTune(pieces[i].Offset, pieces[i].Data);
 
-            if (!source.VerifyTune(table.CellsAt, record))
-                return "The MaxxECU took the write but read back something else, so the tune on it "
-                       + $"is not what was sent. The tune as it was before is in {backup}.";
+                if (status == MaxxWriteStatus.Ok) continue;
+
+                return i == 0
+                    ? $"The MaxxECU refused the write ({status}). Nothing was changed, and the "
+                      + $"tune as it was is in {backup}."
+                    : $"The MaxxECU refused part {i + 1} of {pieces.Count} ({status}), so "
+                      + $"{edit.Name} is now half written and will read as 0 until it is put "
+                      + $"right. The tune as it was is in {backup} — restore from it.";
+            }
+
+            foreach ((int offset, byte[] data) in pieces)
+                if (!source.VerifyTune(offset, data))
+                    return "The MaxxECU took the write but read back something else, so the tune "
+                           + $"on it is not what was sent. The tune as it was is in {backup}.";
 
             tune.Accept(write);
             _settingsEdit?.Accept(write);

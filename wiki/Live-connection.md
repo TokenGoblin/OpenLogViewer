@@ -129,11 +129,19 @@ still read and cannot be named, and the connection says so.
 > **NOTICE:** **A MaxxECU has no burn, so it has no undo.** On every other
 > controller here a write lands in working memory and is lost at the next power
 > cycle unless it is burned, which makes turning the key off the way out of a
-> mistake. A MaxxECU applies a write to the running tune and persists it itself,
-> in one step. **Nothing in OpenLogViewer writes a MaxxECU** — the tables are
-> shown, not sent — and that will not change until a write has been aimed at a
-> known address on real hardware and read back from it, with the original put
-> back afterwards.
+> mistake. A MaxxECU applies a write to the running tune and saves it itself, in
+> one step — turning the key off will not undo it.
+>
+> So **the tune is written to a file first**, under `MaxxECU tunes` in your
+> workspace, every time anything is sent. That file is the way back, and the
+> message after a write names it.
+
+Tables can be sent with **Send to ECU**; **Burn** is not offered, because there
+is nothing to burn. A table bigger than 126 cells — a VE or ignition map — cannot
+be sent in one write, and while its pieces land the ECU reads that one table as 0
+for a single evaluation before reading normally again. That is nothing with the
+engine stopped and is not something to do under load, so the confirmation says
+so, and says it louder if engine speed in the same session is above idle.
 
 The first two seconds of a USB session are spent listening, which is how long it
 takes to hear what the ECU is sending. Longer does not help — measured against
