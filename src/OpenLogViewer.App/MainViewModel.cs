@@ -2613,8 +2613,25 @@ public sealed partial class MainViewModel : ObservableObject
     /// a firmware that admits to being writable.
     /// </summary>
     public bool CanWriteTable =>
-        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null
-        && !TuneIsPlaceholder && !TuneIsFromFile;
+        HasTableChanges && _tuneLayout is not null && !TuneIsPlaceholder && !TuneIsFromFile
+        && (_ecuConnection is not null || CanWriteThisMaxxTable);
+
+    /// <summary>
+    /// Whether the open table is one a MaxxECU will take.
+    ///
+    /// Not every one of them is. A table's cells and the checksum the firmware
+    /// checks them against have to arrive in a single write, and this ECU takes
+    /// 256 bytes at a time — so the big maps cannot be sent at all until somebody
+    /// establishes what the firmware does while a grid and its checksum disagree.
+    /// The button is shut rather than the refusal being left for after the
+    /// confirmation, because a person should not be asked to approve something
+    /// that was going to be refused.
+    /// </summary>
+    private bool CanWriteThisMaxxTable =>
+        _maxxSource is not null
+        && TableEdit is { } edit
+        && _maxxTables.FirstOrDefault(t => t.Name == edit.Name) is { } table
+        && MaxxTune.FitsInOneWrite(table);
 
     /// <summary>
     /// Whether burning is possible at all, which needs a controller on the other
@@ -2866,6 +2883,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
 
         if (TableEdit is not { } edit) return "No table is open.";
+
+        // A MaxxECU is not written the way the rest are — a different command, a
+        // checksum to go with the cells, and nothing to burn afterwards.
+        if (_maxxSource is not null) return WriteMaxxTable(edit);
+
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
         if (!edit.HasChanges) return "Nothing has been changed.";
@@ -2924,6 +2946,119 @@ public sealed partial class MainViewModel : ObservableObject
         {
             return $"The write failed: {e.Message}";
         }
+    }
+
+    /// <summary>
+    /// Sends a table to a MaxxECU, which is a different act from sending one to
+    /// anything else here.
+    ///
+    /// <para>
+    /// Three things differ and each of them matters. The cells carry a checksum
+    /// the firmware verifies on every evaluation, so they cannot go without it.
+    /// That pair has to arrive in one write, or the ECU briefly holds a grid its
+    /// checksum disagrees with — which rules out any table too big to fit, until
+    /// somebody establishes what the firmware does in that moment. And there is
+    /// no burn: this is permanent as it lands, so the tune is written to a file
+    /// first, because that file is the only way back.
+    /// </para>
+    /// </summary>
+    private WriteResult WriteMaxxTable(TuneEdit edit)
+    {
+        if (_maxxSource is not { } source) return "Not connected to a MaxxECU.";
+        if (_ecuTune is not { } tune) return "No tune has been read.";
+        if (!edit.HasChanges) return "Nothing has been changed.";
+
+        if (_maxxTables.FirstOrDefault(t => t.Name == edit.Name) is not { } table)
+            return $"{edit.Name} is not one of the tables read from this ECU.";
+
+        if (!MaxxTune.FitsInOneWrite(table))
+            return $"{edit.Name} is {table.Columns} by {table.Rows}, which is too big to send to a "
+                   + "MaxxECU in one go. Its cells and the checksum the firmware checks them against "
+                   + "have to arrive together, and this ECU takes 256 bytes at a time — so sending "
+                   + "it would leave a moment where the ECU holds a table that does not match its "
+                   + "own checksum. Nothing was sent.";
+
+        if (edit.Encode(tune) is not { } write)
+            return "This table cannot be encoded, so nothing was sent.";
+
+        int cells = edit.ChangedCount;
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.Table,
+                $"Send {cells} changed cell{(cells == 1 ? "" : "s")} of {edit.Name} to the MaxxECU?",
+                "This is permanent the moment it lands. A MaxxECU has no burn to withhold — it "
+                + "applies the change to the running tune and saves it itself, so turning the key "
+                + "off will not undo it.\n\n"
+                + "The tune as it stands now is written to a file first, and that file is the only "
+                + "way back.")))
+        {
+            return "Nothing was sent.";
+        }
+
+        try
+        {
+            byte[] before = source.ReadTune();
+            string backup = BackUpMaxxTune(before);
+
+            // The editor encodes the whole grid at the constant's own offset, and
+            // this checks that rather than trusting it. The two describe the same
+            // table by different routes — one through the layout built for the
+            // tune model, one through the config struct read from the ECU — and
+            // if they ever disagreed, the cells would be written somewhere, at
+            // some size, permanently.
+            var grid = new short[table.Columns * table.Rows];
+
+            if (write.Offset != table.CellsAt || write.Data.Length != grid.Length * 2)
+                return $"The editor describes {edit.Name} as {write.Data.Length} bytes at "
+                       + $"{write.Offset} and the ECU as {grid.Length * 2} at {table.CellsAt}. "
+                       + "They disagree, so nothing was sent.";
+
+            for (int i = 0; i < grid.Length; i++)
+                grid[i] = BitConverter.ToInt16(write.Data, i * 2);
+
+            byte[] record = MaxxTune.Record(before, table, grid);
+            MaxxWriteStatus status = source.WriteTune(table.CellsAt, record);
+
+            if (status != MaxxWriteStatus.Ok)
+                return $"The MaxxECU refused the write ({status}). Nothing was changed, and the "
+                       + $"tune as it was is in {backup}.";
+
+            if (!source.VerifyTune(table.CellsAt, record))
+                return "The MaxxECU took the write but read back something else, so the tune on it "
+                       + $"is not what was sent. The tune as it was before is in {backup}.";
+
+            tune.Accept(write);
+            _settingsEdit?.Accept(write);
+            SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
+
+            return WriteResult.Sent(
+                $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the MaxxECU. It is running "
+                + "this now and has already saved it — there is no burn, and no power cycle will "
+                + $"undo it. The tune as it was is in {backup}.");
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
+                                      or ArgumentException)
+        {
+            return $"The write failed: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Writes the tune to a file before anything is sent, and hands back where it
+    /// went.
+    ///
+    /// On every other controller the way back from a bad write is the ignition
+    /// key. On this one there is none, so the way back has to be made before it
+    /// is needed rather than after.
+    /// </summary>
+    private string BackUpMaxxTune(byte[] blob)
+    {
+        string folder = Workspace.Ensure(Path.Combine(Workspace.Root, "MaxxECU tunes"));
+        string path = Path.Combine(folder, $"maxxecu-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.bin");
+
+        File.WriteAllBytes(path, blob);
+
+        return path;
     }
 
     /// <summary>
@@ -3119,6 +3254,7 @@ public sealed partial class MainViewModel : ObservableObject
         // branch everywhere it is read back, silently.
         _tuneFile = null;
         _tuneSymbols = null;
+        _maxxTables = [];
         EcuTables.Clear();
         SettingsMenu.Clear();
 
@@ -3599,6 +3735,8 @@ public sealed partial class MainViewModel : ObservableObject
         var source = new MaxxUsbSource(
             new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate));
 
+        _maxxSource = source;
+
         string where = serial.Length > 0 ? $"USB {serial}" : "USB";
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
@@ -3675,6 +3813,18 @@ public sealed partial class MainViewModel : ObservableObject
     private string _maxxTuneTrouble = "";
 
     /// <summary>
+    /// The live MaxxECU, when the session is one.
+    ///
+    /// Held because it is the only way to the cable: the poll loop owns the
+    /// device and serialises everything through it, so a write goes out between
+    /// two rounds rather than over the top of one.
+    /// </summary>
+    private MaxxUsbSource? _maxxSource;
+
+    /// <summary>Where each of its tables keeps its cells, as they were read.</summary>
+    private IReadOnlyList<MaxxTable> _maxxTables = [];
+
+    /// <summary>
     /// Turns the blob into tables and settings, and hands them to the rest of
     /// the application as though they had come from an INI.
     /// </summary>
@@ -3707,6 +3857,7 @@ public sealed partial class MainViewModel : ObservableObject
             _tuneLayout = layout;
             _ecuTune = EcuTune.FromPages(layout, blob);
             _ecuTableDefinitions = tables;
+            _maxxTables = MaxxTune.Tables(blob, definitions);
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
             // Not the firmware's, because a MaxxECU does not describe one — see
@@ -4553,6 +4704,10 @@ public sealed partial class MainViewModel : ObservableObject
         _live.Dispose();
         _live = null;
         _ecuConnection = null;
+
+        // The cable is gone with the session, so nothing can be written to it any
+        // more — and leaving this set would offer to.
+        _maxxSource = null;
         _obd2 = null;
         _obd2Undecoded = [];
 

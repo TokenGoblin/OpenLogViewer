@@ -163,11 +163,23 @@ public sealed class MaxxUsbSource : ILiveSource
         Digits = [.. _channels.Select(c => c.Digits)];
     }
 
+    /// <summary>
+    /// Held by anything that puts bytes on the cable.
+    ///
+    /// A MaxxECU has one USB device and one conversation on it: a request goes
+    /// out and the reply is read back, with nothing to say which request a reply
+    /// belongs to. The poll loop runs that conversation continuously on its own
+    /// thread, so a tune read or a write started from the interface would
+    /// interleave with it — and what comes back is then a reply to somebody
+    /// else's question, with a length and a checksum that happen to agree.
+    /// </summary>
+    private readonly Lock _cable = new();
+
     public double[] Read()
     {
         if (_ids.Length == 0) throw new InvalidOperationException("Open the connection first.");
 
-        Round();
+        lock (_cable) Round();
 
         var reading = new double[_ids.Length];
 
@@ -253,19 +265,53 @@ public sealed class MaxxUsbSource : ILiveSource
     /// </summary>
     public void Recover()
     {
-        try
+        lock (_cable)
         {
-            _transport.Close();
-        }
-        catch (Exception)
-        {
-            // A device that has gone cannot be closed politely.
-        }
+            try
+            {
+                _transport.Close();
+            }
+            catch (Exception)
+            {
+                // A device that has gone cannot be closed politely.
+            }
 
-        _transport.Open();
+            _transport.Open();
 
-        if (!Ask(MaxxUsbProtocol.AreYouThere(), 1, out _))
-            throw new EcuProtocolException("The MaxxECU did not answer after the link came back.");
+            if (!Ask(MaxxUsbProtocol.AreYouThere(), 1, out _))
+                throw new EcuProtocolException("The MaxxECU did not answer after the link came back.");
+        }
+    }
+
+    /// <summary>
+    /// Reads the ECU's tune without ending the session.
+    ///
+    /// The poll loop is held off for the four seconds this takes, which is a
+    /// gap in the log rather than a fault: the reading either side of it is the
+    /// same reading, because a MaxxECU sends only what changed and the changes
+    /// wait.
+    /// </summary>
+    public byte[] ReadTune()
+    {
+        lock (_cable) return MaxxTune.Read(_transport);
+    }
+
+    /// <summary>
+    /// Puts bytes into the ECU's tune, between two rounds of the poll loop.
+    ///
+    /// <b>Permanent when it lands</b> — see <see cref="MaxxTune.Write"/>. This
+    /// only serialises it against the telemetry; everything about what is safe to
+    /// send is the caller's to know.
+    /// </summary>
+    public MaxxWriteStatus WriteTune(int offset, ReadOnlySpan<byte> data)
+    {
+        lock (_cable) return MaxxTune.Write(_transport, offset, data);
+    }
+
+    /// <summary>Reads a run of the tune back, to check a write took.</summary>
+    public bool VerifyTune(int offset, ReadOnlySpan<byte> expected)
+    {
+        lock (_cable) return MaxxTune.Verify(_transport, offset, expected);
     }
 
     public void Dispose() => _transport.Dispose();
