@@ -382,6 +382,83 @@ public static class MaxxTune
     }
 
     /// <summary>
+    /// How much of the tune the ECU's own checksums cover, in one 4 KB piece
+    /// each.
+    /// </summary>
+    public const int ChecksumChunk = 4096;
+
+    /// <summary>
+    /// Asks the ECU to checksum its own tune, a 4 KB chunk at a time.
+    ///
+    /// <para>
+    /// Command <c>0x37</c>, which is not a data read: the byte count goes in the
+    /// <em>offset</em> field, and what comes back is one CRC-32 per 4 KB of the
+    /// live tune — the same tune <c>0x05</c> reads, at the same base. MTune asks
+    /// it to cover 62,180 bytes, which is sixteen chunks and the 64 bytes its
+    /// capture showed.
+    /// </para>
+    /// <para>
+    /// What it is for here is checking a write. Reading the range back says the
+    /// bytes that were sent arrived; this says nothing else moved, anywhere in
+    /// the tune, which on a controller with no undo is the more useful question
+    /// — and it costs one exchange rather than 256.
+    /// </para>
+    /// <para>
+    /// It reads the <b>live</b> tune, so a table sent in several writes will not
+    /// match anything until the last piece has landed. Ask afterwards, not
+    /// between.
+    /// </para>
+    /// </summary>
+    /// <returns>One checksum per chunk, or empty if the ECU did not answer.</returns>
+    public static uint[] Checksums(IEcuTransport transport, int covers = WriteCeiling)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(covers);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(covers, ushort.MaxValue);
+
+        int chunks = ((covers + ChecksumChunk - 1) / ChecksumChunk) * 4;
+        var reply = new byte[MaxxUsbProtocol.ReplyLength(chunks)];
+
+        transport.Write(MaxxUsbProtocol.Request(MaxxUsbProtocol.Read, 0x37, covers, chunks));
+
+        if (transport.Read(reply, TimeSpan.FromMilliseconds(600)) != reply.Length
+            || !MaxxUsbProtocol.TryReadReply(reply, chunks, out byte[] data))
+            return [];
+
+        var checksums = new uint[chunks / 4];
+
+        for (int i = 0; i < checksums.Length; i++)
+            checksums[i] = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(i * 4));
+
+        return checksums;
+    }
+
+    /// <summary>
+    /// The same checksums, worked out here, for a tune we believe the ECU has.
+    ///
+    /// Confirmed against a bench Race: all sixteen agreed with the ECU's own,
+    /// including the last chunk, which covers 740 bytes rather than 4,096 and so
+    /// is not something that agrees by chance.
+    /// </summary>
+    public static uint[] ChecksumsOf(ReadOnlySpan<byte> blob, int covers = WriteCeiling)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(covers);
+
+        if (covers > blob.Length) covers = blob.Length;
+
+        var checksums = new uint[(covers + ChecksumChunk - 1) / ChecksumChunk];
+
+        for (int i = 0; i < checksums.Length; i++)
+        {
+            int at = i * ChecksumChunk;
+
+            checksums[i] = MaxxProtocol.Crc32(blob.Slice(at, Math.Min(ChecksumChunk, covers - at)));
+        }
+
+        return checksums;
+    }
+
+    /// <summary>
     /// Reads back what was just written and says whether it took.
     ///
     /// Worth doing on every write and not only when something looks wrong. The

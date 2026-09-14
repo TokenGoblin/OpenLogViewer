@@ -3079,10 +3079,38 @@ public sealed partial class MainViewModel : ObservableObject
                       + $"right. The tune as it was is in {backup} — restore from it.";
             }
 
-            foreach ((int offset, byte[] data) in pieces)
-                if (!source.VerifyTune(offset, data))
-                    return "The MaxxECU took the write but read back something else, so the tune "
-                           + $"on it is not what was sent. The tune as it was is in {backup}.";
+            // What the tune should now be, and what the ECU says it is.
+            //
+            // Reading the written range back would only say the bytes that were
+            // sent arrived. This asks the ECU to checksum its whole tune, 4 KB at
+            // a time, and compares that against the same sum worked out here —
+            // so it answers the question that matters on a controller with no
+            // undo, which is whether anything moved that should not have. It
+            // costs one exchange.
+            byte[] expected = [.. before];
+            foreach ((int offset, byte[] data) in pieces) data.CopyTo(expected, offset);
+
+            uint[] theirs = source.TuneChecksums();
+            uint[] ours = MaxxTune.ChecksumsOf(expected);
+
+            if (theirs.Length == 0)
+            {
+                // Older firmware, or a refusal. Fall back to reading back what
+                // was sent, which is weaker and better than nothing.
+                foreach ((int offset, byte[] data) in pieces)
+                    if (!source.VerifyTune(offset, data))
+                        return "The MaxxECU took the write but read back something else, so the "
+                               + $"tune on it is not what was sent. The tune as it was is in {backup}.";
+            }
+            else if (!theirs.SequenceEqual(ours))
+            {
+                int at = Enumerable.Range(0, theirs.Length)
+                    .First(i => i >= ours.Length || theirs[i] != ours[i]);
+
+                return "The MaxxECU took the write, but its own checksum of the tune disagrees "
+                       + $"with what it should now be, from {at * MaxxTune.ChecksumChunk} onwards. "
+                       + $"The tune is not what was intended. The tune as it was is in {backup}.";
+            }
 
             tune.Accept(write);
             _settingsEdit?.Accept(write);

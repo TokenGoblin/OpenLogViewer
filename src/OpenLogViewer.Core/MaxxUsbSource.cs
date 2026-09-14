@@ -314,5 +314,14 @@ public sealed class MaxxUsbSource : ILiveSource
         lock (_cable) return MaxxTune.Verify(_transport, offset, expected);
     }
 
+    /// <summary>
+    /// Asks the ECU to checksum its own tune — the cheap way to ask whether
+    /// anything moved that should not have.
+    /// </summary>
+    public uint[] TuneChecksums()
+    {
+        lock (_cable) return MaxxTune.Checksums(_transport);
+    }
+
     public void Dispose() => _transport.Dispose();
 }

@@ -239,6 +239,15 @@ cold nought for one evaluation is nothing on a bench and is not something to do
 to an engine under load** — so the confirmation says so, and says it louder when
 engine speed in the same session is above idle.
 
+A write is checked by asking the ECU to **checksum its own tune**. Command
+`0x37` is not a data read: the byte count goes in the offset field and the ECU
+answers one CRC-32 per 4 KB of the live tune. Comparing those against the same
+sums worked out here says not just that the bytes sent arrived, but that nothing
+else moved anywhere in the tune — the question that matters when there is no
+undo — and it costs one exchange rather than reading 64 KB back. Confirmed on
+the bench Race: all sixteen chunks agreed with locally computed CRC-32/MPEG-2,
+including the last, which covers 740 bytes rather than 4,096.
+
 One more thing about every write, not just a split one: **the ECU clears its
 whole table cache**, not the entry for the table that changed. The clearing
 routine takes no argument and zeroes the entire key array in one loop, so it

@@ -690,6 +690,56 @@ public class MaxxTuneTests
             last + tail.Length);
     }
 
+    /// <summary>
+    /// The tune's checksums are one CRC-32 per 4 KB, and the last one covers
+    /// only what is left rather than a whole chunk.
+    ///
+    /// The short last chunk is what made the hardware agreement convincing: over
+    /// the range MTune asks for, it is 740 bytes and not 4,096, and a reading
+    /// that was merely close would not have matched it.
+    /// </summary>
+    [Fact]
+    public void TheTunesChecksumsAreOnePerChunkWithAShortLast()
+    {
+        var blob = new byte[MaxxTune.BlobSize];
+        for (int i = 0; i < blob.Length; i++) blob[i] = (byte)(i * 7);
+
+        uint[] checksums = MaxxTune.ChecksumsOf(blob, MaxxTune.WriteCeiling);
+
+        Assert.Equal(16, checksums.Length);
+
+        // The last covers 0xF2E7 - 15 * 4096 = 743 bytes.
+        int last = MaxxTune.WriteCeiling - (15 * MaxxTune.ChecksumChunk);
+        Assert.Equal(
+            MaxxProtocol.Crc32(blob.AsSpan(15 * MaxxTune.ChecksumChunk, last)),
+            checksums[15]);
+
+        Assert.Equal(MaxxProtocol.Crc32(blob.AsSpan(0, MaxxTune.ChecksumChunk)), checksums[0]);
+    }
+
+    /// <summary>
+    /// Changing one byte changes the checksum of its chunk and no other, which
+    /// is what makes this a useful thing to compare after a write.
+    /// </summary>
+    [Fact]
+    public void OnlyTheChunkThatChangedGetsANewChecksum()
+    {
+        var blob = new byte[MaxxTune.BlobSize];
+        for (int i = 0; i < blob.Length; i++) blob[i] = (byte)(i * 7);
+
+        uint[] before = MaxxTune.ChecksumsOf(blob);
+
+        blob[(3 * MaxxTune.ChecksumChunk) + 11] ^= 0xFF;
+
+        uint[] after = MaxxTune.ChecksumsOf(blob);
+
+        Assert.NotEqual(before[3], after[3]);
+
+        for (int i = 0; i < before.Length; i++)
+            if (i != 3)
+                Assert.Equal(before[i], after[i]);
+    }
+
     [Fact]
     public void AWriteLandsWhereItWasAimed()
     {
