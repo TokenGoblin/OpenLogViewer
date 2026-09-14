@@ -216,6 +216,45 @@ public class MaxxTuneTests
     }
 
     /// <summary>
+    /// A table whose axis does not climb is not a table.
+    ///
+    /// Two thirds of the addresses in the definitions are not stated but follow
+    /// on from what came before, so one drift reads a config struct off bytes
+    /// that are not one — and what comes back is a plausible size and an offset
+    /// inside the blob, not an obvious failure. On the bench ECU that produced
+    /// six tables that drew perfectly well, one of them fifteen by thirty-nine
+    /// with columns running 1,000 to 8,000 and then 0, 27, −25,795.
+    /// </summary>
+    [Fact]
+    public void ATableWhoseAxisDoesNotClimbIsNotOffered()
+    {
+        byte[] blob = WithVeTable();
+
+        // One breakpoint out of order, in the middle of an otherwise good axis.
+        BinaryPrimitives.WriteInt16LittleEndian(
+            blob.AsSpan(MaxxTune.TableData + 496 + 1 + (5 * 2)), -25795);
+
+        Assert.Null(MaxxTune.TableAt(blob, "VE Table 1 data", 1578));
+
+        (_, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, VeDefinition());
+        Assert.Empty(tables);
+    }
+
+    /// <summary>
+    /// A repeated breakpoint counts as not climbing, which is what leaves the
+    /// unused tables out: a MaxxECU parks one it is not using at two by two with
+    /// both axes at zero.
+    /// </summary>
+    [Fact]
+    public void AnUnusedTableParkedAtZeroIsNotOffered()
+    {
+        var blob = new byte[MaxxTune.BlobSize];
+        Compose(blob, 400, 100, 61, 20, [0, 0], [0, 0], new short[2, 2]);
+
+        Assert.Null(MaxxTune.TableAt(blob, "ClosedBoost Target2 Table data", 400));
+    }
+
+    /// <summary>
     /// A table whose record would run past the end of the blob is refused. The
     /// data offset is sixteen bits and the cells are counted from it, so a
     /// corrupt or unexpected offset otherwise reads whatever is next.
@@ -290,6 +329,108 @@ public class MaxxTuneTests
         Assert.Equal(16, table.X.Breakpoints.Length);
         Assert.Equal(200, table.X.Breakpoints[0], 3);
         Assert.Equal(7000, table.X.Breakpoints[15], 3);
+    }
+
+    /// <summary>
+    /// The page a MaxxECU's tune sits on declares no way to write it.
+    ///
+    /// This is what keeps the ordinary write path off a controller it must not
+    /// touch. Send and Burn are driven by the templates the firmware gives for
+    /// them — <c>C%2o%2c%v</c> and <c>B</c> on a MegaSquirt — and a MaxxECU is
+    /// not written that way at all. Both are empty, so there is nothing for that
+    /// path to send even if it were reached, and the burn is empty for the
+    /// further reason that this ECU has none.
+    /// </summary>
+    [Fact]
+    public void TheTunePageOffersNoWriteAndNoBurn()
+    {
+        (TuneLayout layout, _) = MaxxTune.Build(WithVeTable(), VeDefinition());
+        TunePage page = Assert.Single(layout.Pages);
+
+        Assert.Empty(page.ChunkWriteCommand);
+        Assert.Empty(page.BurnCommand);
+        Assert.Empty(page.ReadCommand);
+    }
+
+    // ----- the invented settings interface ---------------------------------------
+
+    private static IReadOnlyList<MaxxSettingDefinition> SomeSettings() =>
+    [
+        new("IATSensor Input Voltage", "list", 100, 18, 0.001, 0, 5),
+        new("IATSensor Predef", "uint16", 200, 1, 1, 0, 100),
+        new("Fuel Injmethod", "uint8", 300, 1, 1, 0, 3),
+        new("VE Table 1 data", "dynamicTable", 1578, 484, 0.1, 0, 2500),
+    ];
+
+    /// <summary>
+    /// Settings are grouped into pages by the subsystem their name begins with,
+    /// because MTune's definitions describe no pages at all and 8,748 settings
+    /// with nowhere to be shown is the same as none.
+    /// </summary>
+    [Fact]
+    public void SettingsAreGroupedIntoPagesBySubsystem()
+    {
+        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+
+        Assert.False(ui.IsEmpty);
+        Assert.Equal(2, ui.Dialogs.Count);
+        Assert.Contains(ui.Dialogs.Values, d => d.Title == "IATSensor");
+        Assert.Contains(ui.Dialogs.Values, d => d.Title == "Fuel");
+    }
+
+    /// <summary>
+    /// A list becomes a row per point.
+    ///
+    /// A field with no subscript addresses the first element, so an eighteen
+    /// point sensor calibration would show as a single box reading 4.660 — a
+    /// fifth of one of its points, with nothing on screen saying so.
+    /// </summary>
+    [Fact]
+    public void EveryPointOfAListIsShown()
+    {
+        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+        TuneDialog sensor = ui.Dialogs.Values.Single(d => d.Title == "IATSensor");
+
+        Assert.Equal(19, sensor.Items.Count);
+        Assert.Equal("IATSensor Input Voltage[0]", sensor.Items[0].Target);
+        Assert.Equal("IATSensor Input Voltage[17]", sensor.Items[17].Target);
+        Assert.Equal(0, sensor.Items[0].TargetIndex);
+        Assert.Equal(17, sensor.Items[17].TargetIndex);
+        Assert.Equal("IATSensor Input Voltage", sensor.Items[17].TargetConstant);
+    }
+
+    /// <summary>
+    /// Tables are not among them. They have the other half of that view, and a
+    /// table offered as a field would show one cell of itself.
+    /// </summary>
+    [Fact]
+    public void TablesAreNotOfferedAsSettings()
+    {
+        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+
+        Assert.DoesNotContain(
+            ui.Dialogs.Values.SelectMany(d => d.Items),
+            item => item.TargetConstant.Contains("VE Table", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// No page is longer than it should be. The largest subsystem declares 1,201
+    /// settings, which as one page is a scroll nobody finds anything in.
+    /// </summary>
+    [Fact]
+    public void ALongSubsystemIsSplitAcrossPages()
+    {
+        IReadOnlyList<MaxxSettingDefinition> many =
+        [
+            .. Enumerable.Range(0, 130).Select(i =>
+                new MaxxSettingDefinition($"GPO Thing {i}", "uint8", 1000 + i, 1, 1, 0, 255)),
+        ];
+
+        TuneInterface ui = MaxxTune.Interface(many);
+
+        Assert.True(ui.Dialogs.Count >= 3, $"expected several pages, got {ui.Dialogs.Count}");
+        Assert.All(ui.Dialogs.Values, d => Assert.InRange(d.Items.Count, 1, 60));
+        Assert.Equal(130, ui.Dialogs.Values.Sum(d => d.Items.Count));
     }
 
     // ----- the definitions file -------------------------------------------------

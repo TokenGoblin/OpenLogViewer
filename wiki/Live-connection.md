@@ -49,7 +49,7 @@ It offers three links. Two of them are reached here.
 
 | Link | How it appears | Channels | Tune |
 | --- | --- | --- | --- |
-| **USB** | Not a COM port — see below | **Every channel the ECU sends** | **Read** — 186 tables on the unit this was proven against |
+| **USB** | Not a COM port — see below | **Every channel the ECU sends** | **Read** — 169 tables on the unit this was proven against |
 | **Bluetooth** | A paired COM port named `MaxxECU_<serial>` | A fixed fourteen | Not read |
 | **Wi-Fi** | The ECU's own access point | Not implemented | — |
 
@@ -118,7 +118,7 @@ one of them out of the log for the whole session.
 
 Connecting reads the ECU's whole tune, which takes about four seconds and happens
 before the logging starts, because only one program may hold the USB device.
-The tables then appear under **Calibration** like any other ECU's: 186 of them on
+The tables then appear under **Calibration** like any other ECU's: 169 of them on
 the unit this was proven against, named from MTune's own settings definitions.
 
 This needs **MTune installed**, for the same reason reading a MegaSquirt needs
@@ -134,10 +134,12 @@ still read and cannot be named, and the connection says so.
 > shown, not sent — and that will not change until a write has been aimed at a
 > known address and read back from it.
 
-The first two seconds of a USB session are spent listening: the ECU sends its
-whole state at the start and only the changes afterwards, so that is how long it
-takes to know what the channel list is. A channel that never moves after that
-cannot be added later, because a log's columns cannot change once it has rows.
+The first two seconds of a USB session are spent listening, which is how long it
+takes to hear what the ECU is sending. Longer does not help — measured against
+the bench unit, a raw listen had found 51 channels after one second and 55 after
+sixty. A channel that first moves after that cannot be added, because a log's
+columns cannot change once it has rows, which is why the ones worth having are
+listed whether they have moved or not.
 
 **If nothing answers**, the usual cause is that the ECU has no 12 V. Its USB chip
 powers up from the cable alone, so the ECU appears in the connect menu whether or

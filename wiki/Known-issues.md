@@ -39,21 +39,46 @@ What is left:
 - Everything outside the core set is still whatever happened to be moving, so two
   logs of the same car can have different columns.
 
-### A MaxxECU's settings are read and then cannot be looked at
+### A MaxxECU's settings pages are invented here, not read from anywhere
 
-`MainViewModel.AdoptMaxxTune`. Reading the tune decodes **8,752 settings**
-besides the 186 tables, and every one of them is in the tune model and reachable
-by name. None of them is reachable by a person: the Settings half of Calibration
-is built from an INI's page descriptions — which dialog holds which field, and
-when each applies — and MTune's definitions have nothing of the sort. So
-`BuildSettingsMenu` is not called on that path and the list stays empty.
+Fixed as far as it goes, and worth knowing the shape of. MTune's definitions
+describe **no settings interface at all** — a name, a type, a scale, a range and
+an address, and nothing about presentation — so unlike every other controller
+here, where the firmware says which dialog holds which field and when each
+applies, a MaxxECU's 8,748 settings had nowhere to be shown.
 
-The tables are the half worth having and they are there. What is missing is
-everything that is not a table: sensor calibrations, limits, enable switches, the
-injector and trigger setup. The definitions do carry a usable grouping — every
-name begins with the subsystem, `IATSensor`, `Fuel`, `Ign`, `Boost` — so a
-searchable list under those headings would show them without needing page
-descriptions that do not exist.
+`MaxxTune.Interface` invents one: grouped by the subsystem each name begins with
+(`IATSensor`, `Fuel`, `Ign`), in the order the file declares them, broken into
+pages of sixty and filed under initial letters. That makes every setting findable
+and is **not the firmware's opinion of how they go together** — MTune's own pages
+group by what somebody is doing, and nothing in these files says what that is.
+
+Two consequences to keep in mind:
+
+- The grouping will look unfamiliar to anybody who knows MTune.
+- A drifted address shows up as a page of settings that look ordinary. The
+  sequential addressing is right for about 95 % of them, measured against the
+  bench ECU by checking each value against its own declared range; the rest are
+  mostly unused features reading zero where the minimum is not zero, but a real
+  drift would look the same.
+
+### A MaxxECU's tables are checked by their axes, and some do not survive it
+
+`MaxxTune.TableAt`. Two thirds of the addresses in MTune's definitions are not
+stated but follow on from what came before, so a single drift reads a table's
+config struct off bytes that are not one — and what comes back is not obviously
+wrong. It is a plausible size, an offset inside the blob, and a grid that draws.
+On the bench ECU that produced six of them, one a "VVT Intake PID D Gain Table"
+of 15 × 39 whose columns ran 1,000 to 8,000 and then 0, 27, −25,795.
+
+A table is now offered only if both its axes strictly climb, which is true of
+every real one — a tuning axis is a series of increasing thresholds and nothing
+indexes a table by a number that goes backwards. That takes the bench ECU from
+186 tables to **169**: the six misdecodes, and eleven unused tables parked at
+2 × 2 with zero axes.
+
+What it does not do is prove the remaining 169 are right. It proves none of them
+is obviously wrong.
 
 ### A burn interrupted by unplugging can lose its own message
 

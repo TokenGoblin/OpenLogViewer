@@ -307,6 +307,24 @@ public static class MaxxTune
 
         if (cells + (columns * rows * 2) > blob.Length) return null;
 
+        // Both axes have to climb, or this is not a table.
+        //
+        // The counts and the data offset come out of a struct read at an address
+        // the definitions gave, and two thirds of those addresses are not stated
+        // in the file — they follow on from whatever was declared before, so a
+        // single drift puts a struct on bytes that are not one. What comes back
+        // then is not obviously wrong: a plausible size, an offset inside the
+        // blob, and a grid that draws. On this ECU it produced a "VVT Intake PID
+        // D Gain Table" of 15 by 39 whose columns ran 1,000 … 8,000 and then
+        // 0, 27, −25,795.
+        //
+        // Breakpoints are the check because a tuning axis is a series of
+        // increasing thresholds — RPM, pressure, temperature, seconds — and
+        // nothing indexes a table by a number that goes backwards. It costs the
+        // eleven unused tables that sit at two by two with zero axes, which are
+        // not worth a tab either.
+        if (!Climbs(blob, x, columns) || !Climbs(blob, y, rows)) return null;
+
         return new MaxxTable(
             Display(name),
             columns,
@@ -316,6 +334,19 @@ public static class MaxxTune
             x,
             y,
             cells);
+    }
+
+    /// <summary>
+    /// Whether a run of breakpoints strictly increases. One of them always does.
+    /// </summary>
+    private static bool Climbs(ReadOnlySpan<byte> blob, int at, int count)
+    {
+        for (int i = 1; i < count; i++)
+            if (BinaryPrimitives.ReadInt16LittleEndian(blob[(at + (i * 2))..])
+                <= BinaryPrimitives.ReadInt16LittleEndian(blob[(at + ((i - 1) * 2))..]))
+                return false;
+
+        return true;
     }
 
     /// <summary>
@@ -435,6 +466,139 @@ public static class MaxxTune
         };
 
         return (layout, tables);
+    }
+
+    /// <summary>
+    /// Settings to a page, at most.
+    ///
+    /// MTune's definitions have no pages, so these are invented — and an
+    /// invented page has to be short. The largest subsystem here declares 1,201
+    /// settings and four more declare over 500, which as one page each is a
+    /// scroll nobody finds anything in and a list nobody wants built.
+    /// </summary>
+    private const int PerPage = 60;
+
+    /// <summary>
+    /// Invents a settings interface for a MaxxECU, so its settings can be looked
+    /// at rather than only decoded.
+    ///
+    /// <para>
+    /// Everything else here reads the interface from the firmware: an INI says
+    /// which dialog holds which field, what to call it and when it applies.
+    /// MTune's definitions say none of that — a name, a type, a scale, a range
+    /// and an address, and nothing about presentation. So reading a MaxxECU's
+    /// tune left 8,752 settings decoded, addressable by name, and reachable by
+    /// nobody.
+    /// </para>
+    /// <para>
+    /// What the names do carry is the subsystem, as the first word:
+    /// <c>IATSensor</c>, <c>Fuel</c>, <c>Ign</c>, <c>Boost</c>. That is enough to
+    /// group them, and the file is written subsystem by subsystem, so keeping the
+    /// declared order keeps related settings together inside a group as well.
+    /// Pages break when the subsystem changes or when one gets long, and the
+    /// menus are initial letters, because 298 subsystems is too many headings for
+    /// a list with no filter on it.
+    /// </para>
+    /// <para>
+    /// None of this is the firmware's opinion and it should not pretend to be. It
+    /// is a way of finding a setting, not a tuning workflow: MTune's own pages
+    /// group by what somebody is doing, and nothing in these files says what that
+    /// grouping is.
+    /// </para>
+    /// </summary>
+    public static TuneInterface Interface(IReadOnlyList<MaxxSettingDefinition> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        var dialogs = new Dictionary<string, TuneDialog>(StringComparer.OrdinalIgnoreCase);
+        var byLetter = new SortedDictionary<string, List<MenuEntry>>(StringComparer.Ordinal);
+
+        var items = new List<DialogItem>();
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string group = "";
+        int part = 1;
+
+        void Finish()
+        {
+            if (items.Count == 0) return;
+
+            // Numbered only where a subsystem needed more than one page, so one
+            // that fits is not called "Fuel 1" for no reason.
+            string title = Unique(part > 1 ? $"{group} {part}" : group, taken);
+            string name = $"maxx:{title}";
+
+            dialogs[name] = new TuneDialog(name, title, "yAxis", [.. items]);
+
+            string letter = char.IsLetter(group[0])
+                ? char.ToUpperInvariant(group[0]).ToString()
+                : "#";
+
+            if (!byLetter.TryGetValue(letter, out List<MenuEntry>? entries))
+                byLetter[letter] = entries = [];
+
+            entries.Add(new MenuEntry(name, title));
+            items.Clear();
+            part++;
+        }
+
+        foreach (MaxxSettingDefinition definition in definitions)
+        {
+            // Tables have their own half of this view, and a script or a string
+            // is not a setting anybody edits as a number.
+            if (definition.IsTable) continue;
+            if (definition.Kind is "miniScript" or "userScript" or "string" or "table") continue;
+            if (definition.Address + definition.Size > BlobSize) continue;
+
+            string prefix = Prefix(definition.Name);
+
+            if (!prefix.Equals(group, StringComparison.OrdinalIgnoreCase))
+            {
+                Finish();
+                group = prefix;
+                part = 1;
+            }
+            else if (items.Count >= PerPage) Finish();
+
+            // A list gets a row per point rather than one row.
+            //
+            // A field with no subscript addresses the first element, so an
+            // eighteen-point sensor calibration would appear as a single box
+            // reading 4.660 — which is not the setting, it is a fifth of one of
+            // its points, with nothing to say so. There are only 290 lists here
+            // and none is longer than 64, so every point can simply be shown.
+            if (definition.Length > 1)
+            {
+                for (int i = 0; i < definition.Length; i++)
+                {
+                    if (items.Count >= PerPage) Finish();
+
+                    items.Add(new DialogItem(
+                        DialogItemKind.Field,
+                        $"{definition.Name} [{i}]",
+                        $"{definition.Name}[{i}]"));
+                }
+
+                continue;
+            }
+
+            items.Add(new DialogItem(DialogItemKind.Field, definition.Name, definition.Name));
+        }
+
+        Finish();
+
+        return new TuneInterface
+        {
+            Menus = [.. byLetter.Select(letter => new TuneMenu(letter.Key, letter.Value))],
+            Dialogs = dialogs,
+        };
+    }
+
+    /// <summary>The subsystem a setting belongs to: the first word of its name.</summary>
+    private static string Prefix(string name)
+    {
+        int space = name.IndexOf(' ', StringComparison.Ordinal);
+
+        return space > 0 ? name[..space] : name;
     }
 
     /// <summary>

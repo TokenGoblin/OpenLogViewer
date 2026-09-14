@@ -3709,13 +3709,27 @@ public sealed partial class MainViewModel : ObservableObject
             _ecuTableDefinitions = tables;
             _settingsEdit = new TuneSettingsEdit(_ecuTune);
 
+            // Not the firmware's, because a MaxxECU does not describe one — see
+            // MaxxTune.Interface. Without it the settings half of this view is
+            // empty on a MaxxECU while the tune behind it holds eight thousand
+            // of them.
+            _ecuInterface = MaxxTune.Interface(definitions);
+
+            // The tables first and the menu after, for the reason the ECU path
+            // gives: the menu decides whether an entry names a table by looking
+            // one up, and against an empty list every table-backed entry
+            // disappears.
             foreach (TuneTable table in Ordered(_ecuTune.Tables(tables))) EcuTables.Add(table);
 
             EcuTableChoices.Refresh();
+            BuildSettingsMenu();
 
             EcuTuneSummary =
                 $"{MaxxTune.BlobSize:N0} bytes read from the ECU · {EcuTables.Count} tables · "
-                + $"{_ecuTune.Scalars().Count:N0} settings";
+                + $"{_ecuTune.Scalars().Count:N0} settings"
+                + (_ecuInterface is { IsEmpty: false } pages
+                    ? $" · {pages.Dialogs.Count:N0} pages, grouped here rather than by MTune"
+                    : "");
 
             return $" Its tune was read too — {EcuTables.Count} tables, named from MTune's own "
                    + "definitions.";
