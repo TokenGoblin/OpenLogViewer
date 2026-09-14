@@ -569,6 +569,69 @@ public class MaxxTuneTests
         public void Dispose() => Close();
     }
 
+    /// <summary>
+    /// A table's cells go to the ECU with the checksum the firmware checks them
+    /// against, computed over the pad byte in front of the grid as well as the
+    /// grid.
+    ///
+    /// Cells written without it are cells the ECU has been told not to trust.
+    /// The span was recovered by searching for it against a real record and
+    /// confirmed on three tables, and then confirmed again by writing a cell to
+    /// a bench ECU and having it keep the checksum given to it.
+    /// </summary>
+    [Fact]
+    public void ATablesCellsAreSentWithTheChecksumOverThem()
+    {
+        byte[] blob = WithVeTable();
+        MaxxTable table = MaxxTune.TableAt(blob, "VE Table 1 data", 1578)!;
+
+        short[] cells = [.. Enumerable.Range(0, table.Columns * table.Rows).Select(i => (short)(300 + i))];
+        byte[] record = MaxxTune.Record(blob, table, cells);
+
+        Assert.Equal((cells.Length * 2) + 4, record.Length);
+        Assert.Equal(300, BinaryPrimitives.ReadInt16LittleEndian(record));
+
+        uint sent = BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(cells.Length * 2));
+        uint expected = MaxxProtocol.Crc32(
+            [blob[table.CellsAt - 1], .. record.AsSpan(0, cells.Length * 2)]);
+
+        Assert.Equal(expected, sent);
+
+        // And not the checksum of the cells alone, which is the tempting wrong
+        // span and differs.
+        Assert.NotEqual(MaxxProtocol.Crc32(record.AsSpan(0, cells.Length * 2)), sent);
+    }
+
+    [Fact]
+    public void AGridOfTheWrongSizeIsRefused()
+    {
+        byte[] blob = WithVeTable();
+        MaxxTable table = MaxxTune.TableAt(blob, "VE Table 1 data", 1578)!;
+
+        Assert.Throws<ArgumentException>(() => MaxxTune.Record(blob, table, new short[3]));
+    }
+
+    /// <summary>
+    /// Whether a table can be sent at all in one write, which on a controller
+    /// with no burn is the difference between an edit that is safe and one that
+    /// leaves the ECU holding a grid its checksum disagrees with.
+    /// </summary>
+    [Fact]
+    public void ATableTooBigToSendAtOnceSaysSo()
+    {
+        byte[] blob = WithVeTable();
+
+        // 16 x 11 is 352 bytes of cells and cannot go in one 256-byte write.
+        Assert.False(MaxxTune.FitsInOneWrite(MaxxTune.TableAt(blob, "VE Table 1 data", 1578)!));
+
+        var small = new byte[MaxxTune.BlobSize];
+        short[] axis = [10, 20, 30, 40, 50, 60];
+        Compose(small, 400, 100, 61, 20, axis, axis, new short[6, 6]);
+
+        // 6 x 6 is 72 bytes, and fits with its checksum.
+        Assert.True(MaxxTune.FitsInOneWrite(MaxxTune.TableAt(small, "Fuel ASE Table data", 400)!));
+    }
+
     [Fact]
     public void AWriteLandsWhereItWasAimed()
     {

@@ -198,12 +198,36 @@ offset is filled from wire bytes 2–3 and whose `+0x02` length comes from bytes
 4–5, and read and write address the same buffer — so a read's offset is a
 write's offset, and the addresses in MTune's definitions are write addresses too.
 
-So a write **can** now be aimed, and has not been. What is missing is the one
-test that matters: change a harmless setting, confirm that exactly those bytes
-moved and nothing else did, and put the original back. Until that has been run,
-nothing in the application can reach `MaxxTune.Write` — there is no Send to ECU
-on that path, and a MaxxECU has no burn, so a misplaced write would be permanent
-as it landed.
+**Aimed writes are now proven on the bench Race**, against a full dump taken
+first and kept on disk:
+
+- a **setting** — `LoggingV2 CH8`, which channel the ECU's own logger records —
+  written at its declared offset. Exactly that byte moved, out of 65,536;
+- a **table cell** — Fuel ASE `[0,0]`, 60.0 % to 65.0 % — written together with
+  the recomputed record checksum in one 76-byte write. The ECU kept the checksum
+  given to it and went on answering;
+- **restored** from the saved file afterwards, byte for byte.
+
+What is still not offered to anybody: nothing in the application can reach
+`MaxxTune.Write`, there is no Send to ECU on that path, and one thing below has
+to be settled before there is.
+
+### A big MaxxECU table cannot be sent without a moment of disagreeing with itself
+
+Each table record carries a CRC-32 over its cells that the firmware verifies
+**every time it evaluates the table**, so the cells and the checksum have to
+arrive together. They can, while they fit in one write: Fuel ASE is 6 × 6, which
+is 72 bytes of cells and 76 with the checksum, and the ECU takes it in one go —
+that is what was proven above.
+
+A write is capped at 256 bytes, so anything past 126 cells cannot be sent that
+way. **VE Table 1 is 16 × 11 — 352 bytes** — and would need at least two writes,
+leaving a window of a millisecond or so where the ECU holds a grid whose checksum
+does not match it. What the firmware does in that window has not been
+established: it might ignore the table, fall back to something, or set a fault.
+`MaxxTune.FitsInOneWrite` reports which case a table is in, and until the
+question is answered, the honest position is that only tables it answers true for
+can be written safely.
 
 The handshake write `0x07` is also explained now, and it is not nothing: it
 clears a byte that **gates reading the tune** — `0x11` arms that gate from

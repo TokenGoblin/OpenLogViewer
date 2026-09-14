@@ -268,6 +268,76 @@ public static class MaxxTune
     }
 
     /// <summary>
+    /// Builds the bytes that put a table's cells into the ECU: the grid, and the
+    /// checksum the firmware checks it against.
+    ///
+    /// <para>
+    /// A cell cannot be written on its own. Each table record carries a CRC-32
+    /// over its cells that the firmware verifies every time it evaluates the
+    /// table, so cells written without it are cells the ECU has been told not to
+    /// trust. The checksum covers the pad byte in front of the grid as well as
+    /// the grid itself, which is why the blob is needed here and not just the new
+    /// values.
+    /// </para>
+    /// <para>
+    /// The result is written in one go at <see cref="MaxxTable.CellsAt"/>, so the
+    /// ECU never sees a grid without the checksum that goes with it — but only
+    /// while it fits in one write. A table whose cells run past
+    /// <see cref="MaximumWrite"/> minus four cannot be sent atomically, and
+    /// <see cref="FitsInOneWrite"/> is how to ask before starting.
+    /// </para>
+    /// </summary>
+    /// <param name="blob">The tune as it currently stands.</param>
+    /// <param name="table">Which table, as <see cref="TableAt"/> found it.</param>
+    /// <param name="cells">
+    /// The new grid, row by row with the column changing fastest — the order the
+    /// ECU stores it in.
+    /// </param>
+    public static byte[] Record(ReadOnlySpan<byte> blob, MaxxTable table, ReadOnlySpan<short> cells)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+
+        int count = table.Columns * table.Rows;
+
+        if (cells.Length != count)
+            throw new ArgumentException(
+                $"{table.Name} is {table.Columns} by {table.Rows}, which is {count} cells, "
+                + $"and {cells.Length} were given.",
+                nameof(cells));
+
+        if (table.CellsAt < 1 || table.CellsAt + (count * 2) > blob.Length)
+            throw new ArgumentOutOfRangeException(nameof(table), "That table is not inside this tune.");
+
+        var record = new byte[(count * 2) + 4];
+
+        for (int i = 0; i < count; i++)
+            BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(i * 2), cells[i]);
+
+        // The checksum covers the byte in front of the grid as well, which is the
+        // last of the nine between the axes and the cells.
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            record.AsSpan(count * 2),
+            MaxxProtocol.Crc32([blob[table.CellsAt - 1], .. record.AsSpan(0, count * 2)]));
+
+        return record;
+    }
+
+    /// <summary>
+    /// Whether a table's cells and their checksum can be sent as one write.
+    ///
+    /// They have to be, on a controller with no burn: two writes leave a moment
+    /// where the ECU holds a grid whose checksum does not match it, and what the
+    /// firmware does in that moment has not been established. A 6 × 6 fits; a
+    /// 16 × 11 VE table does not.
+    /// </summary>
+    public static bool FitsInOneWrite(MaxxTable table)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+
+        return (table.Columns * table.Rows * 2) + 4 <= MaximumWrite;
+    }
+
+    /// <summary>
     /// Reads back what was just written and says whether it took.
     ///
     /// Worth doing on every write and not only when something looks wrong. The
