@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using OpenLogViewer.Core;
 using Xunit;
 
@@ -125,8 +125,8 @@ public class MaxxTuneTests
     {
         byte[] blob = WithVeTable();
 
-        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) =
-            MaxxTune.Build(blob, VeDefinition());
+        MaxxTuneModel model = MaxxTune.Build(blob, VeDefinition());
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = (model.Layout, model.Tables);
 
         TuneTable table = EcuTune.FromPages(layout, blob).Tables(tables).Single();
 
@@ -149,8 +149,8 @@ public class MaxxTuneTests
     {
         byte[] blob = WithVeTable();
 
-        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) =
-            MaxxTune.Build(blob, VeDefinition());
+        MaxxTuneModel model = MaxxTune.Build(blob, VeDefinition());
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = (model.Layout, model.Tables);
 
         TuneTable table = EcuTune.FromPages(layout, blob).Tables(tables).Single();
 
@@ -179,8 +179,8 @@ public class MaxxTuneTests
             [20] = new(20, "MAP", "kPa", 0.1, true, 1),
         };
 
-        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) =
-            MaxxTune.Build(blob, VeDefinition(), channels);
+        MaxxTuneModel model = MaxxTune.Build(blob, VeDefinition(), channels);
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = (model.Layout, model.Tables);
 
         TuneTable table = EcuTune.FromPages(layout, blob).Tables(tables).Single();
 
@@ -211,7 +211,7 @@ public class MaxxTuneTests
 
         Assert.Null(MaxxTune.TableAt(blob, "VE Table 1 data", 1578));
 
-        (_, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, VeDefinition());
+        IReadOnlyList<TableDefinition> tables = MaxxTune.Build(blob, VeDefinition()).Tables;
         Assert.Empty(tables);
     }
 
@@ -236,7 +236,7 @@ public class MaxxTuneTests
 
         Assert.Null(MaxxTune.TableAt(blob, "VE Table 1 data", 1578));
 
-        (_, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, VeDefinition());
+        IReadOnlyList<TableDefinition> tables = MaxxTune.Build(blob, VeDefinition()).Tables;
         Assert.Empty(tables);
     }
 
@@ -291,7 +291,8 @@ public class MaxxTuneTests
             new("Boost Table data", "dynamicTable", 500, 4, 0.1, 0, 300),
         ];
 
-        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, definitions);
+        MaxxTuneModel model = MaxxTune.Build(blob, definitions);
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = (model.Layout, model.Tables);
 
         Assert.Equal(2, tables.Count);
         Assert.Equal(2, tables.Select(t => t.Values).Distinct().Count());
@@ -322,7 +323,8 @@ public class MaxxTuneTests
             new("VE Table 1 X", "int16", 9000, 1, 1, -30000, 30000),
         ];
 
-        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = MaxxTune.Build(blob, definitions);
+        MaxxTuneModel model = MaxxTune.Build(blob, definitions);
+        (TuneLayout layout, IReadOnlyList<TableDefinition> tables) = (model.Layout, model.Tables);
         TuneTable table = EcuTune.FromPages(layout, blob).Tables(tables).Single();
 
         // The breakpoints are the table's own, not the setting's single value.
@@ -344,7 +346,7 @@ public class MaxxTuneTests
     [Fact]
     public void TheTunePageOffersNoWriteAndNoBurn()
     {
-        (TuneLayout layout, _) = MaxxTune.Build(WithVeTable(), VeDefinition());
+        TuneLayout layout = MaxxTune.Build(WithVeTable(), VeDefinition()).Layout;
         TunePage page = Assert.Single(layout.Pages);
 
         Assert.Empty(page.ChunkWriteCommand);
@@ -370,7 +372,7 @@ public class MaxxTuneTests
     [Fact]
     public void SettingsAreGroupedIntoPagesBySubsystem()
     {
-        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+        TuneInterface ui = MaxxTune.Build(WithVeTable(), SomeSettings()).Pages;
 
         Assert.False(ui.IsEmpty);
         Assert.Equal(2, ui.Dialogs.Count);
@@ -388,7 +390,7 @@ public class MaxxTuneTests
     [Fact]
     public void EveryPointOfAListIsShown()
     {
-        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+        TuneInterface ui = MaxxTune.Build(WithVeTable(), SomeSettings()).Pages;
         TuneDialog sensor = ui.Dialogs.Values.Single(d => d.Title == "IATSensor");
 
         Assert.Equal(19, sensor.Items.Count);
@@ -406,7 +408,7 @@ public class MaxxTuneTests
     [Fact]
     public void TablesAreNotOfferedAsSettings()
     {
-        TuneInterface ui = MaxxTune.Interface(SomeSettings());
+        TuneInterface ui = MaxxTune.Build(WithVeTable(), SomeSettings()).Pages;
 
         Assert.DoesNotContain(
             ui.Dialogs.Values.SelectMany(d => d.Items),
@@ -426,7 +428,7 @@ public class MaxxTuneTests
                 new MaxxSettingDefinition($"GPO Thing {i}", "uint8", 1000 + i, 1, 1, 0, 255)),
         ];
 
-        TuneInterface ui = MaxxTune.Interface(many);
+        TuneInterface ui = MaxxTune.Build(new byte[MaxxTune.BlobSize], many).Pages;
 
         Assert.True(ui.Dialogs.Count >= 3, $"expected several pages, got {ui.Dialogs.Count}");
         Assert.All(ui.Dialogs.Values, d => Assert.InRange(d.Items.Count, 1, 60));
@@ -500,6 +502,12 @@ public class MaxxTuneTests
     {
         private byte[] _reply = [];
 
+        /// <summary>Whether it acknowledges a write's header at all.</summary>
+        public bool AnswerTheHeader { get; init; } = true;
+
+        /// <summary>Whether it acknowledges the payload once it has taken it.</summary>
+        public bool AnswerThePayload { get; init; } = true;
+
         /// <summary>What it is holding, so a write can be checked against it.</summary>
         public byte[] Tune { get; } = new byte[MaxxTune.BlobSize];
 
@@ -525,7 +533,10 @@ public class MaxxTuneTests
                 {
                     data[..pending.Length].CopyTo(Tune.AsSpan(pending.Offset));
                     Writes++;
-                    _reply = [MaxxUsbProtocol.Ok];
+
+                    // Taken, and the acknowledgement lost on the way back — which
+                    // is the case the caller must not read as "nothing happened".
+                    _reply = AnswerThePayload ? [MaxxUsbProtocol.Ok] : [];
                 }
                 else _reply = [(byte)MaxxWriteStatus.OutOfRange];
 
@@ -538,6 +549,7 @@ public class MaxxTuneTests
 
             if (data[0] == MaxxUsbProtocol.Write)
             {
+                if (!AnswerTheHeader) { _reply = []; return; }
                 if (status != MaxxUsbProtocol.Ok) { _reply = [status]; return; }
 
                 _expecting = (offset, length);
@@ -738,6 +750,105 @@ public class MaxxTuneTests
         for (int i = 0; i < before.Length; i++)
             if (i != 3)
                 Assert.Equal(before[i], after[i]);
+    }
+
+    /// <summary>
+    /// A payload that went out and was never acknowledged is uncertain, not a
+    /// failure.
+    ///
+    /// This is the most dangerous status in the file. The ECU applies a write as
+    /// it arrives and saves it itself, so an acknowledgement lost on the way back
+    /// looks exactly like a write that never happened — and calling that "nothing
+    /// was changed" tells somebody their tune is untouched when it may be
+    /// permanently different. The header is acknowledged separately, so silence
+    /// there really does mean nothing was sent.
+    /// </summary>
+    [Fact]
+    public void APayloadSentWithoutAnAcknowledgementIsUncertainRatherThanFailed()
+    {
+        var ecu = new FakeEcu { AnswerThePayload = false };
+
+        Assert.Equal(MaxxWriteStatus.Uncertain, MaxxTune.Write(ecu, 1000, [1, 2, 3, 4]));
+
+        // And it really did go out, which is the whole point.
+        Assert.Equal<byte[]>([1, 2, 3, 4], ecu.Tune.AsSpan(1000, 4).ToArray());
+    }
+
+    [Fact]
+    public void AHeaderThatIsNotAnsweredMeansNothingWasSent()
+    {
+        var ecu = new FakeEcu { AnswerTheHeader = false };
+
+        Assert.Equal(MaxxWriteStatus.NoAnswer, MaxxTune.Write(ecu, 1000, [1, 2, 3, 4]));
+        Assert.Equal(0, ecu.Writes);
+    }
+
+    // ----- one pass, one set of names ------------------------------------------
+
+    /// <summary>
+    /// The tables a write uses carry the same names the editor shows.
+    ///
+    /// They were worked out separately and could disagree: a table renamed for
+    /// the layout because something else had claimed its name kept the original
+    /// in the list a write looks it up in, so that table could never be sent —
+    /// the button stayed shut with nothing to say why.
+    /// </summary>
+    [Fact]
+    public void TheTablesAWriteUsesAreNamedLikeTheOnesOnScreen()
+    {
+        var blob = new byte[MaxxTune.BlobSize];
+        short[] axis = [10, 20];
+        var cells = new short[2, 2];
+
+        Compose(blob, 400, 100, 61, 20, axis, axis, cells);
+        Compose(blob, 500, 300, 61, 20, axis, axis, cells);
+
+        IReadOnlyList<MaxxSettingDefinition> definitions =
+        [
+            new("Boost Table data", "dynamicTable", 400, 4, 0.1, 0, 300),
+            new("Boost Table data", "dynamicTable", 500, 4, 0.1, 0, 300),
+        ];
+
+        MaxxTuneModel model = MaxxTune.Build(blob, definitions);
+
+        Assert.Equal(2, model.Maps.Count);
+        Assert.Equal(
+            [.. model.Tables.Select(t => t.Title).Order()],
+            [.. model.Maps.Select(m => m.Name).Order()]);
+    }
+
+    /// <summary>
+    /// A settings page points at the constant the layout actually made, not at
+    /// the name the file used.
+    ///
+    /// Where a setting's name is already taken — by a table, by an axis, or by
+    /// another setting — the layout renames it. A page that went on referring to
+    /// the original would put that row on top of whatever holds the name now, and
+    /// show one setting's bytes under another's label.
+    /// </summary>
+    [Fact]
+    public void ASettingsPagePointsAtTheConstantTheLayoutMade()
+    {
+        byte[] blob = WithVeTable();
+
+        // Named exactly like the table's X axis, which is generated first.
+        IReadOnlyList<MaxxSettingDefinition> definitions =
+        [
+            .. VeDefinition(),
+            new("VE Table 1 X", "int16", 9000, 1, 1, -30000, 30000),
+        ];
+
+        MaxxTuneModel model = MaxxTune.Build(blob, definitions);
+
+        string[] targets =
+            [.. model.Pages.Dialogs.Values.SelectMany(d => d.Items).Select(i => i.TargetConstant)];
+
+        Assert.All(targets, t => Assert.Contains(model.Layout.Constants, c => c.Name == t));
+
+        // The setting did not take the axis over, so it is under some other name.
+        TuneConstant axis = model.Layout.Constants.Single(c => c.Name == "VE Table 1 X");
+        Assert.Equal(16, axis.Columns);
+        Assert.DoesNotContain("VE Table 1 X", targets);
     }
 
     [Fact]

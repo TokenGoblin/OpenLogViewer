@@ -295,9 +295,9 @@ before the test. Nothing was written to either board.
   have not burned.
 - **A tune opened from a file cannot be sent** — use Restore.
 - **A definition file opened as a tune reads all zeros** and cannot be saved.
-- **Nothing persists without a burn** — on every controller that can be written
-  here. A MaxxECU is the exception and cannot be written at all: it has no burn,
-  so a write there would be permanent as it landed.
+- **Nothing persists without a burn** — on every controller here except a
+  MaxxECU, which has no burn: a write there is permanent as it lands, and the way
+  back is the file OpenLogViewer saves before each one.
 - **Opening the serial port resets some boards.** On an Arduino-based board such
   as a Speeduino, connecting resets it — so unburned changes are lost.
 

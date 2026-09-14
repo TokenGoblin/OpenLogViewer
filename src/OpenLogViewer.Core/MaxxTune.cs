@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace OpenLogViewer.Core;
 
@@ -25,6 +25,28 @@ public sealed record MaxxTable(
     int CellsAt);
 
 /// <summary>
+/// A MaxxECU's tune, as everything above the protocol needs it.
+///
+/// The four parts come out of one pass because they all have to agree about
+/// what things are called — see <see cref="MaxxTune.Build"/>.
+/// </summary>
+/// <param name="Layout">The tune model's view of it: every constant and its place.</param>
+/// <param name="Tables">Which constants make up each table, for the table editor.</param>
+/// <param name="Maps">
+/// The tables as the ECU holds them — where the cells are, and how big. This is
+/// what a write needs, and it carries the same names the layout uses.
+/// </param>
+/// <param name="Pages">
+/// Somewhere to show the settings. Invented here rather than read from the
+/// firmware, which describes none.
+/// </param>
+public sealed record MaxxTuneModel(
+    TuneLayout Layout,
+    IReadOnlyList<TableDefinition> Tables,
+    IReadOnlyList<MaxxTable> Maps,
+    TuneInterface Pages);
+
+/// <summary>
 /// What the ECU said about a write. The numbers are the firmware's own status
 /// bytes, so an unfamiliar one can be reported as itself rather than as
 /// "failed".
@@ -34,8 +56,26 @@ public enum MaxxWriteStatus
     /// <summary>It took the bytes.</summary>
     Ok = 0x80,
 
-    /// <summary>Nothing came back at all.</summary>
+    /// <summary>
+    /// Nothing came back, and nothing had been sent yet.
+    ///
+    /// The header goes out first and is acknowledged on its own, so silence
+    /// there means the payload never left. The tune is untouched.
+    /// </summary>
     NoAnswer = 0,
+
+    /// <summary>
+    /// The payload went out and was never acknowledged, so <b>whether it landed
+    /// is not known</b>.
+    ///
+    /// This is the one status that must not be reported as a failure. The ECU
+    /// applies a write as it arrives and saves it itself; an acknowledgement
+    /// lost on the way back looks exactly like a write that never happened, and
+    /// the difference is a tune that is permanently changed. Anything receiving
+    /// this has to go and look — <see cref="MaxxTune.Checksums"/> is the cheap
+    /// way — before telling anybody what happened.
+    /// </summary>
+    Uncertain = 1,
 
     /// <summary>
     /// The command was not recognised. Also what the ECU answers a write to a
@@ -262,7 +302,10 @@ public static class MaxxTune
 
         transport.Write(payload);
 
-        if (transport.Read(status, timeout) != 1) return MaxxWriteStatus.NoAnswer;
+        // From here the bytes are gone. A missing acknowledgement says nothing
+        // about whether the ECU took them, and on this controller "took them"
+        // means applied and saved — so this is Uncertain and not a failure.
+        if (transport.Read(status, timeout) != 1) return MaxxWriteStatus.Uncertain;
 
         return status[0] == MaxxUsbProtocol.Ok ? MaxxWriteStatus.Ok : (MaxxWriteStatus)status[0];
     }
@@ -423,7 +466,16 @@ public static class MaxxTune
 
         if (transport.Read(reply, TimeSpan.FromMilliseconds(600)) != reply.Length
             || !MaxxUsbProtocol.TryReadReply(reply, chunks, out byte[] data))
+        {
+            // Whatever did arrive is left in the driver's buffer otherwise, and
+            // the next request reads its reply starting in the middle of this
+            // one. That turns a successful write into "the ECU read back
+            // something else", which is a false alarm about the worst thing this
+            // program can report.
+            transport.DiscardInput();
+
             return [];
+        }
 
         var checksums = new uint[chunks / 4];
 
@@ -437,8 +489,10 @@ public static class MaxxTune
     /// The same checksums, worked out here, for a tune we believe the ECU has.
     ///
     /// Confirmed against a bench Race: all sixteen agreed with the ECU's own,
-    /// including the last chunk, which covers 740 bytes rather than 4,096 and so
-    /// is not something that agrees by chance.
+    /// including the last chunk, which is short rather than a whole 4,096 and so
+    /// is not something that agrees by chance. That check covered the 62,180
+    /// bytes MTune asks for, where the last chunk is 740; the default here is the
+    /// write ceiling, 62,183, where it is 743.
     /// </summary>
     public static uint[] ChecksumsOf(ReadOnlySpan<byte> blob, int covers = WriteCeiling)
     {
@@ -472,6 +526,12 @@ public static class MaxxTune
 
         var reply = new byte[MaxxUsbProtocol.ReplyLength(expected.Length)];
         var timeout = TimeSpan.FromMilliseconds(600);
+
+        // Start from a quiet line. This is called after a write, and after
+        // something has already gone wrong often enough to be worth assuming:
+        // a stray byte left over from an earlier exchange shifts this reply and
+        // reports the tune as wrong when it is right.
+        transport.DiscardInput();
 
         transport.Write(MaxxUsbProtocol.Request(
             MaxxUsbProtocol.Read, ReadTune, offset, expected.Length));
@@ -549,33 +609,27 @@ public static class MaxxTune
     }
 
     /// <summary>
-    /// Every table this ECU is using.
-    /// </summary>
-    public static IReadOnlyList<MaxxTable> Tables(
-        ReadOnlySpan<byte> blob, IReadOnlyList<MaxxSettingDefinition> definitions)
-    {
-        ArgumentNullException.ThrowIfNull(definitions);
-
-        var found = new List<MaxxTable>();
-
-        foreach (MaxxSettingDefinition definition in definitions)
-        {
-            if (!definition.IsTable) continue;
-            if (TableAt(blob, definition.Name, definition.Address) is { } table) found.Add(table);
-        }
-
-        return found;
-    }
-
-    /// <summary>
-    /// Builds the layout, the table list and the names to show them under.
+    /// Builds the layout, the table list, the tables as the ECU holds them and
+    /// the settings pages — all in one pass, because they all have to agree
+    /// about names.
     ///
+    /// <para>
     /// Depends on the blob, which a layout normally does not: a table's shape and
     /// the whereabouts of its cells are in the ECU rather than in the
     /// definitions, so the layout describes this tune as it is now rather than
     /// the firmware in general. Reading the tune again rebuilds it.
+    /// </para>
+    /// <para>
+    /// One pass and not three because a constant is found by name and the names
+    /// are not all distinct in the file. Working them out separately gave three
+    /// different answers to what a thing is called: a table that had to be
+    /// renamed for the layout kept its original name in the list used to send it,
+    /// so it could never be sent; and a settings page referred to a name the
+    /// layout had given to something else, so its fields read another setting's
+    /// bytes. Whatever a thing is called here, it is called that everywhere.
+    /// </para>
     /// </summary>
-    public static (TuneLayout Layout, IReadOnlyList<TableDefinition> Tables) Build(
+    public static MaxxTuneModel Build(
         ReadOnlySpan<byte> blob,
         IReadOnlyList<MaxxSettingDefinition> definitions,
         IReadOnlyDictionary<int, MaxxChannelDefinition>? channels = null)
@@ -584,7 +638,9 @@ public static class MaxxTune
 
         var constants = new List<TuneConstant>();
         var tables = new List<TableDefinition>();
+        var maps = new List<MaxxTable>();
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pages = new SettingsPages();
 
         foreach (MaxxSettingDefinition definition in definitions)
         {
@@ -593,6 +649,9 @@ public static class MaxxTune
                 if (TableAt(blob, definition.Name, definition.Address) is not { } table) continue;
 
                 string name = Unique(table.Name, taken);
+
+                // The table under the name everything else will use for it.
+                maps.Add(table with { Name = name });
 
                 // The axis names go through the same claim as the table's own.
                 // They are constants like any other and are looked up by name, so
@@ -639,9 +698,11 @@ public static class MaxxTune
             if (definition.Kind is "miniScript" or "userScript" or "string" or "table") continue;
             if (definition.Address + definition.Size > BlobSize) continue;
 
+            string setting = Unique(definition.Name, taken);
+
             constants.Add(new TuneConstant
             {
-                Name = Unique(definition.Name, taken),
+                Name = setting,
                 Page = 0,
                 Offset = definition.Address,
                 Type = definition.Type,
@@ -651,6 +712,10 @@ public static class MaxxTune
                 High = definition.High,
                 Columns = definition.Length,
             });
+
+            // The page this setting goes on, under the name the layout just gave
+            // it rather than the one the file used.
+            pages.Add(definition, setting);
         }
 
         var layout = new TuneLayout
@@ -664,7 +729,7 @@ public static class MaxxTune
             BlockingFactor = 512,
         };
 
-        return (layout, tables);
+        return new MaxxTuneModel(layout, tables, maps, pages.Build());
     }
 
     /// <summary>
@@ -705,58 +770,37 @@ public static class MaxxTune
     /// grouping is.
     /// </para>
     /// </summary>
-    public static TuneInterface Interface(IReadOnlyList<MaxxSettingDefinition> definitions)
+    private sealed class SettingsPages
     {
-        ArgumentNullException.ThrowIfNull(definitions);
+        private readonly Dictionary<string, TuneDialog> _dialogs = new(StringComparer.OrdinalIgnoreCase);
+        private readonly SortedDictionary<string, List<MenuEntry>> _byLetter = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _taken = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<DialogItem> _items = [];
 
-        var dialogs = new Dictionary<string, TuneDialog>(StringComparer.OrdinalIgnoreCase);
-        var byLetter = new SortedDictionary<string, List<MenuEntry>>(StringComparer.Ordinal);
+        private string _group = "";
+        private int _part = 1;
 
-        var items = new List<DialogItem>();
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string group = "";
-        int part = 1;
-
-        void Finish()
+        /// <summary>
+        /// Puts a setting on a page, under the name the layout gave it.
+        /// </summary>
+        /// <param name="definition">What the file says about it.</param>
+        /// <param name="name">
+        /// What the layout calls the constant — which is not always what the file
+        /// calls the setting, because the file repeats a few names and a constant
+        /// is found by name. Referring to the file's name here would point a
+        /// field at whatever else claimed it.
+        /// </param>
+        public void Add(MaxxSettingDefinition definition, string name)
         {
-            if (items.Count == 0) return;
-
-            // Numbered only where a subsystem needed more than one page, so one
-            // that fits is not called "Fuel 1" for no reason.
-            string title = Unique(part > 1 ? $"{group} {part}" : group, taken);
-            string name = $"maxx:{title}";
-
-            dialogs[name] = new TuneDialog(name, title, "yAxis", [.. items]);
-
-            string letter = char.IsLetter(group[0])
-                ? char.ToUpperInvariant(group[0]).ToString()
-                : "#";
-
-            if (!byLetter.TryGetValue(letter, out List<MenuEntry>? entries))
-                byLetter[letter] = entries = [];
-
-            entries.Add(new MenuEntry(name, title));
-            items.Clear();
-            part++;
-        }
-
-        foreach (MaxxSettingDefinition definition in definitions)
-        {
-            // Tables have their own half of this view, and a script or a string
-            // is not a setting anybody edits as a number.
-            if (definition.IsTable) continue;
-            if (definition.Kind is "miniScript" or "userScript" or "string" or "table") continue;
-            if (definition.Address + definition.Size > BlobSize) continue;
-
             string prefix = Prefix(definition.Name);
 
-            if (!prefix.Equals(group, StringComparison.OrdinalIgnoreCase))
+            if (!prefix.Equals(_group, StringComparison.OrdinalIgnoreCase))
             {
                 Finish();
-                group = prefix;
-                part = 1;
+                _group = prefix;
+                _part = 1;
             }
-            else if (items.Count >= PerPage) Finish();
+            else if (_items.Count >= PerPage) Finish();
 
             // A list gets a row per point rather than one row.
             //
@@ -769,27 +813,51 @@ public static class MaxxTune
             {
                 for (int i = 0; i < definition.Length; i++)
                 {
-                    if (items.Count >= PerPage) Finish();
+                    if (_items.Count >= PerPage) Finish();
 
-                    items.Add(new DialogItem(
-                        DialogItemKind.Field,
-                        $"{definition.Name} [{i}]",
-                        $"{definition.Name}[{i}]"));
+                    _items.Add(new DialogItem(
+                        DialogItemKind.Field, $"{name} [{i}]", $"{name}[{i}]"));
                 }
 
-                continue;
+                return;
             }
 
-            items.Add(new DialogItem(DialogItemKind.Field, definition.Name, definition.Name));
+            _items.Add(new DialogItem(DialogItemKind.Field, name, name));
         }
 
-        Finish();
-
-        return new TuneInterface
+        public TuneInterface Build()
         {
-            Menus = [.. byLetter.Select(letter => new TuneMenu(letter.Key, letter.Value))],
-            Dialogs = dialogs,
-        };
+            Finish();
+
+            return new TuneInterface
+            {
+                Menus = [.. _byLetter.Select(letter => new TuneMenu(letter.Key, letter.Value))],
+                Dialogs = _dialogs,
+            };
+        }
+
+        private void Finish()
+        {
+            if (_items.Count == 0) return;
+
+            // Numbered only where a subsystem needed more than one page, so one
+            // that fits is not called "Fuel 1" for no reason.
+            string title = Unique(_part > 1 ? $"{_group} {_part}" : _group, _taken);
+            string name = $"maxx:{title}";
+
+            _dialogs[name] = new TuneDialog(name, title, "yAxis", [.. _items]);
+
+            string letter = char.IsLetter(_group[0])
+                ? char.ToUpperInvariant(_group[0]).ToString()
+                : "#";
+
+            if (!_byLetter.TryGetValue(letter, out List<MenuEntry>? entries))
+                _byLetter[letter] = entries = [];
+
+            entries.Add(new MenuEntry(name, title));
+            _items.Clear();
+            _part++;
+        }
     }
 
     /// <summary>The subsystem a setting belongs to: the first word of its name.</summary>
