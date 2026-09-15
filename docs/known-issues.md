@@ -149,6 +149,62 @@ would help is a checked-in manifest of expectations — sample count, duration,
 real-or-counted time base, channel count — against files a developer points the
 suite at locally.
 
+## Started and not finished: the CAN sniffer
+
+A built-in CAN sniffer, to match what MTune and other tuning software offer. The
+shape of it is that **whatever ECU you are connected to is the interface** — it
+passes the frames it sees and OpenLogViewer does the sniffing — so no separate
+adapter is needed for an ECU that can relay its bus.
+
+**What is built and tested** (no hardware needed for any of it):
+
+- `CanFrame`, `ICanSource` and `CanSourceKind` — the thin pipe each device
+  implements, and what each one can honestly claim.
+- `MaxxCan` — the MaxxECU ring decode: 17-byte records, 32-bit identifiers so
+  29-bit extended frames survive, hardware microsecond timestamps, and the
+  dropped-frame counter read through the runtime-snapshot command.
+- `MaxxCanSource` — frames pulled between telemetry polls, sharing the one cable.
+- `CanBus` — the sniffing itself, and the part that is the same for every source:
+  per-identifier counts, rates, jitter, periodic-or-sporadic, bit-level change
+  tracking, and mark-and-compare.
+- `CanExport` — SavvyCAN CSV, candump, and a summary of where to look.
+
+**What is left**
+
+1. **The bus view** — a `Bus` workspace mode: the identifier table, sorting and
+   filtering, the changed bits shown per identifier, and mark-and-compare made
+   the obvious thing to reach for rather than a menu item.
+2. **Wiring it to a connected ECU**, including arming. Frames reach the ring only
+   while the tune's `CAN Analyzer Enable` is set, and setting it is a tune write,
+   which on a MaxxECU is permanent — so it is offered deliberately and never as
+   a side effect of opening a window.
+3. **First light on hardware**, which is the one thing nothing else can stand in
+   for. See below.
+4. **DBC decoding**, afterwards: decoded signals become ordinary channels, so a
+   CAN signal lands in the plot, the histogram, the scatter and VE calibration
+   with no new interface at all. This is where a sniffer stops being a hex dump.
+5. **Other sources** — a rusEFI (its Lua has a CAN receive callback, which is the
+   likely route, since its TunerStudio interface exposes no frame relay), a
+   WiCAN, a plain SLCAN adapter. Each is an `ICanSource` and nothing more.
+
+**What the firmware reading established**, and what is therefore assumed:
+
+- The MaxxECU sees the **whole bus**. Its controller's hardware acceptance filter
+  is set to match everything and the analyzer is fed before the ECU's own
+  identifier matching, so identifiers it was never configured for still arrive.
+  Without this the feature would be useless for its main purpose.
+- Losses are **counted**, in one place, covering both the receive interrupts and
+  the ring — so a capture can say what it missed. The counter is 16-bit,
+  free-running and never reset, so losses are accumulated as wrapping distances.
+- The one blind spot is a controller hardware-FIFO overrun, which needs the
+  receive interrupt starved rather than merely a busy bus, and is not counted.
+
+**The hardware test that settles it**, none of which has been done: arm the
+analyzer, put the ECU on a bus, and watch for an identifier the ECU has no reason
+to know. That one observation confirms the promiscuity, the record layout, the
+timestamps and the drop counter together. Until then everything above is read out
+of a firmware image and agrees only with itself.
+
 ## What has never been tested on hardware
 
 The Wi-Fi OBD2 path has never met the real Vgate dongle. Everything deciding the
