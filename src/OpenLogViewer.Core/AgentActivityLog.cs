@@ -53,12 +53,19 @@ public sealed class AgentActivityLog(int capacity = 500)
     /// and a table anyone can append a line to is easier to keep honest than a
     /// rule that infers intent from a path shape.
     ///
-    /// Only <c>/tune/set</c> and <c>/table/set</c> are marked as writes today:
+    /// <c>/tune/set</c>, <c>/table/set</c> and <c>/tune/apply</c> are the writes:
     /// they are the only routes that reach the ECU. <c>/project/…</c> routes
     /// change the tuning project's own notes on disk, which matters to a
     /// person, but is not the "the AI just changed something in the engine"
     /// event this exists to call out — so those stay reads for this purpose,
-    /// the same as any other route this table does not recognise.
+    /// the same as any other route this table does not recognise. Staging
+    /// writes a file for somebody to pick up and never touches a controller,
+    /// which is its own thing again.
+    ///
+    /// <b>A route that reaches the ECU and is missing from here reads as a
+    /// quiet <see cref="AgentActivityKind.Read"/>, which is exactly the event
+    /// the indicator exists to make loud.</b> Anything added to
+    /// <c>AgentServer.Route</c> belongs here in the same commit.
     /// </summary>
     private static readonly IReadOnlyDictionary<string, (AgentActivityKind Kind, string Phrase)> Routes =
         new Dictionary<string, (AgentActivityKind, string)>(StringComparer.Ordinal)
@@ -71,15 +78,24 @@ public sealed class AgentActivityLog(int capacity = 500)
             ["/tune"] = (AgentActivityKind.Read, "reading the tune"),
             ["/tables"] = (AgentActivityKind.Read, "listing tables"),
             ["/table"] = (AgentActivityKind.Read, "reading a table"),
+            ["/tune/full"] = (AgentActivityKind.Read, "reading the whole tune"),
+            ["/log/full"] = (AgentActivityKind.Read, "reading the whole log"),
+            ["/context"] = (AgentActivityKind.Read, "catching up on this vehicle"),
             ["/wire/health"] = (AgentActivityKind.Read, "checking the wire trace's health"),
             ["/wire/events"] = (AgentActivityKind.Read, "reading the wire trace"),
+            ["/live/stream"] = (AgentActivityKind.Read, "watching the live stream"),
             ["/project"] = (AgentActivityKind.Read, "reading the tuning project"),
             ["/project/versions/compare"] = (AgentActivityKind.Read, "comparing tune versions"),
             ["/project/record"] = (AgentActivityKind.Read, "recording a sitting"),
             ["/project/keep"] = (AgentActivityKind.Read, "keeping this tune version"),
             ["/project/fix"] = (AgentActivityKind.Read, "noting a fix"),
+            ["/tune/propose"] = (AgentActivityKind.Read, "working out what a change would do"),
             ["/tune/set"] = (AgentActivityKind.Write, "writing to the ECU"),
             ["/table/set"] = (AgentActivityKind.Write, "writing to the ECU"),
+            ["/tune/apply"] = (AgentActivityKind.Write, "applying a batch of changes to the ECU"),
+            ["/stage"] = (AgentActivityKind.Read, "listing staged files"),
+            ["/stage/tune"] = (AgentActivityKind.Stage, "staging a tune file"),
+            ["/stage/table"] = (AgentActivityKind.Stage, "staging a table as CSV"),
         };
 
     private readonly ConcurrentQueue<AgentActivityEvent> _events = new();

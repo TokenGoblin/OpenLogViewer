@@ -434,17 +434,28 @@ public partial class MainViewModel
     /// thread's own dispatcher, which nothing pumps, and would simply never
     /// fire. The expiry callback still has to get back onto the UI thread
     /// before touching bound state, the same as <see cref="OnAgentActivity"/>.
+    ///
+    /// Locked because the create-if-absent is otherwise a check-then-assign on
+    /// a shared field: with no WPF <see cref="Application"/> to marshal onto —
+    /// a headless host, or a test — this runs inline on whichever agent
+    /// request threads arrive, and two at once would each build a timer and
+    /// leak whichever lost.
     /// </summary>
     private void RestartDecay(ref Timer? timer, TimeSpan window, Action expired)
     {
-        if (timer is null)
+        lock (_decayGate)
         {
-            timer = new Timer(_ => OnUiThread(expired), null, window, Timeout.InfiniteTimeSpan);
-            return;
-        }
+            if (timer is null)
+            {
+                timer = new Timer(_ => OnUiThread(expired), null, window, Timeout.InfiniteTimeSpan);
+                return;
+            }
 
-        timer.Change(window, Timeout.InfiniteTimeSpan);
+            timer.Change(window, Timeout.InfiniteTimeSpan);
+        }
     }
+
+    private readonly Lock _decayGate = new();
 
     /// <summary>
     /// Runs something on the UI thread, whatever thread this is called from.
@@ -501,21 +512,30 @@ public partial class MainViewModel
     /// <summary>
     /// Refuses a write while live RPM reads above <see cref="IdleAdjacentRpm"/>.
     ///
+    /// <para>
+    /// Read from the live session itself rather than from <see cref="Document"/>,
+    /// which is not the same thing: opening a saved log while connected replaces
+    /// the document without ending the session, and judging the engine by the
+    /// last row of somebody's old file gets it wrong in both directions — a log
+    /// that ends at 4,500 rpm blocks every write with the engine stopped, and
+    /// one that ends at idle waves a write through while the engine is being
+    /// revved. The document is also a tick behind the session even when it is
+    /// the right data, since a timer refreshes it.
+    /// </para>
+    /// <para>
     /// Silently allows the write through — rather than refusing — when RPM
-    /// cannot be found at all: a saved log with no engine-speed channel, or a
-    /// session that never decoded one, is not "the engine is running above
-    /// idle", it is "this cannot be answered", and the other gates (writes
-    /// armed, an ECU actually connected, a live tune in hand) already do the
-    /// job of keeping a write off anything that is not a live, connected
-    /// controller.
+    /// cannot be found at all: a session with no engine-speed channel, or one
+    /// that has not sampled yet, is not "the engine is running above idle", it
+    /// is "this cannot be answered", and the other gates (writes armed, an ECU
+    /// actually connected, a live tune in hand) already do the job of keeping a
+    /// write off anything that is not a live, connected controller.
+    /// </para>
     /// </summary>
     private AgentRefusal? RunningAboveIdleRefusal()
     {
-        if (Document is not { } log) return null;
-        if (ChannelRoles.Find(log, ChannelRole.EngineSpeed) is not { } channel) return null;
-        if (channel.Length == 0) return null;
+        if (_live is not { IsRunning: true } live) return null;
 
-        double rpm = channel.At(channel.Length - 1);
+        double rpm = live.Latest(ChannelRole.EngineSpeed);
         if (!double.IsFinite(rpm) || rpm <= IdleAdjacentRpm) return null;
 
         return new AgentRefusal(
@@ -526,6 +546,23 @@ public partial class MainViewModel
 
     /// <summary>How many agent writes have actually reached the ECU recently, newest last.</summary>
     private readonly List<DateTime> _recentAgentWrites = [];
+
+    /// <summary>
+    /// Guards <see cref="_recentAgentWrites"/> and <see cref="_batchesInFlight"/>.
+    ///
+    /// Needed because the server hands every request to its own task, so two
+    /// writes really can arrive at once — and a rate limit that a race can
+    /// corrupt the count of, or throw out of mid-write, is not a guard.
+    /// </summary>
+    private readonly Lock _agentWriteGate = new();
+
+    /// <summary>
+    /// How many batch applies are part-way through their items.
+    ///
+    /// While one is, the per-item rate limit stands down — see
+    /// <see cref="RateLimitRefusal"/> for why.
+    /// </summary>
+    private int _batchesInFlight;
 
     /// <summary>
     /// The rate limit's window and count.
@@ -540,29 +577,86 @@ public partial class MainViewModel
 
     private const int RateLimitCount = 10;
 
+    /// <summary>
+    /// Refuses a write once too many have landed too quickly.
+    ///
+    /// <para>
+    /// <b>One batch apply counts as one write, not as its items.</b> The limit
+    /// is checked once for the batch as a whole and then stands down for the
+    /// items inside it, because the failure it guards against is an agent
+    /// looping, not an agent making one deliberate change that happens to move
+    /// twenty cells. Counting the items instead would let the first ten reach
+    /// a running engine and refuse the rest — half a table row moved is worse
+    /// than either the whole row or none of it, and it is the one outcome
+    /// nobody asked for. The magnitude, dangerous-constant and RPM guards
+    /// still run on every single item regardless.
+    /// </para>
+    /// </summary>
     private AgentRefusal? RateLimitRefusal()
     {
-        DateTime now = DateTime.UtcNow;
-        _recentAgentWrites.RemoveAll(at => now - at > RateLimitWindow);
+        lock (_agentWriteGate)
+        {
+            if (_batchesInFlight > 0) return null;
 
-        if (_recentAgentWrites.Count < RateLimitCount) return null;
+            DateTime now = DateTime.UtcNow;
+            _recentAgentWrites.RemoveAll(at => now - at > RateLimitWindow);
 
-        return new AgentRefusal(
-            "too many writes in a short time",
-            $"{_recentAgentWrites.Count} agent writes landed in the last "
-            + $"{RateLimitWindow.TotalSeconds:0} seconds. Slow down, and check what each one did "
-            + "before sending the next.");
+            if (_recentAgentWrites.Count < RateLimitCount) return null;
+
+            return new AgentRefusal(
+                "too many writes in a short time",
+                $"{_recentAgentWrites.Count} agent writes landed in the last "
+                + $"{RateLimitWindow.TotalSeconds:0} seconds. Slow down, and check what each one did "
+                + "before sending the next.");
+        }
     }
 
     /// <summary>Notes that a write actually reached the ECU, for <see cref="RateLimitRefusal"/>.</summary>
     private void RecordAgentWrite()
     {
-        _recentAgentWrites.Add(DateTime.UtcNow);
+        lock (_agentWriteGate)
+        {
+            // Inside a batch the batch itself has already been counted, and
+            // counting its items again would spend the whole allowance on one
+            // deliberate action.
+            if (_batchesInFlight > 0) return;
 
-        // A generous backstop rather than a rolling trim on every call: nothing
-        // in normal use gets near it, since RateLimitRefusal already prunes
-        // anything outside the window before this is ever reached.
-        if (_recentAgentWrites.Count > 1000) _recentAgentWrites.RemoveRange(0, _recentAgentWrites.Count - 1000);
+            _recentAgentWrites.Add(DateTime.UtcNow);
+
+            // A generous backstop rather than a rolling trim on every call: nothing
+            // in normal use gets near it, since RateLimitRefusal already prunes
+            // anything outside the window before this is ever reached.
+            if (_recentAgentWrites.Count > 1000)
+                _recentAgentWrites.RemoveRange(0, _recentAgentWrites.Count - 1000);
+        }
+    }
+
+    /// <summary>
+    /// Counts one batch against the rate limit and holds the per-item check
+    /// down until the returned handle is disposed.
+    /// </summary>
+    private IDisposable CountBatchAsOneWrite()
+    {
+        lock (_agentWriteGate)
+        {
+            _recentAgentWrites.Add(DateTime.UtcNow);
+            _batchesInFlight++;
+        }
+
+        return new BatchScope(this);
+    }
+
+    private sealed class BatchScope(MainViewModel owner) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            lock (owner._agentWriteGate) owner._batchesInFlight--;
+        }
     }
 
     /// <summary>
@@ -674,37 +768,43 @@ public partial class MainViewModel
                     : "Nothing would change; the ECU already holds these values.");
         }
 
-        var appliedSettingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var appliedTableConstants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // What the controller held before any of this went out, so what
+        // actually landed can be measured rather than inferred. Inferring it
+        // from which calls returned null is wrong in exactly the case that
+        // matters: a table where three of five cells took reports the whole
+        // five-cell difference as applied, and then records that overstatement
+        // as the version note.
+        EcuTune before = EcuTune.FromPages(tune.Layout, [.. tune.Pages.Select(p => p.ToArray())]);
 
-        foreach (ProposedSetting s in settings)
+        using (CountBatchAsOneWrite())
         {
-            if (string.IsNullOrWhiteSpace(s.Name) || tune.Constant(s.Name) is null) continue;
+            foreach (ProposedSetting s in settings)
+            {
+                if (string.IsNullOrWhiteSpace(s.Name) || tune.Constant(s.Name) is null) continue;
 
-            if (AgentSetSetting(s.Name, s.Value, note, confirmDangerous) is { } settingRefused)
-                rejected.Add($"{s.Name}: {settingRefused.Reason}");
-            else
-                appliedSettingNames.Add(s.Name);
+                if (AgentSetSetting(s.Name, s.Value, note, confirmDangerous) is { } settingRefused)
+                    rejected.Add($"{s.Name}: {settingRefused.Reason}");
+            }
+
+            foreach (ProposedCell c in cells)
+            {
+                TuneTable? shape = EcuTables.FirstOrDefault(
+                    t => t.Name.Equals(c.Table, StringComparison.OrdinalIgnoreCase));
+
+                if (shape is null) continue; // already rejected by BuildProposal
+
+                if (AgentSetTableCell(c.Table, c.Column, c.Row, c.Value, note, confirmDangerous)
+                    is { } cellRefused)
+                {
+                    rejected.Add($"{c.Table}[{c.Column},{c.Row}]: {cellRefused.Reason}");
+                }
+            }
         }
 
-        foreach (ProposedCell c in cells)
-        {
-            TuneTable? shape = EcuTables.FirstOrDefault(
-                t => t.Name.Equals(c.Table, StringComparison.OrdinalIgnoreCase));
-
-            if (shape is null) continue; // already rejected by BuildProposal
-
-            if (AgentSetTableCell(c.Table, c.Column, c.Row, c.Value, note, confirmDangerous) is { } cellRefused)
-                rejected.Add($"{c.Table}[{c.Column},{c.Row}]: {cellRefused.Reason}");
-            else if (ConstantFor(shape) is { } constant)
-                appliedTableConstants.Add(constant.Name);
-        }
-
-        List<TuneDifference> applied =
-        [
-            .. wanted.Where(d =>
-                appliedSettingNames.Contains(d.Name) || appliedTableConstants.Contains(d.Name)),
-        ];
+        // Measured against the bytes as they were, so a partly applied batch
+        // reports the part that landed and nothing more.
+        IReadOnlyList<TuneDifference> applied =
+            _ecuTune is { } now ? TuneCompare.Compare(now, before) : [];
 
         if (applied.Count > 0)
         {

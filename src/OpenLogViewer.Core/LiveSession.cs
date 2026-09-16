@@ -584,6 +584,34 @@ public sealed class LiveSession : IDisposable
     }
 
     /// <summary>
+    /// The newest reading of whichever column plays <paramref name="role"/>, or
+    /// <see cref="double.NaN"/> when this session has no such column or has not
+    /// sampled one yet.
+    ///
+    /// For a caller that needs one live number and needs it to be live — a
+    /// guard asking "is the engine running" must not be answered by a saved
+    /// log somebody opened while connected, which is what reading it out of
+    /// the window's current document would do. Deliberately not built on
+    /// <see cref="Snapshot"/>: that copies every column whenever the sample
+    /// count has moved, which is every poll, and this is asked on a write path.
+    /// </summary>
+    public double Latest(ChannelRole role)
+    {
+        lock (_gate)
+        {
+            for (int i = 0; i < _names.Length; i++)
+            {
+                if (!ChannelRoles.Matches(_names[i], role)) continue;
+
+                List<float> column = _columns[i];
+                return column.Count == 0 ? double.NaN : column[^1];
+            }
+
+            return double.NaN;
+        }
+    }
+
+    /// <summary>
     /// The session so far as an ordinary document.
     ///
     /// Cached against the sample count: the plot asks for this on every repaint,

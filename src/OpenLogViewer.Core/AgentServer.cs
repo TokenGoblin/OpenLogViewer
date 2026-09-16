@@ -177,8 +177,20 @@ public sealed class AgentServer : IDisposable
 
             if (context.Request.IsWebSocketRequest)
             {
-                if (path is "/live/stream") await Stream(context).ConfigureAwait(false);
-                else await Refuse(context, 404, "no such stream", path).ConfigureAwait(false);
+                if (path is "/live/stream")
+                {
+                    // Recorded for as long as the socket is open, rather than
+                    // for the instant it was accepted: an agent watching the
+                    // engine for an hour is continuously reading it, and an
+                    // indicator that went dark a moment after it subscribed
+                    // would say the opposite of what is happening.
+                    using IDisposable watching = Activity.Begin(path);
+                    await Stream(context).ConfigureAwait(false);
+                }
+                else
+                {
+                    await Refuse(context, 404, "no such stream", path).ConfigureAwait(false);
+                }
 
                 return;
             }
@@ -268,7 +280,7 @@ public sealed class AgentServer : IDisposable
                 return;
 
             case "/channels":
-                await Send(context, _bridge.Channels(raw: query["raw"] == "true")).ConfigureAwait(false);
+                await Send(context, _bridge.Channels(raw: Flag(query["raw"]))).ConfigureAwait(false);
                 return;
 
             case "/wire/health":
@@ -658,7 +670,12 @@ public sealed class AgentServer : IDisposable
 
         try
         {
-            return JsonSerializer.Deserialize<T>(body, Json);
+            // A body of literal "null" parses to null without throwing, and a
+            // null here would send the caller down its "something went wrong,
+            // the answer has already been sent" path — except nothing has been
+            // sent, so the client waits for a reply that never comes. It means
+            // the same as an empty body: nothing was supplied.
+            return JsonSerializer.Deserialize<T>(body, Json) ?? JsonSerializer.Deserialize<T>("{}", Json);
         }
         catch (JsonException e)
         {
@@ -673,6 +690,22 @@ public sealed class AgentServer : IDisposable
                         System.Globalization.CultureInfo.InvariantCulture, out double seconds)
             ? Math.Max(0, seconds)
             : 0;
+
+    /// <summary>
+    /// A query-string flag, in any of the spellings somebody hand-writing a
+    /// request actually uses.
+    ///
+    /// An exact match on "true" alone is a trap: <c>?raw=1</c>, <c>?raw=True</c>
+    /// and a bare <c>?raw</c> all plainly mean yes, and answering them with the
+    /// curated channel set — the opposite of what was asked — with no error to
+    /// say so is worse than refusing them would be.
+    /// </summary>
+    private static bool Flag(string? text) =>
+        text is not null
+        && (text.Length == 0
+            || text.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("1", StringComparison.Ordinal)
+            || text.Equals("yes", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>How many wire events to hand back, defaulting to a screenful and capped at 500.</summary>
     private static int WireEventCount(string? text) =>

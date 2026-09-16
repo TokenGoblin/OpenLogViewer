@@ -1,3 +1,4 @@
+using System.Linq;
 using OpenLogViewer.Core;
 using Xunit;
 
@@ -312,5 +313,73 @@ public class AgentGuardrailTests : IDisposable
         MainViewModel vm = Connected(out _);
 
         Assert.Null(Bridge(vm).SetSetting("crankingRPM", 310, "small nudge"));
+    }
+
+    [Fact]
+    public void ASavedLogOpenedWhileConnectedDoesNotDecideWhetherTheEngineIsRunning()
+    {
+        // Opening a file does not end the session, so for as long as the guard
+        // read the window's current document it was judging the engine by the
+        // last row of somebody's old log. A file ending at 6,000 rpm must not
+        // block a write to a controller that is sitting at idle.
+        MainViewModel vm = Connected(out _);
+        WaitForALiveSample(vm);
+
+        vm.Load(_harness.WriteCsv(("RPM", [6000, 6000, 6000])));
+
+        Assert.Null(Bridge(vm).SetSetting("crankingRPM", 310, "small nudge"));
+    }
+
+    // ----- a batch counts as one action against the rate limit ------------------
+
+    [Fact]
+    public void ABatchLargerThanTheRateLimitStillAppliesWholly()
+    {
+        // The limit exists to catch an agent looping, not one deliberate change
+        // that happens to move a lot of cells. Counting the items would leave
+        // the first ten applied and the rest refused -- half a table row moved
+        // on a running engine, which is the one outcome nobody asked for.
+        MainViewModel vm = Connected(out FakeController board);
+        WaitForALiveSample(vm);
+
+        ProposedCell[] wholeTable =
+        [
+            new("VE Table", 0, 0, 41), new("VE Table", 1, 0, 42),
+            new("VE Table", 0, 1, 43), new("VE Table", 1, 1, 44),
+        ];
+
+        // Twelve settings and four cells: sixteen items, well past the ten a
+        // per-item count would allow.
+        ProposedSetting[] many = [.. Enumerable.Range(0, 12).Select(i => new ProposedSetting("crankingRPM", 300 + i))];
+
+        TuneApplyResult result = Bridge(vm).ApplyTune(many, wholeTable, "filling the table");
+
+        Assert.Null(result.Refusal);
+        Assert.DoesNotContain(result.Rejected, r => r.Contains("too many writes", StringComparison.Ordinal));
+
+        // Every cell of the table landed, not just the ones before the tenth write.
+        Assert.Equal(41, board.Page[16]);
+        Assert.Equal(42, board.Page[17]);
+        Assert.Equal(43, board.Page[18]);
+        Assert.Equal(44, board.Page[19]);
+    }
+
+    [Fact]
+    public void ButLoopingTheBatchEndpointStillTripsTheRateLimit()
+    {
+        // The batch standing the per-item limit down must not stand the limit
+        // itself down: an agent calling apply in a loop is exactly what this
+        // catches, and each call spends one of the ten.
+        MainViewModel vm = Connected(out _);
+        WaitForALiveSample(vm);
+
+        AgentBridge bridge = Bridge(vm);
+        TuneApplyResult? last = null;
+
+        for (int i = 0; i < 12; i++)
+            last = bridge.ApplyTune([new ProposedSetting("crankingRPM", 300 + i)], [], $"nudge {i}");
+
+        Assert.NotNull(last!.Refusal);
+        Assert.Contains("too many writes", last.Refusal!.Reason, StringComparison.Ordinal);
     }
 }

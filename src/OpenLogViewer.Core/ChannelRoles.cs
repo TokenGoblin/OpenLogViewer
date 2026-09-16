@@ -98,6 +98,27 @@ public static class ChannelRoles
     }
 
     /// <summary>
+    /// Whether one channel name, on its own, plays a role — the same matching
+    /// <see cref="Find"/> does, minus the units check it has no channel to make.
+    ///
+    /// For a caller holding names rather than a <see cref="LogDocument"/>: a
+    /// live session knows its own column names long before anything assembles
+    /// them into a document, and building one just to ask which column is
+    /// engine speed would copy every column to answer a question about one.
+    /// Looser than <see cref="Find"/> by exactly the units guard, so prefer
+    /// that wherever a document is already in hand.
+    /// </summary>
+    public static bool Matches(string channelName, ChannelRole role)
+    {
+        if (string.IsNullOrWhiteSpace(channelName)) return false;
+
+        string simplified = Simplify(channelName);
+
+        return Array.Exists(Aliases(role), alias => simplified == alias)
+               || Array.Exists(Aliases(role), alias => Extends(simplified, alias));
+    }
+
+    /// <summary>
     /// Whether a name is the alias with no more than a bank or sensor number
     /// after it — "afr1" or "lambdaa", but never "afrload".
     ///
