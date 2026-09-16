@@ -217,6 +217,52 @@ public interface IAgentBridge
     /// stay a further call away once this says they are worth making.
     /// </summary>
     AgentContext Context();
+
+    // ----- propose / apply ----------------------------------------------------
+
+    /// <summary>
+    /// Works out what a batch of settings and table cells would change, on a
+    /// private copy of the tune in hand.
+    ///
+    /// Nothing here touches the tune the rest of the application is looking at,
+    /// let alone the ECU — which is what makes this answerable even when writes
+    /// are not armed. "Would this be safe to send" and "what would it do" are
+    /// different questions, and this is only the second one.
+    /// </summary>
+    TuneProposalResult ProposeTune(IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells);
+
+    /// <summary>
+    /// Applies the same shape of batch for real, through the existing per-setting
+    /// and per-cell write paths — no second write implementation, so this
+    /// inherits the same read-back-and-verify safety a lone <see cref="SetSetting"/>
+    /// or <see cref="SetTableCell"/> already has, <paramref name="note"/> serving
+    /// as the rationale each of those requires and <paramref name="confirmDangerous"/>
+    /// carried to each of them the same way. Keeps a version of the result on
+    /// success, the same as <see cref="KeepTune"/> does by hand.
+    /// </summary>
+    TuneApplyResult ApplyTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string note,
+        bool confirmDangerous = false);
+
+    // ----- staging --------------------------------------------------------
+
+    /// <summary>
+    /// Writes a tune out as a real <c>.msq</c> in the staging folder — the tune
+    /// in hand when no changes are given, or what a batch of proposed changes
+    /// would make it, laid over it the same way <see cref="ProposeTune"/> does.
+    ///
+    /// Not gated by anything a write to the ECU is gated by: this never reaches
+    /// a controller, so it works whether or not writing is armed. The only thing
+    /// that can refuse it is a name that tries to leave the staging folder.
+    /// </summary>
+    AgentStageResult StageTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string filename);
+
+    /// <summary>Writes one named table out as a CSV a person can import in TunerStudio.</summary>
+    AgentStageResult StageTable(string name, string filename);
+
+    /// <summary>What is sitting in the staging folder right now.</summary>
+    IReadOnlyList<AgentStagedFile> ListStaged();
 }
 
 /// <summary>One setting, with the metadata worth knowing before writing back to it.</summary>
@@ -260,6 +306,57 @@ public sealed record AgentContext(
     AgentTuneSummary Tune,
     IReadOnlyList<AgentFinding> Insights,
     AgentWireHealth WireHealth);
+
+/// <summary>One setting proposed to change, before anything is decided about it.</summary>
+public sealed record ProposedSetting(string Name, double Value);
+
+/// <summary>One table cell proposed to change.</summary>
+public sealed record ProposedCell(string Table, int Column, int Row, double Value);
+
+/// <summary>
+/// What a batch of proposed settings and cells would do, worked out without
+/// touching the tune the application is looking at or the ECU behind it.
+/// </summary>
+/// <param name="Changes">
+/// What would actually change, in the same shape <see cref="TuneCompare"/>
+/// already reports a difference in — before and after, and how many cells for
+/// a table.
+/// </param>
+/// <param name="Rejected">
+/// Requested changes that could not go in: a name this firmware has no
+/// constant for, a value out of its range, a cell outside a table's shape.
+/// Left out of <paramref name="Changes"/> rather than silently dropped, so a
+/// batch that only partly makes sense says which part.
+/// </param>
+public sealed record TuneProposalResult(
+    IReadOnlyList<TuneDifference> Changes, IReadOnlyList<string> Rejected, string Summary)
+{
+    /// <summary>Nothing in the batch would change anything.</summary>
+    public bool IsEmpty => Changes.Count == 0;
+}
+
+/// <summary>
+/// What applying a proposal did, or why it was refused before anything was
+/// attempted.
+/// </summary>
+/// <param name="Refusal">Set exactly when nothing was sent.</param>
+/// <param name="Applied">What was actually sent and taken, in the same shape a proposal reports.</param>
+/// <param name="Rejected">Requested changes that did not go in, whether caught before sending or refused by the ECU itself.</param>
+public sealed record TuneApplyResult(
+    AgentRefusal? Refusal, IReadOnlyList<TuneDifference> Applied, IReadOnlyList<string> Rejected, string Summary);
+
+/// <summary>One file sitting in the staging folder.</summary>
+public sealed record AgentStagedFile(string Name, string Path, long Bytes, DateTime WrittenAt);
+
+/// <summary>
+/// What staging a file did, or why there was nothing to stage.
+///
+/// Reuses the shape of a write refusal even though staging is never gated the
+/// way a write is — the two situations both come down to "here is why nothing
+/// was written," and an agent acting on one should be able to act on the other
+/// the same way.
+/// </summary>
+public sealed record AgentStageResult(AgentRefusal? Refusal, AgentStagedFile? File);
 
 /// <summary>One insight, flattened for a reader that is not a window.</summary>
 public sealed record AgentFinding(string Level, string Topic, string Title, string Detail)

@@ -245,4 +245,24 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
             new AgentTuneSummary(TuneValues().Count, TableNames()),
             Insights(),
             WireHealth());
+
+    // ----- propose / apply / staging -------------------------------------------
+
+    public TuneProposalResult ProposeTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells) =>
+        _viewModel.AgentProposeTune(settings, cells);
+
+    public TuneApplyResult ApplyTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string note,
+        bool confirmDangerous = false) =>
+        _viewModel.AgentApplyTune(settings, cells, note, confirmDangerous);
+
+    public AgentStageResult StageTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string filename) =>
+        _viewModel.AgentStageTune(settings, cells, filename);
+
+    public AgentStageResult StageTable(string name, string filename) =>
+        _viewModel.AgentStageTable(name, filename);
+
+    public IReadOnlyList<AgentStagedFile> ListStaged() => _viewModel.AgentListStaged();
 }
