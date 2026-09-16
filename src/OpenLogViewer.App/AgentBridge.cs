@@ -173,4 +173,75 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
 
     public AgentRefusal? NoteFix(string id, string title, string detail, string state, string change) =>
         _viewModel.AgentNoteFix(id, title, detail, state, change);
+
+    // ----- composition ---------------------------------------------------------
+
+    public AgentTuneFull TuneFull()
+    {
+        IReadOnlyDictionary<string, double> scalars = _viewModel.AgentTuneValues();
+        Dictionary<string, TuneConstant> byName =
+            _viewModel.AgentTuneConstants().ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+
+        var settings = scalars.Select(kv =>
+            byName.TryGetValue(kv.Key, out TuneConstant? constant)
+                ? new AgentSetting(kv.Key, kv.Value, constant.Units)
+                {
+                    Options = constant.Options,
+                    Low = constant.HasRange ? constant.Low : null,
+                    High = constant.HasRange ? constant.High : null,
+                }
+                : new AgentSetting(kv.Key, kv.Value, "")).ToList();
+
+        return new AgentTuneFull(settings, [.. _viewModel.EcuTables.Select(FlattenTable)]);
+    }
+
+    /// <summary>The same flattening a single <c>/table</c> answer uses, so the two never drift apart.</summary>
+    private static AgentTable FlattenTable(TuneTable table)
+    {
+        var rows = new List<IReadOnlyList<double>>(table.Rows);
+
+        for (int r = 0; r < table.Rows; r++)
+        {
+            var row = new double[table.Columns];
+            for (int c = 0; c < table.Columns; c++) row[c] = table.Values[c, r];
+            rows.Add(row);
+        }
+
+        return new AgentTable(
+            table.Name, table.Units, table.Columns, table.Rows,
+            table.X.Breakpoints, table.Y.Breakpoints, table.X.Units, table.Y.Units,
+            table.X.Constant, table.Y.Constant, rows);
+    }
+
+    public AgentLogFull LogFull(double seconds, int decimate)
+    {
+        if (_viewModel.Document is not { } log) return new AgentLogFull([], []);
+
+        IReadOnlyList<double> times = Decimate(Tail(log.Time, log, seconds), decimate);
+
+        var channels = log.Channels
+            .Select(c => new AgentChannelSamples(c.Name, c.Units, Decimate(Tail(c, log, seconds), decimate)))
+            .ToList();
+
+        return new AgentLogFull(times, channels);
+    }
+
+    /// <summary>Keeps one sample in every <paramref name="stride"/>, for a caller that asked to thin a big log.</summary>
+    private static IReadOnlyList<double> Decimate(IReadOnlyList<double> values, int stride)
+    {
+        if (stride <= 1) return values;
+
+        var kept = new List<double>((values.Count + stride - 1) / stride);
+        for (int i = 0; i < values.Count; i += stride) kept.Add(values[i]);
+
+        return kept;
+    }
+
+    public AgentContext Context() =>
+        new(
+            ProjectBrief(),
+            State(),
+            new AgentTuneSummary(TuneValues().Count, TableNames()),
+            Insights(),
+            WireHealth());
 }

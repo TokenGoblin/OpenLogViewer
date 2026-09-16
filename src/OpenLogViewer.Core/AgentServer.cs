@@ -241,6 +241,7 @@ public sealed class AgentServer : IDisposable
                         "GET /wire/health", "GET /wire/events?count=",
                         "GET /project", "POST /project/record", "POST /project/fix",
                         "POST /project/keep", "POST /project/versions/compare",
+                        "GET /tune/full", "GET /log/full?seconds=&decimate=", "GET /context",
                     },
                 }).ConfigureAwait(false);
                 return;
@@ -422,6 +423,23 @@ public sealed class AgentServer : IDisposable
                 return;
             }
 
+            case "/tune/full":
+                await Send(context, _bridge.TuneFull()).ConfigureAwait(false);
+                return;
+
+            case "/log/full":
+            {
+                double seconds = Seconds(query["seconds"]);
+                int decimate = Decimate(query["decimate"]);
+
+                await Send(context, _bridge.LogFull(seconds, decimate)).ConfigureAwait(false);
+                return;
+            }
+
+            case "/context":
+                await Send(context, _bridge.Context()).ConfigureAwait(false);
+                return;
+
             default:
                 await Refuse(context, 404, "no such endpoint", path).ConfigureAwait(false);
                 return;
@@ -475,6 +493,14 @@ public sealed class AgentServer : IDisposable
     /// <summary>How many wire events to hand back, defaulting to a screenful and capped at 500.</summary>
     private static int WireEventCount(string? text) =>
         int.TryParse(text, out int count) ? Math.Clamp(count, 0, 500) : 100;
+
+    /// <summary>
+    /// The stride to thin a full log by — 1 (every sample) unless a caller asks
+    /// for wider spacing, which is the only size control a JSON dump of a whole
+    /// log has.
+    /// </summary>
+    private static int Decimate(string? text) =>
+        int.TryParse(text, out int stride) && stride > 1 ? stride : 1;
 
     /// <summary>A table as numbers rather than as an object graph.</summary>
     private static object Flatten(TuneTable table)

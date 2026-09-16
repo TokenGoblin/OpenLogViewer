@@ -150,6 +150,55 @@ public class AgentServerTests : IDisposable
             Noted.Add($"{id}/{title}/{state}");
             return null;
         }
+
+        // ----- composition -----------------------------------------------------
+
+        public AgentTuneFull TuneFull() => new(
+            [
+                new AgentSetting("crankingRPM", 300, "rpm") { Low = 0, High = 1000 },
+                new AgentSetting("egoType", 1, "") { Options = ["Off", "Narrow Band", "Wide Band"] },
+            ],
+            [
+                new AgentTable(
+                    "VE Table", "%", 2, 2,
+                    [800, 3000], [30, 100], "rpm", "kPa", "rpmBins", "mapBins",
+                    [new double[] { 40, 60 }, new double[] { 50, 80 }]),
+            ]);
+
+        public AgentLogFull LogFull(double seconds, int decimate)
+        {
+            double[] times = [0, 0.1, 0.2, 0.3, 0.4];
+            double[] rpm = [800, 1500, 3000, 4200, 5000];
+            double[] afr = [14.7, 14.5, 13.2, 12.9, 12.6];
+
+            int from = 0;
+
+            if (seconds > 0)
+            {
+                double until = times[^1] - seconds;
+                for (int i = times.Length - 1; i >= 0; i--)
+                {
+                    if (times[i] < until) { from = i + 1; break; }
+                }
+            }
+
+            static IReadOnlyList<double> Window(double[] values, int from, int stride)
+            {
+                IEnumerable<double> tailed = values.Skip(from);
+                return stride <= 1 ? [.. tailed] : [.. tailed.Where((_, i) => i % stride == 0)];
+            }
+
+            return new AgentLogFull(
+                Window(times, from, decimate),
+                [
+                    new AgentChannelSamples("RPM", "rpm", Window(rpm, from, decimate)),
+                    new AgentChannelSamples("AFR", "AFR", Window(afr, from, decimate)),
+                ]);
+        }
+
+        public AgentContext Context() => new(
+            ProjectBrief(), State(), new AgentTuneSummary(TuneValues().Count, TableNames()),
+            Insights(), WireHealth());
     }
 
     private (AgentServer Server, Bench Bench, HttpClient Client) Serve()
@@ -694,5 +743,102 @@ public class AgentServerTests : IDisposable
 
         Assert.Contains("The E28", got.RootElement.GetProperty("brief").GetString()!,
                         StringComparison.Ordinal);
+    }
+
+    // ----- composition ---------------------------------------------------------
+
+    [Fact]
+    public async Task TuneFullCarriesEverySettingWithItsMetadataAndEveryTable()
+    {
+        // The point of this endpoint is that a session never has to make the
+        // /tune plus /tables plus one /table-per-name round trips itself.
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument full = JsonDocument.Parse(await client.GetStringAsync("/tune/full"));
+
+        JsonElement settings = full.RootElement.GetProperty("settings");
+        JsonElement cranking = settings[0];
+        Assert.Equal("crankingRPM", cranking.GetProperty("name").GetString());
+        Assert.Equal(300, cranking.GetProperty("value").GetDouble());
+        Assert.Equal("rpm", cranking.GetProperty("units").GetString());
+        Assert.Equal(0, cranking.GetProperty("low").GetDouble());
+        Assert.Equal(1000, cranking.GetProperty("high").GetDouble());
+
+        JsonElement egoType = settings[1];
+        Assert.Equal("Wide Band", egoType.GetProperty("options")[2].GetString());
+
+        JsonElement tables = full.RootElement.GetProperty("tables");
+        Assert.Equal("VE Table", tables[0].GetProperty("name").GetString());
+        Assert.Equal(800, tables[0].GetProperty("xBins")[0].GetDouble());
+        Assert.Equal(40, tables[0].GetProperty("values")[0][0].GetDouble());
+    }
+
+    [Fact]
+    public async Task LogFullReturnsEveryChannelSharingOneTimeColumn()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument full = JsonDocument.Parse(await client.GetStringAsync("/log/full"));
+
+        JsonElement times = full.RootElement.GetProperty("times");
+        JsonElement channels = full.RootElement.GetProperty("channels");
+
+        Assert.Equal(5, times.GetArrayLength());
+        Assert.Equal(2, channels.GetArrayLength());
+        Assert.Equal("RPM", channels[0].GetProperty("name").GetString());
+        Assert.Equal(5, channels[0].GetProperty("values").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task LogFullRespectsTheSecondsWindow()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        // Only the last 0.2 s of a 0.4 s log — the last three samples.
+        using JsonDocument full =
+            JsonDocument.Parse(await client.GetStringAsync("/log/full?seconds=0.2"));
+
+        JsonElement channels = full.RootElement.GetProperty("channels");
+        Assert.Equal(3, full.RootElement.GetProperty("times").GetArrayLength());
+        Assert.Equal(3, channels[0].GetProperty("values").GetArrayLength());
+        Assert.Equal(3000, channels[0].GetProperty("values")[0].GetDouble());
+    }
+
+    [Fact]
+    public async Task LogFullThinsBySampleStrideWhenDecimateIsGiven()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        // Five samples, every other one kept: indices 0, 2, 4.
+        using JsonDocument full =
+            JsonDocument.Parse(await client.GetStringAsync("/log/full?decimate=2"));
+
+        JsonElement rpm = full.RootElement.GetProperty("channels")[0].GetProperty("values");
+        Assert.Equal(3, rpm.GetArrayLength());
+        Assert.Equal(800, rpm[0].GetDouble());
+        Assert.Equal(3000, rpm[1].GetDouble());
+        Assert.Equal(5000, rpm[2].GetDouble());
+    }
+
+    [Fact]
+    public async Task ContextBundlesTheProjectStateTuneSummaryInsightsAndWireHealthInOneCall()
+    {
+        // The "read this first" call — a summary of the tune, not the full dump
+        // /tune/full gives, so a fresh session is not made to pay for both.
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Brief = "# The E28\n\n## Still open\n";
+
+        using JsonDocument context = JsonDocument.Parse(await client.GetStringAsync("/context"));
+
+        Assert.Contains("The E28", context.RootElement.GetProperty("projectBrief").GetString()!,
+                        StringComparison.Ordinal);
+        Assert.Equal("live", context.RootElement.GetProperty("state").GetProperty("mode").GetString());
+
+        JsonElement tune = context.RootElement.GetProperty("tune");
+        Assert.Equal(2, tune.GetProperty("settingCount").GetInt32());
+        Assert.Equal("VE Table", tune.GetProperty("tables")[0].GetString());
+
+        Assert.Equal(1, context.RootElement.GetProperty("insights").GetArrayLength());
+        Assert.Equal(10, context.RootElement.GetProperty("wireHealth").GetProperty("sampled").GetInt32());
     }
 }
