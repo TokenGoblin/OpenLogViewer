@@ -31,6 +31,20 @@ public sealed class TuneSettingsEdit
     private readonly byte[][] _working;
     private readonly Dictionary<string, double> _original = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Each setting's value the first time this session ever touches it.
+    ///
+    /// <see cref="Original"/> reads <c>_tune.Pages</c> fresh every call, which is
+    /// right for its own job — showing what the ECU holds against what an edit
+    /// would make it — but wrong for remembering a sentinel: on a live
+    /// connection, Pages is the poll loop's own buffer, and it has moved on to
+    /// the nudged value within one poll tick of the write landing. Frozen here
+    /// instead, on first contact, so a value out of the firmware's declared
+    /// range can still be found and written back even after it has been edited
+    /// away from and the ECU's own live memory no longer holds it.
+    /// </summary>
+    private readonly Dictionary<string, double> _everObserved = new(StringComparer.OrdinalIgnoreCase);
+
     // Ordered, because the change list is read back in the order things were
     // touched and a plain dictionary does not promise that.
     private readonly List<string> _order = [];
@@ -79,6 +93,15 @@ public sealed class TuneSettingsEdit
     /// Values are held to the range the firmware declares, which is far tighter
     /// than the storage allows — the same discipline the table editor applies,
     /// and for the same reason.
+    ///
+    /// <para>
+    /// The one exception is putting back exactly what the ECU already held: a
+    /// live value can sit outside its own declared range — a firmware "disabled"
+    /// sentinel like 255 against a declared 0–250 is a real, observed case, not
+    /// a hypothetical — and the range check must not make that value
+    /// unwritable. Anything else out of range is still refused; only a value
+    /// this exact constant was actually read as gets the exception.
+    /// </para>
     /// </summary>
     public bool Set(string name, double value, int element = 0)
     {
@@ -86,7 +109,20 @@ public sealed class TuneSettingsEdit
         if (constant.IsText) return false;
         if (!double.IsFinite(value)) return false;
 
-        if (constant.HasRange && (value < constant.Low || value > constant.High)) return false;
+        // Captured before anything else touches this key, so a sentinel is
+        // remembered from the one moment it is guaranteed to still be there:
+        // the first time this session lays eyes on it.
+        string observedKey = Key(name, element);
+        if (!_everObserved.TryGetValue(observedKey, out double everObserved))
+        {
+            everObserved = Original(name, element);
+            _everObserved[observedKey] = everObserved;
+        }
+
+        if (constant.HasRange && (value < constant.Low || value > constant.High))
+        {
+            if (double.IsNaN(everObserved) || Math.Abs(everObserved - value) > 1e-9) return false;
+        }
 
         double? before = _tune.ValueIn(_working, name, element);
         if (before is null) return false;

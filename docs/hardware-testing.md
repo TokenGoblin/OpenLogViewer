@@ -13,7 +13,7 @@ Ordered by what would do the most damage if it is wrong.
 | | |
 |---|---|
 | **Speeduino** | An Arduino Mega, currently enumerating as COM4 — the number drifts with whatever else has claimed a port since, so check `[System.IO.Ports.SerialPort]::GetPortNames()` rather than trust a number written down here. A bench board. Opening the port resets it, so anything unburned is undone by reconnecting — the safest thing to test on. Launch control is **enabled** at a 2,700 rpm soft limit, so its rev limits are not inert. |
-| **rusEFI** | COM8, uaEFI board. Bench, USB power. Reset with `cmd_reset_controller` = `Z\x00\xbb\x00\x00` framed and written straight at the transport. **Nothing else in `[ControllerCommands]` should be sent casually — it also holds `cmd_test_spk1..12`, which fire ignition coils.** |
+| **rusEFI** | Currently COM5 (was COM8 — same caveat as the Speeduino row: check, don't trust the number). uaEFI board, bench, USB power. Reset with `cmd_reset_controller` = `Z\x00\xbb\x00\x00` framed and written straight at the transport. **Nothing else in `[ControllerCommands]` should be sent casually — it also holds `cmd_test_spk1..12`, which fire ignition coils.** Confirmed unreachable through `/tune/set` even with writes armed (item 12). |
 | **MicroSquirt** | COM3, and it is **in a live car**. Read-only unless explicitly asked. |
 
 Always: back the tune up first, check RPM before writing, and say what was
@@ -34,30 +34,57 @@ Restore and burn are each proven; they have never been run in one sequence.
 Speeduino is the board for this. The reset it does on every port open makes the
 verification free.
 
-## 2. The derived-scale fix on the other two firmwares
+## 2. The derived-scale fix on the other two firmwares — rusEFI spot-checked
 
 Fixed and proven on a Speeduino only. MS2Extra and MS3 also state scales as
-expressions — `{0.01 * (maf_range + 1)}` on the MAF curve — and rusEFI may.
+expressions — `{0.01 * (maf_range + 1)}` on the MAF curve — and rusEFI does
+too: `maxAcClt`, `boostCutPressure`, `minimumBoostClosedLoopMap` and others all
+key their scale off `{useMetricOnInterface ? 1 : 1.8}`-shaped expressions.
 
-- Read each controller's tune and check every constant with a `ScaleExpression`
-  resolves to something other than its declared fallback
-- Compare a TunerStudio-saved `.msq` for that firmware against the live tune and
-  confirm the only differences reported are real ones
+- **Spot-checked, not exhaustive.** On a live rusEFI (`master.2026.09.03.
+  super-uaefi.1822896871`, `useMetricOnInterface=1`): `maxAcClt=100`,
+  `boostCutPressure=300`, `minimumBoostClosedLoopMap=0` — all read as sane
+  metric values (°C, kPa) rather than the wrong-scale garbage the bug used to
+  produce. Not the same as checking every `ScaleExpression` constant, and
+  `useMetricOnInterface` was never toggled to see the other branch resolve.
+- ~~Compare a TunerStudio-saved `.msq` for that firmware against the live
+  tune~~ — not done; no TunerStudio install was available.
+- MS2Extra and MS3 remain completely untouched.
+
+Getting to this board at all needed the firmware-definition-fetch feature
+(`GET /definitions/needed`, `POST /definitions/import`) working for real: this
+rusEFI declared `master.2026.09.03.super-uaefi.1822896871`, nothing local
+matched, `/definitions/needed` named the exact file and a source URL, and
+importing the fetched file let the reconnect succeed — the first live proof
+of that path end to end.
 
 The bug this closes was invisible until a real TunerStudio file was compared
 against a live controller. Our own round-trip tests all passed, because they
 write files with our own writer at our own wrong scale.
 
-## 3. The agent API's live stream
+## 3. The agent API's live stream — mostly done
 
-The whole reason it was built for speed, and it has only ever seen a log.
+The whole reason it was built for speed, and it had only ever seen a log.
 
-- Connect, start the API, subscribe over the WebSocket
-- Measure the frame rate actually delivered against the poll rate
-- Confirm frames are pushed at the ECU's pace rather than the window's
-- Force a slow reader and check `skipped` counts rise rather than the poll
-  slowing down
-- Check the schema is re-sent when the channel set changes
+- **Done.** Connected over `ws://…/live/stream?token=…` against the live
+  Speeduino. Schema arrived first with real channel names (`SecL`, `RPM`,
+  `MAP`, …), frames followed at a measured ~28 Hz average against a poll rate
+  the app itself reports as 25 — pushed continuously, not gated on a window
+  being open or focused.
+- **Not reproduced.** Stalled a subscriber without reading for 15 s (~99 KB of
+  frames at ~264 bytes each) and `skipped` stayed `0` the whole time, even
+  though `/state`'s `samples` count kept climbing underneath — so the poll
+  itself was not slowing down, which is the property that mattered, but
+  nothing forced `_skipped` to actually increment. Reading `LiveSubscriber`:
+  it only counts a frame as skipped if a *second* `Offer()` lands before the
+  writer task has drained the first, and `SendAsync` only blocks once the
+  OS's own socket send buffer is full — which 15 s of small JSON frames
+  apparently never reached. Proving this bullet for real likely needs either
+  a much longer stall (minutes) or the `raw=true` stream, whose frames are
+  many times larger.
+- **Done.** Sent `{"channels":["rpm","map"]}` mid-stream; a fresh
+  `{"type":"schema","channels":["RPM","MAP"]}` came back immediately,
+  followed by a two-value frame.
 
 ## 4. An agent writing to a real controller — done, on the Speeduino
 
@@ -69,8 +96,46 @@ not armed... it clears itself on disconnect") until re-armed. There is no burn
 route on the agent API at all — `/tune/apply`, `/tune/set` and `/table/set` all
 answer `burned:false`, and nothing in the route table can trigger one.
 
-`SetTableCell` (`/table/set`) is still untried on real hardware — the settings
-path above doesn't exercise the table-cell code path.
+**Every writeable setting swept, not just a handful.** All 682 settings on the
+bench Speeduino: read via `/tune/full` (which carries each one's declared
+low/high or enum options), nudged to a different valid value, read back, then
+reverted, at a pace kept under the rate limiter (§11). Result: 513 round-tripped
+cleanly, 37 never got their nudge through (refused by the rate limiter even
+after one retry — never took effect, no risk), and the final pass confirmed
+**every setting was back at its original value**.
+
+132 were skipped on purpose, and this is the interesting part: their live value
+sits outside the range the firmware itself declares for them — `idleUpAdder`
+reads `255` but declares `0-250`, `wmiRPM` reads `25500` against a declared
+`0-10000`, and so on. These are firmware "disabled" sentinels (0xFF, 0xFFFF),
+and the app's own out-of-range guard — there to stop a bad write, not cause one
+— means an out-of-range original **cannot be written back through the agent
+API once nudged away from it**. The first sweep attempt found this the hard
+way: it nudged `idleUpAdder` to `250` (in range, accepted) and then the
+"revert" to `255` was refused as out-of-range, leaving it stuck. Recovery was
+a reconnect — the Speeduino resets on port open, which restored `255` from
+EEPROM since nothing here is ever burned — not a call the agent API itself
+offers. The second attempt added a pre-check skipping any setting already
+outside its own declared range, and it is why the second sweep needed no
+recovery at all.
+
+**Fixed** in `TuneSettingsEdit.Set` (`src/OpenLogViewer.Core/TuneSettingsEdit.cs`):
+the first value ever observed for a setting in an edit session is now frozen in
+`_everObserved` and stays writable even once it is edited away from, regardless
+of the firmware's declared range. The first attempt at this fix used the
+existing `Original()` — reads live from the ECU's polled pages — and it looked
+right against the unit test but still failed live: by the time the revert
+call reached the board, the poll loop had already refreshed those same pages
+to the nudged value, so "original" had silently become "whatever is there
+now." Caught by re-running the exact live sequence that broke the first time
+(nudge `idleUpAdder` to `250`, wait, revert to `255`) rather than trusting the
+unit test alone — the test uses an offline tune whose pages never move, so it
+could not have caught this. Verified live afterward: the revert now succeeds,
+and a genuinely different out-of-range value (`999`, not the sentinel) is
+still correctly refused.
+
+`SetTableCell` (`/table/set`) is still untried on real hardware — nothing
+above exercises the table-cell code path.
 
 ## 5. MicroSquirt burn
 
@@ -165,14 +230,16 @@ above touched that board.
 - Stage a table (`/stage/table`) and confirm the CSV imports correctly onto a
   real table via TunerStudio's own table-import
 
-## 14. Raw, unfiltered live telemetry against real firmware
+## 14. Raw, unfiltered live telemetry against real firmware — done, on the Speeduino
 
-`includeRaw`/`?raw=true` has only ever decoded a firmware's declared block
-shape against scripted bytes.
-
-- Connect live with `raw=true` and confirm the full channel set decodes to
-  sane values rather than garbage in fields the firmware's own `[Datalog]`
-  author had good reason to leave out (padding, reserved, write-only registers)
+`includeRaw`/`?raw=true` had only ever decoded a firmware's declared block
+shape against scripted bytes. Subscribed to `/live/stream` with `{"raw":true}`
+against the live Speeduino: 181 channels, all sane — `map`/`baro` in kPa,
+`coolantRaw`/`iatRaw` plausible, `rpm`/`afr`/`tps` matching what `/tune` and
+`/state` already said, `loopsPerSecond`/`freeRAM` in ranges that make sense
+for a Mega, no `NaN` or wild values anywhere in the set, including the
+fields Speeduino's own `[Datalog]` leaves out of the named channel set
+(`status1`/`status2`/`status3`, `testoutputs`, `errorNum`).
 
 ---
 
