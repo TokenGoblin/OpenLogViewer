@@ -134,8 +134,84 @@ could not have caught this. Verified live afterward: the revert now succeeds,
 and a genuinely different out-of-range value (`999`, not the sentinel) is
 still correctly refused.
 
-`SetTableCell` (`/table/set`) is still untried on real hardware — nothing
-above exercises the table-cell code path.
+`SetTableCell` (`/table/set`) — **tried, found a real bug, fixed.** The very
+first live call (`VE Table`, cell `[0,0]`, `33 → 34`) answered `500 "the
+application failed to answer"` — `"This type of CollectionView does not
+support changes to its SourceCollection from a thread different from the
+Dispatcher thread."` The read-back showed `34`: **the write had actually
+landed on the ECU**; the 500 was `MainViewModel.WriteTableToEcu` refreshing
+`SelectedEcuTable` (a DataGrid's bound `CollectionView`) *after* the real
+write succeeded, from the HTTP listener's own thread rather than the UI
+thread — a false failure that would have told an agent a write didn't happen
+when it did. This is a case the unit tests could not have caught: everything
+runs synchronously on one thread there, so there is no "wrong thread" for
+WPF to object to. Fixed by marshalling that one refresh through the
+`OnUiThread` helper this codebase already uses for the agent activity
+indicator — a human clicking Send still updates the screen inline on the
+same call it always has; an agent's write now updates it asynchronously
+instead of throwing. Reverified live: `200`, correct value both ways,
+reverted cleanly.
+
+**A second, real bug, also found and fixed: table cells silently clamp, and
+the API used to lie about it.** `TuneEdit.Hold` deliberately clamps a cell
+into the firmware's declared range rather than refusing it out of range (see
+the comment at `TuneEdit.cs:307` — right for a person scaling a whole table
+by a percentage, wrong for a single agent write). `/table/set` was echoing
+the *requested* value back as `written`, not what actually landed. Found by
+writing three more cells beyond the first: `Ignition Advance Table` landed
+correctly, but `Dwell map` (`25.5 → 24.5` requested) and `Fuel trim Table 1`
+(`127 → 128` requested) read back as `8` and `50` — both tables' axis bins
+are degenerate (`"xBins":[10200,10200,10200,10200]`, all-identical), a sign
+these features are simply unconfigured on this tune, and their cells' true
+declared range sits below the `25.5`/`127` sentinel already resident there.
+`/table/set` now returns `value` (what actually landed, read straight from
+the edit that was encoded and sent), `requested`, and `clamped`.
+
+A first version of that fix re-read the on-screen table via the same bridge
+`GET /table` uses, and looked right in the unit test — then reported a
+**stale** value live: `SelectedEcuTable`'s refresh (the fix two paragraphs up)
+is dispatched to the UI thread asynchronously, so reading it back
+synchronously, right after the write returns, can catch it before that
+refresh has actually run. Fixed properly by reading `edit.Values[column,row]`
+directly — the working copy `Hold` already clamped and `WriteTunePage` already
+sent, unaffected by any UI dispatch. `IAgentBridge.SetTableCell` now returns
+`AgentCellWrite(Refusal, Value)` instead of a bare `AgentRefusal?`, so the
+value is available at the point it is known rather than reconstructed by
+re-reading something else afterward. Verified live, twice: the first version
+of the fix confirmed against `Dwell map` looked right (`value: 25.5`) but a
+fresh `GET /table` immediately after showed `8` — caught by not trusting the
+first green result. The corrected version's reported value and an immediate
+fresh read now agree.
+
+**Not fixed: a table cell's own out-of-range sentinel can't be written back
+either**, the same class of problem item 4's settings fix already covers, and
+found the same way — writing `Dwell map` back toward `25.5` clamps to `8`
+every time, with no way to the original short of a hardware reset. The
+settings fix worked by remembering the first value `TuneSettingsEdit` ever
+saw for a key, for the life of that one edit session. Table cells don't have
+an equivalent session: `SelectedEcuTable`'s setter builds a brand-new
+`TuneEdit` on every single `/table/set` call (`MainViewModel.cs:2528`), so
+there is no persistent `_original` to anchor a "first observed" exception
+against — it would need a cache one level up, keyed per table and cell, kept
+across calls the way `_settingsEdit` already is for settings. Left alone
+rather than rushed: two real bugs fixed and reverified live in one session is
+enough surface area for one sitting, and this one is narrower in practice —
+most cells in an active tune are configured and in range; it is the
+unconfigured, sentinel-holding ones this bites.
+
+**Added: `GET /limits`.** The sweep's 37 rate-limit refusals were all learned
+the hard way, one 409 at a time, with no way to ask the API what the shape of
+the limit actually was short of counting failures. `GET /limits` (and a
+`limits` field on `GET /`, so it is the first thing an agent sees on connect
+rather than something it has to think to ask for) now states the write rate
+(10 per 5 s), the per-write magnitude cap (half a setting's declared range),
+that nothing here ever burns, that arming clears on disconnect, and that a
+`DangerousConstants` match needs `confirmDangerous:true`. Verified live against
+the Speeduino: `{"writeRateCount":10,"writeRateWindowSeconds":5,
+"maxChangeFractionOfRange":0.5,"burns":false,"writesArmedClearsOnDisconnect":
+true,"dangerousSettingsNeedConfirmation":true}`. Not re-verified against
+rusEFI, but the route is board-agnostic — it states constants, not anything
+read off a controller.
 
 ## 5. MicroSquirt burn
 

@@ -116,7 +116,7 @@ public class AgentGuardrailTests : IDisposable
     {
         MainViewModel vm = Connected(out _);
 
-        AgentRefusal? refused = Bridge(vm).SetTableCell("VE Table", 0, 0, 55, "");
+        AgentRefusal? refused = Bridge(vm).SetTableCell("VE Table", 0, 0, 55, "").Refusal;
 
         Assert.NotNull(refused);
         Assert.Contains("no rationale", refused!.Reason, StringComparison.Ordinal);
@@ -222,7 +222,7 @@ public class AgentGuardrailTests : IDisposable
         // jump from nought to 200 is refused.
         MainViewModel vm = Connected(out _);
 
-        AgentRefusal? refused = Bridge(vm).SetTableCell("VE Table", 0, 0, 200, "a big jump");
+        AgentRefusal? refused = Bridge(vm).SetTableCell("VE Table", 0, 0, 200, "a big jump").Refusal;
 
         Assert.NotNull(refused);
         Assert.Contains("too large", refused!.Reason, StringComparison.Ordinal);
@@ -233,7 +233,7 @@ public class AgentGuardrailTests : IDisposable
     {
         MainViewModel vm = Connected(out _);
 
-        Assert.Null(Bridge(vm).SetTableCell("VE Table", 0, 0, 60, "smoothing a cell"));
+        Assert.Null(Bridge(vm).SetTableCell("VE Table", 0, 0, 60, "smoothing a cell").Refusal);
     }
 
     // ----- rate limit --------------------------------------------------------------

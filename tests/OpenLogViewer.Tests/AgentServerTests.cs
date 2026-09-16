@@ -48,6 +48,13 @@ public class AgentServerTests : IDisposable
             WritesArmed = Armed,
         };
 
+        public AgentLimits Limits() => new()
+        {
+            WriteRateCount = 10,
+            WriteRateWindowSeconds = 5,
+            MaxChangeFractionOfRange = 0.5,
+        };
+
         public IReadOnlyList<AgentChannel> Channels(bool raw = false) => raw
             ?
             [
@@ -111,16 +118,20 @@ public class AgentServerTests : IDisposable
             return null;
         }
 
-        public AgentRefusal? SetTableCell(
+        public AgentCellWrite SetTableCell(
             string table, int column, int row, double value, string rationale, bool confirmDangerous = false)
         {
             LastRationale = rationale;
             LastConfirmDangerous = confirmDangerous;
 
-            if (!Armed) return new AgentRefusal("writes are not armed");
+            if (!Armed) return new AgentCellWrite(new AgentRefusal("writes are not armed"), 0);
 
-            Cells.Add((table, column, row, value));
-            return null;
+            // Clamped to 0-100, standing in for TuneEdit.Hold against a real
+            // firmware's declared range - enough for a test to tell "landed
+            // what was asked" apart from "landed something else".
+            double landed = Math.Clamp(value, 0, 100);
+            Cells.Add((table, column, row, landed));
+            return new AgentCellWrite(null, landed);
         }
 
         public string Brief { get; set; } = "";
@@ -417,6 +428,31 @@ public class AgentServerTests : IDisposable
     }
 
     [Fact]
+    public async Task ATableSetReportsWhatActuallyLandedRatherThanEchoingTheRequest()
+    {
+        // TuneEdit clamps a table cell to the firmware's declared range instead
+        // of refusing it - the right call for a person scaling a whole table,
+        // wrong for an agent that asked for one exact number and was told it
+        // landed. Found live, on a real Speeduino: a single-cell write answered
+        // 200 with the requested value while the ECU silently held something
+        // else. Bench.SetTableCell clamps to 0-100, standing in for the real
+        // firmware's declared range.
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/table/set",
+            Body(new { table = "VE Table", column = 0, row = 0, value = 999, rationale = "clamp visibility check" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+
+        string body = await answer.Content.ReadAsStringAsync();
+        Assert.Contains("\"requested\":999", body, StringComparison.Ordinal);
+        Assert.Contains("\"value\":100", body, StringComparison.Ordinal);
+        Assert.Contains("\"clamped\":true", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NothingReachableFromTheBridgeNamesAControllerCommandOrABurn()
     {
         // [ControllerCommands] on rusEFI includes ignition-coil-fire test
@@ -581,6 +617,23 @@ public class AgentServerTests : IDisposable
 
         Assert.Contains("/live/stream", root, StringComparison.Ordinal);
         Assert.Contains("/insights", root, StringComparison.Ordinal);
+
+        // The write-path limits are read once here, on connect, rather than
+        // learned by being refused - see AgentLimits for why this exists.
+        Assert.Contains("\"writeRateCount\"", root, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LimitsAreAlsoAnEndpointOfTheirOwn()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        string body = await client.GetStringAsync("/limits");
+
+        Assert.Contains("\"writeRateCount\":10", body, StringComparison.Ordinal);
+        Assert.Contains("\"writeRateWindowSeconds\":5", body, StringComparison.Ordinal);
+        Assert.Contains("\"maxChangeFractionOfRange\":0.5", body, StringComparison.Ordinal);
+        Assert.Contains("\"burns\":false", body, StringComparison.Ordinal);
     }
 
 

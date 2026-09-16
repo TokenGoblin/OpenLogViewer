@@ -2891,7 +2891,18 @@ public sealed partial class MainViewModel : ObservableObject
             _settingsEdit?.Accept(write);
 
             int cells = edit.ChangedCount;
-            SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
+
+            // The ECU write above is already done and cannot be un-sent; this is
+            // only refreshing what the calibration view shows. Called from an
+            // agent's HTTP thread, setting a property a DataGrid's CollectionView
+            // is bound to throws ("does not support changes... from a thread
+            // different from the Dispatcher thread") - not because the write
+            // failed, but because updating the screen about it did, after the
+            // fact. Marshalled here rather than caught, so a human clicking Send
+            // keeps updating the screen the same call it always has, and an agent
+            // stops being told a write failed when the ECU already has it.
+            string tableName = edit.Name;
+            OnUiThread(() => SelectedEcuTable = RereadTable(tableName) ?? SelectedEcuTable);
 
             return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the ECU. "
                    + "It is running this now, and will forget it at the next power cycle "

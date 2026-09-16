@@ -437,7 +437,7 @@ public class ConnectedEcuTests : IDisposable
         MainViewModel vm = Connected(out _);
         vm.AgentWritesArmed = true;
 
-        AgentRefusal? refused = new AgentBridge(vm).SetTableCell("VE Table", 99, 0, 50, "bench test");
+        AgentRefusal? refused = new AgentBridge(vm).SetTableCell("VE Table", 99, 0, 50, "bench test").Refusal;
 
         Assert.NotNull(refused);
         Assert.Contains("not in the table", refused!.Reason, StringComparison.Ordinal);

@@ -43,6 +43,60 @@ public sealed record AgentState
 /// <summary>A refusal, said in a way an agent can act on rather than guess at.</summary>
 public sealed record AgentRefusal(string Reason, string Detail = "");
 
+/// <summary>
+/// What a table-cell write actually did.
+///
+/// Found live, on a real Speeduino: a cell out of the firmware's declared
+/// range is clamped rather than refused (see <c>TuneEdit.Hold</c>), and an
+/// early version of this route reported the request back as though it had
+/// landed unchanged — a caller had no way to know without reading the table
+/// again. <see cref="Value"/> is read straight from the edit that was just
+/// encoded and sent, not from anything UI-bound: a first attempt at this fix
+/// re-read the on-screen table instead, and on a live connection that update
+/// is dispatched to the UI thread asynchronously, so the "fixed" version could
+/// still report a stale value from before the write landed.
+/// </summary>
+public sealed record AgentCellWrite(AgentRefusal? Refusal, double Value);
+
+/// <summary>
+/// The operating limits a write can run into, stated up front rather than
+/// learned by being refused.
+///
+/// Found live, on a real Speeduino: an agent sweeping every setting hit the
+/// rate limit repeatedly and had no way to know the shape of it — how many
+/// writes, in what window — short of counting 409s and guessing. This is that
+/// shape, put where the same "GET /" call that lists the routes already
+/// answers, so the first thing an agent does after connecting can tell it
+/// how fast it is allowed to go rather than finding out by being refused.
+/// </summary>
+public sealed record AgentLimits
+{
+    /// <summary>Writes allowed inside <see cref="WriteRateWindowSeconds"/> before the next one is refused.</summary>
+    public required int WriteRateCount { get; init; }
+
+    public required double WriteRateWindowSeconds { get; init; }
+
+    /// <summary>
+    /// A single write cannot move a setting by more than this fraction of its
+    /// declared range - 0.5 means half. Refused rather than clamped, so a
+    /// caller finds out rather than silently landing on the boundary.
+    /// </summary>
+    public required double MaxChangeFractionOfRange { get; init; }
+
+    /// <summary>True for every write this API can make. There is no route that burns.</summary>
+    public bool Burns { get; init; }
+
+    /// <summary>True: arming clears on every disconnect and is never persisted.</summary>
+    public bool WritesArmedClearsOnDisconnect { get; init; } = true;
+
+    /// <summary>
+    /// True: a setting <c>DangerousConstants</c> recognises (a rev limiter, a
+    /// launch control RPM, and the like) is refused without
+    /// <c>confirmDangerous:true</c> on the same call.
+    /// </summary>
+    public bool DangerousSettingsNeedConfirmation { get; init; } = true;
+}
+
 /// <summary>One entry from the wire trace, flattened for a reader that is not a window.</summary>
 public sealed record AgentWireEvent(
     long Sequence, DateTime At, string Context, string Origin, int Attempt,
@@ -81,6 +135,9 @@ public interface IAgentBridge
 {
     /// <summary>What is loaded or connected, and whether writing is armed.</summary>
     AgentState State();
+
+    /// <summary>The write-path limits - rate, per-write magnitude, and the rest of it.</summary>
+    AgentLimits Limits();
 
     /// <summary>
     /// Every channel available, live or from the log in hand.
@@ -183,8 +240,15 @@ public interface IAgentBridge
     /// </summary>
     AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false);
 
-    /// <summary>Puts one cell of one table into the controller's working memory. See <see cref="SetSetting"/>.</summary>
-    AgentRefusal? SetTableCell(
+    /// <summary>
+    /// Puts one cell of one table into the controller's working memory. See
+    /// <see cref="SetSetting"/> — with one difference: a table cell out of the
+    /// firmware's declared range is clamped into it rather than refused (right
+    /// for a person scaling a whole table by a percentage; a single agent write
+    /// needs to know when that happened), so the value that lands is part of
+    /// what this returns rather than something a caller has to read back to find.
+    /// </summary>
+    AgentCellWrite SetTableCell(
         string table, int column, int row, double value, string rationale, bool confirmDangerous = false);
 
     // ----- composition, for a session that does not want to ask forty times -----

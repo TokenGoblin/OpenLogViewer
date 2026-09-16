@@ -262,7 +262,7 @@ public sealed class AgentServer : IDisposable
                     api = 1,
                     endpoints = new[]
                     {
-                        "GET /state", "GET /channels?raw=", "GET /values?channel=&seconds=",
+                        "GET /state", "GET /limits", "GET /channels?raw=", "GET /values?channel=&seconds=",
                         "GET /insights", "GET /tune", "GET /tables", "GET /table?name=",
                         "POST /tune/set", "POST /table/set", "WS /live/stream",
                         "GET /wire/health", "GET /wire/events?count=",
@@ -273,11 +273,18 @@ public sealed class AgentServer : IDisposable
                         "POST /stage/tune", "POST /stage/table?name=", "GET /stage",
                         "GET /definitions/needed", "POST /definitions/import",
                     },
+                    // Read once on connect rather than learned by being refused -
+                    // see GET /limits for what each field means.
+                    limits = _bridge.Limits(),
                 }).ConfigureAwait(false);
                 return;
 
             case "/state":
                 await Send(context, _bridge.State()).ConfigureAwait(false);
+                return;
+
+            case "/limits":
+                await Send(context, _bridge.Limits()).ConfigureAwait(false);
                 return;
 
             case "/channels":
@@ -441,19 +448,29 @@ public sealed class AgentServer : IDisposable
             {
                 if (await ReadBody<SetCell>(context).ConfigureAwait(false) is not { } body) return;
 
-                AgentRefusal? refused = _bridge.SetTableCell(
+                AgentCellWrite result = _bridge.SetTableCell(
                     body.Table ?? "", body.Column, body.Row, body.Value, body.Rationale ?? "", body.ConfirmDangerous);
 
-                if (refused is not null)
+                if (result.Refusal is { } refused)
                 {
                     await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
                     return;
                 }
 
+                // A table cell is held inside the firmware's declared range
+                // rather than refused for being outside it (see TuneEdit.Hold) -
+                // sensible for a person scaling a whole table, wrong for a
+                // caller who asked for one exact number and was told it landed
+                // when it may have been clamped to something else instead.
+                // AgentCellWrite.Value comes from the edit that was actually
+                // encoded and sent, so a silent clamp is visible here rather
+                // than only discoverable by reading the table again.
                 await Send(context, new
                 {
-                    written = body.Table, body.Column, body.Row, body.Value, burned = false,
-                    rationale = body.Rationale ?? "",
+                    written = body.Table, body.Column, body.Row,
+                    value = result.Value, requested = body.Value,
+                    clamped = Math.Abs(result.Value - body.Value) > 1e-9,
+                    burned = false, rationale = body.Rationale ?? "",
                 }).ConfigureAwait(false);
                 return;
             }

@@ -253,31 +253,31 @@ public partial class MainViewModel
     }
 
     /// <summary>Sets one cell of one table, through the same path as an edit on screen.</summary>
-    internal AgentRefusal? AgentSetTableCell(
+    internal AgentCellWrite AgentSetTableCell(
         string name, int column, int row, double value, string rationale, bool confirmDangerous = false)
     {
         using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
 
         if (string.IsNullOrWhiteSpace(rationale))
         {
-            return new AgentRefusal(
+            return new AgentCellWrite(new AgentRefusal(
                 "no rationale given",
-                "Say in one line why this change is being made. It is echoed back with the write.");
+                "Say in one line why this change is being made. It is echoed back with the write."), 0);
         }
 
-        if (GeneralRefusal() is { } refused) return refused;
+        if (GeneralRefusal() is { } refused) return new AgentCellWrite(refused, 0);
 
         // By the name a person sees, which is the one the API hands out.
         TuneTable? table = EcuTables.FirstOrDefault(
             t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-        if (table is null) return new AgentRefusal("no such table", name);
+        if (table is null) return new AgentCellWrite(new AgentRefusal("no such table", name), 0);
 
         if (column < 0 || column >= table.Columns || row < 0 || row >= table.Rows)
         {
-            return new AgentRefusal(
+            return new AgentCellWrite(new AgentRefusal(
                 "that cell is not in the table",
-                $"\"{table.Name}\" is {table.Columns} by {table.Rows}.");
+                $"\"{table.Name}\" is {table.Columns} by {table.Rows}."), 0);
         }
 
         // The constant actually behind the grid, where the firmware names one.
@@ -286,21 +286,22 @@ public partial class MainViewModel
         // Table" carries none of the firmware's own spelling of anything.
         TuneConstant? constant = ConstantFor(table);
 
-        if (DangerousRefusal(constant?.Name ?? "", confirmDangerous) is { } dangerous) return dangerous;
+        if (DangerousRefusal(constant?.Name ?? "", confirmDangerous) is { } dangerous)
+            return new AgentCellWrite(dangerous, 0);
 
         double before = table.Values[column, row];
 
         if (constant is not null
             && MagnitudeRefusal(before, value, constant.Low, constant.High) is { } tooLarge)
         {
-            return tooLarge;
+            return new AgentCellWrite(tooLarge, 0);
         }
 
         // Selected the way clicking it selects it, which is what builds the edit
         // and points the calibration view at the same table the agent named.
         SelectedEcuTable = table;
 
-        if (_tableEdit is not { } edit) return new AgentRefusal("that table cannot be edited");
+        if (_tableEdit is not { } edit) return new AgentCellWrite(new AgentRefusal("that table cannot be edited"), 0);
 
         edit.Set(TuneSelection.Cell(column, row), value);
 
@@ -308,9 +309,19 @@ public partial class MainViewModel
 
         string said = WriteTableToEcu();
 
-        return said.StartsWith("Sent", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : new AgentRefusal("the write did not go through", said);
+        if (!said.StartsWith("Sent", StringComparison.OrdinalIgnoreCase))
+            return new AgentCellWrite(new AgentRefusal("the write did not go through", said), 0);
+
+        // From the edit's own working copy, which TuneEdit.Hold has already
+        // clamped into the firmware's declared range where it needed to -
+        // the value actually encoded and sent, not whatever the on-screen
+        // table happens to show. That table is refreshed by WriteTableToEcu
+        // through a UI-thread dispatch, which on a live connection is
+        // asynchronous, so reading it here instead could still report a
+        // stale value from before this write landed.
+        double landed = edit.Values[column, row];
+
+        return new AgentCellWrite(null, landed);
     }
 
     /// <summary>
@@ -583,6 +594,19 @@ public partial class MainViewModel
     private const int RateLimitCount = 10;
 
     /// <summary>
+    /// The write-path limits, for a caller to read once rather than learn by
+    /// being refused — this is the same rate and magnitude a full sweep of a
+    /// real Speeduino's settings ran into repeatedly before it existed.
+    /// </summary>
+    internal AgentLimits AgentLimits() => new()
+    {
+        WriteRateCount = RateLimitCount,
+        WriteRateWindowSeconds = RateLimitWindow.TotalSeconds,
+        MaxChangeFractionOfRange = MagnitudeFraction,
+        Burns = false,
+    };
+
+    /// <summary>
     /// Refuses a write once too many have landed too quickly.
     ///
     /// <para>
@@ -687,6 +711,9 @@ public partial class MainViewModel
     /// the new value can be.
     /// </para>
     /// </summary>
+    /// <summary>Shared with <see cref="AgentLimits"/>, so a caller can be told the fraction rather than find it by being refused.</summary>
+    private const double MagnitudeFraction = 0.5;
+
     private static AgentRefusal? MagnitudeRefusal(double before, double after, double low, double high)
     {
         if (double.IsNaN(before)) return null;
@@ -695,7 +722,7 @@ public partial class MainViewModel
         if (!double.IsFinite(range) || range <= 0) return null;
 
         double delta = Math.Abs(after - before);
-        double limit = range * 0.5;
+        double limit = range * MagnitudeFraction;
 
         if (delta <= limit) return null;
 
@@ -798,7 +825,7 @@ public partial class MainViewModel
 
                 if (shape is null) continue; // already rejected by BuildProposal
 
-                if (AgentSetTableCell(c.Table, c.Column, c.Row, c.Value, note, confirmDangerous)
+                if (AgentSetTableCell(c.Table, c.Column, c.Row, c.Value, note, confirmDangerous).Refusal
                     is { } cellRefused)
                 {
                     rejected.Add($"{c.Table}[{c.Column},{c.Row}]: {cellRefused.Reason}");

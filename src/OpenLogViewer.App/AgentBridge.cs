@@ -43,6 +43,8 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
         };
     }
 
+    public AgentLimits Limits() => _viewModel.AgentLimits();
+
     public IReadOnlyList<AgentChannel> Channels(bool raw = false)
     {
         if (raw && _viewModel.AgentRawChannelNames is { Count: > 0 } rawNames)
@@ -157,7 +159,7 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
     public AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false) =>
         _viewModel.AgentSetSetting(name, value, rationale, confirmDangerous);
 
-    public AgentRefusal? SetTableCell(
+    public AgentCellWrite SetTableCell(
         string table, int column, int row, double value, string rationale, bool confirmDangerous = false) =>
         _viewModel.AgentSetTableCell(table, column, row, value, rationale, confirmDangerous);
 
