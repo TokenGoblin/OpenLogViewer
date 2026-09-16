@@ -4059,6 +4059,82 @@ KeepBurnedTune();
     /// found the same defect: state wired into one path and not its siblings.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// What the last connection attempt needed and could not find, or null when
+    /// the last one found it.
+    ///
+    /// Held so that whatever can do something about it — the window, or an agent
+    /// offering to fetch the file — can ask, rather than having to parse the
+    /// sentence a person was shown.
+    /// </summary>
+    public DefinitionNeed? DefinitionNeeded { get; private set; }
+
+    /// <summary>
+    /// The definitions that all declared the signature this session connected
+    /// with, when there was more than one. Empty in the ordinary case.
+    /// </summary>
+    private IReadOnlyList<IniFile> _definitionAmbiguity = [];
+
+    /// <summary>
+    /// Said plainly when several definitions claimed this ECU, because the one
+    /// in use was chosen by directory order and not by being the right one.
+    ///
+    /// Not a refusal — the session is very likely fine, and stopping it over
+    /// this would be worse than the risk. But a Speeduino running 202501.7
+    /// against 202501.0's definition decodes one setting at the wrong scale,
+    /// and somebody who is told nothing has no way to ever notice.
+    /// </summary>
+    private string AmbiguityNote() =>
+        _definitionAmbiguity.Count < 2
+            ? ""
+            : $"  {_definitionAmbiguity.Count} definitions on this machine declare this signature "
+              + $"({string.Join(", ", _definitionAmbiguity.Select(i => i.Name))}); "
+              + $"this session is using {Path.GetFileName(_liveIni)}.";
+
+    /// <summary>
+    /// The refusal, written to be acted on.
+    ///
+    /// The old one named a folder and stopped, which reads as "unsupported ECU"
+    /// to somebody who has just plugged in a board that works perfectly well.
+    /// What actually helps is the three things this says: what the board calls
+    /// itself, what is already on this machine and how it differs, and what the
+    /// file is called so it can be recognised when found.
+    /// </summary>
+    private static string MissingDefinitionText(DefinitionNeed need)
+    {
+        var text = new System.Text.StringBuilder();
+
+        text.Append(need.Identity.Count > 0
+            ? $"The ECU reports \"{string.Join("\", \"", need.Identity)}\", "
+              + "and no definition file on this machine matches it.\n\n"
+            : "The ECU did not say what it is.\n\n");
+
+        text.Append("A live ECU sends raw numbers with no names, units or scaling — all of that is in "
+                    + "the .ini for that exact firmware. Without it the data cannot be decoded, and "
+                    + "guessing would show readings that look right and are not.\n\n");
+
+        if (need.Nearby.Count > 0)
+        {
+            text.Append(need.Nearby.Count == 1
+                ? "The closest thing already here is:\n"
+                : "The closest things already here are:\n");
+
+            foreach (DefinitionNearMiss near in need.Nearby)
+                text.Append($"    {near.Name}  (\"{near.Signature}\")\n");
+
+            text.Append('\n');
+        }
+
+        if (need.Filename.Length > 0)
+            text.Append($"The file you need is usually called {need.Filename}.\n\n");
+
+        if (need.Where.Length > 0) text.Append(need.Where).Append("\n\n");
+
+        text.Append($"Put it here and connect again:\n\n{need.Folder}");
+
+        return text.ToString();
+    }
+
     public void Connect(IEcuTransport transport, string port, EcuConnectionSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
@@ -4071,8 +4147,11 @@ KeepBurnedTune();
 
         IReadOnlyList<string> identity = connection.ReadIdentity();
 
-        if (IniCatalog.MatchAny(identity, IniCatalog.Scan(Workspace.DefinitionSearchPaths))
-            is not var (ini, signature))
+        // Kept rather than built inline and thrown away: when nothing matches,
+        // what is already on this machine is most of the useful answer.
+        IReadOnlyList<IniFile> catalogue = IniCatalog.Scan(Workspace.DefinitionSearchPaths);
+
+        if (IniCatalog.MatchAny(identity, catalogue) is not var (ini, signature))
         {
             connection.Dispose();
 
@@ -4081,18 +4160,20 @@ KeepBurnedTune();
             // thing that makes finding the right file possible.
             string folder = Workspace.EnsureDefinitions(identity);
 
-            throw new LogFormatException(
-                (identity.Count > 0
-                    ? $"The ECU reports \"{string.Join("\", \"", identity)}\", "
-                      + "and no definition file on this machine matches it.\n\n"
-                    : "The ECU did not say what it is.\n\n")
-                + "A live ECU sends raw numbers with no names, units or scaling — all of that "
-                + "is in the .ini for that exact firmware. Without it the data cannot be decoded, "
-                + "and guessing would show readings that look right and are not.\n\n"
-                + $"Put the file here and connect again:\n\n{folder}\n\n"
-                + "There is a note in that folder explaining where to get one. "
-                + "TunerStudio's own copies are searched automatically if it is installed.");
+            DefinitionNeeded = DefinitionNeeds.Describe(identity, catalogue, folder);
+
+            throw new LogFormatException(MissingDefinitionText(DefinitionNeeded));
         }
+
+        // More than one definition can declare the same signature — Speeduino's
+        // eight 202501.x releases all do, and they do not all decode alike — and
+        // which one a scan reaches first is not the same on two machines. Say so
+        // rather than letting the choice be silent.
+        _definitionAmbiguity = IniCatalog.MatchingAll(signature, catalogue) is { Count: > 1 } several
+            ? several
+            : [];
+
+        DefinitionNeeded = null;
 
         // Whatever else it said is the build string — the same reply that is the
         // signature on one firmware family is the version on the other.
@@ -4157,7 +4238,8 @@ KeepBurnedTune();
             ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
             : "";
         Title = $"Live: {signature} — OpenLogViewer";
-        Hint = $"{Opening(recording)} The plot follows the newest data until you zoom or pan." + quiet;
+        Hint = $"{Opening(recording)} The plot follows the newest data until you zoom or pan."
+               + quiet + AmbiguityNote();
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));

@@ -994,6 +994,85 @@ public partial class MainViewModel
     /// <summary>What is sitting in the staging folder right now.</summary>
     internal IReadOnlyList<AgentStagedFile> AgentListStaged() => new AgentStaging(Workspace).ListStaged();
 
+    // ----- firmware definitions -------------------------------------------------
+
+    /// <summary>
+    /// What the last connection attempt could not find, put the way an agent
+    /// needs it — including whether it may go and fetch the thing.
+    /// </summary>
+    internal AgentDefinitionNeed? AgentDefinitionNeeded()
+    {
+        if (DefinitionNeeded is not { } need) return null;
+
+        return new AgentDefinitionNeed(
+            need.Identity,
+            need.Family,
+            need.Signature,
+            need.Version,
+            need.Filename,
+            [.. need.Nearby.Select(n => new AgentNearMiss(n.Name, n.Signature, n.Path))],
+            need.Folder,
+            need.Where,
+            need.Sources,
+            GuidanceFor(need));
+    }
+
+    /// <summary>
+    /// What to actually do about it, said to whatever is reading rather than
+    /// left to be inferred from an empty list.
+    /// </summary>
+    private static string GuidanceFor(DefinitionNeed need)
+    {
+        if (need.Sources.Count > 0)
+        {
+            return $"Fetch the first of these addresses that answers, check it declares "
+                   + $"\"{need.Signature}\", and hand the file over with olv_import_definition — by "
+                   + "path, having saved it, rather than by pasting its contents. It will be checked "
+                   + "again before it is kept.";
+        }
+
+        if (need.Family == "MegaSquirt")
+        {
+            return "Do not fetch this one. MegaSquirt's licence restricts the definition itself and "
+                   + "scopes redistribution to media accompanying a hardware sale, and msextra.com "
+                   + "defends its downloads against automation. Look for it where it already is on "
+                   + "this machine, and otherwise tell the person which firmware package and which "
+                   + "variant file they need.";
+        }
+
+        return "There is no address to fetch this from. Ask the person where their definition came "
+               + "from, or look for one already on this machine.";
+    }
+
+    /// <summary>
+    /// Keeps a definition an agent found. Validated exactly as one a person
+    /// picks is — this is the one way an outside file becomes part of how an
+    /// engine is read.
+    /// </summary>
+    internal AgentDefinitionImported AgentImportDefinition(
+        string path, string content, string source, string name)
+    {
+        string folder = Workspace.EnsureDefinitions(DefinitionNeeded?.Identity);
+
+        // Whatever the ECU last said, so a definition for something else cannot
+        // be installed against it. Empty when nothing has been connected, which
+        // allows preparing in advance.
+        IReadOnlyList<string> mustMatch = DefinitionNeeded?.Identity ?? [];
+
+        DefinitionImportResult kept = path.Length > 0
+            ? DefinitionImport.KeepFile(path, folder, mustMatch, source, name)
+            : DefinitionImport.Keep(content, folder, mustMatch, source, name);
+
+        if (!kept.Accepted)
+            return new AgentDefinitionImported(kept.Problem, "", "", "", source);
+
+        Hint = $"An agent installed the firmware definition {kept.Provenance!.Name} "
+               + $"({kept.Provenance.Signature}) from {kept.Provenance.Source}. Connect again to use it.";
+
+        return new AgentDefinitionImported(
+            "", kept.Path, kept.Provenance.Name, kept.Provenance.Signature, kept.Provenance.Source);
+    }
+
     private static AgentStagedFile FileInfoOf(string path)
     {
         var info = new FileInfo(path);

@@ -265,4 +265,9 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
         _viewModel.AgentStageTable(name, filename);
 
     public IReadOnlyList<AgentStagedFile> ListStaged() => _viewModel.AgentListStaged();
+
+    public AgentDefinitionNeed? DefinitionNeeded() => _viewModel.AgentDefinitionNeeded();
+
+    public AgentDefinitionImported ImportDefinition(string path, string content, string source, string name) =>
+        _viewModel.AgentImportDefinition(path, content, source, name);
 }

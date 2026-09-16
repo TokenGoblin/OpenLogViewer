@@ -263,6 +263,62 @@ public interface IAgentBridge
 
     /// <summary>What is sitting in the staging folder right now.</summary>
     IReadOnlyList<AgentStagedFile> ListStaged();
+
+    // ----- firmware definitions ---------------------------------------------
+
+    /// <summary>
+    /// What the last connection attempt needed and could not find, or null when
+    /// nothing is missing.
+    ///
+    /// <para>
+    /// The application has no HTTP client and will never grow one; an agent has
+    /// the internet this deliberately lacks. So this is the application saying
+    /// precisely what it needs — what the ECU called itself, what is already on
+    /// this machine, and, where the firmware's licence allows it,
+    /// <see cref="AgentDefinitionNeed.Sources"/> to fetch it from.
+    /// </para>
+    /// <para>
+    /// <b>An empty <see cref="AgentDefinitionNeed.Sources"/> is an instruction,
+    /// not a gap.</b> MegaSquirt's definitions are licensed in a way that does
+    /// not permit this, and their publisher defends the download against
+    /// automation; for those, <see cref="AgentDefinitionNeed.Guidance"/> says
+    /// where a person should look instead. Do not go around it.
+    /// </para>
+    /// </summary>
+    AgentDefinitionNeed? DefinitionNeeded();
+
+    /// <summary>
+    /// Keeps a definition, having checked it is one and that it declares the
+    /// signature this ECU reported.
+    ///
+    /// <paramref name="path"/> is the ordinary way: fetch the file, then name
+    /// it. <paramref name="content"/> exists for a caller with no filesystem,
+    /// and is the worse path — these files run to half a megabyte.
+    /// </summary>
+    AgentDefinitionImported ImportDefinition(string path, string content, string source, string name);
+}
+
+/// <summary>A definition already on this machine that nearly, but does not, match.</summary>
+public sealed record AgentNearMiss(string Name, string Signature, string Path);
+
+/// <summary>What the application needs before it can decode a connected ECU.</summary>
+public sealed record AgentDefinitionNeed(
+    IReadOnlyList<string> Identity,
+    string Family,
+    string Signature,
+    string Version,
+    string Filename,
+    IReadOnlyList<AgentNearMiss> Nearby,
+    string Folder,
+    string Where,
+    IReadOnlyList<string> Sources,
+    string Guidance);
+
+/// <summary>What keeping a definition did, or why it was refused.</summary>
+public sealed record AgentDefinitionImported(
+    string Problem, string Path, string Name, string Signature, string Source)
+{
+    public bool Accepted => Problem.Length == 0;
 }
 
 /// <summary>One setting, with the metadata worth knowing before writing back to it.</summary>

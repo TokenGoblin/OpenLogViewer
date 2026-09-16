@@ -271,6 +271,7 @@ public sealed class AgentServer : IDisposable
                         "GET /tune/full", "GET /log/full?seconds=&decimate=", "GET /context",
                         "POST /tune/propose", "POST /tune/apply",
                         "POST /stage/tune", "POST /stage/table?name=", "GET /stage",
+                        "GET /definitions/needed", "POST /definitions/import",
                     },
                 }).ConfigureAwait(false);
                 return;
@@ -560,6 +561,37 @@ public sealed class AgentServer : IDisposable
                     .ConfigureAwait(false);
                 return;
 
+            case "/definitions/needed":
+            {
+                AgentDefinitionNeed? need = _bridge.DefinitionNeeded();
+
+                await Send(context, need is null
+                    ? new { needed = false }
+                    : (object)new { needed = true, need }).ConfigureAwait(false);
+                return;
+            }
+
+            case "/definitions/import":
+            {
+                if (await ReadBody<ImportDefinition>(context).ConfigureAwait(false) is not { } body) return;
+
+                AgentDefinitionImported kept = _bridge.ImportDefinition(
+                    body.Path ?? "", body.Content ?? "", body.Source ?? "", body.Name ?? "");
+
+                if (!kept.Accepted)
+                {
+                    await Refuse(context, 409, "that definition was not kept", kept.Problem)
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, new
+                {
+                    kept = true, kept.Name, kept.Signature, kept.Path, kept.Source,
+                }).ConfigureAwait(false);
+                return;
+            }
+
             default:
                 await Refuse(context, 404, "no such endpoint", path).ConfigureAwait(false);
                 return;
@@ -593,6 +625,14 @@ public sealed class AgentServer : IDisposable
         bool ConfirmDangerous = false);
 
     private sealed record StageTableBody(string? Filename);
+
+    /// <summary>
+    /// A definition to keep. <c>Path</c> is the ordinary way — the caller
+    /// fetches the file and names it, so half a megabyte never crosses this
+    /// socket or anything upstream of it. <c>Content</c> is for a caller with no
+    /// filesystem of its own.
+    /// </summary>
+    private sealed record ImportDefinition(string? Path, string? Content, string? Source, string? Name);
 
     private static IReadOnlyList<ProposedSetting> ToSettings(List<TuneChangeSetting>? settings) =>
         settings is null ? [] : [.. settings.Select(s => new ProposedSetting(s.Name ?? "", s.Value))];

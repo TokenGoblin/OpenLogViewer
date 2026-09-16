@@ -267,6 +267,23 @@ public class AgentServerTests : IDisposable
         public List<AgentStagedFile> Staged { get; } = [];
 
         public IReadOnlyList<AgentStagedFile> ListStaged() => Staged;
+
+        // ----- definitions -----------------------------------------------------
+
+        public AgentDefinitionNeed? Needed { get; set; }
+
+        public AgentDefinitionNeed? DefinitionNeeded() => Needed;
+
+        public List<(string Path, string Content, string Source, string Name)> Imported { get; } = [];
+
+        public AgentDefinitionImported NextImport { get; set; } =
+            new("", @"C:\defs\speeduino202501.ini", "speeduino202501.ini", "speeduino 202501", "a source");
+
+        public AgentDefinitionImported ImportDefinition(string path, string content, string source, string name)
+        {
+            Imported.Add((path, content, source, name));
+            return NextImport;
+        }
     }
 
     private (AgentServer Server, Bench Bench, HttpClient Client) Serve()
@@ -1161,5 +1178,76 @@ public class AgentServerTests : IDisposable
 
         Assert.Equal(1, answer.RootElement.GetProperty("files").GetArrayLength());
         Assert.Equal("tune-1.msq", answer.RootElement.GetProperty("files")[0].GetProperty("name").GetString());
+    }
+
+    // ----- firmware definitions -------------------------------------------------
+
+    [Fact]
+    public async Task NothingIsNeededWhenTheLastConnectionFoundItsDefinition()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument got = JsonDocument.Parse(await client.GetStringAsync("/definitions/needed"));
+
+        Assert.False(got.RootElement.GetProperty("needed").GetBoolean());
+    }
+
+    [Fact]
+    public async Task AMissingDefinitionIsDescribedWithSomewhereToGetIt()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Needed = new AgentDefinitionNeed(
+            ["Speeduino 2025.01.7", "speeduino 202501"],
+            "Speeduino", "speeduino 202501", "Speeduino 2025.01.7", "speeduino202501.ini",
+            [new AgentNearMiss("speeduino202402.ini", "speeduino 202402", @"C:\defs\speeduino202402.ini")],
+            @"C:\defs", "somewhere",
+            ["https://raw.githubusercontent.com/speeduino/speeduino/202501.7/reference/speeduino.ini"],
+            "fetch it");
+
+        using JsonDocument got = JsonDocument.Parse(await client.GetStringAsync("/definitions/needed"));
+
+        Assert.True(got.RootElement.GetProperty("needed").GetBoolean());
+
+        JsonElement need = got.RootElement.GetProperty("need");
+        Assert.Equal("Speeduino", need.GetProperty("family").GetString());
+        Assert.Equal("speeduino202501.ini", need.GetProperty("filename").GetString());
+        Assert.Contains("202501.7", need.GetProperty("sources")[0].GetString()!, StringComparison.Ordinal);
+        Assert.Equal("speeduino202402.ini", need.GetProperty("nearby")[0].GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task ADefinitionIsHandedOverByPathRatherThanByItsContents()
+    {
+        // These run to half a megabyte. Passing one as a tool argument would
+        // push it through the model's context to move a file.
+        (_, Bench bench, HttpClient client) = Serve();
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/definitions/import",
+            Body(new { path = @"C:\downloads\speeduino.ini", source = "https://example.invalid/x.ini" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+
+        (string path, _, string source, _) = bench.Imported.Single();
+        Assert.Equal(@"C:\downloads\speeduino.ini", path);
+        Assert.Equal("https://example.invalid/x.ini", source);
+
+        using JsonDocument got = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.True(got.RootElement.GetProperty("kept").GetBoolean());
+        Assert.Equal("speeduino 202501", got.RootElement.GetProperty("signature").GetString());
+    }
+
+    [Fact]
+    public async Task ARefusedDefinitionSaysWhyAndDoesNotReadAsSuccess()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.NextImport = new AgentDefinitionImported(
+            "it declares \"speeduino 202402\", and the ECU reports \"speeduino 202501\"", "", "", "", "");
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/definitions/import", Body(new { path = @"C:\downloads\wrong.ini" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, answer.StatusCode);
+        Assert.Contains("202402", await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 }

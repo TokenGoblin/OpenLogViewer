@@ -381,6 +381,32 @@ internal static class Program
              "What is sitting in the staging folder right now: every file olv_stage_tune or "
              + "olv_stage_table has written, with its size and when it was written.",
              new JsonObject()),
+
+        Tool("olv_definition_needed",
+             "Whether OpenLogViewer is missing the firmware definition (.ini) for the ECU somebody "
+             + "just tried to connect to, and what it needs. ASK THIS whenever a connection fails — "
+             + "a definition is how raw ECU bytes become named channels and settings, and without "
+             + "the right one the application will not connect at all. The answer says what the ECU "
+             + "called itself, what is already on this machine, and — only where the firmware's "
+             + "licence permits it — addresses to fetch the file from. Read the guidance field: when "
+             + "it gives you no addresses that is a decision about that firmware, not an oversight, "
+             + "and you should follow what it says instead rather than searching for a way around it.",
+             new JsonObject()),
+
+        Tool("olv_import_definition",
+             "Hands a firmware definition to OpenLogViewer, which checks it really is one and really "
+             + "declares the signature the ECU reported before keeping it. Prefer \"path\": save the "
+             + "file yourself and give the path, because these run to half a megabyte and pasting one "
+             + "through \"content\" wastes an enormous amount of context for no gain. A definition "
+             + "decides which byte of an engine is the rev limiter, so a mismatch is refused rather "
+             + "than guessed at.",
+             new JsonObject
+             {
+                 ["path"] = Field("string", "Where you saved the file. The ordinary way."),
+                 ["content"] = Field("string", "The definition itself, only if you have nowhere to save it."),
+                 ["source"] = Field("string", "Where it came from — the URL you fetched, so it is on the record."),
+                 ["name"] = Field("string", "What to call it. Omit to name it after its signature."),
+             }),
     ];
 
     /// <summary>The settings/cells pair every propose-shaped tool takes.</summary>
@@ -552,6 +578,16 @@ internal static class Program
                     new JsonObject { ["filename"] = Text(arguments, "filename") }).ConfigureAwait(false),
 
                 "olv_list_staged" => await Get("/stage").ConfigureAwait(false),
+
+                "olv_definition_needed" => await Get("/definitions/needed").ConfigureAwait(false),
+
+                "olv_import_definition" => await Post("/definitions/import", new JsonObject
+                {
+                    ["path"] = Text(arguments, "path"),
+                    ["content"] = Text(arguments, "content"),
+                    ["source"] = Text(arguments, "source"),
+                    ["name"] = Text(arguments, "name"),
+                }).ConfigureAwait(false),
 
                 _ => throw new InvalidOperationException($"no such tool: {name}"),
             };

@@ -96,6 +96,8 @@ public sealed class AgentActivityLog(int capacity = 500)
             ["/stage"] = (AgentActivityKind.Read, "listing staged files"),
             ["/stage/tune"] = (AgentActivityKind.Stage, "staging a tune file"),
             ["/stage/table"] = (AgentActivityKind.Stage, "staging a table as CSV"),
+            ["/definitions/needed"] = (AgentActivityKind.Read, "checking which firmware definition is missing"),
+            ["/definitions/import"] = (AgentActivityKind.Stage, "installing a firmware definition"),
         };
 
     private readonly ConcurrentQueue<AgentActivityEvent> _events = new();
