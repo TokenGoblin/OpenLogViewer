@@ -98,6 +98,65 @@ Small, but both were changed and neither has been seen working:
   every few seconds rather than every tick, and that the window stays responsive
 - Turn smoothing on a channel and confirm the `∿` beside its name appears
 
+## 9. The wire trace under a real, deliberately-interrupted link
+
+`WireTrace` has only ever seen a `FakeController`'s scripted replies.
+
+- Corrupt or interrupt a real session — unplug mid-poll, wiggle a connector to
+  force a bad CRC — and confirm `GET /wire/events` reports the right
+  `FailureKind` and timing for what actually happened
+- Confirm `GET /wire/health` moves the way a person watching the link would
+  expect: success rate drops, `sinceLastSuccessSeconds` climbs
+
+## 10. Propose/apply against a real controller
+
+`/tune/propose` and `/tune/apply` have only been driven against `FakeController`.
+
+- Propose a multi-setting change and confirm the diff matches what TunerStudio
+  itself reports for the same file
+- Apply it, read the tune back, confirm the values landed
+- Confirm the auto-captured `TuneVersion`'s note carries the rationale that was
+  sent with the write
+
+## 11. Guardrails on a live, running engine
+
+The RPM check, the rate limit, and the dangerous-constant confirmation are all
+unit-tested against a scripted RPM channel, never a real one.
+
+- With the Speeduino bench board actually running (not idling), confirm
+  `/tune/apply` and `/tune/set` refuse with "the engine is running above idle"
+- Confirm a write to a constant `DangerousConstants` recognises (`revLimit` on
+  this bench INI) is refused without `confirmDangerous:true` and goes through with it
+- Send more than ten writes in five seconds and confirm the eleventh is refused
+  rather than queued
+
+## 12. `[ControllerCommands]` stays unreachable
+
+A negative test, best proven once against real hardware where getting it wrong
+has a concrete consequence.
+
+- Confirm no `/tune/apply`, `/tune/set`, or `/table/set` payload, and no MCP
+  tool call, can be coerced into reaching rusEFI's `cmd_test_spk1..12` — the
+  standing reflection test only proves `IAgentBridge` names nothing burn- or
+  command-shaped, not that a value can't be smuggled through a field that
+  happens to alias a controller command
+
+## 13. Staged files actually open where they're meant to
+
+- Stage a tune (`/stage/tune`) and confirm the `.msq` opens cleanly in real
+  TunerStudio
+- Stage a table (`/stage/table`) and confirm the CSV imports correctly onto a
+  real table via TunerStudio's own table-import
+
+## 14. Raw, unfiltered live telemetry against real firmware
+
+`includeRaw`/`?raw=true` has only ever decoded a firmware's declared block
+shape against scripted bytes.
+
+- Connect live with `raw=true` and confirm the full channel set decodes to
+  sane values rather than garbage in fields the firmware's own `[Datalog]`
+  author had good reason to leave out (padding, reserved, write-only registers)
+
 ---
 
 ## Not hardware, still open
