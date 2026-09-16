@@ -730,6 +730,42 @@ public class AgentServerTests : IDisposable
         Assert.Contains("Lean above 150 kPa", bench.Noted.Single(), StringComparison.Ordinal);
     }
 
+    // ----- the activity indicator -----------------------------------------------
+
+    [Fact]
+    public async Task EveryRouteIsRecordedAgainstTheActivityLog()
+    {
+        (AgentServer server, _, HttpClient client) = Serve();
+
+        await client.GetStringAsync("/state");
+
+        IReadOnlyList<AgentActivityEvent> events = server.Activity.Recent(10);
+
+        // A start and an end for the one request made.
+        Assert.Equal(2, events.Count);
+        Assert.All(events, e => Assert.Equal("/state", e.Route));
+        Assert.All(events, e => Assert.Equal(AgentActivityKind.Read, e.Kind));
+        Assert.False(events[0].InFlight);   // newest first: the end
+        Assert.True(events[1].InFlight);    // then the start
+    }
+
+    [Fact]
+    public async Task AWriteRouteIsRecordedAsSuchEvenWhenItIsRefused()
+    {
+        // The activity log is about what an agent asked this application to
+        // do, not whether the request was allowed through — a refused write
+        // attempt is still an agent trying to write, and a person watching the
+        // indicator should see that just as plainly as a write that went
+        // through.
+        (AgentServer server, _, HttpClient client) = Serve();
+
+        await client.PostAsync("/tune/set", Body(new { name = "revLimit", value = 7000 }));
+
+        AgentActivityEvent[] writes = [.. server.Activity.Recent(10).Where(e => e.Route == "/tune/set")];
+        Assert.NotEmpty(writes);
+        Assert.All(writes, e => Assert.Equal(AgentActivityKind.Write, e.Kind));
+    }
+
     [Fact]
     public async Task AndTheAnswerCarriesTheProjectBackSoAnAgentSeesTheResult()
     {

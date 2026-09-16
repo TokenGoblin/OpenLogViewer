@@ -1,5 +1,8 @@
 using System.IO;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Windows;
+using System.Windows.Threading;
 using OpenLogViewer.Core;
 
 namespace OpenLogViewer.App;
@@ -80,6 +83,7 @@ public partial class MainViewModel
 
             server.Start();
             _agent = server;
+            server.Activity.Changed += OnAgentActivity;
 
             string where = WriteAgentToken(server, token);
 
@@ -126,9 +130,20 @@ public partial class MainViewModel
     {
         if (_agent is null) return;
 
+        _agent.Activity.Changed -= OnAgentActivity;
         _agent.Dispose();
         _agent = null;
         AgentWritesArmed = false;
+
+        // The indicator has nothing left to watch, so it should not go on
+        // showing whatever it last said.
+        _agentActivityDecay?.Dispose();
+        _agentActivityDecay = null;
+        _agentWriteDecay?.Dispose();
+        _agentWriteDecay = null;
+        AgentIsActive = false;
+        AgentLastAction = "";
+        AgentIsWritingToEcu = false;
 
         // The file describes a socket that is no longer there.
         try { File.Delete(Path.Combine(Workspace.Root, "agent-api.json")); }
@@ -270,5 +285,116 @@ public partial class MainViewModel
         }
 
         return null;
+    }
+
+    // ----- making the activity visible ----------------------------------------
+
+    /// <summary>
+    /// How long the indicator keeps saying "active" after the last agent
+    /// request finishes, so a burst of reads — an agent asking for state, then
+    /// channels, then values, a handful of milliseconds apart — reads as one
+    /// continuous "the AI is here" instead of flickering on and off between
+    /// each request.
+    /// </summary>
+    private static readonly TimeSpan AgentActivityDecay = TimeSpan.FromSeconds(1.5);
+
+    private Timer? _agentActivityDecay;
+    private Timer? _agentWriteDecay;
+
+    /// <summary>
+    /// True while an agent request is in flight, or was in the last
+    /// <see cref="AgentActivityDecay"/> — see that field for why it lingers.
+    /// </summary>
+    public bool AgentIsActive
+    {
+        get => _agentIsActive;
+        private set => Set(ref _agentIsActive, value);
+    }
+
+    private bool _agentIsActive;
+
+    /// <summary>The most recent thing an agent asked for or changed, in words.</summary>
+    public string AgentLastAction
+    {
+        get => _agentLastAction;
+        private set => Set(ref _agentLastAction, value);
+    }
+
+    private string _agentLastAction = "";
+
+    /// <summary>
+    /// True only while an agent-originated write to the ECU is in flight or
+    /// was in the last <see cref="AgentActivityDecay"/> — deliberately
+    /// narrower than <see cref="AgentIsActive"/>, so the UI can make a write
+    /// louder than a read without every read looking like one.
+    /// </summary>
+    public bool AgentIsWritingToEcu
+    {
+        get => _agentIsWritingToEcu;
+        private set => Set(ref _agentIsWritingToEcu, value);
+    }
+
+    private bool _agentIsWritingToEcu;
+
+    /// <summary>
+    /// Runs on whatever thread <see cref="AgentActivityLog.Changed"/> fired
+    /// on, which is an agent's own request thread, never the UI thread — so
+    /// the actual state change is handed to the UI dispatcher rather than
+    /// applied here.
+    /// </summary>
+    private void OnAgentActivity(AgentActivityEvent activity) => OnUiThread(() => ApplyAgentActivity(activity));
+
+    /// <summary>
+    /// Applies one activity event to the indicator's state. Kept separate from
+    /// <see cref="OnAgentActivity"/>, and internal rather than private, so a
+    /// test can drive it directly without needing a live dispatcher to pump
+    /// messages for it.
+    /// </summary>
+    internal void ApplyAgentActivity(AgentActivityEvent activity)
+    {
+        AgentLastAction = activity.Detail;
+        AgentIsActive = true;
+        RestartDecay(ref _agentActivityDecay, AgentActivityDecay, () => AgentIsActive = false);
+
+        if (activity.Kind != AgentActivityKind.Write) return;
+
+        AgentIsWritingToEcu = true;
+        RestartDecay(ref _agentWriteDecay, AgentActivityDecay, () => AgentIsWritingToEcu = false);
+    }
+
+    /// <summary>
+    /// A plain <see cref="Timer"/> rather than a <see cref="DispatcherTimer"/>,
+    /// because it is (re)started from whichever thread just recorded an
+    /// activity event, not necessarily the UI thread — a
+    /// <see cref="DispatcherTimer"/> created there would tick against that
+    /// thread's own dispatcher, which nothing pumps, and would simply never
+    /// fire. The expiry callback still has to get back onto the UI thread
+    /// before touching bound state, the same as <see cref="OnAgentActivity"/>.
+    /// </summary>
+    private void RestartDecay(ref Timer? timer, TimeSpan window, Action expired)
+    {
+        if (timer is null)
+        {
+            timer = new Timer(_ => OnUiThread(expired), null, window, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        timer.Change(window, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// Runs something on the UI thread, whatever thread this is called from.
+    /// Applied directly rather than dispatched when there is no
+    /// <see cref="Application"/> to own a dispatcher at all — a headless test
+    /// driving this without a running WPF application, where "direct" and "on
+    /// the UI thread" mean the same nonexistent thing.
+    /// </summary>
+    private static void OnUiThread(Action work)
+    {
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+
+        if (dispatcher is null || dispatcher.CheckAccess()) { work(); return; }
+
+        dispatcher.BeginInvoke(work);
     }
 }
