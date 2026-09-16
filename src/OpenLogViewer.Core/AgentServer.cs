@@ -93,6 +93,15 @@ public sealed class AgentServer : IDisposable
         get { lock (_gate) return _subscribers.Count; }
     }
 
+    /// <summary>
+    /// Every request an agent has made against this server, for a person at
+    /// the machine to watch — see <see cref="AgentActivityLog"/>. Owned here
+    /// rather than by the view model, because <see cref="Route"/> is the one
+    /// chokepoint every request already passes through; the application only
+    /// subscribes to it once this server starts.
+    /// </summary>
+    public AgentActivityLog Activity { get; } = new();
+
     public void Start()
     {
         if (IsRunning) return;
@@ -224,6 +233,12 @@ public sealed class AgentServer : IDisposable
 
     private async Task Route(HttpListenerContext context, string path)
     {
+        // Wraps the whole of handling this request, so a person watching
+        // Activity sees both "a request for this route just arrived" and,
+        // once every return path below has run, "and it just finished" — not
+        // parsed from the wire trace, which only knows about the ECU.
+        using IDisposable activity = Activity.Begin(path);
+
         System.Collections.Specialized.NameValueCollection query = context.Request.QueryString;
 
         switch (path)

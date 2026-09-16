@@ -445,6 +445,68 @@
                            VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
                            Foreground="{DynamicResource Accent}" Margin="14,0,0,0"/>
 
+                <!--
+                    The AI activity indicator.
+
+                    Its own element rather than a message routed through Hint,
+                    on purpose: Hint is a human's own last action, and a burst
+                    of agent reads must never drown that out or be mistaken for
+                    it. Only visible while the agent API is actually listening
+                    — the same gate the "Allow agent writes" checkbox uses —
+                    since there is nothing to report on when nothing can
+                    connect. The dot pulses (a Storyboard opacity animation
+                    started and stopped by AgentIsActive, the same DataTrigger
+                    shape HasTuneWarning already uses to change a colour) and
+                    turns from Accent to Marker, same as the text beside it,
+                    the moment a write to the ECU is what is actually going on
+                    — a read should never look as loud as that.
+                -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding AgentIsRunning, Converter={StaticResource BoolToVis}}"
+                            ToolTip="{Binding AgentLastAction}">
+                    <TextBlock x:Name="AgentActivityDot" Text="●" FontSize="11" Margin="0,0,5,0"
+                               VerticalAlignment="Center" Opacity="0.35">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AgentIsWritingToEcu}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding AgentIsActive}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="AgentActivityPulse">
+                                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="0.35" To="1" Duration="0:0:0.6"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="AgentActivityPulse"/>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding AgentLastAction}" FontSize="11"
+                               VerticalAlignment="Center" MaxWidth="220"
+                               TextTrimming="CharacterEllipsis">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AgentIsWritingToEcu}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
                 <TextBlock Foreground="{DynamicResource Muted}" FontSize="11"
                            VerticalAlignment="Center"
                            Text="{Binding Hint}" ToolTip="{Binding Hint}"
