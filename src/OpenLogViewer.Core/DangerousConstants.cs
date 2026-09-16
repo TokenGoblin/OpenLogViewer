@@ -87,27 +87,36 @@ public static class DangerousConstants
     /// </summary>
     private static string[] Aliases(DangerousRole role) => role switch
     {
+        // "kindoflimiting" and "hardcut" are Speeduino's, read off a running
+        // 202501: they choose how the limiter cuts, which is the limiter.
         DangerousRole.RevLimiter =>
             ["revlimiter", "revlimit", "revlim", "softlimit", "softlim", "hardlimit", "hardlim",
              "rpmlimit", "speedlimiter", "maxrpm", "limiterrpm", "rpmhardlimit", "rpmsoftlimit",
-             "hardrevlimit", "softrevlimit"],
+             "hardrevlimit", "softrevlimit", "kindoflimiting", "hardcut"],
 
+        // Bare "launch" and "lnch" on purpose. Speeduino calls the switch
+        // launchEnable and it was slipping through a list that only knew
+        // launchRpm — on a board whose launch control is switched on with a
+        // 2,700 rpm soft limit, so its limiter is not inert. A pin assignment
+        // caught alongside it costs one extra confirmation; the switch itself
+        // missed costs rather more.
         DangerousRole.LaunchControlRpm =>
-            ["launchrpm", "launchcontrol", "launchtiming", "launchboost", "launchignitiontiming",
-             "flatshiftrpm", "flatshift", "antilagrpm", "antilag", "clutchrpm", "twostep",
-             "2steprpm", "stagedlaunch", "launchcut"],
+            ["launch", "lnch", "flatshiftrpm", "flatshift", "antilagrpm", "antilag", "clutchrpm",
+             "twostep", "2steprpm", "stagedlaunch"],
 
         DangerousRole.BoostLimit =>
             ["boostlimit", "boostctrlmax", "overboost", "maxboost", "boostcut", "boostfailsafe",
-             "wastegatemax", "boostlimitkpa", "boostcontrolmax"],
+             "wastegatemax", "boostlimitkpa", "boostcontrolmax", "boostbygear"],
 
         DangerousRole.IgnitionCut =>
             ["ignitioncut", "igncut", "sparkcut", "coilcut", "shiftcuttime", "flatshiftign",
              "cuttimeign", "sparkcuttime"],
 
+        // "afrprotect" guards the engine against running lean under load; the
+        // time it cuts for is part of that guard, not a tuning preference.
         DangerousRole.FuelCut =>
             ["fuelcutrpm", "fuelcut", "overruncut", "decelfuelcutoff", "dfcorpm", "injectorcut",
-             "fuelcutoff", "fuelcutoffrpm"],
+             "fuelcutoff", "fuelcutoffrpm", "afrprotect"],
 
         _ => [],
     };
