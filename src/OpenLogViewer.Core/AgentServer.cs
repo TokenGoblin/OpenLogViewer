@@ -241,6 +241,8 @@ public sealed class AgentServer : IDisposable
                         "GET /wire/health", "GET /wire/events?count=",
                         "GET /project", "POST /project/record", "POST /project/fix",
                         "POST /project/keep", "POST /project/versions/compare",
+                        "POST /tune/propose", "POST /tune/apply",
+                        "POST /stage/tune", "POST /stage/table?name=", "GET /stage",
                     },
                 }).ConfigureAwait(false);
                 return;
@@ -422,6 +424,92 @@ public sealed class AgentServer : IDisposable
                 return;
             }
 
+            case "/tune/propose":
+            {
+                if (await ReadOptionalBody<TuneProposal>(context).ConfigureAwait(false) is not { } body) return;
+
+                TuneProposalResult result =
+                    _bridge.ProposeTune(ToSettings(body.Settings), ToCells(body.Cells));
+
+                await Send(context, new
+                {
+                    changes = result.Changes.Select(Describe),
+                    rejected = result.Rejected,
+                    summary = result.Summary,
+                }).ConfigureAwait(false);
+                return;
+            }
+
+            case "/tune/apply":
+            {
+                if (await ReadOptionalBody<TuneProposal>(context).ConfigureAwait(false) is not { } body) return;
+
+                TuneApplyResult result = _bridge.ApplyTune(
+                    ToSettings(body.Settings), ToCells(body.Cells), body.Note ?? "");
+
+                if (result.Refusal is { } refused)
+                {
+                    await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, new
+                {
+                    applied = result.Applied.Select(Describe),
+                    rejected = result.Rejected,
+                    summary = result.Summary,
+                    burned = false,
+                }).ConfigureAwait(false);
+                return;
+            }
+
+            case "/stage/tune":
+            {
+                if (await ReadOptionalBody<TuneProposal>(context).ConfigureAwait(false) is not { } body) return;
+
+                AgentStageResult result = _bridge.StageTune(
+                    ToSettings(body.Settings), ToCells(body.Cells), body.Filename ?? "");
+
+                if (result.Refusal is { } refused)
+                {
+                    await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, Describe(result.File!)).ConfigureAwait(false);
+                return;
+            }
+
+            case "/stage/table":
+            {
+                string? name = query["name"];
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    await Refuse(context, 400, "no table named", "pass ?name=").ConfigureAwait(false);
+                    return;
+                }
+
+                if (await ReadOptionalBody<StageTableBody>(context).ConfigureAwait(false) is not { } body) return;
+
+                AgentStageResult result = _bridge.StageTable(name, body.Filename ?? "");
+
+                if (result.Refusal is { } refused)
+                {
+                    int status = refused.Reason == "no such table" ? 404 : 409;
+                    await Refuse(context, status, refused.Reason, refused.Detail).ConfigureAwait(false);
+                    return;
+                }
+
+                await Send(context, Describe(result.File!)).ConfigureAwait(false);
+                return;
+            }
+
+            case "/stage":
+                await Send(context, new { files = _bridge.ListStaged().Select(Describe) })
+                    .ConfigureAwait(false);
+                return;
+
             default:
                 await Refuse(context, 404, "no such endpoint", path).ConfigureAwait(false);
                 return;
@@ -437,6 +525,47 @@ public sealed class AgentServer : IDisposable
     private sealed record CompareVersions(string? From, string? To);
 
     private sealed record NoteFix(string? Id, string? Title, string? Detail, string? State, string? Change);
+
+    private sealed record TuneChangeSetting(string? Name, double Value);
+
+    private sealed record TuneChangeCell(string? Table, int Column, int Row, double Value);
+
+    /// <summary>
+    /// The shape a proposal, an apply or a tune staging request all share: some
+    /// settings, some cells, and — where it means something to the endpoint — a
+    /// note or a file name. Every field is optional, because "nothing here has
+    /// changed" and "stage the tune as it stands" are themselves valid requests
+    /// rather than malformed ones.
+    /// </summary>
+    private sealed record TuneProposal(
+        List<TuneChangeSetting>? Settings, List<TuneChangeCell>? Cells, string? Note, string? Filename);
+
+    private sealed record StageTableBody(string? Filename);
+
+    private static IReadOnlyList<ProposedSetting> ToSettings(List<TuneChangeSetting>? settings) =>
+        settings is null ? [] : [.. settings.Select(s => new ProposedSetting(s.Name ?? "", s.Value))];
+
+    private static IReadOnlyList<ProposedCell> ToCells(List<TuneChangeCell>? cells) =>
+        cells is null ? [] : [.. cells.Select(c => new ProposedCell(c.Table ?? "", c.Column, c.Row, c.Value))];
+
+    /// <summary>One changed setting or table, flattened the way a table already is.</summary>
+    private static object Describe(TuneDifference d) => new
+    {
+        name = d.Name,
+        units = d.Constant.Units,
+        cells = d.Cells,
+        before = d.TheirsText is { } t ? t : (object?)d.Theirs,
+        after = d.MineText is { } m ? m : (object?)d.Mine,
+        summary = d.Summary,
+    };
+
+    private static object Describe(AgentStagedFile file) => new
+    {
+        name = file.Name,
+        path = file.Path,
+        bytes = file.Bytes,
+        writtenAt = file.WrittenAt,
+    };
 
     private async Task<T?> ReadBody<T>(HttpListenerContext context) where T : class
     {
@@ -457,6 +586,39 @@ public sealed class AgentServer : IDisposable
             if (parsed is null) await Refuse(context, 400, "the body was empty").ConfigureAwait(false);
 
             return parsed;
+        }
+        catch (JsonException e)
+        {
+            await Refuse(context, 400, "the body was not the JSON this expects", e.Message)
+                .ConfigureAwait(false);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The same as <see cref="ReadBody{T}"/>, except an empty body is not an
+    /// error — it means "nothing here has changed" or "the tune as it stands",
+    /// both of which are answers, not mistakes. Every field on <typeparamref
+    /// name="T"/> has to be optional for that to make sense, which is true of
+    /// every request shape this is used for.
+    /// </summary>
+    private async Task<T?> ReadOptionalBody<T>(HttpListenerContext context) where T : class
+    {
+        if (!string.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase))
+        {
+            await Refuse(context, 405, "that endpoint wants a POST", context.Request.HttpMethod)
+                .ConfigureAwait(false);
+            return null;
+        }
+
+        using var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8);
+        string body = await reader.ReadToEndAsync().ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(body)) body = "{}";
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(body, Json);
         }
         catch (JsonException e)
         {

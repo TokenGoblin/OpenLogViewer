@@ -150,6 +150,62 @@ public class AgentServerTests : IDisposable
             Noted.Add($"{id}/{title}/{state}");
             return null;
         }
+
+        // ----- propose / apply -------------------------------------------------
+
+        public List<(IReadOnlyList<ProposedSetting> Settings, IReadOnlyList<ProposedCell> Cells)> Proposed { get; } = [];
+
+        public TuneProposalResult NextProposal { get; set; } =
+            new([], [], "Nothing would change.");
+
+        public TuneProposalResult ProposeTune(
+            IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells)
+        {
+            Proposed.Add((settings, cells));
+            return NextProposal;
+        }
+
+        public TuneApplyResult NextApply { get; set; } =
+            new(new AgentRefusal("writes are not armed"), [], [], "");
+
+        public List<(IReadOnlyList<ProposedSetting> Settings, IReadOnlyList<ProposedCell> Cells, string Note)> Applied { get; } = [];
+
+        public TuneApplyResult ApplyTune(
+            IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string note)
+        {
+            Applied.Add((settings, cells, note));
+            return NextApply;
+        }
+
+        // ----- staging -----------------------------------------------------------
+
+        public AgentStageResult NextStage { get; set; } =
+            new(null, new AgentStagedFile("tune-test.msq", "C:\\staged\\tune-test.msq", 42, DateTime.UtcNow));
+
+        public List<string> StagedTuneFilenames { get; } = [];
+
+        public AgentStageResult StageTune(
+            IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string filename)
+        {
+            StagedTuneFilenames.Add(filename);
+            return NextStage;
+        }
+
+        public List<(string Name, string Filename)> StagedTables { get; } = [];
+
+        public AgentStageResult StageTable(string name, string filename)
+        {
+            StagedTables.Add((name, filename));
+
+            return name == "VE Table"
+                ? new AgentStageResult(null, new AgentStagedFile(
+                    "VE-Table-test.csv", "C:\\staged\\VE-Table-test.csv", 24, DateTime.UtcNow))
+                : new AgentStageResult(new AgentRefusal("no such table", name), null);
+        }
+
+        public List<AgentStagedFile> Staged { get; } = [];
+
+        public IReadOnlyList<AgentStagedFile> ListStaged() => Staged;
     }
 
     private (AgentServer Server, Bench Bench, HttpClient Client) Serve()
@@ -694,5 +750,152 @@ public class AgentServerTests : IDisposable
 
         Assert.Contains("The E28", got.RootElement.GetProperty("brief").GetString()!,
                         StringComparison.Ordinal);
+    }
+
+    // ----- propose / apply -----------------------------------------------------
+
+    private static TuneConstant RevLimit => new()
+    {
+        Name = "revLimit", Page = 0, Offset = 2, Type = RealtimeType.U16, Units = "rpm",
+    };
+
+    [Fact]
+    public async Task ProposingNeedsNoArmingBecauseNothingReachesTheEcu()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.NextProposal = new TuneProposalResult(
+            [new TuneDifference("revLimit", RevLimit, 1, 7000, 6500)], [], "1 setting would change.");
+
+        Assert.False(bench.State().WritesArmed);
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/tune/propose",
+            Body(new { settings = new[] { new { name = "revLimit", value = 7000 } } }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+
+        using JsonDocument got = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.Equal(1, got.RootElement.GetProperty("changes").GetArrayLength());
+        Assert.Equal("revLimit", got.RootElement.GetProperty("changes")[0].GetProperty("name").GetString());
+        Assert.Equal(7000, got.RootElement.GetProperty("changes")[0].GetProperty("after").GetDouble());
+        Assert.Equal(6500, got.RootElement.GetProperty("changes")[0].GetProperty("before").GetDouble());
+
+        (IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells) = bench.Proposed.Single();
+        Assert.Equal(("revLimit", 7000), (settings.Single().Name, settings.Single().Value));
+        Assert.Empty(cells);
+    }
+
+    [Fact]
+    public async Task ProposingWithAnEmptyBodyAsksWhatIsThereNow()
+    {
+        // An empty batch is a real question — "what would nothing change" — not
+        // a malformed request, so it must not be refused as one.
+        (_, _, HttpClient client) = Serve();
+
+        HttpResponseMessage answer = await client.PostAsync("/tune/propose", Body(new { }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApplyingIsRefusedTheSameWayASingleWriteIs()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+
+        HttpResponseMessage refused = await client.PostAsync(
+            "/tune/apply",
+            Body(new { settings = new[] { new { name = "revLimit", value = 7000 } } }));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("not armed", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Single(bench.Applied);
+    }
+
+    [Fact]
+    public async Task ApplyingGoesThroughOnceArmedAndSaysWhatChanged()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.NextApply = new TuneApplyResult(
+            null, [new TuneDifference("revLimit", RevLimit, 1, 7000, 6500)], [], "Applied 1 change.");
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/tune/apply",
+            Body(new
+            {
+                settings = new[] { new { name = "revLimit", value = 7000 } },
+                note = "raising the limiter for the dyno pull",
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+
+        using JsonDocument got = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.Equal(1, got.RootElement.GetProperty("applied").GetArrayLength());
+        Assert.Contains("\"burned\":false", await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        (_, _, string note) = bench.Applied.Single();
+        Assert.Equal("raising the limiter for the dyno pull", note);
+    }
+
+    // ----- staging ---------------------------------------------------------
+
+    [Fact]
+    public async Task StagingATuneNeedsNoArmingEitherAndSaysWhereItLanded()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+
+        Assert.False(bench.State().WritesArmed);
+
+        HttpResponseMessage answer = await client.PostAsync("/stage/tune", Body(new { }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+
+        using JsonDocument got = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.Equal("tune-test.msq", got.RootElement.GetProperty("name").GetString());
+        Assert.Contains("staged", got.RootElement.GetProperty("path").GetString()!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StagingANamedTableWorks()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/stage/table?name=VE%20Table", Body(new { }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal(("VE Table", ""), bench.StagedTables.Single());
+    }
+
+    [Fact]
+    public async Task StagingAnUnknownTableIsRefused()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        HttpResponseMessage answer = await client.PostAsync("/stage/table?name=Nope", Body(new { }));
+
+        Assert.Equal(HttpStatusCode.NotFound, answer.StatusCode);
+        Assert.Contains("no such table", await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StagingATableWithoutNamingOneSaysWhatIsMissing()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        HttpResponseMessage answer = await client.PostAsync("/stage/table", Body(new { }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, answer.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListingStagedFilesReportsWhatTheBridgeHolds()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Staged.Add(new AgentStagedFile("tune-1.msq", "C:\\staged\\tune-1.msq", 100, DateTime.UtcNow));
+
+        using JsonDocument answer = JsonDocument.Parse(await client.GetStringAsync("/stage"));
+
+        Assert.Equal(1, answer.RootElement.GetProperty("files").GetArrayLength());
+        Assert.Equal("tune-1.msq", answer.RootElement.GetProperty("files")[0].GetProperty("name").GetString());
     }
 }

@@ -78,6 +78,35 @@ public static class CsvExport
     }
 
     /// <summary>
+    /// Writes a tuning table's cells as CSV, in TunerStudio's own import layout:
+    /// the table's name in the corner, the X breakpoints across the top, the Y
+    /// breakpoints down the left, and the highest row first so the file reads
+    /// the same way up as the table does on screen. The same shape
+    /// <see cref="WriteTable"/> already uses for the heat-map view, adapted for
+    /// a <see cref="TuneTable"/> — the ECU's own values, rather than something
+    /// built from a log.
+    /// </summary>
+    public static void WriteTuneTable(TextWriter writer, TuneTable table)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(table);
+
+        var header = new List<string> { Escape(table.Name) };
+        header.AddRange(table.X.Breakpoints.Select(Axis));
+        writer.WriteLine(string.Join(',', header));
+
+        for (int row = table.Rows - 1; row >= 0; row--)
+        {
+            var cells = new List<string> { Axis(table.Y.Breakpoints[row]) };
+
+            for (int column = 0; column < table.Columns; column++)
+                cells.Add(Round(table.Values[column, row]).ToString("R", CultureInfo.InvariantCulture));
+
+            writer.WriteLine(string.Join(',', cells));
+        }
+    }
+
+    /// <summary>
     /// Writes the header and units rows. Shared with the live recorder, so a
     /// session captured from an ECU is the same shape as an exported log and
     /// reopens the same way.

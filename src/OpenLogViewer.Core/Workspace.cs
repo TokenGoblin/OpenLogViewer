@@ -50,6 +50,14 @@ public sealed class Workspace
     public string Definitions => Path.Combine(Root, "ECU definitions");
 
     /// <summary>
+    /// Where an agent leaves a file for a person to open — a full tune, a single
+    /// table — as a second, independent path alongside writing to the ECU's
+    /// working memory. Nothing here ever reaches a controller, so it needs none
+    /// of the gates a write does.
+    /// </summary>
+    public string Staging => Path.Combine(Root, "AgentStaging");
+
+    /// <summary>
     /// Every place a firmware definition might be, ours first.
     ///
     /// Ahead of TunerStudio's own folders deliberately: a file the user went to

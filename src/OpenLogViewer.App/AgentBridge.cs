@@ -173,4 +173,21 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
 
     public AgentRefusal? NoteFix(string id, string title, string detail, string state, string change) =>
         _viewModel.AgentNoteFix(id, title, detail, state, change);
+
+    public TuneProposalResult ProposeTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells) =>
+        _viewModel.AgentProposeTune(settings, cells);
+
+    public TuneApplyResult ApplyTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string note) =>
+        _viewModel.AgentApplyTune(settings, cells, note);
+
+    public AgentStageResult StageTune(
+        IReadOnlyList<ProposedSetting> settings, IReadOnlyList<ProposedCell> cells, string filename) =>
+        _viewModel.AgentStageTune(settings, cells, filename);
+
+    public AgentStageResult StageTable(string name, string filename) =>
+        _viewModel.AgentStageTable(name, filename);
+
+    public IReadOnlyList<AgentStagedFile> ListStaged() => _viewModel.AgentListStaged();
 }

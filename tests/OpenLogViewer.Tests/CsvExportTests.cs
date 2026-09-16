@@ -365,6 +365,46 @@ public class CsvExportTests : IDisposable
         Assert.Contains(reopened.Channels, c => c.Name == "Time");
     }
 
+    // ----- a tuning table, for the staged-CSV path --------------------------
+
+    [Fact]
+    public void ATuneTableIsWrittenWithBreakpointsAcrossTheTopAndDownTheLeft()
+    {
+        var table = new TuneTable(
+            "VE Table",
+            new TuneAxis("rpmBins", "rpm", [800, 3000]),
+            new TuneAxis("mapBins", "kPa", [30, 100]),
+            new double[,] { { 40, 60 }, { 50, 80 } },
+            "%");
+
+        var writer = new StringWriter { NewLine = "\n" };
+        CsvExport.WriteTuneTable(writer, table);
+        string[] lines = writer.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        // The corner names the table, the X breakpoints run across the top, and
+        // the highest row comes first so the file reads the same way up as the
+        // table looks on screen.
+        Assert.Equal("VE Table,800,3000", lines[0]);
+        Assert.Equal("100,60,80", lines[1]);
+        Assert.Equal("30,40,50", lines[2]);
+    }
+
+    [Fact]
+    public void ATuneTableWithACommaInItsNameStillReadsBackAsOneField()
+    {
+        var table = new TuneTable(
+            "Fuel, Primary",
+            new TuneAxis("rpmBins", "rpm", [800]),
+            new TuneAxis("mapBins", "kPa", [30]),
+            new double[,] { { 55 } },
+            "%");
+
+        var writer = new StringWriter { NewLine = "\n" };
+        CsvExport.WriteTuneTable(writer, table);
+
+        Assert.StartsWith("\"Fuel, Primary\",800", writer.ToString(), StringComparison.Ordinal);
+    }
+
     /// <summary>A source that answers instantly with the same row, for a recording test.</summary>
     private sealed class FixedSource(string[] names, string[] units, double[] row) : ILiveSource
     {

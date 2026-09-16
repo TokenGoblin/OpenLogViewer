@@ -286,7 +286,94 @@ internal static class Program
                  ["value"] = Field("number", "The new value."),
              },
              "table", "column", "row", "value"),
+
+        Tool("olv_propose_tune",
+             "Works out what a batch of settings and table cells would change, WITHOUT sending "
+             + "anything. Answerable even when writes are not armed, because nothing here reaches "
+             + "the ECU — it lays the changes over a private copy of the tune and reports the "
+             + "difference. Use this before olv_apply_tune so the person can see the diff first.",
+             ProposalProperties()),
+
+        Tool("olv_apply_tune",
+             "Applies a batch of settings and table cells to the ECU's WORKING MEMORY for real, "
+             + "through the same per-setting and per-cell writes olv_set_setting and "
+             + "olv_set_table_cell use. Refused unless writing is armed. Never burned. Keeps a "
+             + "version of the project recording what was applied, when a project is open.",
+             new JsonObject
+             {
+                 ["settings"] = SettingsField(),
+                 ["cells"] = CellsField(),
+                 ["note"] = Field("string", "Why this batch was applied, for the version it is kept under."),
+             }),
+
+        Tool("olv_stage_tune",
+             "Writes a tune out as a real .msq file in OpenLogViewer's staging folder, for a "
+             + "person to open in TunerStudio themselves — nothing here reaches the ECU, so it "
+             + "needs no arming. With no settings or cells, stages the tune exactly as it stands; "
+             + "given some, stages what they would make it, the same working copy olv_propose_tune "
+             + "uses.",
+             new JsonObject
+             {
+                 ["settings"] = SettingsField(),
+                 ["cells"] = CellsField(),
+                 ["filename"] = Field("string", "The file name to stage it under. Defaults to a timestamped name."),
+             }),
+
+        Tool("olv_stage_table",
+             "Writes one named table out as an import-ready CSV in the staging folder — "
+             + "breakpoints across the top and down the left, values in the grid. Never reaches "
+             + "the ECU, so it needs no arming.",
+             new JsonObject
+             {
+                 ["name"] = Field("string", "The table name, as olv_tables gives it."),
+                 ["filename"] = Field("string", "The file name to stage it under. Defaults to a timestamped name."),
+             },
+             "name"),
+
+        Tool("olv_list_staged",
+             "What is sitting in the staging folder right now: every file olv_stage_tune or "
+             + "olv_stage_table has written, with its size and when it was written.",
+             new JsonObject()),
     ];
+
+    /// <summary>The settings/cells pair every propose-shaped tool takes.</summary>
+    private static JsonObject ProposalProperties() => new()
+    {
+        ["settings"] = SettingsField(),
+        ["cells"] = CellsField(),
+    };
+
+    private static JsonObject SettingsField() => new()
+    {
+        ["type"] = "array",
+        ["description"] = "Settings to change, each by name and new value.",
+        ["items"] = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = new JsonObject
+            {
+                ["name"] = Field("string", "The setting's name, as olv_tune gives it."),
+                ["value"] = Field("number", "The new value, in the units the firmware declares."),
+            },
+        },
+    };
+
+    private static JsonObject CellsField() => new()
+    {
+        ["type"] = "array",
+        ["description"] = "Table cells to change, each by table name, column, row and new value.",
+        ["items"] = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = new JsonObject
+            {
+                ["table"] = Field("string", "The table name."),
+                ["column"] = Field("integer", "Column index, from zero."),
+                ["row"] = Field("integer", "Row index, from zero."),
+                ["value"] = Field("number", "The new value."),
+            },
+        },
+    };
 
     private static JsonObject Tool(string name, string description, JsonObject properties,
                                    params string[] required) =>
@@ -378,6 +465,32 @@ internal static class Program
                     ["value"] = Number(arguments, "value"),
                 }).ConfigureAwait(false),
 
+                "olv_propose_tune" => await Post("/tune/propose", new JsonObject
+                {
+                    ["settings"] = Passthrough(arguments, "settings"),
+                    ["cells"] = Passthrough(arguments, "cells"),
+                }).ConfigureAwait(false),
+
+                "olv_apply_tune" => await Post("/tune/apply", new JsonObject
+                {
+                    ["settings"] = Passthrough(arguments, "settings"),
+                    ["cells"] = Passthrough(arguments, "cells"),
+                    ["note"] = Text(arguments, "note"),
+                }).ConfigureAwait(false),
+
+                "olv_stage_tune" => await Post("/stage/tune", new JsonObject
+                {
+                    ["settings"] = Passthrough(arguments, "settings"),
+                    ["cells"] = Passthrough(arguments, "cells"),
+                    ["filename"] = Text(arguments, "filename"),
+                }).ConfigureAwait(false),
+
+                "olv_stage_table" => await Post(
+                    $"/stage/table?name={Uri.EscapeDataString(Text(arguments, "name"))}",
+                    new JsonObject { ["filename"] = Text(arguments, "filename") }).ConfigureAwait(false),
+
+                "olv_list_staged" => await Get("/stage").ConfigureAwait(false),
+
                 _ => throw new InvalidOperationException($"no such tool: {name}"),
             };
 
@@ -461,6 +574,15 @@ internal static class Program
 
     private static string Text(JsonObject arguments, string name) =>
         arguments[name]?.GetValue<string>() ?? "";
+
+    /// <summary>
+    /// An array argument, carried through to the request body as it was given
+    /// rather than reinterpreted — a node can belong to only one JSON tree at a
+    /// time, so it is cloned rather than moved out of the arguments it arrived
+    /// in.
+    /// </summary>
+    private static JsonArray Passthrough(JsonObject arguments, string name) =>
+        arguments[name] is JsonArray array ? (JsonArray)array.DeepClone() : [];
 
     private static bool Bool(JsonObject arguments, string name)
     {
