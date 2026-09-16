@@ -171,13 +171,21 @@ public interface IAgentBridge
     /// <summary>
     /// Puts one setting into the controller's working memory.
     ///
+    /// <paramref name="rationale"/> is required, not decorative: a refusal of
+    /// "no rationale given" is how this stops being a socket that moves numbers
+    /// for no stated reason. <paramref name="confirmDangerous"/> has to be true
+    /// for a constant <see cref="DangerousConstants"/> recognises — a rev
+    /// limiter, a launch RPM, a boost or fuel/ignition cut — so that class of
+    /// write cannot happen by the same one-line call as an ordinary VE cell.
+    ///
     /// Returns null when it was done, or a refusal saying why not. Nothing here
     /// burns; a power cycle undoes whatever this does.
     /// </summary>
-    AgentRefusal? SetSetting(string name, double value);
+    AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false);
 
-    /// <summary>Puts one cell of one table into the controller's working memory.</summary>
-    AgentRefusal? SetTableCell(string table, int column, int row, double value);
+    /// <summary>Puts one cell of one table into the controller's working memory. See <see cref="SetSetting"/>.</summary>
+    AgentRefusal? SetTableCell(
+        string table, int column, int row, double value, string rationale, bool confirmDangerous = false);
 }
 
 /// <summary>One insight, flattened for a reader that is not a window.</summary>

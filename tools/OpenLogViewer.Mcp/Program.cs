@@ -266,26 +266,41 @@ internal static class Program
 
         Tool("olv_set_setting",
              "Changes one setting in the ECU's WORKING MEMORY. Refused unless the person at the "
-             + "machine has ticked \"Allow agent writes\". It is never burned, so turning the key "
-             + "off undoes it. Read the value first and say what you are changing and why.",
+             + "machine has ticked \"Allow agent writes\", unless the engine is running above idle, "
+             + "unless too many writes have landed in the last few seconds, and unless the change is "
+             + "disproportionately large for one call. It is never burned, so turning the key off "
+             + "undoes it. Read the value first and say what you are changing and why: rationale is "
+             + "required and is echoed back with the write. A rev limiter, launch RPM, boost limit, "
+             + "or fuel/ignition cut additionally needs confirmDangerous:true.",
              new JsonObject
              {
                  ["name"] = Field("string", "The setting's name, as olv_tune gives it."),
                  ["value"] = Field("number", "The new value, in the units the firmware declares."),
+                 ["rationale"] = Field("string", "Why this change is being made, in one line. Required."),
+                 ["confirmDangerous"] = Field(
+                     "boolean",
+                     "Set true to confirm a write to a rev limiter, launch RPM, boost limit, or "
+                     + "fuel/ignition cut. Refused without it only for those settings."),
              },
-             "name", "value"),
+             "name", "value", "rationale"),
 
         Tool("olv_set_table_cell",
              "Changes one cell of one table in the ECU's WORKING MEMORY. Refused unless writing "
-             + "is armed, and never burned. Columns and rows are counted from zero.",
+             + "is armed, unless the engine is running above idle, unless too many writes have "
+             + "landed in the last few seconds, and unless the change is disproportionately large "
+             + "for one call. Never burned. Columns and rows are counted from zero. Rationale is "
+             + "required and is echoed back with the write.",
              new JsonObject
              {
                  ["table"] = Field("string", "The table name."),
                  ["column"] = Field("integer", "Column index, from zero."),
                  ["row"] = Field("integer", "Row index, from zero."),
                  ["value"] = Field("number", "The new value."),
+                 ["rationale"] = Field("string", "Why this change is being made, in one line. Required."),
+                 ["confirmDangerous"] = Field(
+                     "boolean", "Set true to confirm a write to a constant one of the safety guards recognises."),
              },
-             "table", "column", "row", "value"),
+             "table", "column", "row", "value", "rationale"),
     ];
 
     private static JsonObject Tool(string name, string description, JsonObject properties,
@@ -368,6 +383,8 @@ internal static class Program
                 {
                     ["name"] = Text(arguments, "name"),
                     ["value"] = Number(arguments, "value"),
+                    ["rationale"] = Text(arguments, "rationale"),
+                    ["confirmDangerous"] = Bool(arguments, "confirmDangerous"),
                 }).ConfigureAwait(false),
 
                 "olv_set_table_cell" => await Post("/table/set", new JsonObject
@@ -376,6 +393,8 @@ internal static class Program
                     ["column"] = (int)Number(arguments, "column"),
                     ["row"] = (int)Number(arguments, "row"),
                     ["value"] = Number(arguments, "value"),
+                    ["rationale"] = Text(arguments, "rationale"),
+                    ["confirmDangerous"] = Bool(arguments, "confirmDangerous"),
                 }).ConfigureAwait(false),
 
                 _ => throw new InvalidOperationException($"no such tool: {name}"),
