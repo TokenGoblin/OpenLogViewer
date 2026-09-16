@@ -43,6 +43,20 @@ public sealed record AgentState
 /// <summary>A refusal, said in a way an agent can act on rather than guess at.</summary>
 public sealed record AgentRefusal(string Reason, string Detail = "");
 
+/// <summary>One entry from the wire trace, flattened for a reader that is not a window.</summary>
+public sealed record AgentWireEvent(
+    long Sequence, DateTime At, string Context, string Origin, int Attempt,
+    double ElapsedMs, string Outcome, string FailureKind, string Detail);
+
+/// <summary>A rollup of recent wire activity, for "is the link healthy" at a glance.</summary>
+public sealed record AgentWireHealth(
+    int Sampled,
+    int Failures,
+    double SuccessRate,
+    IReadOnlyDictionary<string, int> FailuresByKind,
+    double? SinceLastSuccessSeconds,
+    double? LongestRecentMs);
+
 /// <summary>
 /// Everything the agent API is allowed to ask the application for.
 ///
@@ -68,8 +82,22 @@ public interface IAgentBridge
     /// <summary>What is loaded or connected, and whether writing is armed.</summary>
     AgentState State();
 
-    /// <summary>Every channel available, live or from the log in hand.</summary>
-    IReadOnlyList<AgentChannel> Channels();
+    /// <summary>
+    /// Every channel available, live or from the log in hand.
+    ///
+    /// <paramref name="raw"/> asks for every channel a connected ECU's firmware
+    /// decodes, whether or not its own datalog definition names it — the
+    /// human-curated set is the default because most callers want names a
+    /// preset or filter will match, but an agent hunting for something nobody
+    /// thought to log needs the rest of it too.
+    /// </summary>
+    IReadOnlyList<AgentChannel> Channels(bool raw = false);
+
+    /// <summary>What went over the wire recently, and how healthy the link looks.</summary>
+    AgentWireHealth WireHealth();
+
+    /// <summary>The most recent wire events, newest first.</summary>
+    IReadOnlyList<AgentWireEvent> WireEvents(int count);
 
     /// <summary>
     /// The samples of one channel, newest last. <paramref name="seconds"/> of

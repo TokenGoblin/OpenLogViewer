@@ -143,6 +143,17 @@ public partial class MainViewModel
     private void PublishToAgents(double seconds, IReadOnlyList<string> names, IReadOnlyList<double> values) =>
         _agent?.Publish(seconds, names, values);
 
+    /// <summary>Hands one full, unfiltered frame to agents that asked for it. Never blocks.</summary>
+    private void PublishRawToAgents(double seconds, IReadOnlyList<string> names, IReadOnlyList<double> values) =>
+        _agent?.PublishRaw(seconds, names, values);
+
+    /// <summary>Every channel the connected ECU decodes, not just the ones its own datalog names.</summary>
+    internal IReadOnlyList<string> AgentRawChannelNames =>
+        _live is { SupportsRawTelemetry: true } live ? live.RawNames : [];
+
+    internal IReadOnlyList<string> AgentRawChannelUnits =>
+        _live is { SupportsRawTelemetry: true } live ? live.RawUnits : [];
+
     // ----- the two things an agent may change --------------------------------
 
     /// <summary>The tune as an agent reads it, or nothing when none was read.</summary>
@@ -157,6 +168,8 @@ public partial class MainViewModel
     /// </summary>
     internal AgentRefusal? AgentSetSetting(string name, double value)
     {
+        using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
+
         if (Refusal() is { } refused) return refused;
         if (_ecuTune is not { } tune) return new AgentRefusal("no tune has been read");
 
@@ -184,6 +197,8 @@ public partial class MainViewModel
     /// <summary>Sets one cell of one table, through the same path as an edit on screen.</summary>
     internal AgentRefusal? AgentSetTableCell(string name, int column, int row, double value)
     {
+        using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
+
         if (Refusal() is { } refused) return refused;
 
         // By the name a person sees, which is the one the API hands out.

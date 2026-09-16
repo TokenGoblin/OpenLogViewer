@@ -7,9 +7,11 @@ namespace OpenLogViewer.Core;
 /// Reads the realtime block and hands back only the channels the firmware's
 /// datalog definition names, under the names it gives them. Taking every decoded
 /// value instead would produce a few hundred internal names no preset or filter
-/// would ever match.
+/// would ever match — but the full decode is still done every poll regardless,
+/// so it costs nothing extra to keep it around for whoever asks for it through
+/// <see cref="IRawTelemetrySource"/>.
 /// </summary>
-public sealed class TunerStudioSource : ILiveSource
+public sealed class TunerStudioSource : ILiveSource, IRawTelemetrySource
 {
     private readonly EcuConnection _connection;
     private readonly RealtimeDecoder _decoder;
@@ -17,6 +19,7 @@ public sealed class TunerStudioSource : ILiveSource
     private readonly string[] _names;
     private readonly string[] _units;
     private readonly int[] _digits;
+    private double[]? _lastRawFrame;
 
     public TunerStudioSource(
         EcuConnection connection, RealtimeDecoder decoder, IReadOnlyList<DatalogEntry> datalog)
@@ -59,11 +62,28 @@ public sealed class TunerStudioSource : ILiveSource
 
     public int Retries => _connection.Retries;
 
+    /// <summary>Every channel the firmware's INI decodes, whether or not its datalog names it.</summary>
+    public IReadOnlyList<string> RawNames => _decoder.Names;
+
+    public IReadOnlyList<string> RawUnits => _decoder.Units;
+
+    /// <summary>
+    /// The full block from the most recent <see cref="Read"/>. Read and written
+    /// through <see cref="Volatile"/> rather than a lock, matching the "never
+    /// make the poll thread wait" rule everything else on this path follows —
+    /// a reader on another thread gets either the previous frame or this one,
+    /// never a partly written one, because the whole array is replaced rather
+    /// than mutated.
+    /// </summary>
+    public double[]? LastRawFrame => Volatile.Read(ref _lastRawFrame);
+
     public void Open() => _connection.Open();
 
     public double[] Read()
     {
         double[] decoded = _decoder.Decode(_connection.ReadRealtime(_decoder.Layout.BlockSize));
+        Volatile.Write(ref _lastRawFrame, decoded);
+
         var row = new double[_sourceIndex.Length];
 
         for (int i = 0; i < _sourceIndex.Length; i++) row[i] = decoded[_sourceIndex[i]];

@@ -43,8 +43,18 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
         };
     }
 
-    public IReadOnlyList<AgentChannel> Channels()
+    public IReadOnlyList<AgentChannel> Channels(bool raw = false)
     {
+        if (raw && _viewModel.AgentRawChannelNames is { Count: > 0 } rawNames)
+        {
+            IReadOnlyList<string> rawUnits = _viewModel.AgentRawChannelUnits;
+
+            return
+            [
+                .. rawNames.Select((n, i) => new AgentChannel(n, i < rawUnits.Count ? rawUnits[i] : "", 2)),
+            ];
+        }
+
         if (_viewModel.Document is not { } log) return [];
 
         // The role is the useful half. A rusEFI calls engine speed RPMValue and
@@ -63,6 +73,22 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
             }),
         ];
     }
+
+    public AgentWireHealth WireHealth()
+    {
+        WireHealthSnapshot h = _viewModel.WireTrace.Health();
+
+        return new AgentWireHealth(
+            h.Sampled, h.Failures, h.SuccessRate, h.FailuresByKind,
+            h.SinceLastSuccess?.TotalSeconds, h.LongestRecent?.TotalMilliseconds);
+    }
+
+    public IReadOnlyList<AgentWireEvent> WireEvents(int count) =>
+        [
+            .. _viewModel.WireTrace.Recent(count).Select(e => new AgentWireEvent(
+                e.Sequence, e.At, e.Context, e.Origin.ToString(), e.Attempt,
+                e.Elapsed.TotalMilliseconds, e.Outcome.ToString(), e.FailureKind.ToString(), e.Detail)),
+        ];
 
     public IReadOnlyList<double> Values(string channel, double seconds)
     {

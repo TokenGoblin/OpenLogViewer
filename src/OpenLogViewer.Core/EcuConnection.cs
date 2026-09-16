@@ -1,4 +1,6 @@
-﻿namespace OpenLogViewer.Core;
+﻿using System.Diagnostics;
+
+namespace OpenLogViewer.Core;
 
 /// <summary>
 /// Talks to an ECU: asks what it is, then reads its realtime block over and over.
@@ -35,6 +37,13 @@ public sealed class EcuConnection : IDisposable
 
     /// <summary>Replies thrown away for a bad checksum or a short read, over the session.</summary>
     public int Retries { get; private set; }
+
+    /// <summary>
+    /// Where every request this connection makes is recorded, or null to record
+    /// nothing. Left unset costs nothing beyond the null check — every existing
+    /// caller keeps working exactly as before.
+    /// </summary>
+    public WireTrace? Trace { get; init; }
 
     /// <summary>
     /// One conversation at a time.
@@ -91,14 +100,14 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     public string ReadSignature()
     {
-        byte[] data = Request([MsProtocol.QuerySignature]);
+        byte[] data = Request([MsProtocol.QuerySignature], context: "read signature");
         return MsProtocol.ReadSignature(data);
     }
 
     /// <summary>The longer build string, for display.</summary>
     public string ReadVersion()
     {
-        byte[] data = Request([MsProtocol.QueryVersion]);
+        byte[] data = Request([MsProtocol.QueryVersion], context: "read version");
         return MsProtocol.ReadSignature(data);
     }
 
@@ -180,7 +189,9 @@ public sealed class EcuConnection : IDisposable
                 // with MegaSquirt's query command is refused by design, and an
                 // ECU that is not answering yet will not answer harder.
                 text = MsProtocol.ReadSignature(
-                    Request([command], retryRefusals: false, attempts: 1));
+                    Request(
+                        [command], retryRefusals: false, attempts: 1,
+                        context: $"identify ('{(char)command}')"));
             }
             catch (EcuProtocolException)
             {
@@ -264,7 +275,8 @@ public sealed class EcuConnection : IDisposable
         int wanted = 2 + 1 + size + 4;
         if (_buffer.Length < wanted) _buffer = new byte[wanted];
 
-        return Request(_command.Build(0, size, Settings.CanId, _littleEndian));
+        return Request(
+            _command.Build(0, size, Settings.CanId, _littleEndian), context: "read realtime (unchunked)");
         }
     }
 
@@ -275,7 +287,9 @@ public sealed class EcuConnection : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 1);
 
         if (!_command.TakesRange || _chunk <= 0 || size <= _chunk)
-            return Request(_command.Build(0, size, Settings.CanId, _littleEndian), expected: size);
+            return Request(
+                _command.Build(0, size, Settings.CanId, _littleEndian), expected: size,
+                context: "read realtime");
 
         var block = new byte[size];
 
@@ -284,7 +298,8 @@ public sealed class EcuConnection : IDisposable
             int wanted = Math.Min(_chunk, size - at);
 
             byte[] piece = Request(
-                _command.Build(at, wanted, Settings.CanId, _littleEndian), expected: wanted);
+                _command.Build(at, wanted, Settings.CanId, _littleEndian), expected: wanted,
+                context: $"read realtime @{at}");
 
             piece.AsSpan(0, wanted).CopyTo(block.AsSpan(at));
             at += wanted;
@@ -373,8 +388,10 @@ public sealed class EcuConnection : IDisposable
         {
             int take = Math.Min(chunk, data.Length - at);
 
-            Request(command.Build(
-                offset + at, take, Settings.CanId, littleEndian, identifier, data.Slice(at, take)));
+            Request(
+                command.Build(
+                    offset + at, take, Settings.CanId, littleEndian, identifier, data.Slice(at, take)),
+                context: $"write page {page.Index} @{offset + at}");
 
             at += take;
 
@@ -433,7 +450,8 @@ public sealed class EcuConnection : IDisposable
                 RealtimeCommand.Parse(page.BurnCommand)
                     .Build(0, 1, Settings.CanId, littleEndian, identifier),
                 attempts: 1,
-                within: Settings.BurnTimeout);
+                within: Settings.BurnTimeout,
+                context: $"burn page {page.Index}");
         }
         catch (EcuProtocolException e) when (!e.Refused)
         {
@@ -487,7 +505,8 @@ public sealed class EcuConnection : IDisposable
             int take = Math.Min(chunk, count - at);
             byte[] piece = Request(
                 command.Build(offset + at, take, Settings.CanId, littleEndian, identifier),
-                expected: take);
+                expected: take,
+                context: $"read page {page.Index} @{offset + at}");
 
             piece.AsSpan(0, take).CopyTo(image.AsSpan(at));
             at += take;
@@ -513,16 +532,19 @@ public sealed class EcuConnection : IDisposable
     /// the one request that is allowed to take its time.
     private byte[] Request(
         ReadOnlySpan<byte> payload, bool retryRefusals = true, int expected = 0, int attempts = 0,
-        TimeSpan? within = null)
+        TimeSpan? within = null, string context = "")
     {
         byte[] framed = MsProtocol.Frame(payload);
         EcuProtocolException? last = null;
+        var stopwatch = Trace is null ? null : Stopwatch.StartNew();
 
         int tries = attempts > 0 ? attempts : Settings.Retries + 1;
 
         for (int attempt = 0; attempt < tries; attempt++)
         {
             if (attempt > 0) Retries++;
+
+            stopwatch?.Restart();
 
             try
             {
@@ -534,7 +556,14 @@ public sealed class EcuConnection : IDisposable
                 if (expected > 0 && data.Length != expected)
                     throw new EcuProtocolException(
                         $"The reply carried {data.Length} bytes where {expected} were asked for; "
-                        + "it belongs to an earlier request.");
+                        + "it belongs to an earlier request.")
+                    {
+                        FailureKind = WireFailureKind.Malformed,
+                    };
+
+                Trace?.Record(
+                    context, attempt, stopwatch!.Elapsed, WireOutcome.Ok,
+                    requestBytes: framed.Length, replyBytes: data.Length);
 
                 return data;
             }
@@ -547,7 +576,14 @@ public sealed class EcuConnection : IDisposable
             catch (Exception e) when (e is EcuProtocolException or IOException)
             {
                 last = e as EcuProtocolException
-                       ?? new EcuProtocolException($"The link to the ECU failed: {e.Message}");
+                       ?? new EcuProtocolException($"The link to the ECU failed: {e.Message}")
+                       {
+                           FailureKind = WireFailureKind.TransportError,
+                       };
+
+                Trace?.Record(
+                    context, attempt, stopwatch!.Elapsed, WireOutcome.Failure,
+                    last.FailureKind, last.Message, requestBytes: framed.Length);
 
                 // Wait for the link to fall silent before trying again. A fixed
                 // pause is not enough: over Bluetooth a reply can still be on its
@@ -561,7 +597,10 @@ public sealed class EcuConnection : IDisposable
             }
         }
 
-        throw last ?? new EcuProtocolException("The ECU did not reply.");
+        throw last ?? new EcuProtocolException("The ECU did not reply.")
+        {
+            FailureKind = WireFailureKind.Timeout,
+        };
     }
 
     /// <summary>
@@ -603,18 +642,25 @@ public sealed class EcuConnection : IDisposable
     private ReadOnlySpan<byte> ReadFrame(TimeSpan within)
     {
         int header = _transport.Read(_buffer.AsSpan(0, 2), within);
-        if (header < 2) throw new EcuProtocolException("The ECU did not reply.");
+        if (header < 2)
+            throw new EcuProtocolException("The ECU did not reply.") { FailureKind = WireFailureKind.Timeout };
 
         int length = (_buffer[0] << 8) | _buffer[1];
         if (length < 1 || 2 + length + 4 > _buffer.Length)
-            throw new EcuProtocolException($"The ECU declared a {length} byte reply, which is not usable.");
+            throw new EcuProtocolException($"The ECU declared a {length} byte reply, which is not usable.")
+            {
+                FailureKind = WireFailureKind.Malformed,
+            };
 
         int wanted = length + 4;
         int body = _transport.Read(_buffer.AsSpan(2, wanted), within);
 
         if (body < wanted)
             throw new EcuProtocolException(
-                $"The reply stopped after {body} of {wanted} bytes.");
+                $"The reply stopped after {body} of {wanted} bytes.")
+            {
+                FailureKind = WireFailureKind.ShortReply,
+            };
 
         return _buffer.AsSpan(0, 2 + wanted);
     }

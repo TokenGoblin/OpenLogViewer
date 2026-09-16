@@ -146,6 +146,14 @@ public sealed class AgentServer : IDisposable
 
     private async Task Handle(HttpListenerContext context)
     {
+        // Every request that reaches here is, by construction, an agent asking
+        // for something — this is the one chokepoint every route and the
+        // WebSocket both pass through. Anything downstream that ends up talking
+        // to an ECU is tagged accordingly in the wire trace, which is what tells
+        // "the AI asked for this" apart from a person clicking a button, since
+        // the two look identical on the wire otherwise.
+        using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
+
         try
         {
             if (!Authorised(context.Request))
@@ -227,9 +235,10 @@ public sealed class AgentServer : IDisposable
                     api = 1,
                     endpoints = new[]
                     {
-                        "GET /state", "GET /channels", "GET /values?channel=&seconds=",
+                        "GET /state", "GET /channels?raw=", "GET /values?channel=&seconds=",
                         "GET /insights", "GET /tune", "GET /tables", "GET /table?name=",
                         "POST /tune/set", "POST /table/set", "WS /live/stream",
+                        "GET /wire/health", "GET /wire/events?count=",
                         "GET /project", "POST /project/record", "POST /project/fix",
                         "POST /project/keep", "POST /project/versions/compare",
                     },
@@ -241,7 +250,15 @@ public sealed class AgentServer : IDisposable
                 return;
 
             case "/channels":
-                await Send(context, _bridge.Channels()).ConfigureAwait(false);
+                await Send(context, _bridge.Channels(raw: query["raw"] == "true")).ConfigureAwait(false);
+                return;
+
+            case "/wire/health":
+                await Send(context, _bridge.WireHealth()).ConfigureAwait(false);
+                return;
+
+            case "/wire/events":
+                await Send(context, _bridge.WireEvents(WireEventCount(query["count"]))).ConfigureAwait(false);
                 return;
 
             case "/values":
@@ -455,6 +472,10 @@ public sealed class AgentServer : IDisposable
             ? Math.Max(0, seconds)
             : 0;
 
+    /// <summary>How many wire events to hand back, defaulting to a screenful and capped at 500.</summary>
+    private static int WireEventCount(string? text) =>
+        int.TryParse(text, out int count) ? Math.Clamp(count, 0, 500) : 100;
+
     /// <summary>A table as numbers rather than as an object graph.</summary>
     private static object Flatten(TuneTable table)
     {
@@ -500,7 +521,24 @@ public sealed class AgentServer : IDisposable
         LiveSubscriber[] watching;
         lock (_gate) watching = [.. _subscribers];
 
-        foreach (LiveSubscriber subscriber in watching) subscriber.Offer(seconds, names, values);
+        foreach (LiveSubscriber subscriber in watching) subscriber.Offer(raw: false, seconds, names, values);
+    }
+
+    /// <summary>
+    /// The same fan-out as <see cref="Publish"/>, for the full unfiltered
+    /// channel set. A separate call rather than a parameter on one, because the
+    /// two carry different schemas — a subscriber ignores whichever of the two
+    /// it did not ask for.
+    /// </summary>
+    public void PublishRaw(double seconds, IReadOnlyList<string> names, IReadOnlyList<double> values)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        ArgumentNullException.ThrowIfNull(values);
+
+        LiveSubscriber[] watching;
+        lock (_gate) watching = [.. _subscribers];
+
+        foreach (LiveSubscriber subscriber in watching) subscriber.Offer(raw: true, seconds, names, values);
     }
 
     private async Task Stream(HttpListenerContext context)

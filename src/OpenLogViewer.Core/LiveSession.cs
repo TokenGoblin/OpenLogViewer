@@ -184,6 +184,27 @@ public sealed class LiveSession : IDisposable
     public event Action<LiveSessionStatus>? Updated;
 
     /// <summary>
+    /// True when the source decodes more than it reports through <see cref="Names"/>
+    /// — see <see cref="IRawTelemetrySource"/>.
+    /// </summary>
+    public bool SupportsRawTelemetry => _source is IRawTelemetrySource;
+
+    /// <summary>Every channel the source decodes, raw names included. Empty when unsupported.</summary>
+    public IReadOnlyList<string> RawNames =>
+        _source is IRawTelemetrySource raw ? raw.RawNames : [];
+
+    public IReadOnlyList<string> RawUnits =>
+        _source is IRawTelemetrySource raw ? raw.RawUnits : [];
+
+    /// <summary>
+    /// Every decoded frame at its full width, for a source that supports it.
+    /// Raised alongside <see cref="Frame"/>, on the same poll thread and under
+    /// the same "do not block this" rule — this is the same reading
+    /// <see cref="Frame"/> just carried, not a second one taken.
+    /// </summary>
+    public event Action<double, IReadOnlyList<string>, double[]>? RawFrame;
+
+    /// <summary>
     /// Every decoded frame, as it arrives: the time, the channel names, and the
     /// values in that order.
     ///
@@ -365,6 +386,12 @@ public sealed class LiveSession : IDisposable
                 // is a reading not taken.
                 try { Frame?.Invoke(at, _names, values); }
                 catch (Exception) { /* not this loop's problem to inherit */ }
+
+                if (RawFrame is not null && _source is IRawTelemetrySource { LastRawFrame: { } rawValues } raw)
+                {
+                    try { RawFrame.Invoke(at, raw.RawNames, rawValues); }
+                    catch (Exception) { /* not this loop's problem to inherit */ }
+                }
             }
             catch (Exception)
             {

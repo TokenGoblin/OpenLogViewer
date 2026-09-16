@@ -12,6 +12,14 @@ public sealed class EcuProtocolException(string message) : Exception(message)
     /// again, so retrying one only spends the timeout.
     /// </summary>
     public bool Refused { get; init; }
+
+    /// <summary>
+    /// Which of the ways a wire exchange fails this one was, for the wire trace
+    /// rather than for a person reading the message. Left at its default for
+    /// exceptions thrown before a request is even attempted (a page too small,
+    /// a firmware with no write command) — those never reach <see cref="WireTrace"/>.
+    /// </summary>
+    public WireFailureKind FailureKind { get; init; } = WireFailureKind.None;
 }
 
 /// <summary>Somewhere to send bytes and read them back — a serial port, or a fake in a test.</summary>
@@ -124,12 +132,18 @@ public static class MsProtocol
     public static byte[] Unframe(ReadOnlySpan<byte> reply)
     {
         if (reply.Length < 7)
-            throw new EcuProtocolException($"Reply was {reply.Length} bytes; a framed reply is at least 7.");
+            throw new EcuProtocolException($"Reply was {reply.Length} bytes; a framed reply is at least 7.")
+            {
+                FailureKind = WireFailureKind.ShortReply,
+            };
 
         int length = BinaryPrimitives.ReadUInt16BigEndian(reply);
         if (length < 1 || 2 + length + 4 > reply.Length)
             throw new EcuProtocolException(
-                $"Reply declares {length} bytes but {reply.Length - 6} arrived.");
+                $"Reply declares {length} bytes but {reply.Length - 6} arrived.")
+            {
+                FailureKind = WireFailureKind.Malformed,
+            };
 
         ReadOnlySpan<byte> body = reply.Slice(2, length);
         uint declared = BinaryPrimitives.ReadUInt32BigEndian(reply.Slice(2 + length, 4));
@@ -137,7 +151,10 @@ public static class MsProtocol
 
         if (declared != actual)
             throw new EcuProtocolException(
-                $"Reply failed its checksum ({actual:X8} against {declared:X8}); the link dropped bytes.");
+                $"Reply failed its checksum ({actual:X8} against {declared:X8}); the link dropped bytes.")
+            {
+                FailureKind = WireFailureKind.ChecksumMismatch,
+            };
 
         // An error is marked by the high bit, not by being anything other than
         // zero. There is more than one way for this protocol to say yes: 0x00 is
@@ -154,6 +171,7 @@ public static class MsProtocol
             throw new EcuProtocolException($"The ECU refused the request (status 0x{body[0]:X2}).")
             {
                 Refused = true,
+                FailureKind = WireFailureKind.Refused,
             };
 
         return body[1..].ToArray();

@@ -154,7 +154,30 @@ internal static class Program
              + "Mixture, ManifoldPressure and so on — is the reliable way to find a channel, "
              + "because each firmware spells them differently: a rusEFI calls engine speed "
              + "RPMValue and a MegaSquirt calls it rpm.",
+             new JsonObject
+             {
+                 ["raw"] = Field("boolean",
+                     "True to get every channel the connected ECU's firmware decodes, not just the "
+                     + "ones its own datalog definition names — for finding something nobody thought "
+                     + "to log. Only live connections have anything extra to offer here."),
+             }),
+
+        Tool("olv_wire_health",
+             "How the link to the ECU is actually doing: recent success rate, what kinds of failures "
+             + "happened, how long since the last one, and how long ago the last successful exchange "
+             + "was. Ask this before concluding a read or write failed for a reason in the tune rather "
+             + "than the link.",
              new JsonObject()),
+
+        Tool("olv_wire_events",
+             "The most recent requests actually sent to the ECU, newest first: what each one was "
+             + "for, which attempt it was, how long it took, and how it ended. This is the wire "
+             + "trace — the thing to pull when a read or write behaved unexpectedly and olv_state "
+             + "or a refusal message alone does not say why.",
+             new JsonObject
+             {
+                 ["count"] = Field("integer", "How many events to return, newest first. Defaults to 100, capped at 500."),
+             }),
 
         Tool("olv_values",
              "The samples of one channel, oldest first, with the matching times. On a live "
@@ -294,8 +317,17 @@ internal static class Program
             (string Body, bool Refused) answer = name switch
             {
                 "olv_state" => await Get("/state").ConfigureAwait(false),
-                "olv_channels" => await Get("/channels").ConfigureAwait(false),
+
+                "olv_channels" => await Get(
+                    Bool(arguments, "raw") ? "/channels?raw=true" : "/channels").ConfigureAwait(false),
+
                 "olv_insights" => await Get("/insights").ConfigureAwait(false),
+                "olv_wire_health" => await Get("/wire/health").ConfigureAwait(false),
+
+                "olv_wire_events" => await Get(
+                    arguments.ContainsKey("count")
+                        ? $"/wire/events?count={(int)Number(arguments, "count")}"
+                        : "/wire/events").ConfigureAwait(false),
                 "olv_tune" => await Get("/tune").ConfigureAwait(false),
                 "olv_tables" => await Get("/tables").ConfigureAwait(false),
                 "olv_project" => await Get("/project").ConfigureAwait(false),
@@ -429,6 +461,15 @@ internal static class Program
 
     private static string Text(JsonObject arguments, string name) =>
         arguments[name]?.GetValue<string>() ?? "";
+
+    private static bool Bool(JsonObject arguments, string name)
+    {
+        JsonNode? node = arguments[name];
+        if (node is null) return false;
+
+        try { return node.GetValue<bool>(); }
+        catch (Exception) { return bool.TryParse(node.ToString(), out bool parsed) && parsed; }
+    }
 
     private static double Number(JsonObject arguments, string name)
     {

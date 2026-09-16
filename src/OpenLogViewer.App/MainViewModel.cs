@@ -1281,13 +1281,21 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (ReferenceEquals(_live, value)) return;
 
-            if (_live is not null) _live.Frame -= PublishToAgents;
+            if (_live is not null)
+            {
+                _live.Frame -= PublishToAgents;
+                _live.RawFrame -= PublishRawToAgents;
+            }
 
             _live = value;
 
             // Fed from the poll thread rather than from the repaint, so the
             // stream runs at the ECU's pace rather than the window's.
-            if (_live is not null) _live.Frame += PublishToAgents;
+            if (_live is not null)
+            {
+                _live.Frame += PublishToAgents;
+                _live.RawFrame += PublishRawToAgents;
+            }
         }
     }
 
@@ -1569,6 +1577,17 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private EcuConnection? _ecuConnection;
     private string _ecuTuneSummary = "";
+
+    /// <summary>
+    /// What went over the wire, kept across reconnects rather than rebuilt for
+    /// every <see cref="EcuConnection"/> — a dropped link and the reconnect that
+    /// follows it are one story, and splitting the trace between them would lose
+    /// exactly the evidence worth having.
+    /// </summary>
+    private readonly WireTrace _wireTrace = new();
+
+    /// <summary>What actually happened on the wire, for the Wire Trace window and the agent API.</summary>
+    public WireTrace WireTrace => _wireTrace;
 
     /// <summary>
     /// Internal channel names to the names a session records them under.
@@ -4046,7 +4065,7 @@ KeepBurnedTune();
 
         Disconnect();
 
-        var connection = new EcuConnection(transport, settings);
+        var connection = new EcuConnection(transport, settings) { Trace = _wireTrace };
 
         connection.Open();
 

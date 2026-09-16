@@ -48,11 +48,30 @@ public class AgentServerTests : IDisposable
             WritesArmed = Armed,
         };
 
-        public IReadOnlyList<AgentChannel> Channels() =>
+        public IReadOnlyList<AgentChannel> Channels(bool raw = false) => raw
+            ?
+            [
+                new AgentChannel("RPM", "rpm", 0),
+                new AgentChannel("AFR", "AFR", 2),
+                new AgentChannel("internal_padding_1", "", 0),
+            ]
+            :
+            [
+                new AgentChannel("RPM", "rpm", 0) { Role = "EngineSpeed" },
+                new AgentChannel("AFR", "AFR", 2) { Role = "Mixture" },
+            ];
+
+        public AgentWireHealth WireHealth() =>
+            new(Sampled: 10, Failures: 1, SuccessRate: 0.9,
+                FailuresByKind: new Dictionary<string, int> { ["Timeout"] = 1 },
+                SinceLastSuccessSeconds: 0.4, LongestRecentMs: 12);
+
+        public List<AgentWireEvent> Events { get; } =
         [
-            new AgentChannel("RPM", "rpm", 0) { Role = "EngineSpeed" },
-            new AgentChannel("AFR", "AFR", 2) { Role = "Mixture" },
+            new(1, DateTime.UtcNow, "read realtime", "Human", 0, 3.1, "Ok", "None", ""),
         ];
+
+        public IReadOnlyList<AgentWireEvent> WireEvents(int count) => [.. Events.Take(count)];
 
         public IReadOnlyList<double> Values(string channel, double seconds) =>
             channel == "RPM" ? [800, 3000, 5000] : [14.7, 13.2, 12.6];
@@ -265,6 +284,43 @@ public class AgentServerTests : IDisposable
     }
 
     [Fact]
+    public async Task RawChannelsAreOnlyReturnedWhenAsked()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument normal = JsonDocument.Parse(await client.GetStringAsync("/channels"));
+        Assert.Equal(2, normal.RootElement.GetArrayLength());
+
+        using JsonDocument raw = JsonDocument.Parse(await client.GetStringAsync("/channels?raw=true"));
+        Assert.Equal(3, raw.RootElement.GetArrayLength());
+    }
+
+    [Fact]
+    public async Task WireHealthReportsWhatTheBridgeSays()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument health = JsonDocument.Parse(await client.GetStringAsync("/wire/health"));
+
+        Assert.Equal(10, health.RootElement.GetProperty("sampled").GetInt32());
+        Assert.Equal(1, health.RootElement.GetProperty("failures").GetInt32());
+        Assert.Equal(0.9, health.RootElement.GetProperty("successRate").GetDouble());
+    }
+
+    [Fact]
+    public async Task WireEventsComeBackNewestFirst()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Events.Insert(0, new AgentWireEvent(2, DateTime.UtcNow, "write page 3", "Agent", 0, 5.5, "Ok", "None", ""));
+
+        using JsonDocument events = JsonDocument.Parse(await client.GetStringAsync("/wire/events"));
+
+        Assert.Equal(2, events.RootElement.GetArrayLength());
+        Assert.Equal("write page 3", events.RootElement[0].GetProperty("context").GetString());
+        Assert.Equal("Agent", events.RootElement[0].GetProperty("origin").GetString());
+    }
+
+    [Fact]
     public async Task ValuesComeBackWithTheirTimes()
     {
         (_, _, HttpClient client) = Serve();
@@ -423,6 +479,58 @@ public class AgentServerTests : IDisposable
         using JsonDocument frame = await Next(socket);
         Assert.Equal("frame", frame.RootElement.GetProperty("type").GetString());
         Assert.Equal(13.2, frame.RootElement.GetProperty("v")[0].GetDouble());
+    }
+
+    [Fact]
+    public async Task ARawSubscriberSeesOnlyPublishRawFrames()
+    {
+        // The filtered stream and the raw one are different subscriptions with
+        // different schemas; a subscriber who asked for one must never see a
+        // frame meant for the other.
+        (AgentServer server, _, _) = Serve();
+
+        var socket = new ClientWebSocket();
+        socket.Options.SetRequestHeader("Authorization", $"Bearer {Token}");
+        _running.Add(socket);
+        await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{server.Port}/live/stream"), CancellationToken.None);
+
+        byte[] ask = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { raw = true }));
+        await socket.SendAsync(ask, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        for (int i = 0; i < 200 && server.Subscribers == 0; i++) await Task.Delay(10);
+
+        // Filtered publishes the raw subscriber must ignore, alongside the raw
+        // ones it should see.
+        _ = Task.Run(async () =>
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                server.Publish(i * 0.04, ["RPM"], [3000]);
+                server.PublishRaw(i * 0.04, ["RPM", "internal_padding_1"], [3000, 0]);
+                await Task.Delay(5);
+            }
+        });
+
+        // The subscribe message and the first filtered publish are a race —
+        // exactly like the plain channel filter above — so this reads schemas
+        // until it sees the raw one (two channels) rather than assuming the
+        // first schema already reflects it.
+        int columns = -1;
+
+        for (int message = 0; message < 60 && columns != 2; message++)
+        {
+            using JsonDocument got = await Next(socket);
+            if (got.RootElement.GetProperty("type").GetString() != "schema") continue;
+
+            columns = got.RootElement.GetProperty("channels").GetArrayLength();
+        }
+
+        Assert.Equal(2, columns);
+
+        using JsonDocument frame = await Next(socket);
+        Assert.Equal("frame", frame.RootElement.GetProperty("type").GetString());
+        Assert.Equal(3000, frame.RootElement.GetProperty("v")[0].GetDouble());
+        Assert.Equal(0, frame.RootElement.GetProperty("v")[1].GetDouble());
     }
 
     [Fact]

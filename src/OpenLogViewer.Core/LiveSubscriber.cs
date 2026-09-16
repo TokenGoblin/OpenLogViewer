@@ -37,6 +37,14 @@ internal sealed class LiveSubscriber : IDisposable
     /// <summary>What the agent asked for, or empty for everything.</summary>
     private HashSet<string>? _wanted;
 
+    /// <summary>
+    /// Whether this subscriber watches the full, unfiltered channel set rather
+    /// than the datalog-named one. A second stream rather than a filter on the
+    /// same one, because the two have different schemas — <see cref="Offer"/>
+    /// calls for the stream this subscriber is not watching are simply ignored.
+    /// </summary>
+    private bool _raw;
+
     /// <summary>Resolved once per schema change rather than per frame.</summary>
     private int[] _indices = [];
     private string[] _sent = [];
@@ -61,10 +69,11 @@ internal sealed class LiveSubscriber : IDisposable
     /// Runs on the poll thread. Everything here is a lock over an array copy;
     /// the writing happens on this subscriber's own task.
     /// </summary>
-    public void Offer(double seconds, IReadOnlyList<string> names, IReadOnlyList<double> values)
+    public void Offer(bool raw, double seconds, IReadOnlyList<string> names, IReadOnlyList<double> values)
     {
         lock (_gate)
         {
+            if (raw != _raw) return;
             if (!ReferenceEquals(names, _knownNames)) Resolve(names);
 
             if (_indices.Length == 0) return;
@@ -194,30 +203,41 @@ internal sealed class LiveSubscriber : IDisposable
                 var request = JsonSerializer.Deserialize<Subscribe>(
                     Encoding.UTF8.GetString(buffer, 0, result.Count), Json);
 
-                if (request?.Channels is { } wanted)
+                if (request is not null)
                 {
                     lock (_gate)
                     {
-                        // "*" or an empty list means everything.
-                        _wanted = wanted.Length == 0 || wanted.Contains("*")
-                            ? null
-                            : new HashSet<string>(wanted, StringComparer.OrdinalIgnoreCase);
+                        if (request.Raw is { } raw && raw != _raw)
+                        {
+                            _raw = raw;
 
-                        // Force the columns to be worked out again on the next
-                        // frame, schema and all.
-                        _knownNames = [];
+                            // A different stream entirely, with its own schema.
+                            _knownNames = [];
+                        }
+
+                        if (request.Channels is { } wanted)
+                        {
+                            // "*" or an empty list means everything.
+                            _wanted = wanted.Length == 0 || wanted.Contains("*")
+                                ? null
+                                : new HashSet<string>(wanted, StringComparer.OrdinalIgnoreCase);
+
+                            // Force the columns to be worked out again on the next
+                            // frame, schema and all.
+                            _knownNames = [];
+                        }
                     }
                 }
             }
             catch (JsonException)
             {
-                await Write(new { type = "error", detail = "expected {\"channels\":[…]}" })
+                await Write(new { type = "error", detail = "expected {\"channels\":[…],\"raw\":false}" })
                     .ConfigureAwait(false);
             }
         }
     }
 
-    private sealed record Subscribe(string[]? Channels);
+    private sealed record Subscribe(string[]? Channels, bool? Raw);
 
     private async Task Write(object payload)
     {
