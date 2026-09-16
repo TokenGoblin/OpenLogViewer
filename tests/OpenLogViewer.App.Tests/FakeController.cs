@@ -30,6 +30,13 @@ public sealed class FakeController(string signature, int pageSize = 32, int real
     /// <summary>The page, as the controller holds it.</summary>
     public byte[] Page { get; } = new byte[pageSize];
 
+    /// <summary>
+    /// The realtime block, as the controller reports it. All noughts until a
+    /// test sets otherwise, which decodes as every output channel reading
+    /// zero — an idling or stationary engine, for anything that cares.
+    /// </summary>
+    public byte[] Realtime { get; set; } = new byte[realtimeSize];
+
     /// <summary>What it last committed to flash, or null if it never has.</summary>
     public byte[]? Flash { get; private set; }
 
@@ -75,7 +82,8 @@ public sealed class FakeController(string signature, int pageSize = 32, int real
                 int count = (payload[5] << 8) | payload[6];
 
                 // Page 7 is the realtime block rather than the tune.
-                if (payload[2] == 7) return Reply(new byte[Math.Min(count, realtimeSize)]);
+                if (payload[2] == 7)
+                    return Reply(Realtime.AsSpan(0, Math.Min(count, Realtime.Length)).ToArray());
 
                 if (offset < 0 || count < 1 || offset + count > Page.Length) return Refusal(0x84);
 

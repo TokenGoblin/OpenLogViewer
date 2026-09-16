@@ -96,16 +96,27 @@ public class AgentServerTests : IDisposable
                     "%")
                 : null;
 
-        public AgentRefusal? SetSetting(string name, double value)
+        public string LastRationale { get; private set; } = "";
+
+        public bool LastConfirmDangerous { get; private set; }
+
+        public AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false)
         {
+            LastRationale = rationale;
+            LastConfirmDangerous = confirmDangerous;
+
             if (!Armed) return new AgentRefusal("writes are not armed", "Tick it in the application.");
 
             Written.Add((name, value));
             return null;
         }
 
-        public AgentRefusal? SetTableCell(string table, int column, int row, double value)
+        public AgentRefusal? SetTableCell(
+            string table, int column, int row, double value, string rationale, bool confirmDangerous = false)
         {
+            LastRationale = rationale;
+            LastConfirmDangerous = confirmDangerous;
+
             if (!Armed) return new AgentRefusal("writes are not armed");
 
             Cells.Add((table, column, row, value));
@@ -287,6 +298,76 @@ public class AgentServerTests : IDisposable
         // "the engine is running this" and "the engine will keep running this"
         // is the whole of what a power cycle undoes.
         Assert.Contains("\"burned\":false", await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARationaleAndConfirmDangerousAreCarriedToTheBridgeAndEchoedBack()
+    {
+        // The wire format is the audit trail for this phase: whatever an agent
+        // said as its reason has to reach the bridge unchanged, and come back
+        // in the answer so it is visible without a second call.
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/tune/set",
+            Body(new
+            {
+                name = "revLimit", value = 7000,
+                rationale = "raising the limiter for a dyno pull", confirmDangerous = true,
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal("raising the limiter for a dyno pull", bench.LastRationale);
+        Assert.True(bench.LastConfirmDangerous);
+
+        string body = await answer.Content.ReadAsStringAsync();
+        Assert.Contains("\"rationale\":\"raising the limiter for a dyno pull\"", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATableSetAlsoCarriesRationaleThrough()
+    {
+        (_, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/table/set",
+            Body(new { table = "VE Table", column = 0, row = 0, value = 55, rationale = "smoothing a flat spot" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        Assert.Equal("smoothing a flat spot", bench.LastRationale);
+        Assert.False(bench.LastConfirmDangerous);
+        Assert.Contains("\"rationale\":\"smoothing a flat spot\"",
+                        await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NothingReachableFromTheBridgeNamesAControllerCommandOrABurn()
+    {
+        // [ControllerCommands] on rusEFI includes ignition-coil-fire test
+        // commands, and burning is deliberately human-only. Neither is modelled
+        // anywhere in this interface, and this makes that a checked property:
+        // it fails the build the moment either kind of member is added, rather
+        // than relying on nobody ever adding one.
+        System.Reflection.MemberInfo[] members = typeof(IAgentBridge).GetMembers();
+
+        foreach (System.Reflection.MemberInfo member in members)
+        {
+            string name = member.Name;
+
+            Assert.False(
+                name.Contains("controllercommand", StringComparison.OrdinalIgnoreCase),
+                $"{name} looks like a ControllerCommand, which must never be agent-reachable.");
+
+            Assert.False(
+                name.Contains("cmd_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Cmd", StringComparison.Ordinal),
+                $"{name} looks like a raw controller command, which must never be agent-reachable.");
+
+            Assert.False(
+                name.Contains("burn", StringComparison.OrdinalIgnoreCase),
+                $"{name} looks like a burn, which must stay human-only.");
+        }
     }
 
     [Fact]

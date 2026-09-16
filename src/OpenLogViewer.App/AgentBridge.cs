@@ -154,11 +154,12 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
 
     public IReadOnlyList<string> TableNames() => [.. _viewModel.EcuTables.Select(t => t.Name)];
 
-    public AgentRefusal? SetSetting(string name, double value) =>
-        _viewModel.AgentSetSetting(name, value);
+    public AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false) =>
+        _viewModel.AgentSetSetting(name, value, rationale, confirmDangerous);
 
-    public AgentRefusal? SetTableCell(string table, int column, int row, double value) =>
-        _viewModel.AgentSetTableCell(table, column, row, value);
+    public AgentRefusal? SetTableCell(
+        string table, int column, int row, double value, string rationale, bool confirmDangerous = false) =>
+        _viewModel.AgentSetTableCell(table, column, row, value, rationale, confirmDangerous);
 
     public string ProjectBrief() => _viewModel.ProjectBrief();
 

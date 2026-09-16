@@ -406,7 +406,8 @@ public sealed class AgentServer : IDisposable
             {
                 if (await ReadBody<SetSetting>(context).ConfigureAwait(false) is not { } body) return;
 
-                AgentRefusal? refused = _bridge.SetSetting(body.Name ?? "", body.Value);
+                AgentRefusal? refused = _bridge.SetSetting(
+                    body.Name ?? "", body.Value, body.Rationale ?? "", body.ConfirmDangerous);
 
                 if (refused is not null)
                 {
@@ -414,7 +415,10 @@ public sealed class AgentServer : IDisposable
                     return;
                 }
 
-                await Send(context, new { written = body.Name, body.Value, burned = false }).ConfigureAwait(false);
+                await Send(context, new
+                {
+                    written = body.Name, body.Value, burned = false, rationale = body.Rationale ?? "",
+                }).ConfigureAwait(false);
                 return;
             }
 
@@ -422,8 +426,8 @@ public sealed class AgentServer : IDisposable
             {
                 if (await ReadBody<SetCell>(context).ConfigureAwait(false) is not { } body) return;
 
-                AgentRefusal? refused =
-                    _bridge.SetTableCell(body.Table ?? "", body.Column, body.Row, body.Value);
+                AgentRefusal? refused = _bridge.SetTableCell(
+                    body.Table ?? "", body.Column, body.Row, body.Value, body.Rationale ?? "", body.ConfirmDangerous);
 
                 if (refused is not null)
                 {
@@ -434,6 +438,7 @@ public sealed class AgentServer : IDisposable
                 await Send(context, new
                 {
                     written = body.Table, body.Column, body.Row, body.Value, burned = false,
+                    rationale = body.Rationale ?? "",
                 }).ConfigureAwait(false);
                 return;
             }
@@ -461,9 +466,10 @@ public sealed class AgentServer : IDisposable
         }
     }
 
-    private sealed record SetSetting(string? Name, double Value);
+    private sealed record SetSetting(string? Name, double Value, string? Rationale = null, bool ConfirmDangerous = false);
 
-    private sealed record SetCell(string? Table, int Column, int Row, double Value);
+    private sealed record SetCell(
+        string? Table, int Column, int Row, double Value, string? Rationale = null, bool ConfirmDangerous = false);
 
     private sealed record RecordSitting(string? Note);
 

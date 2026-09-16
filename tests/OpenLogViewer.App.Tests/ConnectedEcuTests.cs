@@ -343,7 +343,7 @@ public class ConnectedEcuTests : IDisposable
 
         Assert.False(vm.AgentWritesArmed);
 
-        AgentRefusal? refused = new AgentBridge(vm).SetSetting("crankingRPM", 400);
+        AgentRefusal? refused = new AgentBridge(vm).SetSetting("crankingRPM", 400, "bench test");
 
         Assert.NotNull(refused);
         Assert.Contains("not armed", refused!.Reason, StringComparison.Ordinal);
@@ -355,7 +355,7 @@ public class ConnectedEcuTests : IDisposable
         MainViewModel vm = Connected(out FakeController board);
         vm.AgentWritesArmed = true;
 
-        Assert.Null(new AgentBridge(vm).SetSetting("crankingRPM", 400));
+        Assert.Null(new AgentBridge(vm).SetSetting("crankingRPM", 400, "bench test"));
 
         // 400 rpm, big-endian, at the offset the firmware declares — the same
         // bytes a person changing it in the dialog would have sent.
@@ -369,7 +369,7 @@ public class ConnectedEcuTests : IDisposable
         MainViewModel vm = Connected(out FakeController board);
         vm.AgentWritesArmed = true;
 
-        new AgentBridge(vm).SetSetting("crankingRPM", 400);
+        new AgentBridge(vm).SetSetting("crankingRPM", 400, "bench test");
 
         Assert.Equal(0, board.Burns);
         Assert.Null(board.Flash);
@@ -425,7 +425,7 @@ public class ConnectedEcuTests : IDisposable
         MainViewModel vm = Connected(out _);
         vm.AgentWritesArmed = true;
 
-        AgentRefusal? refused = new AgentBridge(vm).SetSetting("noSuchThing", 1);
+        AgentRefusal? refused = new AgentBridge(vm).SetSetting("noSuchThing", 1, "bench test");
 
         Assert.NotNull(refused);
         Assert.Contains("no such setting", refused!.Reason, StringComparison.Ordinal);
@@ -437,7 +437,7 @@ public class ConnectedEcuTests : IDisposable
         MainViewModel vm = Connected(out _);
         vm.AgentWritesArmed = true;
 
-        AgentRefusal? refused = new AgentBridge(vm).SetTableCell("VE Table", 99, 0, 50);
+        AgentRefusal? refused = new AgentBridge(vm).SetTableCell("VE Table", 99, 0, 50, "bench test");
 
         Assert.NotNull(refused);
         Assert.Contains("not in the table", refused!.Reason, StringComparison.Ordinal);
