@@ -94,6 +94,31 @@ public class TuneSettingsEditTests
     }
 
     [Fact]
+    public void AnOutOfRangeOriginalCanStillBeWrittenBackToItself()
+    {
+        // A byte holding 255, scaled by 0.1, reads as 25.5 - the firmware's own
+        // value, sitting outside the declared 0-12 range. A real ECU does this:
+        // a "disabled" sentinel that predates any edit, not something a write
+        // produced. The range guard exists to stop a new out-of-range write, not
+        // to make an already out-of-range setting permanently unwritable.
+        var edit = new TuneSettingsEdit(Tune((4, 255)));
+
+        Assert.Equal(25.5, edit.Original("dwell"), precision: 6);
+
+        // Moving away from the sentinel and back again must not get stuck: the
+        // firmware's own value has to stay writable even once the working copy
+        // no longer holds it.
+        Assert.True(edit.Set("dwell", 6.0));
+        Assert.True(edit.Set("dwell", 25.5));
+        Assert.Equal(25.5, edit.Value("dwell"), precision: 6);
+        Assert.False(edit.HasChanges);
+
+        // A different out-of-range value - not the one the firmware itself
+        // reported - is still refused.
+        Assert.False(edit.Set("dwell", 99));
+    }
+
+    [Fact]
     public void AValueThatIsNotANumberIsRefused()
     {
         var edit = new TuneSettingsEdit(Tune());
