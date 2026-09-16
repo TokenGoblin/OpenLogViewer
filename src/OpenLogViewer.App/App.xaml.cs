@@ -116,18 +116,22 @@ public partial class App : Application
                     : null);
         }
 
-        // "--agent-api [port]" starts the local API without anybody clicking.
-        // It still opens read-only: there is deliberately no flag that arms
-        // writing, so the decision that lets a program change an engine cannot
-        // be made once in a shortcut and then forgotten about.
+        // The agent API is on by default now — a light and a labelled toggle
+        // in the toolbar say so, and turning it off is one click. "--agent-api
+        // [port]" only picks the port; it does not gate whether the API
+        // starts. It still opens read-only: there is deliberately no flag
+        // that arms writing, so the decision that lets a program change an
+        // engine cannot be made once in a shortcut and then forgotten about.
+        //
+        // A single call site on purpose. A second path that could also start
+        // it (an auto-start in the window's constructor, say) would race this
+        // one and silently win with the wrong port — which is exactly what
+        // happened before this comment was written.
         int agent = Array.IndexOf(e.Args, "--agent-api");
-        if (agent >= 0)
-        {
-            window.StartAgentApi(
-                agent + 1 < e.Args.Length && int.TryParse(e.Args[agent + 1], out int port) && port > 0
-                    ? port
-                    : 8765);
-        }
+        window.StartAgentApi(
+            agent >= 0 && agent + 1 < e.Args.Length && int.TryParse(e.Args[agent + 1], out int port) && port > 0
+                ? port
+                : 8765);
 
         // "--connect-ssm COM10" opens a Subaru over its own protocol, which is a
         // deliberate choice rather than something guessed from the adapter.

@@ -157,10 +157,12 @@ public partial class MainWindow : Window
     /// <summary>
     /// Starts or stops the local API an agent watches the session through.
     ///
-    /// Asked before starting rather than toggled quietly, because it opens a
-    /// socket — which is the one thing this application does that somebody might
-    /// reasonably want to be told about before it happens rather than after.
-    /// Stopping asks nothing; closing a door never needs confirming.
+    /// A plain toggle, not a confirmation dialog: the API is on by default and
+    /// the toolbar's light and labelled button say so at a glance, so turning
+    /// it back on after switching it off is a decision the person already made
+    /// once, visibly, and does not need to be asked to make twice. It still
+    /// cannot change anything unless "Allow AI writes" is separately armed,
+    /// and it can never burn.
     /// </summary>
     private void OnAgentApiClick(object sender, RoutedEventArgs e)
     {
@@ -170,22 +172,6 @@ public partial class MainWindow : Window
             Report("The agent API is off and the socket is closed.");
             return;
         }
-
-        MessageBoxResult answer = MessageBox.Show(
-            this,
-            "Start the agent API?\n\n"
-            + "This opens a socket on 127.0.0.1 that a program on this machine — an AI "
-            + "assistant, or a script — can read the live session and the log through.\n\n"
-            + "It listens to this machine only, never to the network, and every request "
-            + "needs a token which is written into your workspace folder.\n\n"
-            + "It cannot change anything unless you separately tick \"Allow agent writes\", "
-            + "and it can never burn.",
-            "OpenLogViewer",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Question,
-            MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
 
         Report(_vm.StartAgentApi());
     }

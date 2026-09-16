@@ -12,7 +12,7 @@ Ordered by what would do the most damage if it is wrong.
 
 | | |
 |---|---|
-| **Speeduino** | COM14, Arduino Mega. A bench board. Opening the port resets it, so anything unburned is undone by reconnecting — the safest thing to test on. Launch control is **enabled** at a 2,700 rpm soft limit, so its rev limits are not inert. |
+| **Speeduino** | An Arduino Mega, currently enumerating as COM4 — the number drifts with whatever else has claimed a port since, so check `[System.IO.Ports.SerialPort]::GetPortNames()` rather than trust a number written down here. A bench board. Opening the port resets it, so anything unburned is undone by reconnecting — the safest thing to test on. Launch control is **enabled** at a 2,700 rpm soft limit, so its rev limits are not inert. |
 | **rusEFI** | COM8, uaEFI board. Bench, USB power. Reset with `cmd_reset_controller` = `Z\x00\xbb\x00\x00` framed and written straight at the transport. **Nothing else in `[ControllerCommands]` should be sent casually — it also holds `cmd_test_spk1..12`, which fire ignition coils.** |
 | **MicroSquirt** | COM3, and it is **in a live car**. Read-only unless explicitly asked. |
 
@@ -59,13 +59,18 @@ The whole reason it was built for speed, and it has only ever seen a log.
   slowing down
 - Check the schema is re-sent when the channel set changes
 
-## 4. An agent writing to a real controller
+## 4. An agent writing to a real controller — done, on the Speeduino
 
-`SetSetting` and `SetTableCell` have only been driven against `FakeController`.
+`SetSetting` had only been driven against `FakeController`. Verified live: armed
+writes, changed `displayB1`/`displayB2` through `/tune/set` and `/tune/apply`,
+read each back off the ECU, then restored the originals. Disconnected and
+confirmed `writesArmed` flipped to `false` and a write was refused ("writes are
+not armed... it clears itself on disconnect") until re-armed. There is no burn
+route on the agent API at all — `/tune/apply`, `/tune/set` and `/table/set` all
+answer `burned:false`, and nothing in the route table can trigger one.
 
-- Arm writes, change one setting through the API, read it back off the ECU
-- Confirm the arming clears on disconnect and the next write is refused
-- Confirm there is still no way to burn through it
+`SetTableCell` (`/table/set`) is still untried on real hardware — the settings
+path above doesn't exercise the table-cell code path.
 
 ## 5. MicroSquirt burn
 
@@ -108,38 +113,50 @@ Small, but both were changed and neither has been seen working:
 - Confirm `GET /wire/health` moves the way a person watching the link would
   expect: success rate drops, `sinceLastSuccessSeconds` climbs
 
-## 10. Propose/apply against a real controller
+## 10. Propose/apply against a real controller — partly done
 
-`/tune/propose` and `/tune/apply` have only been driven against `FakeController`.
+`/tune/propose` and `/tune/apply` had only been driven against `FakeController`.
 
-- Propose a multi-setting change and confirm the diff matches what TunerStudio
-  itself reports for the same file
-- Apply it, read the tune back, confirm the values landed
-- Confirm the auto-captured `TuneVersion`'s note carries the rationale that was
-  sent with the write
+- **Done.** Proposed a two-setting change (`displayB1`, `displayB2`); the diff
+  came back with real before/after values off the live ECU. Applied it, read
+  the tune back, confirmed both landed, then applied the reverse to restore
+  the originals.
+- ~~Confirm the diff matches what TunerStudio itself reports for the same
+  file~~ — not compared against TunerStudio; nothing above opened the same
+  tune there.
+- ~~Confirm the auto-captured `TuneVersion`'s note carries the rationale that
+  was sent with the write~~ — not checked; no tuning project was open during
+  these calls.
 
-## 11. Guardrails on a live, running engine
+## 11. Guardrails on a live, running engine — two of three done
 
-The RPM check, the rate limit, and the dangerous-constant confirmation are all
+The RPM check, the rate limit, and the dangerous-constant confirmation were all
 unit-tested against a scripted RPM channel, never a real one.
 
-- With the Speeduino bench board actually running (not idling), confirm
-  `/tune/apply` and `/tune/set` refuse with "the engine is running above idle"
-- Confirm a write to a constant `DangerousConstants` recognises (`revLimit` on
-  this bench INI) is refused without `confirmDangerous:true` and goes through with it
-- Send more than ten writes in five seconds and confirm the eleventh is refused
-  rather than queued
+- ~~With the Speeduino bench board actually running (not idling), confirm
+  `/tune/apply` and `/tune/set` refuse with "the engine is running above idle"~~
+  — still open. The bench board was at RPM 0 (off) for everything below;
+  nothing here has exercised the RPM check itself.
+- **Done.** `hardRevLim` (matches the `RevLimiter` role) was refused without
+  `confirmDangerous:true` — `"hardRevLim" matches the RevLimiter guard... Pass
+  confirmDangerous:true if this change is intentional` — and went through once
+  it was passed.
+- **Done, with a wrinkle worth knowing.** Eleven `/tune/set` calls in one
+  second: the first ten answered `409 "the write did not go through... Nothing
+  has been changed"` because the value sent equalled the value already there,
+  and the eleventh still hit the rate limit — `10 agent writes landed in the
+  last 5 seconds`. So the limiter counts attempts, including ones the no-op
+  guard itself refused, not just writes that actually changed something.
 
-## 12. `[ControllerCommands]` stays unreachable
+## 12. `[ControllerCommands]` stays unreachable — done, on the Speeduino
 
 A negative test, best proven once against real hardware where getting it wrong
-has a concrete consequence.
-
-- Confirm no `/tune/apply`, `/tune/set`, or `/table/set` payload, and no MCP
-  tool call, can be coerced into reaching rusEFI's `cmd_test_spk1..12` — the
-  standing reflection test only proves `IAgentBridge` names nothing burn- or
-  command-shaped, not that a value can't be smuggled through a field that
-  happens to alias a controller command
+has a concrete consequence. Tried `/tune/set` with `name: "cmdtestinj1on"` —
+Speeduino's `[ControllerCommands]` includes `cmdtestinj1on`/`cmdtestinj1off`,
+which fire an injector directly. Refused as `"no such setting"` rather than
+reaching the transport. Still worth doing on rusEFI too, since its
+`cmd_test_spk1..12` fires ignition coils rather than an injector and nothing
+above touched that board.
 
 ## 13. Staged files actually open where they're meant to
 

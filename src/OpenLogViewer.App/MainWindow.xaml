@@ -22,7 +22,50 @@
             to "R…" and "T…". Anything added later goes in a menu; the toolbar
             below is for the few things reached constantly.
         -->
-        <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="{DynamicResource Panel}" Padding="6,1">
+        <DockPanel DockPanel.Dock="Top" Background="{DynamicResource Panel}">
+
+            <!--
+                AI connectivity, inline with File/View/Tools/Help rather than a
+                row of its own — this is reached constantly enough, and is
+                exactly the kind of thing a person should see without going
+                looking for it, but a whole extra row was more than it earns.
+                Docked right within the same row the menu occupies, so nothing
+                below the menu bar moves.
+
+                The light reuses the same two bindings the status bar's
+                activity dot already used: grey when nothing is listening,
+                Accent once the socket is open, and Marker the moment a write
+                actually reaches the ECU.
+            -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" Margin="0,0,10,0"
+                        VerticalAlignment="Center" ToolTip="{Binding AgentSummary}">
+                <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{DynamicResource Faint}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AgentIsRunning}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource Accent}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding AgentIsWritingToEcu}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource Marker}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+
+                <Button Content="{Binding AgentToggleLabel}" Click="OnAgentApiClick" Padding="8,2"
+                        ToolTip="A local API an AI assistant or a script can watch this session through. Click to turn off; click again to turn back on"/>
+
+                <ToggleButton Content="Allow AI writes" Margin="6,0,0,0" Padding="8,2"
+                              Style="{StaticResource ToolbarToggle}"
+                              IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"
+                              IsEnabled="{Binding AgentIsRunning}"
+                              ToolTip="Lets an agent change settings in the ECU's working memory. It never burns, and this clears itself on disconnect"/>
+            </StackPanel>
+
+            <Menu x:Name="MainMenu" Background="Transparent" Padding="6,1">
             <MenuItem Header="_File">
                 <MenuItem Header="_Open log…" Click="OnOpenClick" InputGestureText="Ctrl+O"/>
                 <MenuItem Header="Open _tune…" Click="OnOpenTuneClick"
@@ -169,19 +212,21 @@
                           ToolTip="Calculated channels that estimate horsepower from the log"/>
                 <Separator/>
 
-                <!--
-                    Off until it is asked for, because it opens a socket. The two
-                    entries are deliberately apart: starting the API lets an
-                    agent read, which is harmless, while arming writes is the
-                    separate decision that lets one change the engine.
-                -->
                 <MenuItem Header="Tuning _project…" Click="OnProjectClick"
                           ToolTip="What is wrong with this tune, what has been tried, and whether it worked"/>
                 <Separator/>
 
+                <!--
+                    On by default; the toolbar's light and button are the real
+                    home for this now. Kept here too, since a menu is still
+                    where a person looks first. Deliberately two entries:
+                    starting the API lets an agent read, which is harmless,
+                    while arming writes is the separate decision that lets one
+                    change the engine.
+                -->
                 <MenuItem Header="_Agent API…" Click="OnAgentApiClick"
                           ToolTip="A local API an AI assistant or a script can watch this session through"/>
-                <MenuItem Header="Allow agent _writes"
+                <MenuItem Header="Allow AI _writes"
                           IsCheckable="True"
                           IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"
                           IsEnabled="{Binding AgentIsRunning}"
@@ -196,7 +241,8 @@
                 <Separator/>
                 <MenuItem Header="_About OpenLogViewer" Click="OnAboutClick"/>
             </MenuItem>
-        </Menu>
+            </Menu>
+        </DockPanel>
 
         <!--
             The toolbar: only what is reached constantly.

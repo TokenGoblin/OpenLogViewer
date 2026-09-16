@@ -59,6 +59,9 @@ public partial class MainViewModel
             : $"Listening on {_agent.Address} — {_agent.Subscribers} watching, "
               + (AgentWritesArmed ? "writes armed." : "read-only.");
 
+    /// <summary>What the toolbar's toggle button says: the action a click takes, not the current state.</summary>
+    public string AgentToggleLabel => AgentIsRunning ? "AI API: On" : "AI API: Off";
+
     /// <summary>
     /// Starts the API and writes its token where an agent can find it.
     ///
@@ -90,6 +93,7 @@ public partial class MainViewModel
             Raise(nameof(AgentIsRunning));
             Raise(nameof(AgentAddress));
             Raise(nameof(AgentSummary));
+            Raise(nameof(AgentToggleLabel));
 
             return $"The agent API is listening on {server.Address}. Its token is in {where}.";
         }
@@ -152,6 +156,7 @@ public partial class MainViewModel
         Raise(nameof(AgentIsRunning));
         Raise(nameof(AgentAddress));
         Raise(nameof(AgentSummary));
+        Raise(nameof(AgentToggleLabel));
     }
 
     /// <summary>Hands one live frame to every watching agent. Never blocks.</summary>
