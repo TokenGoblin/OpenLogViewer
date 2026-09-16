@@ -178,7 +178,80 @@ public interface IAgentBridge
 
     /// <summary>Puts one cell of one table into the controller's working memory.</summary>
     AgentRefusal? SetTableCell(string table, int column, int row, double value);
+
+    // ----- composition, for a session that does not want to ask forty times -----
+
+    /// <summary>
+    /// Every scalar and every table in one payload, each setting carrying the
+    /// units/options/range <see cref="TuneConstant"/> already knows about it.
+    ///
+    /// What <see cref="TuneValues"/> plus <see cref="TableNames"/> plus one
+    /// <see cref="Table"/> call per name would otherwise cost a session that
+    /// wants to reason about the whole tune at once, rather than a setting at a
+    /// time.
+    /// </summary>
+    AgentTuneFull TuneFull();
+
+    /// <summary>
+    /// Every channel's samples in one call, windowed by <paramref name="seconds"/>
+    /// exactly as <see cref="Values"/> is, and then thinned by
+    /// <paramref name="decimate"/> — keeping one sample in every that many, one
+    /// for zero or one. A full, undecimated log can run to tens of megabytes as
+    /// JSON, so this is the pragmatic knob rather than a new mechanism.
+    /// </summary>
+    AgentLogFull LogFull(double seconds, int decimate);
+
+    /// <summary>
+    /// One call bundling what is worth reading before anything else: the
+    /// project's own prose, what is connected, how big the tune in hand is, the
+    /// latest findings and the link's health. The literal "read this first" for
+    /// a fresh session — deliberately not the full tune or the full log, which
+    /// stay a further call away once this says they are worth making.
+    /// </summary>
+    AgentContext Context();
 }
+
+/// <summary>One setting, with the metadata worth knowing before writing back to it.</summary>
+public sealed record AgentSetting(string Name, double Value, string Units)
+{
+    /// <summary>What each value means, in order from zero. Empty where the firmware named none.</summary>
+    public IReadOnlyList<string> Options { get; init; } = [];
+
+    /// <summary>The firmware's own usable range, in its displayed units. Null where it states none.</summary>
+    public double? Low { get; init; }
+
+    public double? High { get; init; }
+}
+
+/// <summary>
+/// One table's cells and axes, flattened the same way a single <c>/table</c>
+/// answer is — <see cref="AgentTuneFull"/> is many of these plus every scalar.
+/// </summary>
+public sealed record AgentTable(
+    string Name, string Units, int Columns, int Rows,
+    IReadOnlyList<double> XBins, IReadOnlyList<double> YBins,
+    string XUnits, string YUnits, string XConstant, string YConstant,
+    IReadOnlyList<IReadOnlyList<double>> Values);
+
+/// <summary>The whole tune: every setting and every table, in one payload.</summary>
+public sealed record AgentTuneFull(IReadOnlyList<AgentSetting> Settings, IReadOnlyList<AgentTable> Tables);
+
+/// <summary>One channel's samples, sharing the time column every other channel in the same answer does.</summary>
+public sealed record AgentChannelSamples(string Name, string Units, IReadOnlyList<double> Values);
+
+/// <summary>Every channel of the log in hand, in one call.</summary>
+public sealed record AgentLogFull(IReadOnlyList<double> Times, IReadOnlyList<AgentChannelSamples> Channels);
+
+/// <summary>How big the tune in hand is, without paying for the whole of it.</summary>
+public sealed record AgentTuneSummary(int SettingCount, IReadOnlyList<string> Tables);
+
+/// <summary>The "read this first" bundle for a session that has just started.</summary>
+public sealed record AgentContext(
+    string ProjectBrief,
+    AgentState State,
+    AgentTuneSummary Tune,
+    IReadOnlyList<AgentFinding> Insights,
+    AgentWireHealth WireHealth);
 
 /// <summary>One insight, flattened for a reader that is not a window.</summary>
 public sealed record AgentFinding(string Level, string Topic, string Title, string Detail)

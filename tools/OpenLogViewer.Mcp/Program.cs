@@ -286,6 +286,29 @@ internal static class Program
                  ["value"] = Field("number", "The new value."),
              },
              "table", "column", "row", "value"),
+
+        Tool("olv_tune_full",
+             "The whole tune in one call: every setting with its units/options/range, and every "
+             + "table with its cells and axes. Use this instead of olv_tune plus olv_tables plus "
+             + "an olv_table call per table when you want to reason about the tune as a whole.",
+             new JsonObject()),
+
+        Tool("olv_log_full",
+             "Every channel's samples from the log in hand, in one call, sharing one time column. "
+             + "A full, undecimated log can be tens of megabytes of JSON, so give a decimate stride "
+             + "(e.g. 5 keeps one sample in five) on anything but a short log.",
+             new JsonObject
+             {
+                 ["seconds"] = Field("number", "How many seconds back from the newest sample. Omit for all of them."),
+                 ["decimate"] = Field("integer", "Keep one sample in every this many. Omit or 1 for all of them."),
+             }),
+
+        Tool("olv_context",
+             "The one call to make at the start of a session: the project's own prose, what is "
+             + "connected, how big the tune in hand is, the latest findings and the link's health. "
+             + "Deliberately not the full tune or the full log — ask olv_tune_full or olv_log_full "
+             + "next if this says they are worth reading.",
+             new JsonObject()),
     ];
 
     private static JsonObject Tool(string name, string description, JsonObject properties,
@@ -377,6 +400,16 @@ internal static class Program
                     ["row"] = (int)Number(arguments, "row"),
                     ["value"] = Number(arguments, "value"),
                 }).ConfigureAwait(false),
+
+                "olv_tune_full" => await Get("/tune/full").ConfigureAwait(false),
+
+                "olv_log_full" => await Get(
+                    $"/log/full?seconds={Number(arguments, "seconds")}"
+                    + (arguments.ContainsKey("decimate")
+                        ? $"&decimate={(int)Number(arguments, "decimate")}"
+                        : "")).ConfigureAwait(false),
+
+                "olv_context" => await Get("/context").ConfigureAwait(false),
 
                 _ => throw new InvalidOperationException($"no such tool: {name}"),
             };

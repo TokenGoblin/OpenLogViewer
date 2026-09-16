@@ -163,6 +163,17 @@ public partial class MainViewModel
             : new Dictionary<string, double>();
 
     /// <summary>
+    /// The metadata half of <see cref="AgentTuneValues"/> — the same non-array
+    /// constants, with the units/options/range the firmware declared for each.
+    /// Kept as a second call rather than folded into the dictionary above so that
+    /// endpoint keeps its existing shape.
+    /// </summary>
+    internal IReadOnlyList<TuneConstant> AgentTuneConstants() =>
+        _ecuTune is { } tune && !TuneIsPlaceholder
+            ? [.. tune.Layout.Constants.Where(c => !c.IsArray)]
+            : [];
+
+    /// <summary>
     /// Sets one setting, through the same path and the same gates the dialog
     /// uses.
     /// </summary>
