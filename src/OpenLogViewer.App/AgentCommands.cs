@@ -344,7 +344,12 @@ public partial class MainViewModel
                 "Tick \"Allow agent writes\" in the application. It clears itself on disconnect.");
         }
 
-        if (_ecuConnection is null) return new AgentRefusal("not connected to an ECU");
+        // A MaxxECU over USB has no EcuConnection at all — see _maxxUsbSource —
+        // so this is "neither is live" rather than "the one that matters is
+        // null", or every MaxxECU write would be refused as unconnected while
+        // it plainly is.
+        if (_ecuConnection is null && _maxxUsbSource is null)
+            return new AgentRefusal("not connected to an ECU");
 
         if (TuneIsPlaceholder)
         {

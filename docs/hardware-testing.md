@@ -395,19 +395,38 @@ because the ECU clears that flag on its own the moment the link drops, so
 even a crashed test self-heals. `MaxxWriteStatus.Ok` both times, both writes
 verified.
 
-**Not proven: reading or writing a MaxxECU's tune through this application.**
-`virtual-dyno`'s `ConnectMaxxEcuUsb` reads the tune and adopts it into the
-calibration view on connect; the version wired into `main` deliberately does
-not yet, since that integration is coupled to view-model state
-(`_maxxTuneTrouble`, `AdoptMaxxTune`, `_maxxTables`) that has diverged between
-the two histories and needs its own pass rather than a rushed port. The CAN
-sniffer (`MaxxCanSource`) is likewise untested against a real bus. Live
-telemetry and gauges are what the application itself has proven; the tune
-primitives are proven as a library, not yet as the app's own write path —
-there is no agent-API `/tune/set` guardrail (rationale, magnitude limits,
-dangerous-constant confirmation) in front of a MaxxECU write yet, because
-none of that is wired up for this ECU. Anything writing to one today is
-calling `MaxxTune.Write` directly and is its own guardrail.
+**Tune read and write now proven through the application itself, agent API
+and all.** Rather than port `virtual-dyno`'s `AdoptMaxxTune`/`_maxxTables`
+state directly (diverged too far from `main` to reuse as-is), a new
+`AdoptMaxxTune` was written against what `MaxxTune.Build` already hands
+back: a `MaxxTuneModel` whose `Layout` is a plain `TuneLayout` and whose
+`Tables` are plain `TableDefinition`s — the exact shapes `EcuTune.FromPages`
+and the calibration view already expect from a TunerStudio INI, so the
+MaxxECU blob slots into the same pipeline rather than needing one of its
+own. `WriteSettingsToEcu` gained a MaxxECU branch (`WriteSettingsToMaxxEcu`)
+since it has no `EcuConnection`/page-write-command to speak of — each
+changed run goes straight through `MaxxUsbSource.WriteTune`/`VerifyTune`
+instead, with its own "no burn, already permanent" wording rather than the
+page-protocol path's burn language. `GeneralRefusal`'s "not connected to an
+ECU" check gained the same branch, or every MaxxECU write would have been
+refused as unconnected while plainly live.
+
+Verified live, end to end, through the running application: `--connect-maxx-usb
+MX000000 --agent-api 5088`, confirmed `GET /state` → `"hasTune":true` (was
+`false` before this session's fix). With "Allow AI writes" ticked in the
+app window, `POST /tune/set {"name":"CAN Analyzer Enable","value":1}` →
+`200`, a fresh `GET /tune` confirmed `1`, then set back to `0` and confirmed
+again — the same flag chosen for the class-level test above, for the same
+reason: the ECU clears it on link drop, so even a mistake here self-heals.
+Both writes went through the full agent-API guardrail chain (armed check,
+tune-not-a-placeholder check, rationale required) rather than around it.
+
+**Still not proven:** the CAN sniffer (`MaxxCanSource`) against a real bus,
+and the "engine running above idle" write refusal for a MaxxECU specifically
+— `RunningAboveIdleRefusal` matches channels by `ChannelRole`, and whether a
+MaxxECU's RPM channel resolves to `ChannelRole.EngineSpeed` by name has not
+been checked; if it does not, that one guard silently does not apply here
+while every other one does.
 
 ## 16. The live WebSocket stream breaks on a large schema — found, not fixed
 

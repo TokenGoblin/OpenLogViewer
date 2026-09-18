@@ -1576,6 +1576,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// being attempted down a port that has gone.
     /// </summary>
     private EcuConnection? _ecuConnection;
+
+    /// <summary>
+    /// The same role <see cref="_ecuConnection"/> plays, for a MaxxECU over
+    /// USB — which has no <see cref="EcuConnection"/> at all, since it speaks
+    /// <see cref="MaxxUsbProtocol"/> over an <see cref="IEcuTransport"/> rather
+    /// than TunerStudio's page protocol. Cleared on disconnect, same as
+    /// <see cref="_ecuConnection"/> and for the same reason.
+    /// </summary>
+    private MaxxUsbSource? _maxxUsbSource;
+
     private string _ecuTuneSummary = "";
 
     /// <summary>
@@ -2349,12 +2359,19 @@ public sealed partial class MainViewModel : ObservableObject
     public string WriteSettingsToEcu()
     {
         if (_settingsEdit is not { } edit) return "No tune has been read.";
-        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_tuneLayout is not { } layout || _ecuTune is not { } tune) return "No tune has been read.";
         if (!edit.HasChanges) return "Nothing has been changed.";
 
         IReadOnlyList<TuneWrite> writes = edit.Writes();
         if (writes.Count == 0) return "Nothing has been changed.";
+
+        // A MaxxECU has no EcuConnection/page protocol at all — see
+        // _maxxUsbSource — and taking that branch here rather than after the
+        // connection null-check below is what lets it reach the ECU instead
+        // of being told "not connected" by a check written for the other kind.
+        if (_maxxUsbSource is { } maxx) return WriteSettingsToMaxxEcu(maxx, edit, tune, writes);
+
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
 
         int settings = edit.ChangedCount;
         int bytes = 0, done = 0;
@@ -2402,6 +2419,67 @@ public sealed partial class MainViewModel : ObservableObject
             // What the ECU took stops being a pending change; what it did not
             // stays one. Which is which is answered by comparing, not by
             // counting the writes that got through.
+            edit.Reconcile();
+            OnSettingChanged();
+            Raise(nameof(CanWriteSettings));
+            Raise(nameof(CanBurnSettings));
+        }
+    }
+
+    /// <summary>
+    /// The same job <see cref="WriteSettingsToEcu"/> does for a page-protocol
+    /// ECU, for a MaxxECU over USB instead.
+    ///
+    /// There is no page here and no burn: <see cref="MaxxTune.Write"/> lands
+    /// each run of changed bytes straight at its offset in the one 64 KB blob,
+    /// applied and permanent the moment the ECU answers <see cref="MaxxWriteStatus.Ok"/>.
+    /// So this reads back every write it sends rather than trusting the status
+    /// byte alone — the same "verify before it counts" property the
+    /// page-protocol path gets from its connection doing the read-back itself
+    /// — and it never adds to <see cref="_settingsPagesWritten"/>, because
+    /// there is nothing pending to burn once a write has landed here.
+    /// </summary>
+    private string WriteSettingsToMaxxEcu(
+        MaxxUsbSource source, TuneSettingsEdit edit, EcuTune tune, IReadOnlyList<TuneWrite> writes)
+    {
+        int settings = edit.ChangedCount;
+        int bytes = 0, done = 0;
+
+        try
+        {
+            foreach (TuneWrite write in writes)
+            {
+                MaxxWriteStatus status = source.WriteTune(write.Offset, write.Data);
+
+                if (status != MaxxWriteStatus.Ok)
+                    throw new EcuProtocolException(
+                        $"The MaxxECU answered \"{status}\" for the write at offset {write.Offset}.");
+
+                if (!source.VerifyTune(write.Offset, write.Data))
+                    throw new EcuProtocolException(
+                        $"The MaxxECU took the write at offset {write.Offset} but reads back "
+                        + "something else now.");
+
+                tune.Accept(write);
+                bytes += write.Data.Length;
+                done++;
+            }
+
+            return $"Sent {settings} setting{(settings == 1 ? "" : "s")} "
+                   + $"({bytes:N0} bytes) to the MaxxECU, verified. There is no burn step on this "
+                   + "controller — it is already running them, permanently, and a power cycle will "
+                   + "not undo it.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return done == 0
+                ? $"Nothing was sent: {e.Message}"
+                : $"{done} of {writes.Count} writes reached the ECU ({bytes:N0} bytes), verified, and "
+                  + $"then this failed: {e.Message} Those {done} are already applied and permanent — "
+                  + "there is no burn to skip and no power cycle that undoes them.";
+        }
+        finally
+        {
             edit.Reconcile();
             OnSettingChanged();
             Raise(nameof(CanWriteSettings));
@@ -3572,11 +3650,13 @@ KeepBurnedTune();
 
         SeedMaxxGauges();
 
+        string tuneNote = AdoptMaxxTune(source);
+
         Status = $"Live — MaxxECU (USB)   •   {Live.Names.Count} channels";
         Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
         Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
                + $"session found {source.Channels.Count} of them by listening rather than by "
-               + "being told. Its tune cannot be read here yet, so calibration is not available.";
+               + $"being told. {tuneNote}";
 
         Raise(nameof(IsLive));
         Raise(nameof(LiveDetail));
@@ -3584,6 +3664,78 @@ KeepBurnedTune();
         Raise(nameof(CanRecord));
         Raise(nameof(CanReconnect));
         RaiseRecording();
+    }
+
+    /// <summary>
+    /// Reads a MaxxECU's tune over the same USB link its telemetry is coming
+    /// over, and adopts it into the same calibration view a TunerStudio ECU's
+    /// tune uses — <see cref="MaxxTune.Build"/> hands back a
+    /// <see cref="TuneLayout"/> and a set of <see cref="TableDefinition"/>s in
+    /// exactly the shape that view already expects, so nothing downstream of
+    /// this needs to know the tune came from a blob and a name-address file
+    /// rather than an INI and a page protocol.
+    /// </summary>
+    /// <returns>A sentence for the connect hint, success or failure either way.</returns>
+    private string AdoptMaxxTune(MaxxUsbSource source)
+    {
+        try
+        {
+            byte[] blob = source.ReadTune();
+
+            IReadOnlyList<MaxxSettingDefinition> definitions =
+                MaxxTuneDefinitions.Read(MaxxTuneDefinitions.Find());
+
+            if (definitions.Count == 0)
+            {
+                return "Its tune could not be read: MTune is not installed here, so there is "
+                       + "nothing that names its settings or says where they live.";
+            }
+
+            IReadOnlyDictionary<int, MaxxChannelDefinition> channels =
+                MaxxChannelDefinitions.Read(source.DefinitionsPath ?? MaxxGauges.FindDefinitions());
+
+            MaxxTuneModel model = MaxxTune.Build(blob, definitions, channels);
+
+            _tuneLayout = model.Layout;
+            _ecuTune = EcuTune.FromPages(model.Layout, blob);
+            _maxxUsbSource = source;
+            _ecuTableDefinitions = model.Tables;
+            _ecuInterface = model.Pages;
+            _ecuCurves = new Dictionary<string, TuneCurve>(StringComparer.OrdinalIgnoreCase);
+            _curveNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _settingsEdit = new TuneSettingsEdit(_ecuTune);
+            BuildSettingsMenu();
+
+            EcuTables.Clear();
+            foreach (TuneTable table in Ordered(_ecuTune.Tables(_ecuTableDefinitions)))
+                EcuTables.Add(table);
+
+            EcuTableChoices.Refresh();
+
+            EcuTuneSummary =
+                $"{blob.Length:N0} bytes read from the ECU · {EcuTables.Count} tables · "
+                + $"{_ecuTune.Scalars().Count:N0} settings";
+
+            return $"Its tune came along too — {definitions.Count:N0} settings from MTune's own "
+                   + "definitions, ready to read or change.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"Its tune could not be read: {e.Message}";
+        }
+        finally
+        {
+            Raise(nameof(HasEcuTune));
+            Raise(nameof(NoEcuTune));
+            Raise(nameof(ShowNoTuneNotice));
+            Raise(nameof(EcuTableSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
+            RaiseWriteGates();
+
+            SelectedEcuTable = EcuTables.FirstOrDefault();
+        }
     }
 
     /// <summary>
@@ -4341,6 +4493,7 @@ KeepBurnedTune();
         _live.Dispose();
         Live = null;
         _ecuConnection = null;
+        _maxxUsbSource = null;
         _obd2 = null;
         _obd2Undecoded = [];
 
