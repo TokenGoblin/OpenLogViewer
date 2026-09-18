@@ -67,7 +67,7 @@ public static class MaxxChannelTable
     /// displays them in whichever units the user has chosen. These are the ones
     /// the logs are actually written in.
     /// </summary>
-    private static string UnitForClass(string? unitClass) => unitClass switch
+    internal static string UnitForClass(string? unitClass) => unitClass switch
     {
         "temp" => "deg C",
         "abspressure" => "kPa",

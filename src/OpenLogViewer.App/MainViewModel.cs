@@ -3515,6 +3515,68 @@ KeepBurnedTune();
     }
 
     /// <summary>
+    /// Starts a session against a MaxxECU over its USB cable, which is not a
+    /// serial port and cannot be reached as one.
+    ///
+    /// Confirmed on real hardware: a MaxxECU Race's USB driver (Maxxtuning's
+    /// own, `VID_0403&amp;PID_9728`) installs the FTDI bus half only — no
+    /// `FtdiPort` section, no virtual COM port, ever — so <see cref="ConnectMaxxEcu"/>'s
+    /// <see cref="SerialEcuTransport"/> has nothing to open. This reaches the
+    /// same chip MTune does, through FTDI's own D2XX library
+    /// (<see cref="FtdiEcuTransport"/>), speaking the wire protocol recovered
+    /// from a real MTune session rather than the Bluetooth one
+    /// <see cref="ConnectMaxxEcu"/> uses — the two share no framing at all. See
+    /// <see cref="MaxxUsbProtocol"/>.
+    ///
+    /// Unlike the fixed fourteen-channel Bluetooth subscription, USB is
+    /// self-describing: every channel names itself, so <see cref="MaxxUsbSource"/>
+    /// listens for a couple of seconds at connect and logs whatever it heard.
+    /// Reading and writing the tune itself is not wired up here yet — this
+    /// gets live telemetry and gauges, the same as the Bluetooth path.
+    /// </summary>
+    /// <param name="serial">
+    /// The FTDI chip's own serial number, or empty for whichever MaxxECU the
+    /// D2XX driver can see, when there is exactly one.
+    /// </param>
+    public void ConnectMaxxEcuUsb(string serial = "")
+    {
+        Disconnect();
+
+        var source = new MaxxUsbSource(new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate));
+        string where = serial.Length > 0 ? $"USB {serial}" : "USB";
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
+
+        Live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
+
+        Live.Start();
+
+        _livePort = where;
+        _liveSignature = "MaxxECU";
+        _liveVersion = "";
+        _liveIni = "";
+        _liveRecording = recording ?? "";
+
+        SeedMaxxGauges();
+
+        Status = $"Live — MaxxECU (USB)   •   {Live.Names.Count} channels";
+        Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
+        Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
+               + $"session found {source.Channels.Count} of them by listening rather than by "
+               + "being told. Its tune cannot be read here yet, so calibration is not available.";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
+        RaiseRecording();
+    }
+
+    /// <summary>
     /// Connects to an OBD2 vehicle through an ELM327 adapter.
     ///
     /// The only connection here that needs nothing set up in advance: the

@@ -1236,6 +1236,42 @@ public partial class MainWindow : Window
 
     public void ConnectOverSsm(string port) => StartLiveOverSsm(port);
 
+    /// <summary>
+    /// A MaxxECU reached over FTDI's D2XX driver rather than a COM port — see
+    /// <see cref="MainViewModel.ConnectMaxxEcuUsb"/> for why this exists.
+    /// <paramref name="serial"/> may be left empty to use whichever MaxxECU
+    /// the D2XX driver can see, when there is exactly one.
+    /// </summary>
+    public void ConnectMaxxEcuOverUsb(string serial)
+    {
+        if (string.IsNullOrWhiteSpace(serial) && FtdiEcuTransport.MaxxEcus() is { Count: not 1 } found)
+        {
+            MessageBox.Show(this,
+                found.Count == 0
+                    ? "No MaxxECU was found over the D2XX driver. Check it is plugged in, powered, "
+                      + "and that the FTDI driver is installed."
+                    : $"{found.Count} MaxxECU devices were found over the D2XX driver. Pass a "
+                      + "serial number to choose one: " + string.Join(", ", found.Select(d => d.Serial)),
+                "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            _vm.ConnectMaxxEcuUsb(serial ?? "");
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException
+                                      or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show(this, e.Message, "OpenLogViewer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return;
+        }
+
+        LiveSessionStarted();
+    }
+
     private MenuItem SsmMenu(IReadOnlyList<SerialPortInfo> ports)
     {
         var menu = new MenuItem

@@ -15,6 +15,7 @@ Ordered by what would do the most damage if it is wrong.
 | **Speeduino** | An Arduino Mega, currently enumerating as COM4 — the number drifts with whatever else has claimed a port since, so check `[System.IO.Ports.SerialPort]::GetPortNames()` rather than trust a number written down here. A bench board. Opening the port resets it, so anything unburned is undone by reconnecting — the safest thing to test on. Launch control is **enabled** at a 2,700 rpm soft limit, so its rev limits are not inert. |
 | **rusEFI** | Currently COM5 (was COM8 — same caveat as the Speeduino row: check, don't trust the number). uaEFI board, bench, USB power. Reset with `cmd_reset_controller` = `Z\x00\xbb\x00\x00` framed and written straight at the transport. **Nothing else in `[ControllerCommands]` should be sent casually — it also holds `cmd_test_spk1..12`, which fire ignition coils.** Confirmed unreachable through `/tune/set` even with writes armed (item 12). |
 | **MicroSquirt** | COM3, and it is **in a live car**. Read-only unless explicitly asked. |
+| **MaxxECU Race** | USB only, and never a COM port — see item 15. FTDI `VID_0403&PID_9728`, serial `MX000000`, D2XX driver. Bench, 12 V applied, engine not running. |
 
 Always: back the tune up first, check RPM before writing, and say what was
 verified rather than what was attempted.
@@ -316,6 +317,78 @@ against the live Speeduino: 181 channels, all sane — `map`/`baro` in kPa,
 for a Mega, no `NaN` or wild values anywhere in the set, including the
 fields Speeduino's own `[Datalog]` leaves out of the named channel set
 (`status1`/`status2`/`status3`, `testoutputs`, `errorNum`).
+
+## 15. MaxxECU over USB — done, on a real Race, with a driver dead end resolved
+
+**A MaxxECU's USB is never a COM port.** Confirmed the hard way before any protocol
+work: `SerialEcuTransport` needs one and MaxxECU's own driver (Maxxtuning-signed
+`ftdibus.inf`, labelled `"MaxxECU USB - Bus/D2XX Driver"`) never creates one — no
+`FtdiPort` section, no `ftser2k`, `FT_GetComPortNumber` answers −1. Verified by
+installing MTune, installing its bundled FTDI driver package via `DPInst_x64.exe`,
+uninstalling and replugging the device to force a clean re-enumeration, and
+watching Windows bind it to the same bus-only driver every time. This is vendor
+intent, not a misconfiguration — MTune talks to the same chip through FTDI's
+D2XX library directly, confirmed by watching it hold the device open.
+
+**Blind protocol guessing failed; recovered protocol documents succeeded.**
+`MaxxProtocol.Activation`/`Subscription` are reverse-engineered from *Bluetooth*
+captures and share no byte of framing with USB — a 13-point baud-rate sweep
+(9,600 to 3,000,000) against them produced only small, shifting garbage,
+never a clean reply. What actually worked: three recovered documents
+(`MAXXECU_USB_PROTOCOL_RECOVERED.md` and others, supplied mid-session) from an
+independent reverse-engineering effort that had already captured a real MTune
+session and decompiled the firmware dispatcher. **921,600 baud** — not any of
+the thirteen tried — with its own request/reply framing, its own CRC-32/MPEG-2
+checksum, and a self-describing telemetry stream that names every channel it
+carries rather than needing a subscription agreed in advance.
+
+**The working implementation came from `origin/virtual-dyno`**, an
+independent, unrelated-history line of this same project (no common ancestor
+with `main` — confirmed via `git merge-base`) with roughly 250 commits
+including a complete, tested `FtdiEcuTransport` / `MaxxUsbProtocol` /
+`MaxxUsbSource` built against exactly this protocol. Rather than merge two
+unrelated histories, the relevant files were pulled directly
+(`git checkout origin/virtual-dyno -- <paths>`): the transport, the USB
+protocol and source, the CAN sniffer they share code with (`MaxxCan`,
+`MaxxCanSource`, `CanFrame`), the tune reader/writer (`MaxxTune`,
+`MaxxTuneDefinitions`), and their existing tests — 2,090 tests, all green
+after two small integration fixes (a missing `CanFrame.cs` dependency, and the
+test fixture glob only matching `*.bin`, not the new `*.txt` capture).
+
+**Verified live, end to end, through the real application** — not just the
+library: `--connect-maxx-usb MX000000`, then confirmed over the agent API
+rather than trusted from a window title. `GET /state` → `"mode":"live",
+"signature":"MaxxECU"`; `GET /channels` → 62–70 real named channels
+(`TPS input voltage`, `Coolant temp`, `Battery voltage`, `RPM`, `Lambda` with
+role `Mixture`, …) depending on what happened to be moving when the ECU was
+listened to; `GET /values?channel=Battery%20voltage` → a steady 13.79–13.80 V
+across 125 samples, matching the bench supply; `RPM` a steady `0`, matching an
+engine that is not running. A standalone console probe against the same
+classes confirmed it first (70 channels, five clean rounds) before the
+in-application wiring was trusted.
+
+**A real bug, found by the gap between "the library works" and "the
+application won't connect."** `MaxxUsbSource` discovers its channels *during*
+`Open()` — there is no fixed subscription to know them from in advance, unlike
+every other source here — but `LiveSession.Start()` checked the channel count
+*before* calling `Open()` at all, so every MaxxECU-USB session was refused
+with `"No channels to record"` before the cable was ever spoken to. This
+was already fixed on `virtual-dyno` (`Adopt()` called again, after `Open()`,
+if the list came back empty) and the fix was ported the same way: `_names`/
+`_units`/`_digits`/`_columns` stopped being `readonly`, given `= []`
+initializers to satisfy nullability, and `LiveSession.Start` now opens the
+source before checking rather than after. Caught immediately by a Report()
+trace around the exact call that threw — not by guessing.
+
+**What came along but has not itself been driven against the bench Race yet:**
+tune read/write (`MaxxTune`), the CAN sniffer (`MaxxCanSource`), and full
+tune-editing/calibration UI integration — `virtual-dyno`'s `ConnectMaxxEcuUsb`
+reads the tune and adopts it into the calibration view on connect; the
+version wired into `main` deliberately does not yet, since that integration is
+coupled to view-model state (`_maxxTuneTrouble`, `AdoptMaxxTune`, `_maxxTables`)
+that has diverged between the two histories and needs its own pass rather than
+a rushed port. Live telemetry and gauges are what is proven; reading or
+writing a MaxxECU's tune through this application is not.
 
 ---
 

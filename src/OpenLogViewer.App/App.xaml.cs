@@ -44,6 +44,7 @@ public partial class App : Application
         "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi", "--agent-api", "--tuning-project",
+        "--connect-maxx-usb",
     ];
 
     /// <summary>
@@ -137,6 +138,19 @@ public partial class App : Application
         // deliberate choice rather than something guessed from the adapter.
         int ssm = Array.IndexOf(e.Args, "--connect-ssm");
         if (ssm >= 0 && ssm + 1 < e.Args.Length) window.ConnectOverSsm(e.Args[ssm + 1]);
+
+        // "--connect-maxx-usb [serial]" reaches a MaxxECU over FTDI's D2XX
+        // driver instead of a COM port — its USB never becomes one at all.
+        // The serial number may be left off to use whichever MaxxECU the
+        // D2XX driver can see, when there is only one.
+        int maxxUsb = Array.IndexOf(e.Args, "--connect-maxx-usb");
+        if (maxxUsb >= 0)
+        {
+            window.ConnectMaxxEcuOverUsb(
+                maxxUsb + 1 < e.Args.Length && !e.Args[maxxUsb + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[maxxUsb + 1]
+                    : "");
+        }
 
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
