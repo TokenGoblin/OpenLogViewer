@@ -451,6 +451,51 @@ Speeduino's:
   first 10 landed, the 11th was refused (`"too many writes in a short
   time"`), landed value confirmed at the 10th write's.
 
+**A real, hardware-discovered hazard: a table's cells can alias a named
+setting.** `MaxxTune.TableAt` resolves a table's cell address from the
+ECU's own live config struct; every setting's address comes from the
+definitions file's implicit cursor (`MaxxTuneDefinitions.Read`) — two
+mechanisms that never cross-check each other. A standalone probe reading
+the real blob found `UserTable1`'s cells (`CellsAt=0x5547`) begin one byte
+into `Expmod 4 AIN 7 Offset`'s own declared address (`0x5546`, 2 bytes) —
+confirmed by tracing every write this session made to that cell: each one
+disturbed the shared byte, and the *only* reason nothing was left corrupted
+is that every write in the sequence happened to end on the value `0`, which
+is coincidentally also that setting's original value. A table whose
+breakpoints climb correctly (`Climbs`, the existing sanity check) can still
+resolve to memory that is not really its own.
+
+A first fix refused any such write outright — and immediately proved too
+broad: excluding `"Expmod "` settings (the definitions file declares all
+1,201 of them, for every input and output eight possible expansion modules
+could have, whether or not one is installed) fixed `UserTable1`, but on a
+bench Race with no expansion modules, real, always-used tables collided
+too — `VE Table 1` and `IgnAdv Table 1` both refused, initially against
+Expmod settings, then against a *second*, unrelated pattern
+(`"USERAIN "`, user-configurable analog inputs) the moment Expmod was
+excluded. A name-pattern exclusion list that needs a new entry every time
+a different bench setup surfaces a different kind of optional hardware is
+not a guardrail worth trusting, and refusing on it made ordinary tuning
+tables unwritable on exactly the ECUs least likely to have expansion
+modules — the opposite of what a safety check should do.
+
+Landed instead: `MaxxTune.SettingsOverlapping` reports every overlapping
+name rather than refusing, and `WriteTableToMaxxEcu` still sends the
+write but appends a warning naming what else it touched —
+`AgentCellWrite.Warning` carries it as its own field through
+`POST /table/set` rather than buried in prose. Verified live:
+`UserTable1[0,0]` now succeeds and the response's `"warning"` field names
+`"Expmod 4 AIN 7 Offset"` and seven other overlapping settings; reverted
+and confirmed clean.
+
+**What this does not solve:** whether a real, meaningful collision (not an
+inert, uninstalled-hardware one) could still happen — the warning would
+say so, but nothing stops the write. Whether that is ever actually true on
+a MaxxECU, and whether an ECU *with* expansion modules installed avoids
+this because the firmware's own allocator then correctly treats that
+memory as reserved, is unverified — this bench Race has none to test
+against.
+
 **The idle-refusal role match, checked (partially).** `GET /channels`
 confirmed a MaxxECU's RPM channel does resolve correctly:
 `{"name":"RPM","units":"rpm","role":"EngineSpeed"}` — the same role
