@@ -3489,6 +3489,16 @@ KeepBurnedTune();
         {
             RecordingPath = recording,
             MaximumRate = LiveRate,
+
+            // MaxxEcuSource.Recover proves a reconnect the same way Open does —
+            // by waiting up to MaxxEcuSource.FirstFrameTimeout (8s) for a real
+            // reading, since a cold ECU's activation reply can take that long
+            // whether this is the first connect or the hundredth. At the
+            // default 60s window that quadruples each attempt's cost against
+            // the 2s other sources pay, which is roughly half as many tries
+            // before giving up — widened here to keep a MaxxECU's reconnect
+            // about as persistent as everything else's.
+            ReconnectFor = TimeSpan.FromSeconds(120),
         });
 
         Live.Start();

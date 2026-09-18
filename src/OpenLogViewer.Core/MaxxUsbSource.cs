@@ -230,31 +230,16 @@ public sealed class MaxxUsbSource : ILiveSource
     ///
     /// The link is a cable rather than a radio, so a lost reply is rare — but
     /// the two requests of a round are not independent, and a failed first one
-    /// must not be followed by a read of a length nobody agreed.
+    /// must not be followed by a read of a length nobody agreed. The retry loop
+    /// itself is <see cref="MaxxUsbProtocol.TryAsk"/>, shared with
+    /// <see cref="MaxxTune.Read"/>; what stays here is this source's own
+    /// choices — two attempts, <see cref="ReplyTimeout"/>, the reused
+    /// <see cref="_buffer"/>, and counting a retry against <see cref="Retries"/>.
     /// </summary>
-    private bool Ask(ReadOnlySpan<byte> request, int dataLength, out byte[] data)
-    {
-        int wanted = MaxxUsbProtocol.ReplyLength(dataLength);
-
-        for (int attempt = 0; attempt < 2; attempt++)
-        {
-            if (attempt > 0)
-            {
-                Retries++;
-                _transport.DiscardInput();
-            }
-
-            _transport.Write(request);
-
-            int got = _transport.Read(_buffer.AsSpan(0, wanted), ReplyTimeout);
-
-            if (got == wanted && MaxxUsbProtocol.TryReadReply(_buffer.AsSpan(0, got), dataLength, out data))
-                return true;
-        }
-
-        data = [];
-        return false;
-    }
+    private bool Ask(ReadOnlySpan<byte> request, int dataLength, out byte[] data) =>
+        MaxxUsbProtocol.TryAsk(
+            _transport, request, _buffer.AsSpan(0, MaxxUsbProtocol.ReplyLength(dataLength)),
+            dataLength, ReplyTimeout, attempts: 2, out data, onRetry: () => Retries++);
 
     /// <summary>
     /// Reopens the link.
@@ -293,7 +278,7 @@ public sealed class MaxxUsbSource : ILiveSource
     /// </summary>
     public byte[] ReadTune()
     {
-        lock (_cable) return MaxxTune.Read(_transport);
+        lock (_cable) return MaxxTune.Read(_transport, onRetry: () => Retries++);
     }
 
     /// <summary>
@@ -333,12 +318,19 @@ public sealed class MaxxUsbSource : ILiveSource
     /// </summary>
     public IReadOnlyList<CanFrame> ReadCanFrames(int most)
     {
+        // MaxxCan.Ask validates most (0 < most <= MostPerRead) before building
+        // the request bytes — built first, and not just to have the request
+        // ready: it is what makes an out-of-range most fail with its own clear
+        // ArgumentOutOfRangeException instead of a raw multiplication and an
+        // array allocation seeing that same bad value first.
+        byte[] request = MaxxCan.Ask(most);
+
         int wanted = most * MaxxCan.RecordLength;
         var reply = new byte[MaxxUsbProtocol.ReplyLength(wanted)];
 
         lock (_cable)
         {
-            _transport.Write(MaxxCan.Ask(most));
+            _transport.Write(request);
 
             return _transport.Read(reply, ReplyTimeout) == reply.Length
                    && MaxxUsbProtocol.TryReadReply(reply, wanted, out byte[] data)

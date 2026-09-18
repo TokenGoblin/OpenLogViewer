@@ -64,8 +64,27 @@ public sealed record MaxxSettingDefinition(
         _ => RealtimeType.U16,
     };
 
-    /// <summary>Bytes the whole setting occupies.</summary>
-    public int Size => ElementSize * Length;
+    /// <summary>
+    /// Bytes the whole setting occupies in the blob's linear address space.
+    ///
+    /// A <c>dynamicTable</c> entry is the one exception: what sits at its
+    /// address is a fixed-size config struct — how many columns and rows,
+    /// where the axis and cell data actually live elsewhere in the blob — not
+    /// the cells themselves, which is what <see cref="ElementSize"/> times
+    /// <see cref="Length"/> would compute instead (a table's <c>length</c>
+    /// attribute states the cell grid's own dimensions, e.g. "22,22", and
+    /// falls through <see cref="ElementSize"/>'s switch to a default of 2, so
+    /// the miscomputed size was 968 bytes for a 22×22 table against a real
+    /// footprint of <see cref="MaxxTune.TableConfigSize"/>).
+    ///
+    /// This matters past the one table itself: <see cref="MaxxTuneDefinitions.Read"/>
+    /// advances its cursor by every entry's <see cref="Size"/> to find the
+    /// next implicit address, and two thirds of the file's settings rely on
+    /// that cursor rather than stating an address of their own — so getting
+    /// this wrong for one table silently mis-binds every setting after it
+    /// until the next one that states its address outright.
+    /// </summary>
+    public int Size => IsTable ? MaxxTune.TableConfigSize : ElementSize * Length;
 }
 
 /// <summary>

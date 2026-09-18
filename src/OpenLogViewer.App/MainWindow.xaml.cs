@@ -1256,6 +1256,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Over USB the connect is a blocking listen for the ECU to name its own
+        // channels (MaxxUsbSource's opening self-describe), not an instant
+        // open — the window cannot repaint while that runs, same as the
+        // Bluetooth/serial connect above.
+        Mouse.OverrideCursor = Cursors.Wait;
+
         try
         {
             _vm.ConnectMaxxEcuUsb(serial ?? "");
@@ -1263,10 +1269,21 @@ public partial class MainWindow : Window
         catch (Exception e) when (e is EcuProtocolException or IOException
                                       or UnauthorizedAccessException or InvalidOperationException)
         {
+            // ConnectMaxxEcuUsb assigns _vm.Live before calling Start(), so a
+            // Start() failure (a bad handshake, or the "no channels" case
+            // LiveSession.Start throws for) leaves a broken session sitting
+            // there claiming the device — disconnect to match the state this
+            // catch is actually reporting: not connected.
+            _vm.Disconnect();
+
             MessageBox.Show(this, e.Message, "OpenLogViewer",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
 
             return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
         }
 
         LiveSessionStarted();

@@ -250,7 +250,15 @@ public sealed class LiveSession : IDisposable
         // was ever spoken to.
         if (_names.Length == 0) Adopt();
 
-        if (_names.Length == 0) throw new InvalidOperationException("No channels to record.");
+        if (_names.Length == 0)
+        {
+            // Opened above, and there is no poll thread yet to close it on a
+            // later Stop() — leaving it open here would leak the link (and, on
+            // a serial or D2XX source, the underlying handle) for a session
+            // that never actually starts.
+            try { _source.Dispose(); } catch (Exception) { /* the link may already be gone */ }
+            throw new InvalidOperationException("No channels to record.");
+        }
 
         _clock.Restart();
 
@@ -271,10 +279,19 @@ public sealed class LiveSession : IDisposable
     /// <summary>Takes the channel list from the source, for whichever of the two times it is known.</summary>
     private void Adopt()
     {
-        _names = [.. _source.Names];
-        _units = [.. _source.Units];
-        _digits = [.. _source.Digits];
-        _columns = [.. _names.Select(_ => new List<float>())];
+        // Under the same lock every other reader of these four fields takes
+        // (see Status, AddPoint, ValuesFor and Snapshot) — Start calls this
+        // from whichever thread is opening the link, and without the lock a
+        // repaint mid-Adopt could see _names already replaced but _columns
+        // not yet, which is a length mismatch every reader here assumes can't
+        // happen.
+        lock (_gate)
+        {
+            _names = [.. _source.Names];
+            _units = [.. _source.Units];
+            _digits = [.. _source.Digits];
+            _columns = [.. _names.Select(_ => new List<float>())];
+        }
     }
 
     /// <summary>

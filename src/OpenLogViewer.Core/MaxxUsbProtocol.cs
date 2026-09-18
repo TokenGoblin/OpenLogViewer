@@ -135,6 +135,51 @@ public static class MaxxUsbProtocol
     }
 
     /// <summary>
+    /// Sends a request and reads its reply, retrying the round rather than
+    /// treating one lost byte or bad checksum as a dead link.
+    ///
+    /// Shared by <see cref="MaxxUsbSource"/>'s telemetry and configuration
+    /// requests and <see cref="MaxxTune.Read"/>'s tune pieces — the two used to
+    /// carry this loop separately, at different retry counts, which is exactly
+    /// the kind of drift a caller cannot see and a review has to go looking
+    /// for. The two still differ deliberately: how many attempts, how long
+    /// each waits, and what <paramref name="reply"/> buffer to reuse are all
+    /// the caller's to choose, since a hot polling read and a four-second tune
+    /// dump have very different costs for getting either wrong.
+    /// </summary>
+    /// <param name="reply">
+    /// Sized to <see cref="ReplyLength"/> for <paramref name="dataLength"/> —
+    /// the caller's buffer, so a hot path can reuse one across calls instead
+    /// of allocating a reply-sized array every round.
+    /// </param>
+    /// <param name="onRetry">Called before each attempt past the first, for a caller counting them.</param>
+    public static bool TryAsk(
+        IEcuTransport transport, ReadOnlySpan<byte> request, Span<byte> reply, int dataLength,
+        TimeSpan timeout, int attempts, out byte[] data, Action? onRetry = null)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            if (attempt > 0)
+            {
+                onRetry?.Invoke();
+                transport.DiscardInput();
+            }
+
+            transport.Write(request);
+
+            int got = transport.Read(reply, timeout);
+
+            if (got == reply.Length && TryReadReply(reply[..got], dataLength, out data))
+                return true;
+        }
+
+        data = [];
+        return false;
+    }
+
+    /// <summary>
     /// Reads the telemetry payload into <paramref name="into"/>, returning how
     /// many channels it carried.
     ///

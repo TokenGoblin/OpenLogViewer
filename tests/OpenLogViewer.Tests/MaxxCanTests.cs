@@ -240,9 +240,22 @@ public class MaxxCanTests
     /// setting somebody can be shown by name rather than an address to poke.
     /// </summary>
     [Fact]
-    public void TheEnableFlagIsANamedSettingAtTheAddressTheFirmwareReads()
+    public void TheEnableFlagIsANamedSettingResolvedFromTheDefinitions()
     {
-        Assert.Equal(52658, MaxxCan.EnableAt);
+        MaxxSettingDefinition[] definitions =
+        [
+            new("CAN Analyzer Enable", "uint8", 52658, 1, 1, 0, 1),
+        ];
+
+        Assert.Equal(52658, MaxxCan.EnableAt(definitions));
         Assert.Equal("CAN Analyzer Enable", MaxxCan.EnableSetting);
     }
+
+    /// <summary>
+    /// A machine with no MTune installed has no definitions at all, and
+    /// "unheard of" is not the same claim as "present and off".
+    /// </summary>
+    [Fact]
+    public void TheEnableFlagIsUnknownWithoutDefinitions() =>
+        Assert.Null(MaxxCan.EnableAt([]));
 }

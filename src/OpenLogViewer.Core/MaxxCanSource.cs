@@ -84,10 +84,12 @@ public sealed class MaxxCanSource : ICanSource
     ///
     /// Read from the tune rather than assumed, because the ECU clears the flag
     /// whenever the link drops — so an analyzer armed in MTune an hour ago is not
-    /// armed now, and a silent bus and an unarmed ECU look identical.
+    /// armed now, and a silent bus and an unarmed ECU look identical. False
+    /// where the definitions do not place the setting at all, which is the same
+    /// as not knowing — there is no cable-side way to tell "off" from "unheard of".
     /// </summary>
-    public bool IsArmed(ReadOnlySpan<byte> tune) =>
-        MaxxCan.EnableAt < tune.Length && tune[MaxxCan.EnableAt] != 0;
+    public bool IsArmed(ReadOnlySpan<byte> tune, IReadOnlyList<MaxxSettingDefinition> definitions) =>
+        MaxxCan.EnableAt(definitions) is { } at && at < tune.Length && tune[at] != 0;
 
     /// <inheritdoc/>
     public IReadOnlyList<CanFrame> Read()

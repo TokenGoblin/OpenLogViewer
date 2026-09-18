@@ -181,7 +181,14 @@ public static class MaxxTune
     /// </summary>
     /// <param name="transport">An open link to the ECU.</param>
     /// <param name="progress">Called with bytes read and bytes total.</param>
-    public static byte[] Read(IEcuTransport transport, Action<int, int>? progress = null)
+    /// <param name="onRetry">
+    /// Called before each attempt past the first, for a caller keeping its own
+    /// count — <see cref="MaxxUsbSource"/> folds these into the same
+    /// <see cref="MaxxUsbSource.Retries"/> its telemetry and configuration
+    /// requests count against, so a flaky tune read shows up the same way a
+    /// flaky poll does rather than going unseen.
+    /// </param>
+    public static byte[] Read(IEcuTransport transport, Action<int, int>? progress = null, Action? onRetry = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
 
@@ -191,22 +198,9 @@ public static class MaxxTune
 
         for (int at = 0; at < BlobSize; at += Piece)
         {
-            byte[]? piece = null;
+            byte[] request = MaxxUsbProtocol.Request(MaxxUsbProtocol.Read, ReadTune, at, Piece);
 
-            for (int attempt = 0; attempt < 3 && piece is null; attempt++)
-            {
-                if (attempt > 0) transport.DiscardInput();
-
-                transport.Write(MaxxUsbProtocol.Request(MaxxUsbProtocol.Read, ReadTune, at, Piece));
-
-                int got = transport.Read(reply, timeout);
-
-                if (got == reply.Length
-                    && MaxxUsbProtocol.TryReadReply(reply, Piece, out byte[] data))
-                    piece = data;
-            }
-
-            if (piece is null)
+            if (!MaxxUsbProtocol.TryAsk(transport, request, reply, Piece, timeout, attempts: 3, out byte[] piece, onRetry))
                 throw new EcuProtocolException(
                     $"The MaxxECU stopped answering {Piece} bytes into its tune at offset {at}. "
                     + "Nothing has been changed on the ECU — this is a read.");
@@ -542,6 +536,16 @@ public static class MaxxTune
     }
 
     /// <summary>
+    /// Bytes a <c>dynamicTable</c> entry's config struct occupies at its own
+    /// address — not the cells, which live elsewhere in the blob and are
+    /// found through the struct rather than stored where it is. Shared with
+    /// <see cref="MaxxSettingDefinition.Size"/>, which is what a table
+    /// actually needs to advance the definitions file's implicit-address
+    /// cursor past — the struct that is really there, not the cell grid.
+    /// </summary>
+    public const int TableConfigSize = 21;
+
+    /// <summary>
     /// Works out a table's current shape from its 21-byte config struct.
     ///
     /// The struct is where the per-tune part lives: MTune's definitions say
@@ -551,7 +555,7 @@ public static class MaxxTune
     /// </summary>
     public static MaxxTable? TableAt(ReadOnlySpan<byte> blob, string name, int config)
     {
-        if (config < 0 || config + 21 > blob.Length) return null;
+        if (config < 0 || config + TableConfigSize > blob.Length) return null;
 
         int columns = blob[config + 0x06];
         int rows = blob[config + 0x07];

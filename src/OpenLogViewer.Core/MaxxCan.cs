@@ -58,8 +58,19 @@ public static class MaxxCan
     /// </summary>
     public const string EnableSetting = "CAN Analyzer Enable";
 
-    /// <summary>Where that setting lives, which the firmware reads directly.</summary>
-    public const int EnableAt = 0xCDB2;
+    /// <summary>
+    /// Where <see cref="EnableSetting"/> lives in this tune, or null if MTune's
+    /// definitions do not declare it.
+    ///
+    /// Resolved by name rather than kept as a fixed offset: every other tune
+    /// address in this codebase comes from MTune's own definitions file, which
+    /// is what lets a firmware update move a setting without silently reading
+    /// the wrong byte here. A caller with no definitions loaded — no MTune
+    /// installed — cannot tell whether the analyzer is armed and should treat
+    /// that as "unknown", not "off".
+    /// </summary>
+    public static int? EnableAt(IReadOnlyList<MaxxSettingDefinition> definitions) =>
+        definitions.FirstOrDefault(d => d.Name == EnableSetting)?.Address;
 
     /// <summary>
     /// The command that reads the ECU's runtime memory rather than its tune.
