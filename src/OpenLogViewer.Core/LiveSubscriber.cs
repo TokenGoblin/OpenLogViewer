@@ -27,6 +27,13 @@ internal sealed class LiveSubscriber : IDisposable
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+
+        // See the matching setting in AgentServer.Json: a calculated channel
+        // dividing by zero produces real Infinity, and a frame carrying one
+        // would otherwise fail this subscriber's entire Write, not just the
+        // one value — silently, since Run's WebSocketException handler
+        // reports nothing.
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals,
     };
 
     private readonly WebSocket _socket;
@@ -239,6 +246,25 @@ internal sealed class LiveSubscriber : IDisposable
 
     private sealed record Subscribe(string[]? Channels, bool? Raw);
 
+    /// <summary>
+    /// One call, one frame, the whole payload.
+    ///
+    /// A payload past about 16 KB — rusEFI's raw schema, all 1,028 channel
+    /// names, is roughly 20 — breaks this stream outright on a real board:
+    /// the framework fragments the send into a continuation frame of its own
+    /// accord, and the continuation itself fails (<see cref="WebSocketException"/>,
+    /// "An internal WebSocket error occurred", the socket left <c>Aborted</c>)
+    /// rather than completing the message. Not fixed here: chunking the write
+    /// in application code hit the identical failure on its own second call,
+    /// and raising the accept-time receive buffer
+    /// (<c>HttpListenerContext.AcceptWebSocketAsync</c>'s <c>receiveBufferSize</c>,
+    /// up to its own maximum of 65,536) changed nothing — the same board
+    /// still broke at the same 16,380 bytes regardless. See
+    /// <c>docs/hardware-testing.md</c> item 16 for what was actually tried
+    /// and ruled out; a schema this large needs a different wire shape
+    /// (split across more than one message, most likely) rather than another
+    /// attempt to fit it through one frame.
+    /// </summary>
     private async Task Write(object payload)
     {
         byte[] body = JsonSerializer.SerializeToUtf8Bytes(payload, Json);

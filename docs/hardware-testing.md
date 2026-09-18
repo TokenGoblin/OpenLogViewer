@@ -390,6 +390,91 @@ that has diverged between the two histories and needs its own pass rather than
 a rushed port. Live telemetry and gauges are what is proven; reading or
 writing a MaxxECU's tune through this application is not.
 
+## 16. The live WebSocket stream breaks on a large schema — found, not fixed
+
+Item 3 called the `skipped`-under-backpressure bullet unreproducible and
+otherwise clean. A full-channel sweep against rusEFI's raw stream — 1,028
+channels, the same count `GET /channels?raw=true` returns cleanly over plain
+HTTP — found a real break the earlier, smaller-channel-count testing (Speeduino
+at 181, MaxxECU at ~70) had no way to hit.
+
+**The schema message breaks the connection at exactly 16,380 bytes, every
+time, on real hardware.** Confirmed via a raw client (not this application) so
+the failure is isolated to the wire, not to anything the app does with the
+reply: connect, read the first fragment (16,380 bytes, `EndOfMessage=false`,
+socket state still `Open`) — the second fragment throws
+`WebSocketException: "An internal WebSocket error occurred"` and leaves the
+socket `Aborted`. `LiveSubscriber`'s own exception handling
+(`catch (WebSocketException) { }`) swallows this silently, so from inside the
+application this looks like a subscriber that connected and then went quiet —
+there is nothing in any log to say why.
+
+**Two fixes were tried and both failed to change the outcome:**
+
+- Chunking the write in application code (`LiveSubscriber.Write`, explicit
+  `SendAsync` calls with `endOfMessage:false` then `true`) hit the identical
+  failure on its own second call, at whatever chunk size was tried (8,192
+  included) — the continuation frame itself is what breaks, not the size of
+  what is in it.
+- Raising the accept-time buffer
+  (`HttpListenerContext.AcceptWebSocketAsync`'s `receiveBufferSize`, up to its
+  own documented maximum of 65,536 — 262,144 throws `ArgumentOutOfRangeException`
+  outright, which surfaced as every WebSocket route answering `500` the first
+  time this was tried) changed nothing observable: the same board broke at the
+  same 16,380 bytes regardless of what buffer size was requested.
+
+Both are reverted; the code is back to a single unchunked `SendAsync` and the
+default accept buffer, since neither the chunked write nor the checked-in
+comment explaining the buffer size was doing anything a plain revert did not
+already do more simply.
+
+**What this actually looks like: a `HttpListenerContext`/HTTP.SYS-backed
+WebSocket cannot complete a continuation frame on this machine**, regardless
+of what the managed API is asked for — a platform behaviour underneath both
+attempted fixes rather than something either was positioned to reach. Fixing
+it for real likely means never asking a single WebSocket message to carry
+more than 16 KB in the first place — splitting a large schema across more
+than one message, most plausibly — which is a wire-protocol change, not
+another parameter to try, and is left here rather than rushed.
+
+**Practical impact, and the workaround used for the rest of this session's
+testing:** any firmware whose channel count pushes its schema past ~16 KB —
+1,028 channels is comfortably past it; smaller counts are not — cannot use
+`WS /live/stream` at all right now, raw or not, default channel set or not,
+since rusEFI's *default* schema is the same 1,028 channels as its raw one (no
+curation is happening for this firmware — confirmed via `GET /channels`
+without `?raw=`, also 1,028). `GET /channels`, `GET /tune`, `GET /tune/full`
+and `GET /values` are unaffected — they are plain HTTP responses, not carried
+over this WebSocket at all, and a full read-only sweep of every channel on
+every connected board used those instead.
+
+## 17. Every channel, read-only, on all three boards — done, one real bug fixed
+
+Using `GET /channels` + `GET /log/full` on each connected board (the item 16
+workaround, and the only path that reaches all 1,028 of rusEFI's channels at
+once): Speeduino 81/81 channels, rusEFI 1,028/1,028, MaxxECU 66/66, every one
+of them present with at least one sample in a three-second window.
+
+**A second real bug, found in the process of checking every channel rather
+than the handful item 14 already had:** `GET /values` and `GET /log/full` both
+answered `500 "the application failed to answer"` for rusEFI — for *every*
+channel in the request, not just the one at fault — because rusEFI's
+`Lua: torque` (a user-scriptable calculated channel; this one divides by RPM,
+and the bench engine's RPM is 0) reads `NaN`, and the agent API's JSON
+serializer refuses non-finite numbers by default. Found by binary-checking
+all 1,028 channels individually against `/values` until one produced the
+500 that had already been seen from `/log/full`; the .NET exception message
+named the exact fix it wanted (`JsonNumberHandling.AllowNamedFloatingPointLiterals`),
+applied to both `AgentServer`'s and `LiveSubscriber`'s `JsonSerializerOptions`
+so the same fix covers `GET /values`/`GET /log/full` and the live WebSocket
+frame path together, rather than only the one that happened to get tested.
+`NaN`/`Infinity` are now returned as literal (unquoted) tokens rather than
+crashing the response — not strict RFC 8259 JSON, but the value itself
+(“this calculated channel is dividing by zero right now”) is real information
+a caller is better off seeing than a silently-substituted 0 or null. Verified
+live: `GET /values?channel=Lua%3A%20torque` now answers `200` with a run of
+literal `NaN`s; the full rusEFI sweep above is with this fix in place.
+
 ---
 
 ## Not hardware, still open

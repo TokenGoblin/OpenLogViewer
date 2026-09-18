@@ -59,6 +59,17 @@ public sealed class AgentServer : IDisposable
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+
+        // Found live: a rusEFI Lua-scripted channel ("Lua: torque") divides by
+        // RPM, and a stopped bench engine's RPM is 0 — real Infinity, in a
+        // real channel, and the whole of /values or /log/full answered 500
+        // for every other channel in the request along with it, since the
+        // .NET serializer refuses non-finite numbers by default. Allowed
+        // rather than the value silently replaced with 0 or null: a caller
+        // asking "what is this channel doing right now" is better told
+        // Infinity than told a plausible-looking number that is not what the
+        // firmware actually computed.
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals,
     };
 
     private readonly IAgentBridge _bridge;
