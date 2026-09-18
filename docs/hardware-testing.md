@@ -421,6 +421,36 @@ reason: the ECU clears it on link drop, so even a mistake here self-heals.
 Both writes went through the full agent-API guardrail chain (armed check,
 tune-not-a-placeholder check, rationale required) rather than around it.
 
+**Table-cell writes and the rest of the guardrail chain, also proven live.**
+`WriteTableToEcu` had the identical `EcuConnection`-only assumption
+`WriteSettingsToEcu` did, so `/table/set` refused every MaxxECU table write
+as "not connected" even with a tune adopted and writes armed — found by
+trying it, fixed the same way (`WriteTableToMaxxEcu`, through
+`MaxxUsbSource.WriteTune`/`VerifyTune`). Fixing it exposed a real ordering
+regression the first fix had introduced: moving the connection check after
+the tune-presence check changed what "neither connected nor tuned" says,
+caught by `TableEditWorkflowTests.NothingCanBeSentWithoutAConnection`. Both
+write paths now check "is anything connected at all" first and branch to
+the MaxxECU-specific path only afterward, preserving the original order.
+
+Verified live: a `UserTable1` cell write (0→42) through `POST /table/set`,
+confirmed via `GET /table`, reverted and confirmed again. Then the other two
+guardrails `/limits` advertises, against real MaxxECU settings rather than
+Speeduino's:
+- **Magnitude limit** — "Lambdareg dummy04" (declared range 20–2000): a
+  1,910-unit step was refused (`"that change is too large for one write"`),
+  confirmed the value hadn't moved, then a 30-unit step went through and was
+  reverted.
+- **Dangerous-constant confirmation** — "RevLimit Table" (a real rev-limiter
+  table, matched by `DangerousConstants` on the substring "revlimit") was
+  refused without `confirmDangerous:true` (`"this setting needs
+  confirmDangerous:true"`), confirmed unchanged afterward. Deliberately not
+  completed with confirmation — refusing is what needed proving, not an
+  actual edit to a real rev limiter.
+- **Rate limit** — 11 rapid `/table/set` calls to the same safe cell: the
+  first 10 landed, the 11th was refused (`"too many writes in a short
+  time"`), landed value confirmed at the 10th write's.
+
 **Still not proven:** the CAN sniffer (`MaxxCanSource`) against a real bus,
 and the "engine running above idle" write refusal for a MaxxECU specifically
 — `RunningAboveIdleRefusal` matches channels by `ChannelRole`, and whether a
