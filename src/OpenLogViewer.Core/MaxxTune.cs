@@ -613,6 +613,57 @@ public static class MaxxTune
     }
 
     /// <summary>
+    /// Every named setting whose declared bytes overlap writing
+    /// <paramref name="length"/> bytes at <paramref name="offset"/>. Empty
+    /// where nothing does.
+    ///
+    /// <para>
+    /// A table's cell address comes from the ECU's own live config struct
+    /// (<see cref="TableAt"/>), while every setting's address comes from the
+    /// definitions file's implicit cursor (<see cref="MaxxTuneDefinitions.Read"/>)
+    /// — two independent mechanisms that never cross-check each other, because
+    /// neither one is aware the other exists. <see cref="Climbs"/> catches one
+    /// symptom of a table resolving to memory that is not really its own —
+    /// breakpoints that do not increase — but a table can resolve to bytes that
+    /// pass that check and still collide: found on a real ECU, where an
+    /// unconfigured 5×5 user table's cells began one byte into a completely
+    /// unrelated expansion-module setting's own declared address.
+    /// </para>
+    /// <para>
+    /// <b>Reported, not refused.</b> An earlier version of this refused any
+    /// such write outright, and excluded "Expmod " settings from the check —
+    /// the definitions file declares all 1,201 of them whether or not any
+    /// module is actually installed, and on a bench Race with none, three
+    /// separate real tables collided with one. That exclusion was not
+    /// enough: a second, unrelated pattern ("USERAIN ", user-configurable
+    /// analog inputs — also declared whether or not anything is wired to
+    /// them) immediately produced the same false refusal on VE Table 1.
+    /// Nothing here can reliably tell "this setting is inert because its
+    /// hardware is not installed" from "this setting matters" by name alone,
+    /// and a growing exclusion list built one discovered pattern at a time is
+    /// not a guardrail anyone should trust. What every caller actually needs
+    /// is to know what a write would also touch and judge for itself — a
+    /// human reading a sent-cell confirmation, or an agent deciding whether
+    /// to ask before touching that table again.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> SettingsOverlapping(
+        IReadOnlyList<MaxxSettingDefinition> definitions, int offset, int length)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        var hits = new List<string>();
+
+        foreach (MaxxSettingDefinition d in definitions)
+        {
+            if (d.Kind is "miniScript" or "userScript" or "string" or "table") continue;
+            if (offset < d.Address + d.Size && offset + length > d.Address) hits.Add(d.Name);
+        }
+
+        return hits;
+    }
+
+    /// <summary>
     /// Builds the layout, the table list, the tables as the ECU holds them and
     /// the settings pages — all in one pass, because they all have to agree
     /// about names.

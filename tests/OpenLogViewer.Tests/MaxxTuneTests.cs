@@ -943,4 +943,76 @@ public class MaxxTuneTests
         Assert.Equal(data, ecu.Tune.AsSpan(2000, 4).ToArray());
         Assert.Equal(MaxxProtocol.Crc32(data), BitConverter.ToUInt32(expected, 4));
     }
+
+    /// <summary>
+    /// A table's cell address comes from the ECU's own live config struct,
+    /// not from the definitions file's address cursor every setting uses —
+    /// found on a real bench Race, where an unconfigured user table's cells
+    /// began one byte into an unrelated setting's own declared address.
+    /// Reported by name rather than refused — see
+    /// <see cref="MaxxTune.SettingsOverlapping"/> for why a blocking version
+    /// of this check turned out not to be trustworthy.
+    /// </summary>
+    [Fact]
+    public void ATableWriteThatWouldLandOnANamedSettingIsReported()
+    {
+        MaxxSettingDefinition[] definitions =
+        [
+            new("Fuel Trim Min CLT", "int16", 21830, 1, 0.1, double.NaN, double.NaN),
+        ];
+
+        // The table's cells start one byte into that setting's two.
+        Assert.Equal(["Fuel Trim Min CLT"], MaxxTune.SettingsOverlapping(definitions, 21831, 50));
+
+        // Just past it, or well clear of it, is not a collision.
+        Assert.Empty(MaxxTune.SettingsOverlapping(definitions, 21832, 50));
+        Assert.Empty(MaxxTune.SettingsOverlapping(definitions, 30000, 50));
+    }
+
+    [Fact]
+    public void NonNumericDefinitionsDoNotCountAsClaimingTheirAddress()
+    {
+        MaxxSettingDefinition[] definitions =
+        [
+            new("Some Script", "miniScript", 5000, 1, 1, double.NaN, double.NaN),
+            new("Some Table Kind", "table", 5000, 1, 1, double.NaN, double.NaN),
+        ];
+
+        Assert.Empty(MaxxTune.SettingsOverlapping(definitions, 5000, 4));
+    }
+
+    /// <summary>
+    /// A table's own config struct is a real claim on its bytes too, not
+    /// only scalar settings — see <see cref="MaxxTune.SettingsOverlapping"/>.
+    /// </summary>
+    [Fact]
+    public void ATableConfigStructCountsAsClaimingItsAddressToo()
+    {
+        MaxxSettingDefinition[] definitions =
+        [
+            new("Other Table data", "dynamicTable", 9646, 1, 1, double.NaN, double.NaN),
+        ];
+
+        Assert.Equal(["Other Table data"], MaxxTune.SettingsOverlapping(definitions, 9650, 10));
+        Assert.Empty(MaxxTune.SettingsOverlapping(definitions, 9667, 10));
+    }
+
+    /// <summary>
+    /// Every real name that overlaps is reported, not just the first —
+    /// a caller deciding whether to worry needs to see how much a write
+    /// would actually touch, not just that it touches something.
+    /// </summary>
+    [Fact]
+    public void EveryOverlappingSettingIsReportedNotJustOne()
+    {
+        MaxxSettingDefinition[] definitions =
+        [
+            new("First", "uint8", 100, 1, 1, double.NaN, double.NaN),
+            new("Second", "uint8", 101, 1, 1, double.NaN, double.NaN),
+            new("Third", "uint8", 102, 1, 1, double.NaN, double.NaN),
+            new("Unrelated", "uint8", 500, 1, 1, double.NaN, double.NaN),
+        ];
+
+        Assert.Equal(["First", "Second", "Third"], MaxxTune.SettingsOverlapping(definitions, 100, 3));
+    }
 }

@@ -1586,6 +1586,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private MaxxUsbSource? _maxxUsbSource;
 
+    /// <summary>
+    /// MTune's own definitions, kept from <see cref="AdoptMaxxTune"/> so a
+    /// table write can be checked against every setting's declared address —
+    /// see <see cref="MaxxTune.CellsOverlapASetting"/> for why that check
+    /// exists at all. Cleared alongside <see cref="_maxxUsbSource"/>.
+    /// </summary>
+    private IReadOnlyList<MaxxSettingDefinition> _maxxTuneDefinitions = [];
+
     private string _ecuTuneSummary = "";
 
     /// <summary>
@@ -3044,13 +3052,40 @@ public sealed partial class MainViewModel : ObservableObject
 
             return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} ({write.Data.Length:N0} bytes) "
                    + "to the MaxxECU, verified. There is no burn step on this controller — it is "
-                   + "already running this, permanently, and a power cycle will not undo it.";
+                   + "already running this, permanently, and a power cycle will not undo it."
+                   + OverlapWarning(write);
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
                                       or ArgumentOutOfRangeException)
         {
             return $"The write failed: {e.Message}";
         }
+    }
+
+    /// <summary>
+    /// A note appended to a MaxxECU table write's own result, not a refusal —
+    /// see <see cref="MaxxTune.SettingsOverlapping"/> for why blocking on
+    /// this turned out to be worse than trusting a name-pattern list that
+    /// kept needing another entry. A table's cell address comes from the
+    /// ECU's own live config struct rather than the definitions file's
+    /// address cursor every setting uses, and nothing cross-checks the two:
+    /// found on a real bench Race, where an unconfigured user table's cells
+    /// began one byte into an unrelated setting's own declared address. What
+    /// this write also touched is worth knowing even though it went through.
+    /// </summary>
+    private string OverlapWarning(TuneWrite write)
+    {
+        IReadOnlyList<string> overlapping =
+            MaxxTune.SettingsOverlapping(_maxxTuneDefinitions, write.Offset, write.Data.Length);
+
+        if (overlapping.Count == 0) return "";
+
+        string names = string.Join(", ", overlapping.Take(5).Select(n => $"\"{n}\""));
+        if (overlapping.Count > 5) names += $", and {overlapping.Count - 5} more";
+
+        return $" Warning: this table's cells share bytes with a named setting on this ECU "
+               + $"({names}) — the table may never have been sized here, and this write may have "
+               + "changed that setting's value along with the cell you asked for.";
     }
 
     /// <summary>
@@ -3760,6 +3795,7 @@ KeepBurnedTune();
             _tuneLayout = model.Layout;
             _ecuTune = EcuTune.FromPages(model.Layout, blob);
             _maxxUsbSource = source;
+            _maxxTuneDefinitions = definitions;
             _ecuTableDefinitions = model.Tables;
             _ecuInterface = model.Pages;
             _ecuCurves = new Dictionary<string, TuneCurve>(StringComparer.OrdinalIgnoreCase);
@@ -4555,6 +4591,7 @@ KeepBurnedTune();
         Live = null;
         _ecuConnection = null;
         _maxxUsbSource = null;
+        _maxxTuneDefinitions = [];
         _obd2 = null;
         _obd2Undecoded = [];
 

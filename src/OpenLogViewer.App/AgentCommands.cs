@@ -321,7 +321,15 @@ public partial class MainViewModel
         // stale value from before this write landed.
         double landed = edit.Values[column, row];
 
-        return new AgentCellWrite(null, landed);
+        // A MaxxECU table write appends " Warning: ..." to its own success
+        // message rather than carrying a separate field — see
+        // WriteTableToMaxxEcu.OverlapWarning. Split out here so an agent
+        // sees it as its own thing rather than buried in prose meant for a
+        // person reading a status line.
+        int warningAt = said.IndexOf(" Warning:", StringComparison.Ordinal);
+        string? warning = warningAt >= 0 ? said[(warningAt + 1)..] : null;
+
+        return new AgentCellWrite(null, landed, warning);
     }
 
     /// <summary>

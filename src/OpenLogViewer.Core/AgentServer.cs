@@ -482,6 +482,7 @@ public sealed class AgentServer : IDisposable
                     value = result.Value, requested = body.Value,
                     clamped = Math.Abs(result.Value - body.Value) > 1e-9,
                     burned = false, rationale = body.Rationale ?? "",
+                    warning = result.Warning,
                 }).ConfigureAwait(false);
                 return;
             }

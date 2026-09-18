@@ -56,7 +56,14 @@ public sealed record AgentRefusal(string Reason, string Detail = "");
 /// is dispatched to the UI thread asynchronously, so the "fixed" version could
 /// still report a stale value from before the write landed.
 /// </summary>
-public sealed record AgentCellWrite(AgentRefusal? Refusal, double Value);
+/// <param name="Warning">
+/// Set when the write went through but is worth a second look — currently
+/// only a MaxxECU table whose cells share bytes with a named setting on this
+/// ECU (see <c>MaxxTune.SettingsOverlapping</c>), reported rather than
+/// refused because nothing here can reliably tell a real collision from an
+/// uninstalled expansion module's declared-but-inert address by name alone.
+/// </param>
+public sealed record AgentCellWrite(AgentRefusal? Refusal, double Value, string? Warning = null);
 
 /// <summary>
 /// The operating limits a write can run into, stated up front rather than
