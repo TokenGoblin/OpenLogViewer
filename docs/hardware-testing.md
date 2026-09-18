@@ -380,15 +380,34 @@ initializers to satisfy nullability, and `LiveSession.Start` now opens the
 source before checking rather than after. Caught immediately by a Report()
 trace around the exact call that threw — not by guessing.
 
-**What came along but has not itself been driven against the bench Race yet:**
-tune read/write (`MaxxTune`), the CAN sniffer (`MaxxCanSource`), and full
-tune-editing/calibration UI integration — `virtual-dyno`'s `ConnectMaxxEcuUsb`
-reads the tune and adopts it into the calibration view on connect; the
-version wired into `main` deliberately does not yet, since that integration is
-coupled to view-model state (`_maxxTuneTrouble`, `AdoptMaxxTune`, `_maxxTables`)
-that has diverged between the two histories and needs its own pass rather than
-a rushed port. Live telemetry and gauges are what is proven; reading or
-writing a MaxxECU's tune through this application is not.
+**Tune read and a real write, proven at the class level, on a real Race.** A
+standalone probe against `MaxxTune`/`MaxxTuneDefinitions`/`FtdiEcuTransport`
+directly — same "trust the library before trusting the wiring" order as the
+telemetry work above. `MaxxTuneDefinitions.Read` against MTune's own
+`ecuSettingsDefinitions.xml` resolved 9,977 settings; `MaxxCan.EnableAt`
+(added by the code-review fix that replaced its hardcoded `0xCDB2` with a
+name lookup) resolved to that exact address, confirming the fix reads the
+right byte for the right reason rather than by coincidence. `MaxxTune.Read`
+pulled the whole 64 KB blob; `MaxxTune.Write` set "CAN Analyzer Enable" from
+0 to 1, `MaxxTune.Verify` confirmed it landed, then both ran again to put it
+back to 0 and confirm that too — chosen as the first live write specifically
+because the ECU clears that flag on its own the moment the link drops, so
+even a crashed test self-heals. `MaxxWriteStatus.Ok` both times, both writes
+verified.
+
+**Not proven: reading or writing a MaxxECU's tune through this application.**
+`virtual-dyno`'s `ConnectMaxxEcuUsb` reads the tune and adopts it into the
+calibration view on connect; the version wired into `main` deliberately does
+not yet, since that integration is coupled to view-model state
+(`_maxxTuneTrouble`, `AdoptMaxxTune`, `_maxxTables`) that has diverged between
+the two histories and needs its own pass rather than a rushed port. The CAN
+sniffer (`MaxxCanSource`) is likewise untested against a real bus. Live
+telemetry and gauges are what the application itself has proven; the tune
+primitives are proven as a library, not yet as the app's own write path —
+there is no agent-API `/tune/set` guardrail (rationale, magnitude limits,
+dangerous-constant confirmation) in front of a MaxxECU write yet, because
+none of that is wired up for this ECU. Anything writing to one today is
+calling `MaxxTune.Write` directly and is its own guardrail.
 
 ## 16. The live WebSocket stream breaks on a large schema — found, not fixed
 
