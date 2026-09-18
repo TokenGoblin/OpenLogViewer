@@ -505,10 +505,28 @@ needs RPM to read above `IdleAdjacentRpm` while a write is attempted, which
 needs the bench engine running, which it has not been at any point in this
 session's testing on any board.
 
-**Still not proven:** the CAN sniffer (`MaxxCanSource`) against a real bus,
-and the "engine running above idle" write refusal actually firing on a
-MaxxECU (see above — the channel role resolves correctly, but the refusal
-itself needs a running engine to trigger).
+**The CAN sniffer, driven against real hardware — done, empty bus.**
+`MaxxCanSource`/`MaxxCan` came along in the same `virtual-dyno` file pull as
+the tune code but had never itself been driven against the bench Race. A
+standalone probe (same "prove the library" order as everything else here)
+armed "CAN Analyzer Enable", opened a `MaxxCanSource` wrapping a
+`MaxxUsbSource` over the live transport, and polled `Read()` every 200 ms
+for 12 seconds (51 rounds). Zero frames arrived, and `Dropped` stayed `0`
+throughout — not a failure of the mechanism, since a nonzero, unchanging
+drop count would have meant the same thing a genuinely quiet bus does: the
+enable write, the ring reads, and the drop-count reads all completed
+without error every round, they simply had nothing to report. This bench
+Race has nothing else wired to its CAN bus, so this proves the plumbing
+works end to end and says nothing about frame decoding against real
+traffic — that needs a bus with something on it. The flag was restored to
+its original value (`0`) and the restore verified, same as every other
+write against this ECU this session.
+
+**Still not proven:** the CAN sniffer decoding *real* traffic (the
+mechanism is proven, actual frames are not — see above), and the "engine
+running above idle" write refusal actually firing on a MaxxECU (see
+above — the channel role resolves correctly, but the refusal itself needs
+a running engine to trigger).
 
 ## 16. The live WebSocket stream breaks on a large schema — found, not fixed
 
