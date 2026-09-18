@@ -451,12 +451,19 @@ Speeduino's:
   first 10 landed, the 11th was refused (`"too many writes in a short
   time"`), landed value confirmed at the 10th write's.
 
+**The idle-refusal role match, checked (partially).** `GET /channels`
+confirmed a MaxxECU's RPM channel does resolve correctly:
+`{"name":"RPM","units":"rpm","role":"EngineSpeed"}` — the same role
+`RunningAboveIdleRefusal` reads, so the guard is wired to the right channel
+on this ECU. What is still not proven is the refusal actually firing: that
+needs RPM to read above `IdleAdjacentRpm` while a write is attempted, which
+needs the bench engine running, which it has not been at any point in this
+session's testing on any board.
+
 **Still not proven:** the CAN sniffer (`MaxxCanSource`) against a real bus,
-and the "engine running above idle" write refusal for a MaxxECU specifically
-— `RunningAboveIdleRefusal` matches channels by `ChannelRole`, and whether a
-MaxxECU's RPM channel resolves to `ChannelRole.EngineSpeed` by name has not
-been checked; if it does not, that one guard silently does not apply here
-while every other one does.
+and the "engine running above idle" write refusal actually firing on a
+MaxxECU (see above — the channel role resolves correctly, but the refusal
+itself needs a running engine to trigger).
 
 ## 16. The live WebSocket stream breaks on a large schema — found, not fixed
 
