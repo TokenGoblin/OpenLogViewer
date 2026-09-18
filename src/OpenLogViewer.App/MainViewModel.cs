@@ -2359,16 +2359,20 @@ public sealed partial class MainViewModel : ObservableObject
     public string WriteSettingsToEcu()
     {
         if (_settingsEdit is not { } edit) return "No tune has been read.";
+
+        // A MaxxECU over USB has no EcuConnection at all — see
+        // _maxxUsbSource — so this is "neither is live" rather than requiring
+        // the TunerStudio one specifically, same as GeneralRefusal and kept at
+        // the same place in the order: whether anything is connected is a
+        // cheaper, more general question than whether a tune has been read.
+        if (_ecuConnection is null && _maxxUsbSource is null) return "Not connected to an ECU.";
+
         if (_tuneLayout is not { } layout || _ecuTune is not { } tune) return "No tune has been read.";
         if (!edit.HasChanges) return "Nothing has been changed.";
 
         IReadOnlyList<TuneWrite> writes = edit.Writes();
         if (writes.Count == 0) return "Nothing has been changed.";
 
-        // A MaxxECU has no EcuConnection/page protocol at all — see
-        // _maxxUsbSource — and taking that branch here rather than after the
-        // connection null-check below is what lets it reach the ECU instead
-        // of being told "not connected" by a check written for the other kind.
         if (_maxxUsbSource is { } maxx) return WriteSettingsToMaxxEcu(maxx, edit, tune, writes);
 
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
@@ -2470,7 +2474,8 @@ public sealed partial class MainViewModel : ObservableObject
                    + "controller — it is already running them, permanently, and a power cycle will "
                    + "not undo it.";
         }
-        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
+                                      or ArgumentOutOfRangeException)
         {
             return done == 0
                 ? $"Nothing was sent: {e.Message}"
@@ -2936,12 +2941,25 @@ public sealed partial class MainViewModel : ObservableObject
                    + "cannot be sent back. Read the ECU's own tune first.";
 
         if (TableEdit is not { } edit) return "No table is open.";
-        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
+
+        // Same reason WriteSettingsToEcu checks this here: whether anything
+        // is connected at all is a cheaper, more general question than
+        // whether a tune has been read, and a MaxxECU over USB has no
+        // EcuConnection to be the one thing this used to check for.
+        if (_ecuConnection is null && _maxxUsbSource is null) return "Not connected to an ECU.";
+
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
         if (!edit.HasChanges) return "Nothing has been changed.";
 
         if (edit.Encode(tune) is not { } write)
             return "This table cannot be encoded for this firmware, so nothing was sent.";
+
+        // Same reason WriteSettingsToEcu branches here: a MaxxECU over USB has
+        // no EcuConnection or page-write command, so its table writes have to
+        // go a different way too.
+        if (_maxxUsbSource is { } maxx) return WriteTableToMaxxEcu(maxx, edit, tune, write);
+
+        if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
 
         TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
         if (page is null) return $"The firmware declares no page {write.Page}.";
@@ -2987,6 +3005,49 @@ public sealed partial class MainViewModel : ObservableObject
                    + "unless you burn it.";
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"The write failed: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// The same job <see cref="WriteTableToEcu"/> does for a page-protocol
+    /// ECU, for a MaxxECU over USB instead — see
+    /// <see cref="WriteSettingsToMaxxEcu"/> for why a separate path exists at
+    /// all. A table's changed cells are one contiguous run, so this is one
+    /// <see cref="MaxxUsbSource.WriteTune"/> rather than a loop of them; the
+    /// firmware's own 256-byte write ceiling (<see cref="MaxxTune.MaximumWrite"/>)
+    /// is what could make an edit spanning most of a large table too big for
+    /// one write, which is refused rather than silently split.
+    /// </summary>
+    private string WriteTableToMaxxEcu(MaxxUsbSource source, TuneEdit edit, EcuTune tune, TuneWrite write)
+    {
+        try
+        {
+            MaxxWriteStatus status = source.WriteTune(write.Offset, write.Data);
+
+            if (status != MaxxWriteStatus.Ok)
+                throw new EcuProtocolException(
+                    $"The MaxxECU answered \"{status}\" for the write at offset {write.Offset}.");
+
+            if (!source.VerifyTune(write.Offset, write.Data))
+                throw new EcuProtocolException(
+                    $"The MaxxECU took the write at offset {write.Offset} but reads back "
+                    + "something else now.");
+
+            tune.Accept(write);
+            _settingsEdit?.Accept(write);
+
+            int cells = edit.ChangedCount;
+            string tableName = edit.Name;
+            OnUiThread(() => SelectedEcuTable = RereadTable(tableName) ?? SelectedEcuTable);
+
+            return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} ({write.Data.Length:N0} bytes) "
+                   + "to the MaxxECU, verified. There is no burn step on this controller — it is "
+                   + "already running this, permanently, and a power cycle will not undo it.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
+                                      or ArgumentOutOfRangeException)
         {
             return $"The write failed: {e.Message}";
         }
