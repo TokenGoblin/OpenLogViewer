@@ -3836,6 +3836,86 @@ KeepBurnedTune();
     }
 
     /// <summary>
+    /// Attempts a real connection to a Holley Sniper ECU over its USB→CAN
+    /// dongle, and reports plainly what happened — a diagnostic probe, not a
+    /// live session.
+    ///
+    /// <para>
+    /// <b>Deliberately not a live connect like every other ECU here.</b>
+    /// There is no <c>SniperEcuSource</c> because there is no such
+    /// type: <see cref="SniperSession"/> cannot honestly decode a polled
+    /// reply into named channels yet (see its own header comment — the
+    /// per-channel offset is undiscovered even in the spec's own companion
+    /// files), so there is nothing to hand a <see cref="LiveSession"/> that
+    /// would not be faking it. What this can prove today is real and worth
+    /// having anyway: whether the USB layer opens, whether anything answers
+    /// node discovery, and whether a calibration read round-trips.
+    /// </para>
+    /// <para>
+    /// <b>Nothing this calls has been run against real Sniper hardware.</b>
+    /// Every step is built from static reverse engineering with no hardware
+    /// used to produce it (<c>SNIPER_ECU_CLIENT_SPEC.md</c>) — a failure here
+    /// is exactly as likely to mean "this implementation's guess at the
+    /// protocol is wrong" as "nothing is plugged in", and this method cannot
+    /// tell the two apart.
+    /// </para>
+    /// </summary>
+    /// <param name="device">
+    /// Reserved for a future device-path argument once more than one Sniper
+    /// dongle needs telling apart; unused today, since
+    /// <see cref="SniperUsbTransport"/> opens the first (and, for VID_2AD0/
+    /// PID_1005, presumably only) one it finds.
+    /// </param>
+    public string ProbeSniper(string device = "")
+    {
+        _ = device;
+
+        using var transport = new SniperUsbTransport();
+        using var session = new SniperSession(transport);
+
+        var report = new System.Text.StringBuilder();
+
+        try
+        {
+            session.Open();
+            report.AppendLine($"Opened. ECU node discovered: {session.EcuNode}.");
+        }
+        catch (Exception e) when (e is IOException or TimeoutException or InvalidOperationException)
+        {
+            return $"Could not open a Sniper dongle: {e.Message}";
+        }
+
+        try
+        {
+            byte[] deviceInfo = session.ReadDeviceInfo();
+            report.AppendLine($"Device-info read: {deviceInfo.Length} bytes back.");
+        }
+        catch (Exception e) when (e is IOException or TimeoutException)
+        {
+            report.AppendLine($"Device-info read failed: {e.Message}");
+        }
+
+        try
+        {
+            byte[] telemetry = session.PollTelemetryRaw();
+            report.AppendLine(
+                $"Telemetry poll: {telemetry.Length} raw bytes back (not decoded into channels — "
+                + "see SniperSession's own doc comment for why).");
+        }
+        catch (Exception e) when (e is IOException or TimeoutException)
+        {
+            report.AppendLine($"Telemetry poll failed: {e.Message}");
+        }
+
+        report.Append(
+            "None of this has been confirmed against real hardware — see SNIPER_ECU_CLIENT_SPEC.md. "
+            + "A failure above may mean this implementation's protocol guesses are wrong, not that "
+            + "nothing is plugged in.");
+
+        return report.ToString();
+    }
+
+    /// <summary>
     /// Connects to an OBD2 vehicle through an ELM327 adapter.
     ///
     /// The only connection here that needs nothing set up in advance: the

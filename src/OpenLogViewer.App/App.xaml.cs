@@ -44,7 +44,7 @@ public partial class App : Application
         "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi", "--agent-api", "--tuning-project",
-        "--connect-maxx-usb",
+        "--connect-maxx-usb", "--probe-sniper",
     ];
 
     /// <summary>
@@ -151,6 +151,13 @@ public partial class App : Application
                     ? e.Args[maxxUsb + 1]
                     : "");
         }
+
+        // "--probe-sniper" attempts a real connection to a Holley Sniper ECU
+        // over its USB->CAN dongle and reports what happened — a diagnostic,
+        // not a live connect, since nothing here can decode telemetry into
+        // named channels yet. See MainViewModel.ProbeSniper's own doc
+        // comment for why.
+        if (e.Args.Contains("--probe-sniper")) window.ProbeSniper("");
 
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
