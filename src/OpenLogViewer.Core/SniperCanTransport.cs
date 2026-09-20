@@ -139,7 +139,8 @@ public sealed class SniperUsbTransport : ISniperCanTransport
 
         _deviceHandle = Native.CreateFile(
             path, Native.GENERIC_READ | Native.GENERIC_WRITE, Native.FILE_SHARE_READ | Native.FILE_SHARE_WRITE,
-            IntPtr.Zero, Native.OPEN_EXISTING, Native.FILE_ATTRIBUTE_NORMAL, IntPtr.Zero);
+            IntPtr.Zero, Native.OPEN_EXISTING,
+            Native.FILE_ATTRIBUTE_NORMAL | Native.FILE_FLAG_OVERLAPPED, IntPtr.Zero);
 
         if (_deviceHandle == Native.InvalidHandle)
             throw new IOException(
@@ -416,6 +417,15 @@ public sealed class SniperUsbTransport : ISniperCanTransport
         internal const int FILE_SHARE_WRITE = 0x2;
         internal const int OPEN_EXISTING = 3;
         internal const int FILE_ATTRIBUTE_NORMAL = 0x80;
+
+        /// <summary>
+        /// WinUsb_Initialize requires a handle opened for overlapped I/O and
+        /// fails with ERROR_INVALID_HANDLE (6) without it — found on a real
+        /// Holley USBCAN dongle, which enumerated and opened fine and then
+        /// refused to initialise. The pipe calls still pass a null OVERLAPPED
+        /// and so stay synchronous; WinUSB does the waiting itself.
+        /// </summary>
+        internal const int FILE_FLAG_OVERLAPPED = 0x40000000;
         internal const uint DIGCF_PRESENT = 0x2;
         internal const uint DIGCF_DEVICEINTERFACE = 0x10;
         internal const int UsbdPipeTypeBulk = 2;
