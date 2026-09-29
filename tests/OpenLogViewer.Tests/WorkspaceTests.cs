@@ -85,7 +85,7 @@ public class WorkspaceTests : IDisposable
     {
         // An unplugged drive or a network share that is not there should cost
         // the setting, not the recording that was about to start.
-        string created = Workspace.Ensure(@"\\?\Z:\nowhere\at\all\Logs");
+        string created = Workspace.Ensure(Path.Combine(Unreachable(), "Logs"));
 
         Assert.True(Directory.Exists(created));
         Assert.StartsWith(Workspace.Default, created, StringComparison.OrdinalIgnoreCase);
@@ -97,7 +97,25 @@ public class WorkspaceTests : IDisposable
         Assert.True(Workspace.IsUsable(TempFolder()));
         Assert.False(Workspace.IsUsable(null));
         Assert.False(Workspace.IsUsable(""));
-        Assert.False(Workspace.IsUsable(@"\\?\Z:\nowhere\at\all"));
+        Assert.False(Workspace.IsUsable(Unreachable()));
+    }
+
+    /// <summary>
+    /// A folder that can never be created, on any machine: one "inside" a file.
+    ///
+    /// Not a drive letter assumed to be missing. These used Z:, which on a
+    /// machine with a network share mapped there is not missing at all — the
+    /// tests failed, and created folders on the share while they did it.
+    /// </summary>
+    private string Unreachable()
+    {
+        string folder = TempFolder();
+        Directory.CreateDirectory(folder);
+
+        string file = Path.Combine(folder, "a-file");
+        File.WriteAllText(file, "");
+
+        return Path.Combine(file, "nowhere", "at", "all");
     }
 
     // ----- the setting ------------------------------------------------------
