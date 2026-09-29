@@ -184,16 +184,21 @@ fresh `GET /table` immediately after showed `8` — caught by not trusting the
 first green result. The corrected version's reported value and an immediate
 fresh read now agree.
 
-**Fixed since, in unit tests only (2026-09-29), not yet re-verified live.**
+**Fixed since, and verified live on the Speeduino (2026-09-29).**
 `MainViewModel` now remembers each cell's first-seen value per tune read,
 keyed to the `EcuTune` instance so it starts fresh whenever a new tune does.
 Every `TuneEdit` it builds gets that memory, and `Hold` lets an out-of-range
 value through only when it matches exactly. `/table/set` also exempts that exact
 value from the magnitude limit. Without that exemption `Dwell map` still
 couldn't come back: 8 → 25.5 is far more than half of 0–8, and every smaller
-step towards it is out of range too. To re-verify on the Speeduino: request
-`24.5` on a `Dwell map` cell (lands on `8`), then `25.5`, and check a fresh
-`GET /table`. The original write-up follows.
+step towards it is out of range too. Live on `Dwell map` (0, 0):
+- Requesting `24.5` landed on `8` (`"clamped":true`).
+- Requesting `25.5` then landed on `25.5` (`"clamped":false`), confirmed by a
+  fresh `GET /table`.
+- Repeated, with `25.4` tried in between: refused as "too large for one
+  write", and the cell stayed at `8`.
+
+The cell was left at `25.5`, its original value. The original write-up follows.
 
 **Not fixed: a table cell's own out-of-range sentinel can't be written back
 either**, the same class of problem item 4's settings fix already covers, and
