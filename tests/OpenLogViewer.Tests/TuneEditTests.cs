@@ -481,4 +481,102 @@ public class TuneEditTests
             Assert.True(preview.Any);
         }
     }
+
+    // ----- a value outside its own declared range ----------------------------
+
+    /// <summary>
+    /// A 2×1 table declared 0–250, whose cell (1, 0) holds 255 — a firmware
+    /// "disabled" sentinel, the case that has actually been seen on a bench.
+    /// </summary>
+    private static TuneEdit Sentinel(double[,] values, IDictionary<(int Column, int Row), double>? firstSeen)
+    {
+        var table = new TuneTable(
+            "Limits",
+            new TuneAxis("xBins", "", [1, 2]),
+            new TuneAxis("yBins", "", [1]),
+            values,
+            "");
+
+        var constant = new TuneConstant
+        {
+            Name = "limits",
+            Page = 0,
+            Offset = 0,
+            Type = RealtimeType.U08,
+            Columns = 2,
+            Rows = 1,
+            Scale = 1,
+            Low = 0,
+            High = 250,
+            Digits = 0,
+        };
+
+        return new TuneEdit(table, constant, firstSeen);
+    }
+
+    [Fact]
+    public void ASentinelTheCellHoldsCanBeSetBackInTheSameEdit()
+    {
+        TuneEdit edit = Sentinel(new double[,] { { 10 }, { 255 } }, firstSeen: null);
+
+        edit.Set(TuneSelection.Cell(1, 0), 200);
+        edit.Set(TuneSelection.Cell(1, 0), 255);
+
+        Assert.Equal(255, edit[1, 0]);
+        Assert.False(edit.IsChanged(1, 0));
+    }
+
+    [Fact]
+    public void ASentinelCanBeSetBackAfterTheEcuHasMovedOffIt()
+    {
+        // The /table/set case: nudged off 255 and written, then a new edit is
+        // built from the table as the ECU now holds it — 250, not 255.
+        var firstSeen = new Dictionary<(int Column, int Row), double>();
+
+        TuneEdit before = Sentinel(new double[,] { { 10 }, { 255 } }, firstSeen);
+        before.Set(TuneSelection.Cell(1, 0), 250);
+
+        TuneEdit after = Sentinel(new double[,] { { 10 }, { 250 } }, firstSeen);
+        after.Set(TuneSelection.Cell(1, 0), 255);
+
+        Assert.Equal(255, after[1, 0]);
+        Assert.Equal(255, firstSeen[(1, 0)]);
+    }
+
+    [Fact]
+    public void WithoutTheMemoryTheSentinelIsStillClampedAway()
+    {
+        // What happened before the memory existed, kept as the contrast.
+        TuneEdit after = Sentinel(new double[,] { { 10 }, { 250 } }, firstSeen: null);
+
+        after.Set(TuneSelection.Cell(1, 0), 255);
+
+        Assert.Equal(250, after[1, 0]);
+    }
+
+    [Fact]
+    public void AnOutOfRangeValueNoCellEverHeldIsStillClamped()
+    {
+        var firstSeen = new Dictionary<(int Column, int Row), double>();
+        TuneEdit edit = Sentinel(new double[,] { { 10 }, { 255 } }, firstSeen);
+
+        // 254 is not what (1, 0) was, and 255 is not what (0, 0) was.
+        edit.Set(TuneSelection.Cell(1, 0), 254);
+        edit.Set(TuneSelection.Cell(0, 0), 255);
+
+        Assert.Equal(250, edit[1, 0]);
+        Assert.Equal(250, edit[0, 0]);
+    }
+
+    [Fact]
+    public void TheFirstSightingWinsOverLaterOnes()
+    {
+        var firstSeen = new Dictionary<(int Column, int Row), double>();
+
+        _ = Sentinel(new double[,] { { 10 }, { 255 } }, firstSeen);
+        _ = Sentinel(new double[,] { { 20 }, { 250 } }, firstSeen);
+
+        Assert.Equal(10, firstSeen[(0, 0)]);
+        Assert.Equal(255, firstSeen[(1, 0)]);
+    }
 }

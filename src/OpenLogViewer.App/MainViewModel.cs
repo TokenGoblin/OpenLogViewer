@@ -1568,6 +1568,38 @@ public sealed partial class MainViewModel : ObservableObject
     private EcuTune? _ecuTune;
 
     /// <summary>
+    /// Every table cell's value the first time it was seen, per tune read —
+    /// see <see cref="TuneEdit"/>'s <c>firstSeen</c>. The table-cell twin of
+    /// <see cref="TuneSettingsEdit"/>'s own memory, but kept here rather than
+    /// in the edit, because a new <see cref="TuneEdit"/> is built every time a
+    /// table is selected and every <c>/table/set</c> selects one.
+    ///
+    /// Keyed on the <see cref="EcuTune"/> instance so it starts fresh exactly
+    /// when the tune does — every place that reads or loads a tune assigns a
+    /// new one, and a write never does — without each of those places having
+    /// to remember to clear it.
+    /// </summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+        EcuTune, Dictionary<string, Dictionary<(int Column, int Row), double>>> _firstSeenCells = new();
+
+    /// <summary>The first-seen memory for one table of the current tune, or null without a tune.</summary>
+    private IDictionary<(int Column, int Row), double>? FirstSeenCells(TuneTable table)
+    {
+        if (_ecuTune is null) return null;
+
+        Dictionary<string, Dictionary<(int Column, int Row), double>> tables =
+            _firstSeenCells.GetValue(_ecuTune, _ => new(StringComparer.OrdinalIgnoreCase));
+
+        if (!tables.TryGetValue(table.Name, out Dictionary<(int Column, int Row), double>? cells))
+        {
+            cells = [];
+            tables[table.Name] = cells;
+        }
+
+        return cells;
+    }
+
+    /// <summary>
     /// The live connection, kept so the tune can be written as well as read.
     ///
     /// Held rather than passed around because writing happens long after
@@ -2625,7 +2657,7 @@ public sealed partial class MainViewModel : ObservableObject
             // A fresh edit per table. Changes are deliberately not carried
             // between tables: an unsent change to one table left pending while
             // another is being looked at is a change nobody can see.
-            TableEdit = value is null ? null : new TuneEdit(value, ConstantFor(value));
+            TableEdit = value is null ? null : new TuneEdit(value, ConstantFor(value), FirstSeenCells(value));
 
             // The nudge follows the table. A spark table stored in quarter
             // degrees and a fuel table stored in whole per cent want different

@@ -96,8 +96,20 @@ public sealed class TuneEdit
 {
     private readonly double[,] _original;
     private readonly double[,] _values;
+    private readonly IDictionary<(int Column, int Row), double>? _firstSeen;
 
-    public TuneEdit(TuneTable table, TuneConstant? constant = null)
+    /// <param name="table">The table as the ECU holds it now.</param>
+    /// <param name="constant">The firmware's description of the cells, where one is known.</param>
+    /// <param name="firstSeen">
+    /// Each cell's value the first time it was ever seen, kept by the caller
+    /// across every edit of this table — see <see cref="Hold"/> for why. Cells
+    /// not in it yet are added from <paramref name="table"/>. Without one, an
+    /// out-of-range value is only accepted back if this edit's own original
+    /// holds it.
+    /// </param>
+    public TuneEdit(
+        TuneTable table, TuneConstant? constant = null,
+        IDictionary<(int Column, int Row), double>? firstSeen = null)
     {
         ArgumentNullException.ThrowIfNull(table);
 
@@ -106,6 +118,15 @@ public sealed class TuneEdit
 
         _original = (double[,])table.Values.Clone();
         _values = (double[,])table.Values.Clone();
+
+        _firstSeen = firstSeen;
+
+        if (_firstSeen is not null)
+        {
+            for (int column = 0; column < Columns; column++)
+                for (int row = 0; row < Rows; row++)
+                    _firstSeen.TryAdd((column, row), _original[column, row]);
+        }
     }
 
     public TuneTable Table { get; }
@@ -237,7 +258,7 @@ public sealed class TuneEdit
             {
                 double down = area.Rows > 1 ? (double)(row - area.Top) / (area.Rows - 1) : 0;
 
-                _values[column, row] = Hold(top + ((bottom - top) * down));
+                _values[column, row] = Hold(column, row, top + ((bottom - top) * down));
             }
         }
 
@@ -301,7 +322,7 @@ public sealed class TuneEdit
 
         for (int column = area.Left; column <= area.Right; column++)
             for (int row = area.Top; row <= area.Bottom; row++)
-                _values[column, row] = Hold(change(_values[column, row]));
+                _values[column, row] = Hold(column, row, change(_values[column, row]));
     }
 
     /// <summary>
@@ -313,12 +334,41 @@ public sealed class TuneEdit
     /// and being written — the encoder would refuse it and the whole write would
     /// fail, which turns a small mistake in one cell into a table that cannot be
     /// sent at all.
+    ///
+    /// <para>
+    /// The one exception is putting back exactly what the cell held when it was
+    /// first seen. A live value can sit outside its own declared range — a
+    /// firmware "disabled" sentinel like 255 against a declared 0–250 — and
+    /// clamping must not make it unwritable once it has been nudged away from.
+    /// The same rule <see cref="TuneSettingsEdit.Set"/> applies to settings.
+    /// It needs the caller's memory rather than this edit's original, because
+    /// a fresh edit is built every time a table is selected, and by then the
+    /// ECU already holds the nudged value.
+    /// </para>
     /// </summary>
-    private double Hold(double value)
+    private double Hold(int column, int row, double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value)) return 0;
 
-        return Constant is { HasRange: true } c ? Math.Clamp(value, c.Low, c.High) : value;
+        if (Constant is not { HasRange: true } c) return value;
+
+        if (value >= c.Low && value <= c.High) return value;
+
+        if (WasSeenAs(column, row, value)) return value;
+
+        return Math.Clamp(value, c.Low, c.High);
+    }
+
+    /// <summary>Whether this cell has ever held exactly this value.</summary>
+    private bool WasSeenAs(int column, int row, double value)
+    {
+        double tolerance = Step / 1000;
+
+        if (Math.Abs(_original[column, row] - value) <= tolerance) return true;
+
+        return _firstSeen is not null
+               && _firstSeen.TryGetValue((column, row), out double seen)
+               && Math.Abs(seen - value) <= tolerance;
     }
 
     /// <summary>The edited cells, for drawing.</summary>

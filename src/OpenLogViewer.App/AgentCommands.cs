@@ -291,7 +291,18 @@ public partial class MainViewModel
 
         double before = table.Values[column, row];
 
-        if (constant is not null
+        // Putting back exactly what this cell held when first seen is exempt
+        // from the magnitude limit. That limit is there to catch wrong units
+        // and misplaced decimals, and a value the ECU itself held is neither.
+        // Without this, a sentinel far outside the declared range — Dwell map's
+        // 25.5 against a range ending at 8, on a real Speeduino — could never
+        // be restored: every step towards it is out of range too, so there is
+        // no series of smaller steps that gets there.
+        bool restoring = FirstSeenCells(table) is { } seen
+                         && seen.TryGetValue((column, row), out double first)
+                         && Math.Abs(first - value) <= (constant is { Scale: > 0 } c ? Math.Abs(c.Scale) : 1) / 1000;
+
+        if (constant is not null && !restoring
             && MagnitudeRefusal(before, value, constant.Low, constant.High) is { } tooLarge)
         {
             return new AgentCellWrite(tooLarge, 0);
@@ -941,7 +952,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            var cellEdit = new TuneEdit(fresh, constant);
+            var cellEdit = new TuneEdit(fresh, constant, FirstSeenCells(shape));
             cellEdit.Set(TuneSelection.Cell(c.Column, c.Row), c.Value);
 
             if (cellEdit.Encode(working) is { } write) working.Accept(write);
