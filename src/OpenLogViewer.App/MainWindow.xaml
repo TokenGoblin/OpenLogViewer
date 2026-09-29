@@ -62,7 +62,7 @@
                               Style="{StaticResource ToolbarToggle}"
                               IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"
                               IsEnabled="{Binding AgentIsRunning}"
-                              ToolTip="Lets an agent change settings in the ECU's working memory. It never burns, and this clears itself on disconnect"/>
+                              ToolTip="Lets an agent change settings in the ECU's working memory. It never burns. On by default, and stays on across reconnects until you untick it"/>
             </StackPanel>
 
             <Menu x:Name="MainMenu" Background="Transparent" Padding="6,1">
@@ -230,7 +230,7 @@
                           IsCheckable="True"
                           IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"
                           IsEnabled="{Binding AgentIsRunning}"
-                          ToolTip="Lets an agent change settings in the ECU's working memory. It never burns, and this clears itself on disconnect"/>
+                          ToolTip="Lets an agent change settings in the ECU's working memory. It never burns. On by default, and stays on across reconnects until you untick it"/>
             </MenuItem>
 
             <MenuItem Header="_Help">

@@ -1080,10 +1080,13 @@ message on most firmwares.
 
 ### Writing
 
-An agent can change a setting or a table cell **only while "Allow agent writes"
-is ticked**, and that clears itself whenever the ECU disconnects. Nothing it does
-is ever burned, so turning the key off undoes all of it — and there is no burn
-endpoint at all, not even one that refuses.
+An agent can change a setting or a table cell **while "Allow AI writes" is
+ticked, which it is by default**. It stays ticked across reconnects, whichever
+ECU is plugged in, until you untick it. Untick it before connecting anything an
+agent shouldn't change. Nothing is ever burned, and there's no burn endpoint at
+all, not even one that refuses. So on a TunerStudio-style ECU, turning the key
+off undoes all of it. **A MaxxECU is different:** it has no burn step, and a
+write is permanent the moment it lands.
 
 ### Offline, from a command line
 

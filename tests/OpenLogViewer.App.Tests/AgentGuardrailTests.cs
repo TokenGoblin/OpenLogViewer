@@ -130,7 +130,7 @@ public class AgentGuardrailTests : IDisposable
         var board = new FakeController(Signature);
         vm.Connect(board, "COM-TEST");
 
-        // Deliberately not armed.
+        vm.AgentWritesArmed = false;   // on by default now
         AgentRefusal? refused = Bridge(vm).SetSetting("crankingRPM", 310, "a good reason");
 
         Assert.NotNull(refused);

@@ -99,6 +99,7 @@ public class AgentTuneWorkflowTests : IDisposable
     {
         MainViewModel vm = Connected(out FakeController board);
         var bridge = new AgentBridge(vm);
+        vm.AgentWritesArmed = false;   // on by default now; off to test what needs no arming
 
         Assert.False(vm.AgentWritesArmed);
 
@@ -159,6 +160,7 @@ public class AgentTuneWorkflowTests : IDisposable
     {
         MainViewModel vm = Connected(out FakeController board);
         var bridge = new AgentBridge(vm);
+        vm.AgentWritesArmed = false;   // on by default now; off to test what needs no arming
 
         TuneApplyResult result = bridge.ApplyTune([new ProposedSetting("crankingRPM", 400)], [], "testing");
 
@@ -282,6 +284,7 @@ public class AgentTuneWorkflowTests : IDisposable
     {
         MainViewModel vm = Connected(out _);
         var bridge = new AgentBridge(vm);
+        vm.AgentWritesArmed = false;   // on by default now; off to test what needs no arming
 
         Assert.False(vm.AgentWritesArmed);
 
@@ -301,6 +304,7 @@ public class AgentTuneWorkflowTests : IDisposable
     {
         MainViewModel vm = Connected(out FakeController board);
         var bridge = new AgentBridge(vm);
+        vm.AgentWritesArmed = false;   // on by default now; off to test what needs no arming
 
         AgentStageResult result = bridge.StageTune(
             [new ProposedSetting("crankingRPM", 999)], [], "hypothetical.msq");

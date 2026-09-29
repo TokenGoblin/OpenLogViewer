@@ -337,11 +337,19 @@ public class ConnectedEcuTests : IDisposable
     }
 
     [Fact]
-    public void AgentWritesAreNotArmedUntilSomebodyArmsThem()
+    public void AgentWritesAreArmedByDefault()
     {
+        // The owner's decision: nobody has to be at the machine to tick it.
         MainViewModel vm = Connected(out _);
 
-        Assert.False(vm.AgentWritesArmed);
+        Assert.True(vm.AgentWritesArmed);
+    }
+
+    [Fact]
+    public void TurningAgentWritesOffRefusesThem()
+    {
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = false;
 
         AgentRefusal? refused = new AgentBridge(vm).SetSetting("crankingRPM", 400, "bench test");
 
@@ -376,12 +384,22 @@ public class ConnectedEcuTests : IDisposable
     }
 
     [Fact]
-    public void DisconnectingDisarmsTheAgent()
+    public void DisconnectingLeavesTheAgentArmed()
     {
-        // The permission belongs to the session, not to the socket. The same
-        // laptop meets a bench engine one afternoon and a car the next.
+        // It used to clear here. On by default now, and a reconnect with
+        // nobody at the machine must not quietly lose it.
         MainViewModel vm = Connected(out _);
-        vm.AgentWritesArmed = true;
+
+        vm.Disconnect();
+
+        Assert.True(vm.AgentWritesArmed);
+    }
+
+    [Fact]
+    public void TurningItOffStaysOffAcrossADisconnect()
+    {
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = false;
 
         vm.Disconnect();
 
@@ -398,7 +416,7 @@ public class ConnectedEcuTests : IDisposable
 
         Assert.Equal("live", state.Mode);
         Assert.True(state.HasTune);
-        Assert.False(state.WritesArmed);
+        Assert.True(state.WritesArmed);
         Assert.Equal("TEST Format 0001.00", state.Signature);
     }
 

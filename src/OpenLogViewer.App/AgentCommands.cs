@@ -27,11 +27,17 @@ public partial class MainViewModel
     /// Whether writing through the API is allowed at this moment.
     ///
     /// <para>
-    /// False on startup, false again on every disconnect, and never persisted.
-    /// The reason it is not a saved preference is that the thing it protects
-    /// changes underneath it: the same laptop is plugged into a bench engine one
-    /// afternoon and a car the next, and a permission granted for the first
-    /// should not still be granted for the second.
+    /// <b>On by default, by the owner's decision (2026-09-29)</b>: true on
+    /// startup and left alone by a disconnect or by stopping the API, so an
+    /// agent can write without anyone at the machine to tick the toggle. It
+    /// used to start false and clear itself on every disconnect, because the
+    /// same laptop meets a bench engine one afternoon and a car the next. That
+    /// protection is gone. It now applies to every controller this connects
+    /// to, including the MicroSquirt in the car and a MaxxECU, whose writes
+    /// are permanent the moment they land. The toggle still turns it off, and
+    /// that holds until it is ticked again or the application restarts.
+    /// Every other guardrail — rationale, dangerous constants, magnitude,
+    /// rate, engine above idle, no burn — is unchanged.
     /// </para>
     /// </summary>
     public bool AgentWritesArmed
@@ -43,14 +49,14 @@ public partial class MainViewModel
 
             Hint = value
                 ? "An agent may now change settings and table cells in the ECU's working memory. "
-                  + "Nothing it does is burned, and this turns itself off when you disconnect."
+                  + "Nothing it does is burned. This stays on across reconnects until you turn it off."
                 : "Agent writes are off. The API can still read everything.";
 
             Raise(nameof(AgentSummary));
         }
     }
 
-    private bool _agentWritesArmed;
+    private bool _agentWritesArmed = true;
 
     /// <summary>One line saying what the API is doing, for the window.</summary>
     public string AgentSummary =>
@@ -137,7 +143,6 @@ public partial class MainViewModel
         _agent.Activity.Changed -= OnAgentActivity;
         _agent.Dispose();
         _agent = null;
-        AgentWritesArmed = false;
 
         // The indicator has nothing left to watch, so it should not go on
         // showing whatever it last said.
@@ -360,7 +365,7 @@ public partial class MainViewModel
         {
             return new AgentRefusal(
                 "writes are not armed",
-                "Tick \"Allow agent writes\" in the application. It clears itself on disconnect.");
+                "Tick \"Allow AI writes\" in the application. It is on by default, so it has been turned off in this session.");
         }
 
         // A MaxxECU over USB has no EcuConnection at all — see _maxxUsbSource —

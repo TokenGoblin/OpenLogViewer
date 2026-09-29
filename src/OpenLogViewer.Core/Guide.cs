@@ -350,10 +350,9 @@ public static class Guide
                 + "rather than the window's."),
 
             new("What it can change",
-                "Nothing, unless you tick Allow agent writes — which clears itself the moment the "
-                + "ECU disconnects, because the same laptop meets a bench engine one afternoon and "
-                + "a car the next. Even then it can only move a setting or a table cell in working "
-                + "memory."),
+                "Settings and table cells in working memory. Allow agent writes is on by default and "
+                + "stays on across reconnects — whichever ECU is plugged in, a car included — until "
+                + "you untick it. Untick it before connecting anything an agent should not change."),
 
             new("It can never burn",
                 "Not an endpoint that refuses: there is none. Everything an assistant does is "

@@ -4764,10 +4764,8 @@ KeepBurnedTune();
         _obd2 = null;
         _obd2Undecoded = [];
 
-        // A permission granted over whatever was just unplugged does not carry
-        // over to whatever is plugged in next. The same laptop meets a bench
-        // engine one afternoon and a car the next.
-        AgentWritesArmed = false;
+        // Agent writes are deliberately left as they are. They used to clear
+        // here, and are on by default now — see AgentWritesArmed.
 
         LiveStatus = "";
         _livePort = _liveSignature = _liveVersion = _liveIni = _liveRecording = "";

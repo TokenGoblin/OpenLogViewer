@@ -120,9 +120,8 @@ public partial class App : Application
         // The agent API is on by default now — a light and a labelled toggle
         // in the toolbar say so, and turning it off is one click. "--agent-api
         // [port]" only picks the port; it does not gate whether the API
-        // starts. It still opens read-only: there is deliberately no flag
-        // that arms writing, so the decision that lets a program change an
-        // engine cannot be made once in a shortcut and then forgotten about.
+        // starts. Writes are armed from the start too — see
+        // MainViewModel.AgentWritesArmed for that decision and what it covers.
         //
         // A single call site on purpose. A second path that could also start
         // it (an auto-start in the window's constructor, say) would race this
