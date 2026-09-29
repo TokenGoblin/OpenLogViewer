@@ -544,7 +544,7 @@ running above idle" write refusal actually firing on a MaxxECU (see
 above — the channel role resolves correctly, but the refusal itself needs
 a running engine to trigger).
 
-## 16. The live WebSocket stream breaks on a large schema — worked around, not yet confirmed on rusEFI
+## 16. The live WebSocket stream breaks on a large schema — fixed, confirmed on rusEFI
 
 **Update, 2026-09-29.** The wire-protocol change suggested below is now in.
 No message is larger than 12 KB (`LiveSubscriber.MessageBudget`). A schema or
@@ -561,9 +561,15 @@ Messages that fit are unchanged apart from gaining `part:0, parts:1, offset:0`.
 - **Speeduino, live:** no regression. The curated (81 channels) and raw
   (181 channels) streams each sent one schema, then about 25 frames a second,
   all single-part.
-- **Still to do:** connect the uaEFI board and subscribe to the full 1,028
-  channels. The schema should arrive in several parts and the socket should
-  stay `Open`.
+- **rusEFI uaEFI, live (`master.2026.09.03`):** fixed. The curated
+  subscription's 1,028-channel schema arrived in 2 parts (12,255 and 9,400
+  bytes). About 200 frames followed in 8 seconds, each a single 2.7 KB message.
+  The socket stayed `Open` throughout, where before the fix it broke on the
+  schema's first continuation.
+- **Raw subscription, live:** also fixed, the same shape. Switching to raw sent
+  a fresh 2-part schema of 1,030 channels, two more than the curated list, and
+  frames carried 1,030 values from then on. That contradicts the earlier note
+  below that both lists are the same 1,028; not investigated further.
 
 The original investigation follows.
 
