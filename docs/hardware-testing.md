@@ -613,6 +613,30 @@ a caller is better off seeing than a silently-substituted 0 or null. Verified
 live: `GET /values?channel=Lua%3A%20torque` now answers `200` with a run of
 literal `NaN`s; the full rusEFI sweep above is with this fix in place.
 
+## 18. MaxxECU stored-log download — built, not yet run on hardware
+
+`MaxxStoredLog` reads the log a MaxxECU keeps in its own memory. It uses
+command `0x32`, 512-byte pieces, and 8,194 bytes by default, all recovered from
+a capture of MTune's "Download logs" (`MAXXECU_LOG_PROTOCOL_RECOVERED.md`,
+outside the repo). The only real check so far is that the first request it
+builds matches the capture byte for byte. Run it with
+`--connect-maxx-usb --download-maxx-log [path]`. With no path, the raw bytes go
+to the workspace's `Logs` folder.
+
+It sends reads only. MTune also sends `0x3B`, which the ECU already answers as
+an unknown command, and a `0x07` write with `FF FF FF FF`, whose meaning is
+unknown. Neither is sent here. Check on hardware:
+
+- Does `0x32` answer at all without the `0x07` write first? If not, find out
+  what `0x07` does before adding it. It could as easily clear the log.
+- Download twice in a row. Are the bytes identical? If not, the ECU keeps its
+  own read pointer rather than going by the offset in each request, and the
+  retry in `MaxxStoredLog.Read` would then skip a piece.
+- Is 8,194 bytes always the length, or does it change with what's stored?
+  Try reading past it and see whether the ECU answers `0x30` (out of range).
+- Which channel is each 16-bit value? The file can't become a real log until
+  that's known.
+
 ---
 
 ## Not hardware, still open

@@ -282,6 +282,16 @@ public sealed class MaxxUsbSource : ILiveSource
     }
 
     /// <summary>
+    /// Downloads the log the ECU keeps in its own memory, without ending the
+    /// session — see <see cref="MaxxStoredLog"/>. Reads only; the poll loop is
+    /// held off while it runs, the same as for <see cref="ReadTune"/>.
+    /// </summary>
+    public byte[] ReadStoredLog(int length = MaxxStoredLog.ObservedLength)
+    {
+        lock (_cable) return MaxxStoredLog.Read(_transport, length, onRetry: () => Retries++);
+    }
+
+    /// <summary>
     /// Puts bytes into the ECU's tune, between two rounds of the poll loop.
     ///
     /// <b>Permanent when it lands</b> — see <see cref="MaxxTune.Write"/>. This

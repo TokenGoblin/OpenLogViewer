@@ -44,7 +44,7 @@ public partial class App : Application
         "--insights",
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi", "--agent-api", "--tuning-project",
-        "--connect-maxx-usb", "--probe-sniper",
+        "--connect-maxx-usb", "--download-maxx-log", "--probe-sniper",
     ];
 
     /// <summary>
@@ -149,6 +149,19 @@ public partial class App : Application
             window.ConnectMaxxEcuOverUsb(
                 maxxUsb + 1 < e.Args.Length && !e.Args[maxxUsb + 1].StartsWith("--", StringComparison.Ordinal)
                     ? e.Args[maxxUsb + 1]
+                    : "");
+        }
+
+        // "--download-maxx-log [path]" pulls the log a MaxxECU keeps in its own
+        // memory, once "--connect-maxx-usb" has connected — raw bytes only,
+        // see MainViewModel.DownloadMaxxStoredLog. Saved to the workspace's
+        // logs folder when no path is given.
+        int maxxLog = Array.IndexOf(e.Args, "--download-maxx-log");
+        if (maxxLog >= 0)
+        {
+            window.DownloadMaxxStoredLog(
+                maxxLog + 1 < e.Args.Length && !e.Args[maxxLog + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[maxxLog + 1]
                     : "");
         }
 

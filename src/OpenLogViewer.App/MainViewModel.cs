@@ -1594,6 +1594,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private IReadOnlyList<MaxxSettingDefinition> _maxxTuneDefinitions = [];
 
+    /// <summary>
+    /// The MaxxECU USB session, whether or not its tune could be read — unlike
+    /// <see cref="_maxxUsbSource"/>, which is only set once a tune is adopted
+    /// and doubles as the gate on writing to it. Downloading the stored log
+    /// needs the cable and nothing else, so it should not stop working when
+    /// the tune read does. Cleared on disconnect.
+    /// </summary>
+    private MaxxUsbSource? _maxxUsbLink;
+
     private string _ecuTuneSummary = "";
 
     /// <summary>
@@ -3738,6 +3747,7 @@ KeepBurnedTune();
 
         Live.Start();
 
+        _maxxUsbLink = source;
         _livePort = where;
         _liveSignature = "MaxxECU";
         _liveVersion = "";
@@ -3833,6 +3843,52 @@ KeepBurnedTune();
 
             SelectedEcuTable = EcuTables.FirstOrDefault();
         }
+    }
+
+    /// <summary>
+    /// Downloads the log a connected MaxxECU keeps in its own memory and saves
+    /// the raw bytes — see <see cref="MaxxStoredLog"/>.
+    ///
+    /// Saved as they came off the wire and not as a log, because nothing yet
+    /// says which channel each value belongs to. A file of honest raw bytes is
+    /// what a decoder gets built from; a log with invented columns is not.
+    /// </summary>
+    /// <param name="path">Where to save it, or empty for the workspace's logs folder.</param>
+    /// <returns>A sentence saying what happened.</returns>
+    public string DownloadMaxxStoredLog(string path = "")
+    {
+        if (_maxxUsbLink is not { } source) return "Not connected to a MaxxECU over USB.";
+
+        byte[] log;
+
+        try
+        {
+            log = source.ReadStoredLog();
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"The stored log could not be downloaded: {e.Message}";
+        }
+
+        if (path.Length == 0)
+        {
+            path = Path.Combine(
+                Workspace.Ensure(Workspace.Logs),
+                $"MaxxECU-stored-log-{DateTime.Now:yyyy-MM-dd_HHmmss}.bin");
+        }
+
+        try
+        {
+            File.WriteAllBytes(path, log);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return $"Downloaded {log.Length:N0} bytes but could not save them to {path}: {e.Message}";
+        }
+
+        return $"Downloaded {log.Length:N0} bytes of the MaxxECU's stored log to {path}. "
+               + "Raw bytes only: which channel each value belongs to is not known yet, so "
+               + "this is not a log that can be opened.";
     }
 
     /// <summary>
@@ -4672,6 +4728,7 @@ KeepBurnedTune();
         _ecuConnection = null;
         _maxxUsbSource = null;
         _maxxTuneDefinitions = [];
+        _maxxUsbLink = null;
         _obd2 = null;
         _obd2Undecoded = [];
 

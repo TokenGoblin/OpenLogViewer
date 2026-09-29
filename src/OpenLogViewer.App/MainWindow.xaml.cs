@@ -1312,6 +1312,28 @@ public partial class MainWindow : Window
         Report(outcome);
     }
 
+    /// <summary>
+    /// Runs <see cref="MainViewModel.DownloadMaxxStoredLog"/> and reports what
+    /// it found.
+    /// </summary>
+    public void DownloadMaxxStoredLog(string path)
+    {
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        string outcome;
+
+        try
+        {
+            outcome = _vm.DownloadMaxxStoredLog(path);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        Report(outcome);
+    }
+
     private MenuItem SsmMenu(IReadOnlyList<SerialPortInfo> ports)
     {
         var menu = new MenuItem
