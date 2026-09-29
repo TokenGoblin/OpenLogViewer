@@ -139,7 +139,8 @@ public static class MaxxUsbProtocol
     /// treating one lost byte or bad checksum as a dead link.
     ///
     /// Shared by <see cref="MaxxUsbSource"/>'s telemetry and configuration
-    /// requests and <see cref="MaxxTune.Read"/>'s tune pieces — the two used to
+    /// requests, <see cref="MaxxTune.Read"/>'s tune pieces and
+    /// <see cref="MaxxStoredLog.Read"/>'s log pieces — the first two used to
     /// carry this loop separately, at different retry counts, which is exactly
     /// the kind of drift a caller cannot see and a review has to go looking
     /// for. The two still differ deliberately: how many attempts, how long
@@ -161,11 +162,18 @@ public static class MaxxUsbProtocol
 
         for (int attempt = 0; attempt < attempts; attempt++)
         {
-            if (attempt > 0)
-            {
-                onRetry?.Invoke();
-                transport.DiscardInput();
-            }
+            if (attempt > 0) onRetry?.Invoke();
+
+            // Before every request, the first included. A reply carries no
+            // echo of its request, so a late one to an earlier attempt — or
+            // to the previous call's last attempt — that lands after a
+            // retry's discard is otherwise taken as the answer to this one:
+            // right length, good checksum, wrong bytes. On a chunked read
+            // that shifts everything after it by a piece, and nothing looks
+            // wrong. This does not close the window entirely — a reply can
+            // still arrive between the discard and this read — but it stops
+            // one from waiting in the buffer across a whole request.
+            transport.DiscardInput();
 
             transport.Write(request);
 

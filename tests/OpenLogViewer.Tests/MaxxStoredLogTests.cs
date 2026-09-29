@@ -85,6 +85,21 @@ public class MaxxStoredLogTests
     }
 
     [Fact]
+    public void A_late_reply_left_in_the_buffer_does_not_shift_the_next_piece()
+    {
+        // The first attempt at piece 0 times out; its reply turns up late,
+        // just as the retry goes out. The retry reads that late reply, which
+        // is correct for piece 0 — and its own reply is left waiting, the
+        // right length and checksum to pass for piece 1's.
+        byte[] stored = Stored(1024);
+        var ecu = new LogEcu(stored) { LateReplyTo = 0 };
+
+        byte[] log = MaxxStoredLog.Read(ecu, 1024);
+
+        Assert.Equal(stored, log);
+    }
+
+    [Fact]
     public void An_ecu_that_stops_answering_is_an_error_and_not_a_short_log()
     {
         var ecu = new LogEcu(Stored(2048)) { SilentFrom = 1024 };
@@ -165,12 +180,34 @@ public class MaxxStoredLogTests
 
             Asked.Add((offset, length));
 
-            bool dropped = _requests++ == DropReplyTo;
+            int request = _requests++;
+            byte[] answer = offset >= SilentFrom ? [] : Answer(stored.AsSpan(offset, length));
 
-            _reply = dropped || offset >= SilentFrom
-                ? []
-                : Answer(stored.AsSpan(offset, length));
+            if (request == DropReplyTo)
+            {
+                _reply = [];
+            }
+            else if (request == LateReplyTo)
+            {
+                _reply = [];
+                _late = answer;
+            }
+            else
+            {
+                // A late reply lands after whatever discard came before this
+                // request, and ahead of this request's own answer.
+                _reply = [.. _reply, .. _late, .. answer];
+                _late = [];
+            }
         }
+
+        private byte[] _late = [];
+
+        /// <summary>
+        /// The request, counted from nought, whose reply is not there in time
+        /// and turns up just as the next request goes out.
+        /// </summary>
+        public int LateReplyTo { get; init; } = -1;
 
         private static byte[] Answer(ReadOnlySpan<byte> data)
         {
