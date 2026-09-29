@@ -703,6 +703,107 @@ public class AgentServerTests : IDisposable
         Assert.False(frame.RootElement.TryGetProperty("channels", out _));
     }
 
+    /// <summary>
+    /// Reads one whole message, however many receives it takes — unlike
+    /// <see cref="Next"/>, which would hand back the first fragment of a
+    /// message too large for one frame and call it the message.
+    /// </summary>
+    private static async Task<JsonDocument> NextWhole(ClientWebSocket socket)
+    {
+        var buffer = new byte[64 * 1024];
+        using var body = new MemoryStream();
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        WebSocketReceiveResult got;
+
+        do
+        {
+            got = await socket.ReceiveAsync(buffer, cancel.Token);
+            body.Write(buffer, 0, got.Count);
+        }
+        while (!got.EndOfMessage);
+
+        return JsonDocument.Parse(body.ToArray());
+    }
+
+    /// <summary>
+    /// Reads messages of one type until a whole set of parts has arrived, and
+    /// puts the array property back together from each part's offset.
+    /// </summary>
+    private static async Task<(List<JsonElement> Items, int Parts, int Largest)> Reassemble(
+        ClientWebSocket socket, string type, string property)
+    {
+        var items = new SortedDictionary<int, JsonElement[]>();
+        int parts = -1, largest = 0;
+
+        for (int message = 0; message < 400 && items.Count != parts; message++)
+        {
+            JsonDocument got = await NextWhole(socket);
+            JsonElement root = got.RootElement;
+
+            largest = Math.Max(largest, root.GetRawText().Length);
+
+            if (root.GetProperty("type").GetString() != type) continue;
+
+            // A new set starting over (part 0) replaces an unfinished one.
+            if (root.GetProperty("part").GetInt32() == 0) items.Clear();
+
+            parts = root.GetProperty("parts").GetInt32();
+            items[root.GetProperty("offset").GetInt32()] = [.. root.GetProperty(property).EnumerateArray()];
+        }
+
+        Assert.Equal(parts, items.Count);
+
+        return ([.. items.Values.SelectMany(i => i)], parts, largest);
+    }
+
+    [Fact]
+    public async Task ASchemaTooLargeForOneMessageArrivesWholeInParts()
+    {
+        // The shape of rusEFI's 1,028 channels, which broke the stream on a
+        // real board at 16,380 bytes: a single message that size goes out as
+        // a continuation frame, and the continuation is what fails.
+        (AgentServer server, _, _) = Serve();
+        using ClientWebSocket socket = await Subscribe(server);
+
+        string[] names = [.. Enumerable.Range(0, 1028).Select(i => $"Lua: calculated channel {i:0000}")];
+
+        // Numbers that print long, so the frame is past the limit too.
+        double[] values = [.. Enumerable.Range(0, 1028).Select(i => i + 0.1 + 1e-12)];
+
+        _ = Task.Run(() => PublishUntilSeen(server, names, values));
+
+        (List<JsonElement> schema, int schemaParts, int schemaLargest) = await Reassemble(socket, "schema", "channels");
+
+        Assert.Equal(names, schema.Select(c => c.GetString()));
+        Assert.True(schemaParts > 1, "a schema this size should have been split");
+        Assert.True(schemaLargest < 16_000, $"a part was {schemaLargest} bytes");
+
+        (List<JsonElement> frame, int frameParts, int frameLargest) = await Reassemble(socket, "frame", "v");
+
+        Assert.Equal(values, frame.Select(v => v.GetDouble()));
+        Assert.True(frameParts > 1, "a frame this size should have been split");
+        Assert.True(frameLargest < 16_000, $"a part was {frameLargest} bytes");
+    }
+
+    [Fact]
+    public void PackingKeepsEveryPartInsideTheBudgetAndLosesNothing()
+    {
+        int[] sizes = [5, 5, 5, 5, 5, 5, 5];
+
+        IReadOnlyList<(int Offset, int Count)> parts = LiveSubscriber.Pack(sizes, 12);
+
+        Assert.Equal([(0, 2), (2, 2), (4, 2), (6, 1)], parts);
+    }
+
+    [Fact]
+    public void AnItemLargerThanTheBudgetStillGoesOnItsOwn()
+    {
+        IReadOnlyList<(int Offset, int Count)> parts = LiveSubscriber.Pack([3, 50, 3], 10);
+
+        Assert.Equal([(0, 1), (1, 1), (2, 1)], parts);
+    }
+
     [Fact]
     public async Task AnAgentCanAskForJustTheChannelsItCaresAbout()
     {

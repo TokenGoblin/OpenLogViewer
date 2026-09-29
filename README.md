@@ -1064,12 +1064,19 @@ window repaints:
 
 ```
 → {"channels":["RPM","AFR"]}
-← {"type":"schema","channels":["RPM","AFR"]}
-← {"type":"frame","t":12.44,"v":[3200,12.8],"skipped":0}
+← {"type":"schema","part":0,"parts":1,"offset":0,"channels":["RPM","AFR"]}
+← {"type":"frame","t":12.44,"part":0,"parts":1,"offset":0,"v":[3200,12.8],"skipped":0}
 ```
 
 A subscriber that cannot keep up loses frames rather than slowing the poll, and
 each frame says how many it stood in for.
+
+No message is larger than 12 KB. Messages past about 16 KB broke the stream on
+a real rusEFI with 1,028 channels. So a schema or frame too big for one message
+arrives as several, each saying which `part` of how many `parts` it is and the
+`offset` its slice starts at. Put the arrays back together by `offset` once all
+the parts have arrived. A message that fits is part 0 of 1, which is every
+message on most firmwares.
 
 ### Writing
 

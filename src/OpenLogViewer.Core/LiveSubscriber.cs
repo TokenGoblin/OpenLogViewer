@@ -163,10 +163,12 @@ internal sealed class LiveSubscriber : IDisposable
 
                 if (needSchema)
                 {
-                    await Write(new { type = "schema", channels = schema }).ConfigureAwait(false);
+                    await WriteInParts(schema, (part, parts, offset, channels) =>
+                        new { type = "schema", part, parts, offset, channels }).ConfigureAwait(false);
                 }
 
-                await Write(new { type = "frame", t = seconds, v = frame, skipped }).ConfigureAwait(false);
+                await WriteInParts(frame, (part, parts, offset, v) =>
+                    new { type = "frame", t = seconds, part, parts, offset, v, skipped }).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
@@ -247,28 +249,90 @@ internal sealed class LiveSubscriber : IDisposable
     private sealed record Subscribe(string[]? Channels, bool? Raw);
 
     /// <summary>
-    /// One call, one frame, the whole payload.
+    /// The most a single message is allowed to carry.
     ///
-    /// A payload past about 16 KB — rusEFI's raw schema, all 1,028 channel
-    /// names, is roughly 20 — breaks this stream outright on a real board:
-    /// the framework fragments the send into a continuation frame of its own
-    /// accord, and the continuation itself fails (<see cref="WebSocketException"/>,
-    /// "An internal WebSocket error occurred", the socket left <c>Aborted</c>)
-    /// rather than completing the message. Not fixed here: chunking the write
-    /// in application code hit the identical failure on its own second call,
-    /// and raising the accept-time receive buffer
-    /// (<c>HttpListenerContext.AcceptWebSocketAsync</c>'s <c>receiveBufferSize</c>,
-    /// up to its own maximum of 65,536) changed nothing — the same board
-    /// still broke at the same 16,380 bytes regardless. See
-    /// <c>docs/hardware-testing.md</c> item 16 for what was actually tried
-    /// and ruled out; a schema this large needs a different wire shape
-    /// (split across more than one message, most likely) rather than another
-    /// attempt to fit it through one frame.
+    /// A message past about 16 KB breaks this stream outright: the framework
+    /// sends it as a continuation frame of its own accord, and the
+    /// continuation fails (<see cref="WebSocketException"/>, "An internal
+    /// WebSocket error occurred", the socket left <c>Aborted</c>). Found on
+    /// rusEFI's 1,028-channel schema, which broke at 16,380 bytes every time.
+    /// Chunking the send and raising the accept-time buffer were both tried
+    /// and changed nothing (<c>docs/hardware-testing.md</c> item 16), so
+    /// instead no message is ever that large: anything bigger is split into
+    /// several whole messages. Twelve kilobytes leaves room under the break.
     /// </summary>
-    private async Task Write(object payload)
-    {
-        byte[] body = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
+    internal const int MessageBudget = 12 * 1024;
 
+    /// <summary>
+    /// Sends an array-carrying message whole when it fits in
+    /// <see cref="MessageBudget"/>, and as several messages when it does not.
+    ///
+    /// Every message says which <c>part</c> of how many <c>parts</c> it is and
+    /// the <c>offset</c> its slice starts at, so a client puts a split one back
+    /// together by position. One that fits is part 0 of 1 at offset 0, which
+    /// a client that has never seen a split one can go on ignoring.
+    /// </summary>
+    private async Task WriteInParts<T>(T[] items, Func<int, int, int, T[], object> shape)
+    {
+        byte[] whole = JsonSerializer.SerializeToUtf8Bytes(shape(0, 1, 0, items), Json);
+
+        if (whole.Length <= MessageBudget)
+        {
+            await Send(whole).ConfigureAwait(false);
+            return;
+        }
+
+        // Everything but the array, with room for the part numbers and offset
+        // to grow from the single digits measured here.
+        int envelope = JsonSerializer.SerializeToUtf8Bytes(shape(0, 1, 0, []), Json).Length + 32;
+
+        // Each item as it will print, plus the comma before it.
+        int[] sizes = [.. items.Select(i => JsonSerializer.SerializeToUtf8Bytes(i, Json).Length + 1)];
+
+        IReadOnlyList<(int Offset, int Count)> parts = Pack(sizes, MessageBudget - envelope);
+
+        for (int part = 0; part < parts.Count; part++)
+        {
+            (int offset, int count) = parts[part];
+
+            await Write(shape(part, parts.Count, offset, items[offset..(offset + count)])).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Splits items into consecutive runs whose sizes add up to no more than
+    /// <paramref name="budget"/>. An item bigger than the budget on its own
+    /// still goes, alone — refusing it would lose it, and one oversized
+    /// channel name is not what breaks a stream.
+    /// </summary>
+    internal static IReadOnlyList<(int Offset, int Count)> Pack(IReadOnlyList<int> sizes, int budget)
+    {
+        var parts = new List<(int Offset, int Count)>();
+        int start = 0, used = 0;
+
+        for (int i = 0; i < sizes.Count; i++)
+        {
+            if (i > start && used + sizes[i] > budget)
+            {
+                parts.Add((start, i - start));
+                start = i;
+                used = 0;
+            }
+
+            used += sizes[i];
+        }
+
+        if (sizes.Count > start) parts.Add((start, sizes.Count - start));
+
+        return parts;
+    }
+
+    /// <summary>One call, one message — never more than <see cref="MessageBudget"/> for anything array-shaped.</summary>
+    private async Task Write(object payload) =>
+        await Send(JsonSerializer.SerializeToUtf8Bytes(payload, Json)).ConfigureAwait(false);
+
+    private async Task Send(byte[] body)
+    {
         await _socket.SendAsync(
             new ArraySegment<byte>(body), WebSocketMessageType.Text, endOfMessage: true,
             _stopping.Token).ConfigureAwait(false);
