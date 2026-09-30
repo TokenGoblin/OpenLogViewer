@@ -48,6 +48,18 @@ key their scale off `{useMetricOnInterface ? 1 : 1.8}`-shaped expressions.
   metric values (°C, kPa) rather than the wrong-scale garbage the bug used to
   produce. Not the same as checking every `ScaleExpression` constant, and
   `useMetricOnInterface` was never toggled to see the other branch resolve.
+- **Every one, 2026-09-29.** The INI has 104 constants with an expression
+  scale; 58 are settings and the rest are table arrays. All 58 read as
+  plausible metric values. For example, the coolant and intake-air thermistor
+  points are −20 / 23.9 / 120 °C, the map-sensor error limits 5 / 410 kPa, and
+  boost cut 300 kPa. `useMetricOnInterface` still hasn't been toggled.
+- **Found doing it: those 58 lost their range and units.** rusEFI writes the
+  low/high limits and the units as expressions too
+  (`{useMetricOnInterface ? 250 : 250 * 1.8 + 32}`,
+  `{bitStringValue(unitsLabels, useMetricOnInterface)}`). The scale resolved;
+  the limits were dropped and the units passed through as raw text. Without a
+  range, `/tune/set`'s out-of-range refusal and the magnitude guard had nothing
+  to judge against for any of the 58, `boostCutPressure` among them.
 - ~~Compare a TunerStudio-saved `.msq` for that firmware against the live
   tune~~ — not done; no TunerStudio install was available.
 - MS2Extra and MS3 remain completely untouched.
@@ -72,7 +84,14 @@ The whole reason it was built for speed, and it had only ever seen a log.
   `MAP`, …), frames followed at a measured ~28 Hz average against a poll rate
   the app itself reports as 25 — pushed continuously, not gated on a window
   being open or focused.
-- **Not reproduced.** Stalled a subscriber without reading for 15 s (~99 KB of
+- **Done, 2026-09-29, on rusEFI.** Subscribed to the raw stream (1,030
+  values, about 2.7 KB a frame at 25 Hz) and stopped reading for 60 s. On
+  draining, 93 frames the OS had buffered came through first. The next frame
+  reported `skipped=1401`, about 56 s at 25 Hz: the stretch the socket was
+  backed up. The socket stayed `Open`, and the poll carried on underneath.
+  The earlier attempt, kept below, failed because 15 s of small frames never
+  filled the OS buffer.
+- **Not reproduced (earlier).** Stalled a subscriber without reading for 15 s (~99 KB of
   frames at ~264 bytes each) and `skipped` stayed `0` the whole time, even
   though `/state`'s `samples` count kept climbing underneath — so the poll
   itself was not slowing down, which is the property that mattered, but
@@ -306,15 +325,20 @@ unit-tested against a scripted RPM channel, never a real one.
   last 5 seconds`. So the limiter counts attempts, including ones the no-op
   guard itself refused, not just writes that actually changed something.
 
-## 12. `[ControllerCommands]` stays unreachable — done, on the Speeduino
+## 12. `[ControllerCommands]` stays unreachable — done, on the Speeduino and rusEFI
 
 A negative test, best proven once against real hardware where getting it wrong
 has a concrete consequence. Tried `/tune/set` with `name: "cmdtestinj1on"` —
 Speeduino's `[ControllerCommands]` includes `cmdtestinj1on`/`cmdtestinj1off`,
 which fire an injector directly. Refused as `"no such setting"` rather than
-reaching the transport. Still worth doing on rusEFI too, since its
-`cmd_test_spk1..12` fires ignition coils rather than an injector and nothing
-above touched that board.
+reaching the transport.
+
+**rusEFI, 2026-09-29, with writes armed:** every one of the 125 names in its
+`[ControllerCommands]` went through `/tune/set`, including `cmd_test_spk1..12`
+(ignition coils), `cmd_test_inj1..8` and the reset command. All 125 were refused
+as `"no such setting"`. `cmd_test_spk1` and `cmd_test_inj1` also went through
+`/tune/propose` and `/tune/apply` with `confirmDangerous:true`. Both routes
+rejected both commands, and nothing was applied.
 
 ## 13. Staged files actually open where they're meant to
 
