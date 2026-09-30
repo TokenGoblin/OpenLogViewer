@@ -712,6 +712,19 @@ unknown. Neither is sent here. Check on hardware:
   The shape matches the 09-19 capture: from byte 50, alternating u16s near
   2,040–2,050 and 1,230–1,240, ending `00 00`. The values differ from the
   capture, so it's the ECU's current contents.
+- **But it isn't reading the live log.** The ECU was logging throughout. Its
+  `Log Ptr` channel ran 35–4,072 and wrapped (a 4 KB page), and `Log Page`
+  went 1,987 → 1,989 in 30 s, about one page per 13 s. A third download,
+  after about 20 more pages had been written, was still byte-identical to the
+  first. So `0x32` alone reads one fixed 8 KB buffer, not the latest pages.
+  The obvious suspect for loading that buffer is MTune's `0x07` +
+  `FF FF FF FF` (latest?). That's a write of unknown meaning to an ECU whose
+  writes are permanent, so it is still not sent. Working out what `0x07`
+  does, safely, is the next step. Until then the download is real bytes from
+  the ECU, but not necessarily a recent log.
+- Channel matching: no live channel sits at the log's two values (about
+  2,045 and 1,235 raw, at ×1, ×0.1, ×0.01 or ×0.001). Battery is 13.76 V now,
+  so if 1,235 is ×0.01 battery, it was logged at a different time.
 - Is 8,194 bytes always the length, or does it change with what's stored?
   Try reading past it and see whether the ECU answers `0x30` (out of range).
   Not tried — `MaxxStoredLog` has no way to ask for more than a fixed length
