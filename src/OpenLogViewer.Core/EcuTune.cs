@@ -95,14 +95,20 @@ public sealed class EcuTune
         Resolve();
     }
 
-    /// <summary>True when this firmware states any scale as an expression.</summary>
-    internal bool HasExpressionScales =>
-        Layout.Constants.Any(c => c.ScaleExpression.Length > 0 || c.TransformExpression.Length > 0);
+    /// <summary>
+    /// True when this firmware states any scale, limit or units label as an
+    /// expression — anything that has to be worked out again when the setting
+    /// it depends on changes.
+    /// </summary>
+    internal bool HasExpressionScales => Layout.Constants.Any(HasExpressions);
+
+    private static bool HasExpressions(TuneConstant c) =>
+        c.ScaleExpression.Length > 0 || c.TransformExpression.Length > 0
+        || c.LowExpression.Length > 0 || c.HighExpression.Length > 0 || c.UnitsExpression.Length > 0;
 
     private void Resolve()
     {
-        List<TuneConstant> pending =
-            [.. _exact.Values.Where(c => c.ScaleExpression.Length > 0 || c.TransformExpression.Length > 0)];
+        List<TuneConstant> pending = [.. _exact.Values.Where(HasExpressions)];
 
         if (pending.Count == 0) return;
 
@@ -155,14 +161,34 @@ public sealed class EcuTune
             // the constant the translate was worked out from, which moves the
             // translate. The tune stops surviving a round trip — 122 bytes of
             // 7,168 on the MicroSquirt this was found on. Left as declared.
-            if (Overlapping(constant, constant.ScaleExpression + constant.TransformExpression)) continue;
+            //
+            // Only the scale and translate: they change what the bytes mean, the
+            // limits and the units do not.
+            bool rereads = Overlapping(constant, constant.ScaleExpression + constant.TransformExpression);
 
-            double scale = Sum(constant.ScaleExpression, Plain, constant.Scale);
-            double transform = Sum(constant.TransformExpression, Plain, constant.Transform);
+            double scale = rereads ? constant.Scale : Sum(constant.ScaleExpression, Plain, constant.Scale);
+            double transform = rereads ? constant.Transform : Sum(constant.TransformExpression, Plain, constant.Transform);
 
-            if (scale == constant.Scale && transform == constant.Transform) continue;
+            // Unlike a scale, nought is a perfectly good limit, and one that
+            // cannot be worked out is left unstated rather than guessed.
+            double low = Bound(constant.LowExpression, Plain, constant.Low);
+            double high = Bound(constant.HighExpression, Plain, constant.High);
+            string units = Label(constant.UnitsExpression, Plain, constant.Units);
 
-            TuneConstant resolved = constant with { Scale = scale, Transform = transform };
+            if (scale == constant.Scale && transform == constant.Transform
+                && low.Equals(constant.Low) && high.Equals(constant.High) && units == constant.Units)
+            {
+                continue;
+            }
+
+            TuneConstant resolved = constant with
+            {
+                Scale = scale,
+                Transform = transform,
+                Low = low,
+                High = high,
+                Units = units,
+            };
 
             if (ReferenceEquals(_exact.GetValueOrDefault(constant.Name), constant))
                 _exact[constant.Name] = resolved;
@@ -170,6 +196,55 @@ public sealed class EcuTune
             if (ReferenceEquals(_byName.GetValueOrDefault(constant.Name), constant))
                 _byName[constant.Name] = resolved;
         }
+    }
+
+    /// <summary>
+    /// A limit, worked out where it is an expression. NaN — no limit — where it
+    /// is one that cannot be worked out, since a guessed limit is worse than
+    /// none: it refuses good values or lets bad ones through while looking
+    /// like a guard.
+    /// </summary>
+    private static double Bound(string expression, Func<string, double> lookup, double declared)
+    {
+        if (expression.Length == 0) return declared;
+
+        double value = DialogCondition.Number(expression.TrimStart('{').TrimEnd('}'), lookup);
+
+        return double.IsFinite(value) ? value : double.NaN;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex BitStringValue = new(
+        @"^\{\s*bitStringValue\s*\(\s*(?<labels>\w+)\s*,\s*(?<index>\w+)\s*\)\s*\}$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A units label, worked out where it is an expression.
+    ///
+    /// The one shape firmware uses is <c>{bitStringValue(labels, setting)}</c>:
+    /// the label list is a bit field's options, usually in [PcVariables], and
+    /// the setting's value picks one — rusEFI's <c>unitsLabels</c> is
+    /// <c>"F", "C"</c>, picked by <c>useMetricOnInterface</c>. Anything else,
+    /// or a pick that lands outside the list, comes back empty: printing the
+    /// expression itself puts a line of INI source where a person expected °C.
+    /// </summary>
+    private string Label(string expression, Func<string, double> lookup, string declared)
+    {
+        if (expression.Length == 0) return declared;
+
+        if (BitStringValue.Match(expression.Trim()) is not { Success: true } match) return "";
+
+        string labelsName = match.Groups["labels"].Value;
+
+        IReadOnlyList<string>? labels =
+            Find(labelsName)?.Options
+            ?? Layout.PcVariables.FirstOrDefault(
+                v => v.Name.Equals(labelsName, StringComparison.OrdinalIgnoreCase))?.Options;
+
+        double index = lookup(match.Groups["index"].Value);
+
+        if (labels is null || !double.IsFinite(index) || index < 0 || index >= labels.Count) return "";
+
+        return labels[(int)index].Trim();
     }
 
     /// <summary>

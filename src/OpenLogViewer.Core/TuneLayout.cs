@@ -101,6 +101,26 @@ public sealed record TuneConstant
     /// <summary>The same for the translate.</summary>
     public string TransformExpression { get; init; } = "";
 
+    /// <summary>
+    /// The limits as the firmware wrote them, when it wrote expressions, and
+    /// empty otherwise. rusEFI does this for every setting it shows in either
+    /// metric or imperial — <c>{useMetricOnInterface ? 250 : 250 * 1.8 + 32}</c>
+    /// — and until <see cref="EcuTune"/> works them out <see cref="Low"/> and
+    /// <see cref="High"/> are NaN, so nothing guarding a write has a range.
+    /// </summary>
+    public string LowExpression { get; init; } = "";
+
+    /// <summary>The same for the upper limit.</summary>
+    public string HighExpression { get; init; } = "";
+
+    /// <summary>
+    /// The units as the firmware wrote them, when it wrote an expression —
+    /// <c>{bitStringValue(unitsLabels, useMetricOnInterface)}</c> — and empty
+    /// otherwise. <see cref="EcuTune"/> puts the label that expression picks in
+    /// <see cref="Units"/>.
+    /// </summary>
+    public string UnitsExpression { get; init; } = "";
+
     public int Digits { get; init; }
 
     /// <summary>
@@ -485,6 +505,9 @@ public static class TuneLayoutReader
                 Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
                 ScaleExpression = Expression(rest, 1),
                 TransformExpression = Expression(rest, 2),
+                LowExpression = Expression(rest, 3),
+                HighExpression = Expression(rest, 4),
+                UnitsExpression = rest.Length > 0 && Unquote(rest[0]).StartsWith('{') ? Unquote(rest[0]) : "",
                 Low = rest.Length > 3 ? Number(rest[3], double.NaN) : double.NaN,
                 High = rest.Length > 4 ? Number(rest[4], double.NaN) : double.NaN,
                 Digits = rest.Length > 5 ? (int)Number(rest[5], 0) : 0,
@@ -528,6 +551,9 @@ public static class TuneLayoutReader
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
             ScaleExpression = Expression(rest, 1),
             TransformExpression = Expression(rest, 2),
+            LowExpression = Expression(rest, 3),
+            HighExpression = Expression(rest, 4),
+            UnitsExpression = rest.Length > 0 && Unquote(rest[0]).StartsWith('{') ? Unquote(rest[0]) : "",
 
             // Fields four and five are the firmware's own limits, in displayed
             // units. Read rather than skipped over: they are what an edit should
@@ -564,6 +590,9 @@ public static class TuneLayoutReader
             Transform = rest.Length > 2 ? Number(rest[2], 0) : 0,
             ScaleExpression = Expression(rest, 1),
             TransformExpression = Expression(rest, 2),
+            LowExpression = Expression(rest, 3),
+            HighExpression = Expression(rest, 4),
+            UnitsExpression = rest.Length > 0 && Unquote(rest[0]).StartsWith('{') ? Unquote(rest[0]) : "",
 
             // Fields four and five are the firmware's own limits, in displayed
             // units. Read rather than skipped over: they are what an edit should

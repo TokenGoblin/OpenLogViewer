@@ -192,10 +192,17 @@ public partial class MainViewModel
     /// constants, with the units/options/range the firmware declared for each.
     /// Kept as a second call rather than folded into the dictionary above so that
     /// endpoint keeps its existing shape.
+    ///
+    /// Each one as the tune has resolved it, not as the definition declares it:
+    /// where the firmware writes a scale, a limit or a units label as an
+    /// expression, the declared copy has only the fallback — no range, and the
+    /// expression's own source for units. The write path already judges against
+    /// the resolved copy, so reporting the declared one told an agent there was
+    /// no limit on a setting the write would then be held to.
     /// </summary>
     internal IReadOnlyList<TuneConstant> AgentTuneConstants() =>
         _ecuTune is { } tune && !TuneIsPlaceholder
-            ? [.. tune.Layout.Constants.Where(c => !c.IsArray)]
+            ? [.. tune.Layout.Constants.Where(c => !c.IsArray).Select(c => tune.Constant(c.Name) ?? c)]
             : [];
 
     /// <summary>

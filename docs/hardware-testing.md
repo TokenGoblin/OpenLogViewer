@@ -60,6 +60,15 @@ key their scale off `{useMetricOnInterface ? 1 : 1.8}`-shaped expressions.
   the limits were dropped and the units passed through as raw text. Without a
   range, `/tune/set`'s out-of-range refusal and the magnitude guard had nothing
   to judge against for any of the 58, `boostCutPressure` among them.
+  **Fixed the same day and verified live.** `EcuTune` now resolves limit and
+  `bitStringValue` units expressions alongside the scale. `/tune/full` now
+  reports the resolved constants instead of the raw declarations. On the
+  board, all 58 have a range and real units (`C`, `kPa`, `kmh`), and 57 sit
+  inside their range. The exception is `secondaryInjectorFuelReferencePressure`
+  at `0` against the firmware's own `50..700000`: unset, because no secondary
+  injectors are configured. `clt_tempC_3` 120 → 205 (past its 200 top, within
+  the magnitude limit) was refused, and the value stayed 120. Before the fix
+  that write would have gone through.
 - ~~Compare a TunerStudio-saved `.msq` for that firmware against the live
   tune~~ — not done; no TunerStudio install was available.
 - MS2Extra and MS3 remain completely untouched.

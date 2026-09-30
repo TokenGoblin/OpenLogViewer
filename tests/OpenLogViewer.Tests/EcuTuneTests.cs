@@ -317,6 +317,89 @@ public class EcuTuneTests
         Assert.Equal(0.5, tune.Constant("fuelLoadBins")!.Scale, 6);
     }
 
+    /// <summary>
+    /// A rusEFI, in miniature, with maxAcClt's line exactly as the real one
+    /// declares it: the units, the scale, the translate and both limits are
+    /// all expressions on useMetricOnInterface.
+    /// </summary>
+    private const string ExpressionRangeIni = """
+        [Constants]
+        page = 1
+        nPages = 1
+        pageSize = 32
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+        pageChunkWrite  = "w%2o%2c%v"
+        burnCommand     = "B"
+           useMetricOnInterface = bits, U32, 12, [1:1], "Imperial", "Metric"
+           maxAcClt = scalar, S16, 20, {bitStringValue(unitsLabels, useMetricOnInterface)}, {useMetricOnInterface ? 1 : 1.8}, {useMetricOnInterface ? 0 : 17.77777}, {useMetricOnInterface ? 0 : 32}, {useMetricOnInterface ? 250 : 250 * 1.8 + 32}, 0
+
+        [PcVariables]
+           unitsLabels = bits, U08, [0:2], "F" , "C"
+        """;
+
+    private static EcuTune ExpressionRange(bool metric)
+    {
+        var tune = EcuTune.FromPages(TuneLayoutReader.Read(ExpressionRangeIni), new byte[32]);
+
+        tune.PokeInto(tune.Pages, tune.Constant("useMetricOnInterface")!, 0, metric ? 1 : 0);
+        tune.Rescale();
+
+        return tune;
+    }
+
+    [Fact]
+    public void ARangeWrittenAsAnExpressionIsWorkedOut()
+    {
+        // Found on a real rusEFI: 58 settings declared like this came through
+        // with no range at all, so neither the out-of-range refusal nor the
+        // magnitude guard had anything to judge a write against.
+        TuneConstant metric = ExpressionRange(metric: true).Constant("maxAcClt")!;
+
+        Assert.True(metric.HasRange);
+        Assert.Equal(0, metric.Low, 6);
+        Assert.Equal(250, metric.High, 6);
+    }
+
+    [Fact]
+    public void AndFollowsTheOtherBranch()
+    {
+        TuneConstant imperial = ExpressionRange(metric: false).Constant("maxAcClt")!;
+
+        Assert.Equal(32, imperial.Low, 6);
+        Assert.Equal(482, imperial.High, 6);
+    }
+
+    [Fact]
+    public void UnitsWrittenAsABitStringValueArePickedFromTheirLabels()
+    {
+        Assert.Equal("C", ExpressionRange(metric: true).Constant("maxAcClt")!.Units);
+        Assert.Equal("F", ExpressionRange(metric: false).Constant("maxAcClt")!.Units);
+    }
+
+    [Fact]
+    public void AnExpressionRangeThatCannotBeWorkedOutIsLeftUnstated()
+    {
+        // Naming nothing that exists: no range is better than a made-up one.
+        const string ini = """
+            [Constants]
+            page = 1
+            nPages = 1
+            pageSize = 8
+            pageIdentifier = "\x01"
+            pageReadCommand = "r%2o%2c"
+            pageChunkWrite  = "w%2o%2c%v"
+            burnCommand     = "B"
+               mystery = scalar, U08, 0, {bitStringValue(noSuchLabels, noSuchSetting)}, 1, 0, {noSuchSetting ? 0 : 1}, {noSuchSetting ? 10 : 20}, 0
+            """;
+
+        var tune = EcuTune.FromPages(TuneLayoutReader.Read(ini), new byte[8]);
+        TuneConstant mystery = tune.Constant("mystery")!;
+
+        Assert.False(mystery.HasRange);
+        Assert.DoesNotContain("{", mystery.Units, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AndEncodesThroughItToo()
     {
