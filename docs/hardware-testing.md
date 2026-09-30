@@ -689,7 +689,7 @@ a caller is better off seeing than a silently-substituted 0 or null. Verified
 live: `GET /values?channel=Lua%3A%20torque` now answers `200` with a run of
 literal `NaN`s; the full rusEFI sweep above is with this fix in place.
 
-## 18. MaxxECU stored-log download — built, not yet run on hardware
+## 18. MaxxECU stored-log download — works on the bench Race, channels still unknown
 
 `MaxxStoredLog` reads the log a MaxxECU keeps in its own memory. It uses
 command `0x32`, 512-byte pieces, and 8,194 bytes by default, all recovered from
@@ -703,15 +703,32 @@ It sends reads only. MTune also sends `0x3B`, which the ECU already answers as
 an unknown command, and a `0x07` write with `FF FF FF FF`, whose meaning is
 unknown. Neither is sent here. Check on hardware:
 
-- Does `0x32` answer at all without the `0x07` write first? If not, find out
-  what `0x07` does before adding it. It could as easily clear the log.
-- Download twice in a row. Are the bytes identical? If not, the ECU keeps its
-  own read pointer rather than going by the offset in each request, and the
-  retry in `MaxxStoredLog.Read` would then skip a piece.
+- **Done, 2026-09-29: `0x32` answers with no `0x07` first.** Through
+  `--download-maxx-log` on the bench Race: 8,194 bytes, all 17 pieces answered,
+  nothing sent but reads. `0x07` stays out.
+- **Done: identical across two downloads.** Two separate connections about
+  10 minutes apart gave byte-identical files. Stored data, addressed by the
+  request's offset, not a read pointer inside the ECU — so the retry is safe.
+  The shape matches the 09-19 capture: from byte 50, alternating u16s near
+  2,040–2,050 and 1,230–1,240, ending `00 00`. The values differ from the
+  capture, so it's the ECU's current contents.
 - Is 8,194 bytes always the length, or does it change with what's stored?
   Try reading past it and see whether the ECU answers `0x30` (out of range).
+  Not tried — `MaxxStoredLog` has no way to ask for more than a fixed length
+  through the app yet.
 - Which channel is each 16-bit value? The file can't become a real log until
   that's known.
+- **Found on the way:** `--connect-maxx-usb --download-maxx-log <path>` hung
+  at startup. The serial number is optional, so `--connect-maxx-usb` took
+  `--download-maxx-log` as its value, and `<path>` was then opened as a log.
+  Fixed in `App.LogPathIn`, which no longer takes another switch as a value.
+
+**Same session, still broken: the MaxxECU tune read.** It fails exactly as on
+09-19: "stopped answering 256 bytes into its tune at offset 0", on every
+connect. Telemetry, the `0x32` stored-log reads and `AreYouThere` all answer
+normally, so the link is fine and it's specifically `0x05` the ECU won't
+answer. The next step is still the one noted on 09-19: see whether MTune can
+read the tune, and try a full power off and on.
 
 ---
 

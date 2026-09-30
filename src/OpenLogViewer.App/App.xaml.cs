@@ -56,13 +56,23 @@ public partial class App : Application
     /// and the failure surfaces as a modal dialog before the window is shown,
     /// which looks exactly like the app hanging on startup.
     /// </summary>
-    private static string? LogPathIn(string[] args)
+    internal static string? LogPathIn(string[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i].StartsWith("--", StringComparison.Ordinal))
             {
-                if (TakesAValue.Contains(args[i], StringComparer.OrdinalIgnoreCase)) i++;
+                // Some of these take a value only optionally — "--connect-maxx-usb"
+                // with no serial, "--download-maxx-log" with no path — so a
+                // switch is never taken as a value. Otherwise
+                // "--connect-maxx-usb --download-maxx-log x.bin" skips the second
+                // switch as a serial number and opens x.bin as a log.
+                if (TakesAValue.Contains(args[i], StringComparer.OrdinalIgnoreCase)
+                    && i + 1 < args.Length
+                    && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                {
+                    i++;
+                }
                 continue;
             }
 
