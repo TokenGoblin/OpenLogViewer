@@ -100,6 +100,15 @@ public partial class InsightsWindow : Window, INotifyPropertyChanged
             Closed += (_, _) => _watching.PropertyChanged -= OnSourceChanged;
         }
 
+        // A refresh still pending when the window closes would otherwise keep
+        // it alive until the timer fired, and then measure for a window nobody
+        // can see.
+        Closed += (_, _) =>
+        {
+            _due?.Stop();
+            _due = null;
+        };
+
         Refresh();
     }
 

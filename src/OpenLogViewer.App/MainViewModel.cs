@@ -4643,110 +4643,130 @@ KeepBurnedTune();
 
         var connection = new EcuConnection(transport, settings) { Trace = _wireTrace };
 
-        connection.Open();
+        // Closed on any failure between opening the port and handing it to the
+        // live session. Only the no-definition exit below closed it before, so
+        // a throw from reading the identity, the tune or the gauges left the
+        // port open until a finalizer got round to it - and a COM port held
+        // open is one the next connect attempt cannot have.
+        bool handedOver = false;
 
-        IReadOnlyList<string> identity = connection.ReadIdentity();
-
-        // Kept rather than built inline and thrown away: when nothing matches,
-        // what is already on this machine is most of the useful answer.
-        IReadOnlyList<IniFile> catalogue = IniCatalog.Scan(Workspace.DefinitionSearchPaths);
-
-        if (IniCatalog.MatchAny(identity, catalogue) is not var (ini, signature))
+        try
         {
-            connection.Dispose();
+            connection.Open();
 
-            // The folder is created now rather than at startup, with a note
-            // naming the signature this ECU actually reported — which is the one
-            // thing that makes finding the right file possible.
-            string folder = Workspace.EnsureDefinitions(identity);
+            IReadOnlyList<string> identity = connection.ReadIdentity();
 
-            DefinitionNeeded = DefinitionNeeds.Describe(identity, catalogue, folder);
+            // Kept rather than built inline and thrown away: when nothing matches,
+            // what is already on this machine is most of the useful answer.
+            IReadOnlyList<IniFile> catalogue = IniCatalog.Scan(Workspace.DefinitionSearchPaths);
 
-            throw new LogFormatException(MissingDefinitionText(DefinitionNeeded));
+            if (IniCatalog.MatchAny(identity, catalogue) is not var (ini, signature))
+            {
+                connection.Dispose();
+
+                // The folder is created now rather than at startup, with a note
+                // naming the signature this ECU actually reported — which is the one
+                // thing that makes finding the right file possible.
+                string folder = Workspace.EnsureDefinitions(identity);
+
+                DefinitionNeeded = DefinitionNeeds.Describe(identity, catalogue, folder);
+
+                throw new LogFormatException(MissingDefinitionText(DefinitionNeeded));
+            }
+
+            // More than one definition can declare the same signature — Speeduino's
+            // eight 202501.x releases all do, and they do not all decode alike — and
+            // which one a scan reaches first is not the same on two machines. Say so
+            // rather than letting the choice be silent.
+            _definitionAmbiguity = IniCatalog.MatchingAll(signature, catalogue) is { Count: > 1 } several
+                ? several
+                : [];
+
+            DefinitionNeeded = null;
+
+            // Whatever else it said is the build string — the same reply that is the
+            // signature on one firmware family is the version on the other.
+            string version = identity.FirstOrDefault(t => t != signature) ?? signature;
+
+            // Remembered against the port so the connect menu can name the ECU next
+            // time. Windows names the chip — a Speeduino shows up as "Arduino Mega
+            // 2560" — which does not distinguish two boards, and is the wrong half
+            // of the answer when the question is which ECU to connect to.
+            SerialPortNames.Remember(port, version);
+            _settings.SetKnownEcus(SerialPortNames.Remembered());
+            _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+            Raise(nameof(ReconnectLabel));
+            Raise(nameof(CanReconnect));
+
+            string iniText = TuningText.Read(ini.Path);
+            RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
+            IReadOnlyList<DatalogEntry> datalog = MsqIni.ReadDatalog(iniText);
+
+            // From here the firmware's own request format is used, which is the only
+            // way one program reads both a MegaSquirt page and a rusEFI block.
+            connection.Use(layout, _settings.SingleRequestBlock);
+
+            _projectTune = ReadProjectTune(ini.Path);
+
+            _ecuConnection = connection;
+
+            // Kept so a tune read off this controller can be written to a file that
+            // says which firmware it belongs to. Without it the file is a list of
+            // numbers nobody — this program included — can place.
+            _ecuSignature = signature;
+
+            ReadTuneFromEcu(connection, iniText);
+            SeedGauges(iniText, datalog);
+
+            // The tune supplies what the wire does not: firmware derives channels
+            // from settings such as the cylinder count as well as from live values.
+            var decoder = new RealtimeDecoder(layout, MsqTune.ReadScalars(TuneXml));
+
+            string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
+
+            Live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
+            {
+                RecordingPath = recording,
+                MaximumRate = LiveRate,
+            });
+
+            handedOver = true;
+
+            Live.Start();
+
+            _livePort = port;
+            _liveSignature = signature;
+            _liveVersion = version;
+            _liveIni = ini.Path;
+            _liveRecording = recording ?? "";
+
+            Status = $"Live — {signature}   •   {Live.Names.Count} channels   •   {ini.Name}";
+
+            // Worth saying plainly: on a bench almost nothing moves, and the default
+            // filter then hides almost everything. The channels are all being
+            // recorded regardless.
+            string quiet = Live.Names.Count > 0
+                ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
+                : "";
+            Title = $"Live: {signature} — OpenLogViewer";
+            Hint = $"{Opening(recording)} The plot follows the newest data until you zoom or pan."
+                   + quiet + AmbiguityNote();
+
+            Raise(nameof(IsLive));
+            Raise(nameof(LiveDetail));
+            Raise(nameof(CanExport));
+            Raise(nameof(CanRecord));
+            Raise(nameof(CanReconnect));
+            RaiseRecording();
         }
-
-        // More than one definition can declare the same signature — Speeduino's
-        // eight 202501.x releases all do, and they do not all decode alike — and
-        // which one a scan reaches first is not the same on two machines. Say so
-        // rather than letting the choice be silent.
-        _definitionAmbiguity = IniCatalog.MatchingAll(signature, catalogue) is { Count: > 1 } several
-            ? several
-            : [];
-
-        DefinitionNeeded = null;
-
-        // Whatever else it said is the build string — the same reply that is the
-        // signature on one firmware family is the version on the other.
-        string version = identity.FirstOrDefault(t => t != signature) ?? signature;
-
-        // Remembered against the port so the connect menu can name the ECU next
-        // time. Windows names the chip — a Speeduino shows up as "Arduino Mega
-        // 2560" — which does not distinguish two boards, and is the wrong half
-        // of the answer when the question is which ECU to connect to.
-        SerialPortNames.Remember(port, version);
-        _settings.SetKnownEcus(SerialPortNames.Remembered());
-        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
-        Raise(nameof(ReconnectLabel));
-        Raise(nameof(CanReconnect));
-
-        string iniText = TuningText.Read(ini.Path);
-        RealtimeLayout layout = MsqIni.ReadOutputChannels(iniText);
-        IReadOnlyList<DatalogEntry> datalog = MsqIni.ReadDatalog(iniText);
-
-        // From here the firmware's own request format is used, which is the only
-        // way one program reads both a MegaSquirt page and a rusEFI block.
-        connection.Use(layout, _settings.SingleRequestBlock);
-
-        _projectTune = ReadProjectTune(ini.Path);
-
-        _ecuConnection = connection;
-
-        // Kept so a tune read off this controller can be written to a file that
-        // says which firmware it belongs to. Without it the file is a list of
-        // numbers nobody — this program included — can place.
-        _ecuSignature = signature;
-
-        ReadTuneFromEcu(connection, iniText);
-        SeedGauges(iniText, datalog);
-
-        // The tune supplies what the wire does not: firmware derives channels
-        // from settings such as the cylinder count as well as from live values.
-        var decoder = new RealtimeDecoder(layout, MsqTune.ReadScalars(TuneXml));
-
-        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
-
-        Live = new LiveSession(connection, decoder, datalog, new LiveSessionSettings
+        finally
         {
-            RecordingPath = recording,
-            MaximumRate = LiveRate,
-        });
-
-        Live.Start();
-
-        _livePort = port;
-        _liveSignature = signature;
-        _liveVersion = version;
-        _liveIni = ini.Path;
-        _liveRecording = recording ?? "";
-
-        Status = $"Live — {signature}   •   {Live.Names.Count} channels   •   {ini.Name}";
-
-        // Worth saying plainly: on a bench almost nothing moves, and the default
-        // filter then hides almost everything. The channels are all being
-        // recorded regardless.
-        string quiet = Live.Names.Count > 0
-            ? "  Untick \"Hide unused\" to see every channel — all of them are being recorded either way."
-            : "";
-        Title = $"Live: {signature} — OpenLogViewer";
-        Hint = $"{Opening(recording)} The plot follows the newest data until you zoom or pan."
-               + quiet + AmbiguityNote();
-
-        Raise(nameof(IsLive));
-        Raise(nameof(LiveDetail));
-        Raise(nameof(CanExport));
-        Raise(nameof(CanRecord));
-        Raise(nameof(CanReconnect));
-        RaiseRecording();
+            if (!handedOver)
+            {
+                if (ReferenceEquals(_ecuConnection, connection)) _ecuConnection = null;
+                connection.Dispose();
+            }
+        }
     }
 
     /// <summary>Stops the session and closes the port, leaving the data in place.</summary>

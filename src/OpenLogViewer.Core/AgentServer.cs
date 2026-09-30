@@ -882,28 +882,39 @@ public sealed class AgentServer : IDisposable
         }
     }
 
-    private async Task Send(HttpListenerContext context, object payload)
+    private Task Send(HttpListenerContext context, object payload) =>
+        Respond(context, 200, JsonSerializer.SerializeToUtf8Bytes(payload, Json));
+
+    private Task Refuse(HttpListenerContext context, int status, string reason, string detail = "") =>
+        Respond(context, status, JsonSerializer.SerializeToUtf8Bytes(new { error = reason, detail }, Json));
+
+    /// <summary>
+    /// Writes a response and always ends it. A client that hangs up mid-write
+    /// makes the write throw, and the close after it used to be skipped — the
+    /// response and its connection were then held until something collected
+    /// them. Closed in a finally, and aborted if even closing fails.
+    /// </summary>
+    private static async Task Respond(HttpListenerContext context, int status, byte[] body)
     {
-        byte[] body = JsonSerializer.SerializeToUtf8Bytes(payload, Json);
+        try
+        {
+            context.Response.StatusCode = status;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            context.Response.ContentLength64 = body.Length;
 
-        context.Response.StatusCode = 200;
-        context.Response.ContentType = "application/json; charset=utf-8";
-        context.Response.ContentLength64 = body.Length;
-
-        await context.Response.OutputStream.WriteAsync(body).ConfigureAwait(false);
-        context.Response.Close();
-    }
-
-    private async Task Refuse(HttpListenerContext context, int status, string reason, string detail = "")
-    {
-        byte[] body = JsonSerializer.SerializeToUtf8Bytes(new { error = reason, detail }, Json);
-
-        context.Response.StatusCode = status;
-        context.Response.ContentType = "application/json; charset=utf-8";
-        context.Response.ContentLength64 = body.Length;
-
-        await context.Response.OutputStream.WriteAsync(body).ConfigureAwait(false);
-        context.Response.Close();
+            await context.Response.OutputStream.WriteAsync(body).ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                context.Response.Close();
+            }
+            catch (Exception e) when (e is HttpListenerException or ObjectDisposedException or InvalidOperationException)
+            {
+                context.Response.Abort();
+            }
+        }
     }
 
     public void Dispose()

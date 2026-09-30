@@ -392,8 +392,17 @@ public sealed class LiveSession : IDisposable
     {
         try { _cancel?.Cancel(); } catch (ObjectDisposedException) { }
 
-        _worker?.Join(TimeSpan.FromSeconds(2));
+        bool stopped = _worker?.Join(TimeSpan.FromSeconds(2)) ?? true;
         _worker = null;
+
+        // The poll loop waits on the token's handle, which is a kernel event
+        // left for the finalizer on every session otherwise. Disposed only once
+        // the loop has actually finished: one still waiting on it would throw.
+        if (stopped)
+        {
+            _cancel?.Dispose();
+            _cancel = null;
+        }
 
         StopRecording();
     }
