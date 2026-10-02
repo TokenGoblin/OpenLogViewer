@@ -104,23 +104,90 @@
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="12,8">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <RadioButton x:Name="ShowAll" Style="{StaticResource Chip}" Content="Everything"
+                    <RadioButton x:Name="ShowAll" Style="{DynamicResource Chip}" Content="Everything"
                                  GroupName="Show" IsChecked="True" Checked="OnShowChanged"
                                  ToolTip="Every request, whoever made it"/>
-                    <RadioButton x:Name="ShowAgents" Style="{StaticResource Chip}" Content="AI"
+                    <RadioButton x:Name="ShowAgents" Style="{DynamicResource Chip}" Content="AI"
                                  GroupName="Show" Checked="OnShowChanged"
                                  ToolTip="Only what an agent asked — through MCP or straight over HTTP"/>
-                    <RadioButton x:Name="ShowConsole" Style="{StaticResource Chip}" Content="Console"
+                    <RadioButton x:Name="ShowConsole" Style="{DynamicResource Chip}" Content="Console"
                                  GroupName="Show" Checked="OnShowChanged"
                                  ToolTip="Only what was typed here"/>
-                    <RadioButton x:Name="ShowWrites" Style="{StaticResource Chip}" Content="Writes"
+                    <RadioButton x:Name="ShowWrites" Style="{DynamicResource Chip}" Content="Writes"
                                  GroupName="Show" Checked="OnShowChanged"
                                  ToolTip="Only requests that try to change the ECU"/>
                 </StackPanel>
 
-                <Button DockPanel.Dock="Right" Content="Clear" Padding="12,3" Margin="10,0,0,0"
+                <Button DockPanel.Dock="Right" Content="Clear" Padding="12,3" Margin="6,0,0,0"
                         Click="OnClearClick"
                         ToolTip="Empties this window. The transcript itself is kept and comes back when the console is reopened"/>
+
+                <!--
+                    The command list, from the same catalog the parser and help
+                    use. Picking one puts it in the prompt and stops there: a
+                    command is only ever sent by Enter, so a write is never one
+                    click away.
+                -->
+                <Button x:Name="CommandsButton" DockPanel.Dock="Right" Content="Commands ▾" Padding="12,3"
+                        Margin="10,0,0,0" Click="OnCommandsClick"
+                        ToolTip="Every command, and what it takes. Pick one to put it in the prompt"/>
+                <Popup x:Name="CommandsPopup" PlacementTarget="{Binding ElementName=CommandsButton}"
+                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                       Closed="OnCommandsClosed">
+                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}"
+                            BorderThickness="1" Padding="4" Margin="0,4,0,0">
+                        <ListBox x:Name="CommandList" Width="560" MaxHeight="520" BorderThickness="0"
+                                 Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 PreviewMouseLeftButtonUp="OnCommandPicked" KeyDown="OnCommandListKeyDown">
+                            <ListBox.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="6,8,6,2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource Text}"/>
+                                                <TextBlock Text="{Binding Items[0].GroupNote}" FontSize="11"
+                                                           Foreground="{DynamicResource Muted}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Items[0].GroupNote}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListBox.GroupStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="10,2,4,2">
+                                        <TextBlock Text="{Binding Usage}" FontFamily="{StaticResource Mono}"
+                                                   FontSize="12" TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWrite}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Summary}" FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource Muted}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </Popup>
                 <CheckBox x:Name="Follow" DockPanel.Dock="Right" Content="Follow" IsChecked="True"
                           VerticalAlignment="Center" Margin="10,0,0,0"
                           ToolTip="Keep the newest request in view"/>
@@ -140,11 +207,56 @@
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="olv&gt;" FontFamily="{StaticResource Mono}"
                            Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox x:Name="Input" FontFamily="{StaticResource Mono}" Padding="6,4"
-                         PreviewKeyDown="OnInputKeyDown"
-                         ToolTip="Type help for the commands. Up and Down walk back through what you typed"/>
+                <Grid>
+                    <TextBox x:Name="Input" FontFamily="{StaticResource Mono}" Padding="6,4"
+                             PreviewKeyDown="OnInputKeyDown"
+                             TextChanged="OnInputChanged" SelectionChanged="OnInputCaretMoved"
+                             ToolTip="Tab completes. Up and Down walk back through what you typed. Commands ▾ lists everything"/>
+
+                    <!--
+                        What the command still takes, drawn faintly after the
+                        typing the way a shell does it. The first run is the
+                        typed text again, invisible, so the hint starts where
+                        the typing ends; the font is monospaced, so that holds.
+                    -->
+                    <TextBlock x:Name="HintLine" FontFamily="{StaticResource Mono}" IsHitTestVisible="False"
+                               Margin="9,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run x:Name="HintTyped" Foreground="Transparent"/><Run x:Name="HintRest"
+                             Foreground="{DynamicResource Faint}"/>
+                    </TextBlock>
+                </Grid>
             </DockPanel>
         </Border>
+
+        <!--
+            What Tab found, when it found more than one. Opens above the prompt,
+            since the prompt is at the foot of the window, and is driven entirely
+            from the prompt's keys so typing never leaves the box.
+        -->
+        <Popup x:Name="SuggestPopup" PlacementTarget="{Binding ElementName=Input}" Placement="Top"
+               StaysOpen="True" AllowsTransparency="True">
+            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}"
+                    BorderThickness="1" Padding="2" Margin="0,0,0,4">
+                <ListBox x:Name="Suggestions" MinWidth="320" MaxWidth="640" MaxHeight="240"
+                         BorderThickness="0" Background="Transparent"
+                         FontFamily="{StaticResource Mono}" FontSize="12"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         Focusable="False"
+                         PreviewMouseLeftButtonUp="OnSuggestionPicked">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="4,1">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Note}" Margin="16,0,0,0"
+                                           Foreground="{DynamicResource Muted}"/>
+                                <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Text}"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Popup>
 
         <Grid>
             <Grid.RowDefinitions>

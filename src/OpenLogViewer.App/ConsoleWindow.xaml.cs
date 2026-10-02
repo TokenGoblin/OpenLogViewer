@@ -98,6 +98,11 @@ public partial class ConsoleWindow : Window
         Closed += (_, _) => _vm.AgentTranscript.Recorded -= OnRecorded;
 
         Loaded += (_, _) => Input.Focus();
+
+        // The suggestion list floats in its own window and would otherwise
+        // stay put while this one moved or went behind another.
+        Deactivated += (_, _) => CloseSuggestions();
+        LocationChanged += (_, _) => CloseSuggestions();
     }
 
     // ----- the transcript ----------------------------------------------------
@@ -253,8 +258,40 @@ public partial class ConsoleWindow : Window
 
     private async void OnInputKeyDown(object sender, KeyEventArgs e)
     {
+        bool listing = SuggestPopup.IsOpen;
+        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
         switch (e.Key)
         {
+            // Handled whatever happens, so Tab never walks focus off the prompt.
+            case Key.Tab:
+                e.Handled = true;
+                if (listing && shift) MoveSuggestion(-1);
+                else if (listing) AcceptSuggestion();
+                else if (!shift) Complete();
+                return;
+
+            case Key.Up when listing:
+                MoveSuggestion(-1);
+                e.Handled = true;
+                return;
+
+            case Key.Down when listing:
+                MoveSuggestion(+1);
+                e.Handled = true;
+                return;
+
+            case Key.Enter when listing:
+                AcceptSuggestion();
+                e.Handled = true;
+                return;
+
+            case Key.Escape:
+                if (listing) CloseSuggestions();
+                else Input.Clear();
+                e.Handled = true;
+                return;
+
             case Key.Up when _history.Count > 0:
                 _historyAt = Math.Max(0, _historyAt - 1);
                 Recall();
@@ -287,6 +324,204 @@ public partial class ConsoleWindow : Window
         Input.Text = _historyAt < _history.Count ? _history[_historyAt] : "";
         Input.CaretIndex = Input.Text.Length;
     }
+
+    // ----- Tab completion ----------------------------------------------------
+
+    /// <summary>The completion the open suggestion list was made from.</summary>
+    private ConsoleCompletion? _completion;
+
+    /// <summary>Set while this window is changing the prompt itself, so its own edit does not re-open the list.</summary>
+    private bool _editing;
+
+    private ConsoleCompletion Completion() =>
+        AgentConsoleCompletion.Complete(Input.Text, Input.CaretIndex, _vm.ConsoleNames());
+
+    /// <summary>
+    /// Tab with no list open: one answer goes straight in; several fill in
+    /// whatever they share and then open the list; none does nothing.
+    /// </summary>
+    private void Complete()
+    {
+        ConsoleCompletion completion = Completion();
+
+        switch (completion.Candidates.Count)
+        {
+            case 0:
+                return;
+
+            case 1:
+                Put(completion.Accept(Input.Text, completion.Candidates[0]));
+                return;
+
+            default:
+                if (completion.SharedStart.Length > 0)
+                {
+                    Put(completion.AcceptShared(Input.Text));
+                    completion = Completion();
+                }
+
+                ShowSuggestions(completion);
+                return;
+        }
+    }
+
+    private void ShowSuggestions(ConsoleCompletion completion)
+    {
+        if (completion.Candidates.Count == 0)
+        {
+            CloseSuggestions();
+            return;
+        }
+
+        _completion = completion;
+        Suggestions.ItemsSource = completion.Candidates;
+        Suggestions.SelectedIndex = 0;
+        Suggestions.ScrollIntoView(Suggestions.SelectedItem);
+
+        // Under the word being completed rather than at the prompt's left edge.
+        Rect at = Input.GetRectFromCharacterIndex(Math.Min(completion.Start, Input.Text.Length));
+        SuggestPopup.HorizontalOffset = double.IsFinite(at.Left) ? at.Left : 0;
+        SuggestPopup.IsOpen = true;
+    }
+
+    private void CloseSuggestions()
+    {
+        SuggestPopup.IsOpen = false;
+        _completion = null;
+    }
+
+    private void MoveSuggestion(int by)
+    {
+        int count = Suggestions.Items.Count;
+        if (count == 0) return;
+
+        Suggestions.SelectedIndex = ((Suggestions.SelectedIndex + by) % count + count) % count;
+        Suggestions.ScrollIntoView(Suggestions.SelectedItem);
+    }
+
+    private void AcceptSuggestion()
+    {
+        if (_completion is { } completion && Suggestions.SelectedItem is ConsoleSuggestion choice)
+            Put(completion.Accept(Input.Text, choice));
+
+        CloseSuggestions();
+    }
+
+    private void OnSuggestionPicked(object sender, MouseButtonEventArgs e)
+    {
+        if (!OnAnItem(Suggestions, e) || Suggestions.SelectedItem is null) return;
+
+        AcceptSuggestion();
+        Input.Focus();
+    }
+
+    private void Put((string Line, int Caret) result)
+    {
+        _editing = true;
+        Input.Text = result.Line;
+        Input.CaretIndex = result.Caret;
+        _editing = false;
+
+        ShowHint();
+    }
+
+    /// <summary>
+    /// Typing narrows an open list, and closes it once nothing is left.
+    ///
+    /// Text replaced from code arrives with the caret at the start and moves it
+    /// a moment later, and a list judged from the start of the line would be
+    /// every command — so that moment is skipped, and the caret moving does the
+    /// refresh instead.
+    /// </summary>
+    private void OnInputChanged(object sender, TextChangedEventArgs e)
+    {
+        if (Input.CaretIndex > 0 || Input.Text.Length == 0) RefreshSuggestions();
+        ShowHint();
+    }
+
+    private void OnInputCaretMoved(object sender, RoutedEventArgs e)
+    {
+        RefreshSuggestions();
+        ShowHint();
+    }
+
+    private void RefreshSuggestions()
+    {
+        if (!_editing && SuggestPopup.IsOpen) ShowSuggestions(Completion());
+    }
+
+    /// <summary>
+    /// The rest of the command's usage, faintly after the typing. Only with
+    /// the caret at the end of a line that fits the box: anywhere else, a hint
+    /// drawn after the text would sit on top of it.
+    /// </summary>
+    private void ShowHint()
+    {
+        string text = Input.Text;
+        string hint = "";
+
+        if (text.Length > 0 && Input.CaretIndex == text.Length && Input.HorizontalOffset < 1)
+        {
+            // The hint needs only the command list, not the names, so this
+            // does not gather every channel on every keystroke.
+            hint = AgentConsoleCompletion.Complete(text, text.Length, ConsoleNames.None).Hint;
+            if (hint.Length > 0 && !text.EndsWith(' ')) hint = " " + hint;
+        }
+
+        HintTyped.Text = hint.Length > 0 ? text : "";
+        HintRest.Text = hint;
+    }
+
+    // ----- the commands list -------------------------------------------------
+
+    /// <summary>One row of the commands list.</summary>
+    public sealed record CommandRow(string Name, string Usage, string Summary, bool IsWrite, string Group, string GroupNote);
+
+    private void OnCommandsClick(object sender, RoutedEventArgs e)
+    {
+        if (CommandList.ItemsSource is null)
+        {
+            var rows = AgentConsoleCatalog.Verbs.Select(v => new CommandRow(
+                v.Name, v.Usage, v.Summary, v.IsWrite, v.Group,
+                AgentConsoleCatalog.Groups.First(g => g.Name == v.Group).Note)).ToList();
+
+            ListCollectionView view = new(rows);
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CommandRow.Group)));
+            CommandList.ItemsSource = view;
+        }
+
+        CommandList.SelectedItem = null;
+        CommandsPopup.IsOpen = true;
+        CommandList.Focus();
+    }
+
+    private void OnCommandPicked(object sender, MouseButtonEventArgs e)
+    {
+        if (OnAnItem(CommandList, e)) PickCommand();
+    }
+
+    /// <summary>Whether a click landed on a row, rather than on a heading or the scroll bar.</summary>
+    private static bool OnAnItem(ItemsControl list, MouseButtonEventArgs e) =>
+        e.OriginalSource is DependencyObject hit && ItemsControl.ContainerFromElement(list, hit) is ListBoxItem;
+
+    private void OnCommandListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+
+        PickCommand();
+        e.Handled = true;
+    }
+
+    /// <summary>Puts the command in the prompt, ready for its arguments. Never sends it.</summary>
+    private void PickCommand()
+    {
+        if (CommandList.SelectedItem is not CommandRow row) return;
+
+        CommandsPopup.IsOpen = false;
+        Put((row.Name + " ", row.Name.Length + 1));
+    }
+
+    private void OnCommandsClosed(object? sender, EventArgs e) => Input.Focus();
 
     /// <summary>Does one typed line. Public so a scripted run can drive the console.</summary>
     public async Task Run(string line)

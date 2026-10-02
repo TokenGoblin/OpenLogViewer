@@ -1134,8 +1134,10 @@ olv> get /values?channel=RPM&seconds=5
 olv> show writes
 ```
 
-`help` lists the rest. Commands go through the API like any other client's, so
-writes from the console meet exactly the guardrails an agent's do.
+**Commands ▾** lists the rest, and **Tab** completes command names and the
+table, channel and setting names of whatever is connected. Commands go through
+the API like any other client's, so writes from the console meet exactly the
+guardrails an agent's do.
 
 ## Requirements
 

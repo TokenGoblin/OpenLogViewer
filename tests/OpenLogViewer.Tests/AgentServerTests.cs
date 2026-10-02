@@ -1570,4 +1570,24 @@ public class AgentServerTests : IDisposable
 
         Assert.Single(transcript.All());
     }
+
+    [Fact]
+    public async Task TheConsoleCompletesExactlyTheRoutesTheServerOffers()
+    {
+        (_, _, HttpClient client) = Serve();
+
+        using JsonDocument index = JsonDocument.Parse(await client.GetStringAsync("/"));
+
+        // "GET /values?channel=&seconds=" to "/values"; the WebSocket is not a get or a post.
+        string[] served =
+        [
+            "/",
+            .. index.RootElement.GetProperty("endpoints").EnumerateArray()
+                .Select(e => e.GetString()!)
+                .Where(e => !e.StartsWith("WS ", StringComparison.Ordinal))
+                .Select(e => e.Split(' ', 2)[1].Split('?')[0]),
+        ];
+
+        Assert.Equal(served.Order(StringComparer.Ordinal), AgentConsoleCatalog.Routes.Order(StringComparer.Ordinal));
+    }
 }

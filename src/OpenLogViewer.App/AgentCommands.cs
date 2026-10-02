@@ -35,6 +35,36 @@ public partial class MainViewModel
     internal string AgentConsoleToken { get; } =
         Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
 
+    /// <summary>
+    /// The names the console's Tab completion offers, read here rather than
+    /// over the API: fetching them through it would put a line in the
+    /// transcript on every keypress and bury what an agent is doing. These are
+    /// only names — nothing that changes the engine goes this way.
+    /// </summary>
+    internal ConsoleNames ConsoleNames()
+    {
+        static string Number(double value) => value.ToString("0.###", System.Globalization.CultureInfo.CurrentCulture);
+
+        return new ConsoleNames
+        {
+            Tables = [.. EcuTables.Select(t => new ConsoleName(
+                t.Name, $"{t.Columns}×{t.Rows}{(t.Units.Length > 0 ? " " + t.Units : "")}"))],
+
+            Channels = [.. new AgentBridge(this).Channels().Select(c => new ConsoleName(
+                c.Name, string.Join(", ", new[] { c.Units, c.Role }.Where(s => s.Length > 0))))],
+
+            Settings = [.. AgentTuneConstants().Select(c => new ConsoleName(
+                c.Name,
+                string.Join(", ", new[]
+                {
+                    c.Units,
+                    c.HasRange ? $"{Number(c.Low)} to {Number(c.High)}" : "",
+                }.Where(s => s.Length > 0))))],
+
+            Versions = [.. (Project?.Versions ?? []).Select(v => new ConsoleName(v.Id, v.At.ToString("d MMM HH:mm")))],
+        };
+    }
+
     /// <summary>Where an agent points itself, or nothing when it is off.</summary>
     public string AgentAddress => _agent?.Address ?? "";
 

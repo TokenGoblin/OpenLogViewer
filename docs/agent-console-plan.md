@@ -1,7 +1,7 @@
 # Agent console: commands button and Tab completion (plan)
 
-Status: planned, not started. Builds on the console added in `3dc9e38`
-(branch `agent-console`).
+Status: Steps 1–5 built on branch `agent-console`. Builds on the console added
+in `3dc9e38`. The open questions at the end are still open.
 
 ## Goal
 

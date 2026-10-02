@@ -366,8 +366,9 @@ public static class Guide
             new("Watching it work",
                 "Tools ▸ Agent console, or Ctrl+`. Every request made to the API appears as it "
                 + "happens — which tool an assistant called, what it sent, what came back — and "
-                + "writes and refusals stand out. Type help at its prompt to drive the same API "
-                + "yourself; your commands meet every guardrail an assistant's do."),
+                + "writes and refusals stand out. Its prompt drives the same API yourself: "
+                + "Commands lists what it takes, Tab completes table, channel and setting names, "
+                + "and your commands meet every guardrail an assistant's do."),
         ]),
 
         new("VE Calibration",

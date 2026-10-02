@@ -41,42 +41,8 @@ public sealed record AgentConsoleCommand
     /// <summary>What a write says about itself when the person typing gave no reason.</summary>
     public const string DefaultRationale = "typed in the OpenLogViewer console";
 
-    public const string Help = """
-        Reading
-          state                       what is open, and whether writes are armed
-          limits                      the write guardrails in force
-          channels [raw]              every channel; raw for all the firmware decodes
-          values <channel> [seconds]  one channel's samples, newest N seconds
-          insights                    what the log says about the engine
-          tune                        every setting, by name
-          tune full                   every setting with its units and range
-          tables                      the tables this firmware declares
-          table <name>                one table's cells and axes
-          log [seconds] [decimate]    the whole log, every channel
-          context                     the catch-up an agent reads first
-          wire [count]                the most recent requests sent to the ECU
-          health                      how the link to the ECU is doing
-          project                     the tuning project for this vehicle
-          versions <from> <to>        what changed between two tune versions
-          staged                      files staged for somebody to pick up
-          definition                  which firmware definition is missing
-
-        Writing (the same guardrails an agent meets: armed, rate-limited, range-checked)
-          set <setting> <value> [why…] [--dangerous]
-          cell <table> <column> <row> <value> [why…] [--dangerous]
-
-        Anything else
-          get <route>                 e.g. get /values?channel=RPM&seconds=5
-          post <route> [json]         e.g. post /tune/propose {"settings":[{"name":"reqFuel","value":9.1}]}
-
-        The console itself
-          api on | off                start or stop the agent API
-          show all | ai | console | writes
-          clear                       empty the window (the transcript is kept)
-          help
-
-        Quote anything with spaces in it: table "VE Table 1"
-        """;
+    /// <summary>The command list, printed from <see cref="AgentConsoleCatalog"/>.</summary>
+    public static string Help => AgentConsoleCatalog.Help();
 
     public static AgentConsoleCommand Parse(string line)
     {
@@ -103,20 +69,27 @@ public sealed record AgentConsoleCommand
 
         if (words.Count == 0) return new AgentConsoleCommand { Error = "" };
 
-        string verb = words[0].ToLowerInvariant();
+        // The catalog decides what is a command; the switch below only says
+        // what each one sends.
+        if (AgentConsoleCatalog.Find(words[0]) is not { } known)
+            return Bad($"No command \"{words[0]}\". Type help for the list.");
+
+        string verb = known.Name;
         List<string> rest = words[1..];
 
         switch (verb)
         {
-            case "help" or "?":
-            case "clear" or "cls":
+            case "help":
+            case "clear":
             case "api":
             case "show":
                 return new AgentConsoleCommand
                 {
-                    Local = verb switch { "?" => "help", "cls" => "clear", _ => verb },
+                    Local = verb,
                     Argument = string.Join(' ', rest).ToLowerInvariant(),
                 };
+
+            case "post": return ParsePost(line);
 
             case "state": return Get("/state");
             case "limits": return Get("/limits");
@@ -216,7 +189,8 @@ public sealed record AgentConsoleCommand
                 return rest.Count == 0 ? Bad("get wants a route: get /state") : Get(Route(rest[0]));
 
             default:
-                return Bad($"No command \"{words[0]}\". Type help for the list.");
+                throw new InvalidOperationException(
+                    $"\"{verb}\" is in the console catalog with nothing to say what it sends.");
         }
     }
 

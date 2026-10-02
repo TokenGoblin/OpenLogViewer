@@ -55,6 +55,19 @@ dangerous constants still need confirming. Your commands are signed with a token
 that exists only inside the running application, so "you" in the transcript
 can't be claimed by an agent setting a header.
 
+**Commands ▾** at the top of the console lists every command and what it takes,
+with writes marked. Picking one puts it in the prompt but doesn't send it. **Tab**
+completes as you type:
+- command names
+- the table, channel and setting names the connected ECU actually has, with
+  units and ranges alongside
+- tune version ids
+- routes
+
+A name with spaces is quoted for you, and typing part of a name finds it
+anywhere in the name (`ign` finds `Ignition Advance Table`). After a command, a
+faint hint shows what it still takes.
+
 **Insights — what a datalog says about the engine that produced it.** Thirteen
 findings, measured rather than eyeballed: fuelling against target, lean
 excursions under load, knock retard, closed-loop bias, injector duty, charging,
