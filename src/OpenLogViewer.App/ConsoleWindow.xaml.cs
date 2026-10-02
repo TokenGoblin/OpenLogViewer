@@ -241,7 +241,22 @@ public partial class ConsoleWindow : Window
         return true;
     }
 
-    private void OnShowChanged(object sender, RoutedEventArgs e) => _view?.Refresh();
+    /// <summary>
+    /// Refilters, and when that hides the line being read, moves to the
+    /// newest one still shown rather than leaving the detail pane blank.
+    /// </summary>
+    private void OnShowChanged(object sender, RoutedEventArgs e)
+    {
+        if (_view is null) return;
+
+        _view.Refresh();
+
+        if (Entries.SelectedItem is null && _view.Cast<object>().LastOrDefault() is { } newest)
+        {
+            Entries.SelectedItem = newest;
+            Entries.ScrollIntoView(newest);
+        }
+    }
 
     private void OnEntrySelected(object sender, SelectionChangedEventArgs e) =>
         Detail.Text = (Entries.SelectedItem as ConsoleEntry)?.Detail ?? "";

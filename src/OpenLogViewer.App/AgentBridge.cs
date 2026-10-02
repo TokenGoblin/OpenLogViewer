@@ -159,6 +159,9 @@ public sealed class AgentBridge(MainViewModel viewModel) : IAgentBridge
     public AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false) =>
         _viewModel.AgentSetSetting(name, value, rationale, confirmDangerous);
 
+    public AgentSettingWrite WriteSetting(string name, double value, string rationale, bool confirmDangerous = false) =>
+        _viewModel.AgentWriteSetting(name, value, rationale, confirmDangerous);
+
     public AgentCellWrite SetTableCell(
         string table, int column, int row, double value, string rationale, bool confirmDangerous = false) =>
         _viewModel.AgentSetTableCell(table, column, row, value, rationale, confirmDangerous);

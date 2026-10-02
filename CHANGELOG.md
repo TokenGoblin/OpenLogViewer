@@ -1122,6 +1122,19 @@ became 61 MB.
 
 ### Fixed
 
+- **Writing a value that was already there was reported as a failed write.**
+  Setting a setting or table cell to what the ECU already held answered 409,
+  "the write did not go through". It now answers 200 with `"unchanged": true`,
+  sends nothing, and doesn't count against the write rate limit. Every guard
+  (armed, a reason given, range, size of change) still answers first. Found by
+  running the agent console's commands against a bench Speeduino.
+- **The MCP server stopped working after the agent API restarted.** The API
+  makes a new token every time it starts, and the MCP server kept the first one
+  it read, so every call failed as unauthorised until it was restarted too. It
+  now re-reads the address and token and retries once when it's turned away or
+  finds nobody listening.
+- **The agent console's detail pane went blank when a filter hid the selected
+  line.** It now moves to the newest line still shown.
 - **MLG scales carried float error into every sample.** Descriptors store the
   scale as a 32-bit float, so a channel scaled by 0.1 held 0.100000001490116.
   A raw 341 decoded to 34.10000228 instead of 34.1 — one rounding step off,

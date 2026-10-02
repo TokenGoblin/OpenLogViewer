@@ -63,7 +63,14 @@ public sealed record AgentRefusal(string Reason, string Detail = "");
 /// refused because nothing here can reliably tell a real collision from an
 /// uninstalled expansion module's declared-but-inert address by name alone.
 /// </param>
-public sealed record AgentCellWrite(AgentRefusal? Refusal, double Value, string? Warning = null);
+public sealed record AgentCellWrite(AgentRefusal? Refusal, double Value, string? Warning = null, bool Unchanged = false);
+
+/// <summary>
+/// What a setting write did: refused, sent, or — <see cref="Unchanged"/> —
+/// nothing to send, because the ECU already held that value. The last is an
+/// answer, not a failure, and is reported as one.
+/// </summary>
+public sealed record AgentSettingWrite(AgentRefusal? Refusal, bool Unchanged = false);
 
 /// <summary>
 /// The operating limits a write can run into, stated up front rather than
@@ -246,6 +253,15 @@ public interface IAgentBridge
     /// burns; a power cycle undoes whatever this does.
     /// </summary>
     AgentRefusal? SetSetting(string name, double value, string rationale, bool confirmDangerous = false);
+
+    /// <summary>
+    /// <see cref="SetSetting"/>, also saying whether the setting already held
+    /// that value, so nothing was sent. The route uses this one; a bridge that
+    /// cannot tell says it was not unchanged, which is what the route reported
+    /// before this existed.
+    /// </summary>
+    AgentSettingWrite WriteSetting(string name, double value, string rationale, bool confirmDangerous = false) =>
+        new(SetSetting(name, value, rationale, confirmDangerous));
 
     /// <summary>
     /// Puts one cell of one table into the controller's working memory. See

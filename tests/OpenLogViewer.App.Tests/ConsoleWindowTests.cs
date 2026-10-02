@@ -224,4 +224,25 @@ public class ConsoleWindowTests
             Assert.Equal(["set", "cell"], writes);
         });
     }
+
+    [Fact]
+    public void AFilterThatHidesTheLineBeingReadMovesToTheNewestOneShown()
+    {
+        OnUi((window, vm) =>
+        {
+            vm.AgentTranscript.Record(DateTime.UtcNow, "mcp", "olv_set_setting", "POST", "/tune/set",
+                "{}", 409, "{\"error\":\"refused\"}", 1);
+            vm.AgentTranscript.Record(DateTime.UtcNow, "mcp", "olv_state", "GET", "/state", "", 200, "{}", 1);
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                () => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+            window.Entries.SelectedItem = window.Lines.Last();
+            Assert.Contains("/state", window.Detail.Text, StringComparison.Ordinal);
+
+            window.ShowWrites.IsChecked = true;
+
+            Assert.NotNull(window.Entries.SelectedItem);
+            Assert.Contains("/tune/set", window.Detail.Text, StringComparison.Ordinal);
+        });
+    }
 }

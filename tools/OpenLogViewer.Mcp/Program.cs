@@ -50,6 +50,9 @@ internal static class Program
     /// </summary>
     private static string _tool = "";
 
+    /// <summary>Where the address and token are read from, kept so they can be read again.</summary>
+    private static string _details = "";
+
     private static async Task<int> Main(string[] args)
     {
         // Where the application left its address and token. Overridable so a
@@ -477,6 +480,7 @@ internal static class Program
         string name = parameters?["name"]?.GetValue<string>() ?? "";
         JsonObject arguments = parameters?["arguments"] as JsonObject ?? [];
         _tool = name;
+        _details = details;
 
         if (!Located(details, out string problem)) return Text(problem, failed: true);
 
@@ -657,8 +661,41 @@ internal static class Program
     /// "writes are not armed" as a description of what it just did. MCP has a
     /// flag for exactly this; the refusal has to reach it.
     /// </summary>
-    private static async Task<(string Body, bool Refused)> Send(HttpRequestMessage request)
+    /// <summary>
+    /// Sends one request, and once more after re-reading the address and token
+    /// if the first was turned away as unauthorised or found nobody listening.
+    ///
+    /// Both are what a restarted API looks like from here: the application
+    /// makes a fresh token every time the API starts — turning it off and on,
+    /// from the toolbar or the console's "api" command, or restarting the
+    /// application — and this used to keep the one it read first for the rest
+    /// of its life, answering "unauthorised" to every call until whoever ran
+    /// it restarted it too.
+    /// </summary>
+    private static async Task<(string Body, bool Refused)> Send(HttpMethod method, string path, string? json = null)
     {
+        try
+        {
+            (string Body, bool Refused, bool Unauthorised) first = await SendOnce(method, path, json).ConfigureAwait(false);
+            if (!first.Unauthorised || !Relocated()) return (first.Body, first.Refused);
+        }
+        catch (HttpRequestException) when (Relocated())
+        {
+            // Nobody at the old address; the details file now names another.
+        }
+
+        (string Body, bool Refused, bool _) again = await SendOnce(method, path, json).ConfigureAwait(false);
+        return (again.Body, again.Refused);
+    }
+
+    private static async Task<(string Body, bool Refused, bool Unauthorised)> SendOnce(
+        HttpMethod method, string path, string? json)
+    {
+        using var request = new HttpRequestMessage(method, _address + path);
+
+        if (json is not null)
+            request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
         request.Headers.Authorization = new("Bearer", _token);
         request.Headers.Add("X-OLV-Client", "mcp");
         if (_tool.Length > 0) request.Headers.Add("X-OLV-Tool", _tool);
@@ -667,18 +704,33 @@ internal static class Program
 
         string body = await answer.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-        return (body, !answer.IsSuccessStatusCode);
+        return (body, !answer.IsSuccessStatusCode, answer.StatusCode == System.Net.HttpStatusCode.Unauthorized);
     }
 
-    private static Task<(string Body, bool Refused)> Get(string path) =>
-        Send(new HttpRequestMessage(HttpMethod.Get, _address + path));
+    /// <summary>
+    /// Forgets the address and token and reads them again. True only when that
+    /// found something different — retrying with the same details would just
+    /// be refused the same way.
+    /// </summary>
+    private static bool Relocated()
+    {
+        (string address, string token) = (_address, _token);
+        (_address, _token) = ("", "");
+
+        if (Located(_details, out _) && (_address != address || _token != token))
+        {
+            Console.Error.WriteLine("openlogviewer-mcp: the agent API restarted; using its new address and token");
+            return true;
+        }
+
+        (_address, _token) = (address, token);
+        return false;
+    }
+
+    private static Task<(string Body, bool Refused)> Get(string path) => Send(HttpMethod.Get, path);
 
     private static Task<(string Body, bool Refused)> Post(string path, JsonObject body) =>
-        Send(new HttpRequestMessage(HttpMethod.Post, _address + path)
-        {
-            Content = new StringContent(body.ToJsonString(Compact), System.Text.Encoding.UTF8,
-                                        "application/json"),
-        });
+        Send(HttpMethod.Post, path, body.ToJsonString(Compact));
 
     private static string Text(JsonObject arguments, string name) =>
         arguments[name]?.GetValue<string>() ?? "";

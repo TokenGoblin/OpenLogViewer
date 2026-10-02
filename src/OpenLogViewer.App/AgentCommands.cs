@@ -261,9 +261,26 @@ public partial class MainViewModel
     /// only matters when <paramref name="name"/> matches <see cref="DangerousConstants"/>.
     /// </summary>
     internal AgentRefusal? AgentSetSetting(
+        string name, double value, string rationale, bool confirmDangerous = false) =>
+        SetSettingCore(name, value, rationale, confirmDangerous, out _);
+
+    /// <summary>
+    /// <see cref="AgentSetSetting"/>, also saying whether the value was already
+    /// there — in which case nothing is sent and the write is not counted
+    /// against the rate limit, since nothing reached the ECU.
+    /// </summary>
+    internal AgentSettingWrite AgentWriteSetting(
         string name, double value, string rationale, bool confirmDangerous = false)
     {
+        AgentRefusal? refused = SetSettingCore(name, value, rationale, confirmDangerous, out bool unchanged);
+        return new AgentSettingWrite(refused, unchanged);
+    }
+
+    private AgentRefusal? SetSettingCore(
+        string name, double value, string rationale, bool confirmDangerous, out bool unchanged)
+    {
         using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
+        unchanged = false;
 
         if (string.IsNullOrWhiteSpace(rationale))
         {
@@ -297,6 +314,17 @@ public partial class MainViewModel
             // nothing behind for the next call to accidentally send.
             _settingsEdit.Revert(name);
             return tooLarge;
+        }
+
+        // Already the value the ECU holds, once encoded the way the firmware
+        // stores it — both sides decode the same bytes, so equal means the
+        // bytes are. Found live on a bench Speeduino: this used to fall through
+        // to the send, which found nothing to send and reported "the write did
+        // not go through", a failure for what was an answer.
+        if (_settingsEdit.Value(name) == _settingsEdit.Original(name))
+        {
+            unchanged = true;
+            return null;
         }
 
         RecordAgentWrite();
@@ -373,6 +401,10 @@ public partial class MainViewModel
         if (_tableEdit is not { } edit) return new AgentCellWrite(new AgentRefusal("that table cannot be edited"), 0);
 
         edit.Set(TuneSelection.Cell(column, row), value);
+
+        // The cell already holds that value, so there is nothing to send —
+        // an answer, not a failure. See SetSettingCore for how this was found.
+        if (!edit.HasChanges) return new AgentCellWrite(null, edit.Values[column, row], Unchanged: true);
 
         RecordAgentWrite();
 

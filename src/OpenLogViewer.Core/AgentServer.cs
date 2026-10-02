@@ -527,18 +527,22 @@ public sealed class AgentServer : IDisposable
             {
                 if (await ReadBody<SetSetting>(context).ConfigureAwait(false) is not { } body) return;
 
-                AgentRefusal? refused = _bridge.SetSetting(
+                AgentSettingWrite result = _bridge.WriteSetting(
                     body.Name ?? "", body.Value, body.Rationale ?? "", body.ConfirmDangerous);
 
-                if (refused is not null)
+                if (result.Refusal is { } refused)
                 {
                     await Refuse(context, 409, refused.Reason, refused.Detail).ConfigureAwait(false);
                     return;
                 }
 
+                // "unchanged" says the ECU already held this value, so nothing
+                // was sent: the setting is what was asked for, which is an
+                // answer, not the failure it used to be reported as.
                 await Send(context, new
                 {
                     written = body.Name, body.Value, burned = false, rationale = body.Rationale ?? "",
+                    unchanged = result.Unchanged,
                 }).ConfigureAwait(false);
                 return;
             }
@@ -571,6 +575,7 @@ public sealed class AgentServer : IDisposable
                     clamped = Math.Abs(result.Value - body.Value) > 1e-9,
                     burned = false, rationale = body.Rationale ?? "",
                     warning = result.Warning,
+                    unchanged = result.Unchanged,
                 }).ConfigureAwait(false);
                 return;
             }

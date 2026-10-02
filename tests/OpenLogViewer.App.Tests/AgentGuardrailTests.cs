@@ -382,4 +382,79 @@ public class AgentGuardrailTests : IDisposable
         Assert.NotNull(last!.Refusal);
         Assert.Contains("too many writes", last.Refusal!.Reason, StringComparison.Ordinal);
     }
+
+    // ----- a value already there -----------------------------------------------
+
+    [Fact]
+    public void WritingTheValueAlreadyThereIsAnswerNotFailure()
+    {
+        // Found live on a bench Speeduino: putting back the value a setting
+        // already held came back as "the write did not go through", a failure
+        // for what was only nothing to do.
+        MainViewModel vm = Connected(out FakeController board);
+
+        AgentSettingWrite result = Bridge(vm).WriteSetting("crankingRPM", 300, "same value back");
+
+        Assert.Null(result.Refusal);
+        Assert.True(result.Unchanged);
+        Assert.False(vm.HasSettingChanges);
+        Assert.Equal(0x01, board.Page[0]);
+        Assert.Equal(0x2C, board.Page[1]);
+    }
+
+    [Fact]
+    public void ARealChangeIsNotReportedAsUnchanged()
+    {
+        MainViewModel vm = Connected(out FakeController board);
+
+        AgentSettingWrite result = Bridge(vm).WriteSetting("crankingRPM", 310, "small nudge");
+
+        Assert.Null(result.Refusal);
+        Assert.False(result.Unchanged);
+        Assert.Equal(0x36, board.Page[1]);
+    }
+
+    [Fact]
+    public void AValueAlreadyThereCostsNothingAgainstTheRateLimit()
+    {
+        // Nothing reached the ECU, so nothing is counted: ten real writes
+        // still fit after any number of no-ops.
+        MainViewModel vm = Connected(out _);
+        AgentBridge bridge = Bridge(vm);
+
+        for (int i = 0; i < 12; i++)
+            Assert.True(bridge.WriteSetting("crankingRPM", 300, $"same {i}").Unchanged);
+
+        for (int i = 0; i < 10; i++)
+            Assert.Null(bridge.SetSetting("crankingRPM", 301 + i, $"step {i}"));
+    }
+
+    [Fact]
+    public void AValueAlreadyThereIsStillRefusedWhenWritesAreNotArmed()
+    {
+        // "Unchanged" must not become a way to learn writing works when it
+        // does not: every guard still answers first.
+        MainViewModel vm = Connected(out _);
+        vm.AgentWritesArmed = false;
+
+        AgentSettingWrite result = Bridge(vm).WriteSetting("crankingRPM", 300, "same value back");
+
+        Assert.NotNull(result.Refusal);
+        Assert.Contains("not armed", result.Refusal!.Reason, StringComparison.Ordinal);
+        Assert.False(result.Unchanged);
+    }
+
+    [Fact]
+    public void ACellAlreadyHoldingTheValueIsUnchanged()
+    {
+        MainViewModel vm = Connected(out _);
+
+        AgentCellWrite same = Bridge(vm).SetTableCell("VE Table", 0, 0, 0, "same value back");
+        Assert.Null(same.Refusal);
+        Assert.True(same.Unchanged);
+
+        AgentCellWrite changed = Bridge(vm).SetTableCell("VE Table", 0, 0, 60, "smoothing a cell");
+        Assert.Null(changed.Refusal);
+        Assert.False(changed.Unchanged);
+    }
 }

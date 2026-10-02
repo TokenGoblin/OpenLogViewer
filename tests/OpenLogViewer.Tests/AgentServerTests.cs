@@ -118,6 +118,14 @@ public class AgentServerTests : IDisposable
             return null;
         }
 
+        /// <summary>When set, a write finds the value already there and sends nothing.</summary>
+        public bool AlreadyThere { get; set; }
+
+        AgentSettingWrite IAgentBridge.WriteSetting(string name, double value, string rationale, bool confirmDangerous) =>
+            AlreadyThere && Armed
+                ? new AgentSettingWrite(null, Unchanged: true)
+                : new AgentSettingWrite(SetSetting(name, value, rationale, confirmDangerous));
+
         public AgentCellWrite SetTableCell(
             string table, int column, int row, double value, string rationale, bool confirmDangerous = false)
         {
@@ -1589,5 +1597,33 @@ public class AgentServerTests : IDisposable
         ];
 
         Assert.Equal(served.Order(StringComparer.Ordinal), AgentConsoleCatalog.Routes.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task AWriteOfTheValueAlreadyThereAnswersUnchangedNotConflict()
+    {
+        (AgentServer _, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+        bench.AlreadyThere = true;
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/tune/set", Body(new { name = "reqFuel", value = 3.6, rationale = "same value back" }));
+
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        using JsonDocument json = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.GetProperty("unchanged").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ARealWriteSaysItWasNotUnchanged()
+    {
+        (AgentServer _, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+
+        HttpResponseMessage answer = await client.PostAsync(
+            "/tune/set", Body(new { name = "reqFuel", value = 3.7, rationale = "a step" }));
+
+        using JsonDocument json = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+        Assert.False(json.RootElement.GetProperty("unchanged").GetBoolean());
     }
 }
