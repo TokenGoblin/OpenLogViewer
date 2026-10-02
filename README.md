@@ -1119,6 +1119,24 @@ named rather than as a port and a token:
 It finds the address and token itself. Give it a path as its one argument if your
 workspace is somewhere other than the default.
 
+### Watching it, or driving it yourself
+
+**Tools ▸ Agent console…** (**Ctrl+`**, or `--console` at launch) shows every
+request made to the agent API: MCP tool calls by name, plain HTTP clients, and
+your own commands, each with what was sent and what came back. The command line
+at its foot drives the same API by hand:
+
+```
+olv> state
+olv> table veTable1
+olv> set reqFuel 9.1 leaner at idle
+olv> get /values?channel=RPM&seconds=5
+olv> show writes
+```
+
+`help` lists the rest. Commands go through the API like any other client's, so
+writes from the console meet exactly the guardrails an agent's do.
+
 ## Requirements
 
 - Windows

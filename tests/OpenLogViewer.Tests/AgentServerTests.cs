@@ -1404,4 +1404,170 @@ public class AgentServerTests : IDisposable
         Assert.Equal(HttpStatusCode.Conflict, answer.StatusCode);
         Assert.Contains("202402", await answer.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
+
+    // ----- the transcript the console shows -----------------------------------
+
+    private const string ConsoleToken = "console-token-9876543210";
+
+    private (AgentServer Server, Bench Bench, HttpClient Agent, HttpClient Console) ServeWithConsole()
+    {
+        var bench = new Bench();
+        var server = new AgentServer(bench, new AgentServerSettings
+        {
+            Port = 0, Token = Token, ConsoleToken = ConsoleToken,
+        });
+        server.Start();
+        _running.Add(server);
+
+        var agent = new HttpClient { BaseAddress = new Uri(server.Address) };
+        agent.DefaultRequestHeaders.Authorization = new("Bearer", Token);
+        _running.Add(agent);
+
+        var console = new HttpClient { BaseAddress = new Uri(server.Address) };
+        console.DefaultRequestHeaders.Authorization = new("Bearer", ConsoleToken);
+        _running.Add(console);
+
+        return (server, bench, agent, console);
+    }
+
+    /// <summary>
+    /// The exchange is recorded once the answer has been written, so the
+    /// client can hold the answer a moment before the transcript does.
+    /// </summary>
+    private static async Task<AgentExchange> Recorded(AgentServer server, int count)
+    {
+        for (int i = 0; i < 200 && server.Transcript.All().Count < count; i++) await Task.Delay(10);
+
+        IReadOnlyList<AgentExchange> all = server.Transcript.All();
+        Assert.True(all.Count >= count, $"expected {count} exchanges, found {all.Count}");
+        return all[count - 1];
+    }
+
+    [Fact]
+    public async Task TheTranscriptKeepsWhatWasSentAndWhatCameBack()
+    {
+        (AgentServer server, Bench bench, HttpClient client) = Serve();
+        bench.Armed = true;
+
+        await client.PostAsync("/tune/set", Body(new { name = "reqFuel", value = 9.1, rationale = "leaner" }));
+
+        AgentExchange e = await Recorded(server, 1);
+        Assert.Equal("http", e.Client);
+        Assert.Equal("POST", e.Method);
+        Assert.Equal("/tune/set", e.Target);
+        Assert.Contains("\"rationale\":\"leaner\"", e.RequestBody, StringComparison.Ordinal);
+        Assert.Equal(200, e.Status);
+        Assert.Contains("reqFuel", e.ResponseBody, StringComparison.Ordinal);
+        Assert.True(e.IsWrite);
+    }
+
+    [Fact]
+    public async Task ARefusalIsRecordedWithItsStatusAndReason()
+    {
+        (AgentServer server, _, HttpClient client) = Serve();
+
+        await client.GetAsync("/table?name=nope");
+
+        AgentExchange e = await Recorded(server, 1);
+        Assert.Equal(404, e.Status);
+        Assert.False(e.Succeeded);
+        Assert.Contains("no such table", e.ResponseBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnMcpCallIsLabelledWithTheToolTheModelCalled()
+    {
+        (AgentServer server, _, HttpClient client) = Serve();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/state");
+        request.Headers.Add("X-OLV-Client", "mcp");
+        request.Headers.Add("X-OLV-Tool", "olv_state");
+        await client.SendAsync(request);
+
+        AgentExchange e = await Recorded(server, 1);
+        Assert.Equal("mcp", e.Client);
+        Assert.Equal("olv_state", e.Tool);
+    }
+
+    [Fact]
+    public async Task OnlyTheConsoleTokenEarnsTheConsoleLabel()
+    {
+        // A header is the caller's own word about itself. "console" has to mean
+        // a person at this machine, so an agent claiming it is not believed.
+        (AgentServer server, _, HttpClient agent, HttpClient console) = ServeWithConsole();
+
+        using var claiming = new HttpRequestMessage(HttpMethod.Get, "/state");
+        claiming.Headers.Add("X-OLV-Client", "console");
+        await agent.SendAsync(claiming);
+        Assert.Equal("http", (await Recorded(server, 1)).Client);
+
+        await console.GetAsync("/state");
+        Assert.Equal("console", (await Recorded(server, 2)).Client);
+    }
+
+    [Fact]
+    public async Task TheConsoleTokenOpensNothingWhenNoneWasConfigured()
+    {
+        (AgentServer server, _, _) = Serve();
+
+        using var client = new HttpClient { BaseAddress = new Uri(server.Address) };
+        client.DefaultRequestHeaders.Authorization = new("Bearer", ConsoleToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/state")).StatusCode);
+        Assert.Equal("unknown", (await Recorded(server, 1)).Client);
+    }
+
+    [Fact]
+    public async Task TheConsoleIsHeldToTheSameWriteGuardsAsAnAgent()
+    {
+        (_, Bench bench, _, HttpClient console) = ServeWithConsole();
+        bench.Armed = false;
+
+        HttpResponseMessage answer = await console.PostAsync(
+            "/tune/set", Body(new { name = "reqFuel", value = 9.1, rationale = "by hand" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, answer.StatusCode);
+        Assert.Empty(bench.Written);
+    }
+
+    [Fact]
+    public async Task TheConsoleDoesNotLightTheAgentActivityIndicator()
+    {
+        (AgentServer server, _, _, HttpClient console) = ServeWithConsole();
+
+        await console.GetAsync("/state");
+        await Recorded(server, 1);
+
+        Assert.Empty(server.Activity.Recent(10));
+    }
+
+    [Fact]
+    public async Task ATokenPassedInTheQueryIsNotWrittenIntoTheTranscript()
+    {
+        (AgentServer server, _, _) = Serve();
+
+        using var client = new HttpClient { BaseAddress = new Uri(server.Address) };
+        await client.GetAsync($"/state?token={Token}");
+
+        AgentExchange e = await Recorded(server, 1);
+        Assert.Equal(200, e.Status);
+        Assert.DoesNotContain(Token, e.Target, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheTranscriptOutlivesTheServerThatFilledIt()
+    {
+        var transcript = new AgentTranscript();
+
+        using (var first = new AgentServer(new Bench(), new AgentServerSettings { Port = 0, Token = Token }, transcript))
+        {
+            first.Start();
+            using var client = new HttpClient { BaseAddress = new Uri(first.Address) };
+            client.DefaultRequestHeaders.Authorization = new("Bearer", Token);
+            await client.GetAsync("/state");
+            await Recorded(first, 1);
+        }
+
+        Assert.Single(transcript.All());
+    }
 }

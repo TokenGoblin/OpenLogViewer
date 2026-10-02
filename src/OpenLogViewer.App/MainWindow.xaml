@@ -226,6 +226,8 @@
                 -->
                 <MenuItem Header="_Agent API…" Click="OnAgentApiClick"
                           ToolTip="A local API an AI assistant or a script can watch this session through"/>
+                <MenuItem Header="Agent _console…" Click="OnConsoleClick" InputGestureText="Ctrl+`"
+                          ToolTip="Watch every request an AI makes through MCP or the API, and type commands into the same API yourself"/>
                 <MenuItem Header="Allow AI _writes"
                           IsCheckable="True"
                           IsChecked="{Binding AgentWritesArmed, Mode=TwoWay}"

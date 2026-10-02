@@ -362,6 +362,12 @@ public static class Guide
             new("From Claude Code",
                 "openlogviewer-mcp, in the tools folder, fronts the same API so the tools arrive "
                 + "named rather than as a port and a token. It finds both itself."),
+
+            new("Watching it work",
+                "Tools ▸ Agent console, or Ctrl+`. Every request made to the API appears as it "
+                + "happens — which tool an assistant called, what it sent, what came back — and "
+                + "writes and refusals stand out. Type help at its prompt to drive the same API "
+                + "yourself; your commands meet every guardrail an assistant's do."),
         ]),
 
         new("VE Calibration",

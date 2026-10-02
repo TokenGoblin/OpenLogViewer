@@ -28,6 +28,15 @@ public sealed record AgentServerSettings
 
     /// <summary>How many live subscribers to allow at once.</summary>
     public int MaximumClients { get; init; } = 8;
+
+    /// <summary>
+    /// A second token, held only inside the application and never written to
+    /// disk, that the application's own console signs its requests with. It
+    /// opens exactly what <see cref="Token"/> opens — every guardrail still
+    /// applies — and exists only so the transcript can say "a person typed
+    /// this" in a way an agent cannot claim for itself by setting a header.
+    /// </summary>
+    public string? ConsoleToken { get; init; }
 }
 
 /// <summary>
@@ -79,7 +88,7 @@ public sealed class AgentServer : IDisposable
     private readonly List<LiveSubscriber> _subscribers = [];
     private readonly Lock _gate = new();
 
-    public AgentServer(IAgentBridge bridge, AgentServerSettings settings)
+    public AgentServer(IAgentBridge bridge, AgentServerSettings settings, AgentTranscript? transcript = null)
     {
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -88,6 +97,42 @@ public sealed class AgentServer : IDisposable
             throw new ArgumentException("The agent API cannot be served without a token.", nameof(settings));
 
         Port = settings.Port;
+        Transcript = transcript ?? new AgentTranscript();
+    }
+
+    /// <summary>
+    /// Every request and its answer in full, for the console — see
+    /// <see cref="AgentTranscript"/>. Handed in by the application so it
+    /// outlives this server; a server made without one keeps its own.
+    /// </summary>
+    public AgentTranscript Transcript { get; }
+
+    /// <summary>
+    /// The request being answered on this async flow, so <see cref="Respond"/>
+    /// and the body readers can fill in what the transcript records without
+    /// every route having to pass it along.
+    /// </summary>
+    private static readonly AsyncLocal<Exchange?> Current = new();
+
+    private sealed class Exchange
+    {
+        public string Client = "http";
+        public string Tool = "";
+        public string RequestBody = "";
+        public int Status;
+        public string ResponseBody = "";
+    }
+
+    /// <summary>The client label a caller may give itself, cut down to something safe to show.</summary>
+    private static string Label(string? offered, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(offered)) return fallback;
+
+        string kept = new([.. offered.Trim().Where(c => char.IsLetterOrDigit(c) || c is '_' or '-' or '.' or '/')]);
+        if (kept.Length > 48) kept = kept[..48];
+
+        // "console" is earned with the console token, not claimed by a header.
+        return kept.Length == 0 || kept.Equals("console", StringComparison.OrdinalIgnoreCase) ? fallback : kept;
     }
 
     /// <summary>The port actually listening, which is settled once started.</summary>
@@ -174,14 +219,29 @@ public sealed class AgentServer : IDisposable
         // the two look identical on the wire otherwise.
         using IDisposable origin = WireOriginScope.Enter(WireOrigin.Agent);
 
+        // Taken before anything is answered: once the response is closed the
+        // listener may have let go of the request too.
+        string method = context.Request.HttpMethod;
+        string target = context.Request.Url?.PathAndQuery ?? "";
+
+        var exchange = new Exchange();
+        Current.Value = exchange;
+        DateTime started = DateTime.UtcNow;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        bool streaming = false;
+
         try
         {
-            if (!Authorised(context.Request))
+            if (Authorised(context.Request) is not { } client)
             {
+                exchange.Client = "unknown";
                 await Refuse(context, 401, "unauthorised",
                     "Pass the token as an Authorization: Bearer header, or ?token=").ConfigureAwait(false);
                 return;
             }
+
+            exchange.Client = client;
+            exchange.Tool = Label(context.Request.Headers["X-OLV-Tool"], "");
 
             string path = context.Request.Url?.AbsolutePath.TrimEnd('/') ?? "";
             if (path.Length == 0) path = "/";
@@ -190,12 +250,19 @@ public sealed class AgentServer : IDisposable
             {
                 if (path is "/live/stream")
                 {
+                    // In the transcript as it opens rather than when it
+                    // closes, which may be an hour later — the moment worth
+                    // seeing is the one where something started watching.
+                    streaming = true;
+                    Transcript.Record(started, exchange.Client, exchange.Tool, "WS", target, "", 101,
+                        "subscribed to the live stream", clock.Elapsed.TotalMilliseconds);
+
                     // Recorded for as long as the socket is open, rather than
                     // for the instant it was accepted: an agent watching the
                     // engine for an hour is continuously reading it, and an
                     // indicator that went dark a moment after it subscribed
                     // would say the opposite of what is happening.
-                    using IDisposable watching = Activity.Begin(path);
+                    using IDisposable? watching = client == "console" ? null : Activity.Begin(path);
                     await Stream(context).ConfigureAwait(false);
                 }
                 else
@@ -222,19 +289,38 @@ public sealed class AgentServer : IDisposable
             }
             catch (Exception) { /* the socket is gone too */ }
         }
+        finally
+        {
+            Current.Value = null;
+
+            if (!streaming)
+            {
+                Transcript.Record(started, exchange.Client, exchange.Tool, method, target,
+                    exchange.RequestBody, exchange.Status,
+                    exchange.ResponseBody, clock.Elapsed.TotalMilliseconds);
+            }
+        }
     }
 
-    private bool Authorised(HttpListenerRequest request)
+    /// <summary>
+    /// Who is asking, or null when the request carries neither token. A
+    /// request signed with the console token is the application's own console;
+    /// anything else is labelled with whatever <c>X-OLV-Client</c> it sent.
+    /// </summary>
+    private string? Authorised(HttpListenerRequest request)
     {
         string? header = request.Headers["Authorization"];
+        string? bearer = header is not null && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header[7..].Trim()
+            : null;
+        string? query = request.QueryString["token"];
 
-        if (header is not null && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            && Same(header[7..].Trim(), _settings.Token))
-        {
-            return true;
-        }
+        if (_settings.ConsoleToken is { Length: > 0 } console && (Same(bearer, console) || Same(query, console)))
+            return "console";
 
-        return Same(request.QueryString["token"], _settings.Token);
+        return Same(bearer, _settings.Token) || Same(query, _settings.Token)
+            ? Label(request.Headers["X-OLV-Client"], "http")
+            : null;
     }
 
     /// <summary>
@@ -260,7 +346,9 @@ public sealed class AgentServer : IDisposable
         // Activity sees both "a request for this route just arrived" and,
         // once every return path below has run, "and it just finished" — not
         // parsed from the wire trace, which only knows about the ECU.
-        using IDisposable activity = Activity.Begin(path);
+        // Not for the console: the indicator says what an agent is doing, and
+        // a person typing a command is not one.
+        using IDisposable? activity = Current.Value?.Client == "console" ? null : Activity.Begin(path);
 
         System.Collections.Specialized.NameValueCollection query = context.Request.QueryString;
 
@@ -699,6 +787,7 @@ public sealed class AgentServer : IDisposable
 
         using var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8);
         string body = await reader.ReadToEndAsync().ConfigureAwait(false);
+        if (Current.Value is { } exchange) exchange.RequestBody = body;
 
         try
         {
@@ -734,6 +823,7 @@ public sealed class AgentServer : IDisposable
 
         using var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8);
         string body = await reader.ReadToEndAsync().ConfigureAwait(false);
+        if (Current.Value is { } exchange) exchange.RequestBody = body;
 
         if (string.IsNullOrWhiteSpace(body)) body = "{}";
 
@@ -896,6 +986,12 @@ public sealed class AgentServer : IDisposable
     /// </summary>
     private static async Task Respond(HttpListenerContext context, int status, byte[] body)
     {
+        if (Current.Value is { } exchange)
+        {
+            exchange.Status = status;
+            exchange.ResponseBody = Encoding.UTF8.GetString(body);
+        }
+
         try
         {
             context.Response.StatusCode = status;

@@ -36,6 +36,25 @@ somebody called it.
 
 ### Added
 
+**The agent console — watch the AI drive, or drive it yourself.** **Tools ▸ Agent
+console…** or **Ctrl+`** (or launch with `--console`). Every request made to the
+agent API appears as it happens: who made it (an AI through MCP, named by the
+tool it called; anything else holding the token; or you), what it sent, what came
+back, the status and how long it took. Writes and refusals stand out, and
+filters narrow the list to the AI, your own commands, or writes only. Pick a line
+to see the full request and answer, laid out for reading. The transcript is kept
+from the moment the API starts, so opening the console late still shows what
+already happened.
+
+The command line at the bottom speaks the same API: `state`, `channels`,
+`table veTable1`, `set reqFuel 9.1 leaner at idle`, `get /any/route`,
+`post /tune/propose {…}` and the rest. Type `help` for the list. It has no private
+way in. A command is sent over the same socket an agent uses and is held to
+everything an agent is: writes must be armed, rate and range limits apply, and
+dangerous constants still need confirming. Your commands are signed with a token
+that exists only inside the running application, so "you" in the transcript
+can't be claimed by an agent setting a header.
+
 **Insights — what a datalog says about the engine that produced it.** Thirteen
 findings, measured rather than eyeballed: fuelling against target, lean
 excursions under load, knock retard, closed-loop bias, injector duty, charging,

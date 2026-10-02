@@ -79,6 +79,9 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(
             new RelayCommand(() => { if (_vm.ShowLog) ToggleFind(); }),
             Key.F, ModifierKeys.Control));
+
+        // Ctrl+`, the key that opens a terminal in most editors.
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => ShowConsole()), Key.Oem3, ModifierKeys.Control));
     }
 
     private void OnThemeChanged(Theme theme) => TitleBar.Apply(this, theme);
@@ -236,6 +239,32 @@ public partial class MainWindow : Window
 
     /// <summary>Opens the insights, for a scripted run.</summary>
     public void ShowInsights() => OnInsightsClick(this, new RoutedEventArgs());
+
+    private ConsoleWindow? _console;
+
+    /// <summary>
+    /// The agent console. One at a time, and brought forward rather than
+    /// duplicated: two copies would each show the same transcript and each
+    /// keep their own command history, which helps nobody.
+    /// </summary>
+    public ConsoleWindow ShowConsole()
+    {
+        if (_console is null)
+        {
+            _console = new ConsoleWindow(_vm) { Owner = this };
+            _console.Closed += (_, _) => _console = null;
+            _console.Show();
+        }
+        else
+        {
+            if (_console.WindowState == WindowState.Minimized) _console.WindowState = WindowState.Normal;
+            _console.Activate();
+        }
+
+        return _console;
+    }
+
+    private void OnConsoleClick(object sender, RoutedEventArgs e) => ShowConsole();
 
     private void OnCalculatorsClick(object sender, RoutedEventArgs e)
     {

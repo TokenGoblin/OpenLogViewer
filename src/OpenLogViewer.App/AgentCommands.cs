@@ -20,6 +20,21 @@ public partial class MainViewModel
 
     public bool AgentIsRunning => _agent is { IsRunning: true };
 
+    /// <summary>
+    /// Every request the API has answered this session, in full, for the
+    /// console. Kept here rather than on the server so turning the API off and
+    /// on again does not wipe what an agent already did.
+    /// </summary>
+    public AgentTranscript AgentTranscript { get; } = new();
+
+    /// <summary>
+    /// What the console signs its own requests with. Made once per run and
+    /// never written anywhere, so "console" in the transcript means a person
+    /// at this window and cannot be claimed by anything outside the process.
+    /// </summary>
+    internal string AgentConsoleToken { get; } =
+        Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+
     /// <summary>Where an agent points itself, or nothing when it is off.</summary>
     public string AgentAddress => _agent?.Address ?? "";
 
@@ -88,7 +103,8 @@ public partial class MainViewModel
             {
                 Port = port,
                 Token = token,
-            });
+                ConsoleToken = AgentConsoleToken,
+            }, AgentTranscript);
 
             server.Start();
             _agent = server;

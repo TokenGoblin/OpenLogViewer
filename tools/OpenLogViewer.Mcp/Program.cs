@@ -43,6 +43,13 @@ internal static class Program
     private static string _address = "";
     private static string _token = "";
 
+    /// <summary>
+    /// The tool being answered, sent along so the application's console can
+    /// say "olv_set_setting" rather than only "/tune/set". Safe as a static:
+    /// requests are answered one at a time, in the order they arrive.
+    /// </summary>
+    private static string _tool = "";
+
     private static async Task<int> Main(string[] args)
     {
         // Where the application left its address and token. Overridable so a
@@ -469,6 +476,7 @@ internal static class Program
     {
         string name = parameters?["name"]?.GetValue<string>() ?? "";
         JsonObject arguments = parameters?["arguments"] as JsonObject ?? [];
+        _tool = name;
 
         if (!Located(details, out string problem)) return Text(problem, failed: true);
 
@@ -652,6 +660,8 @@ internal static class Program
     private static async Task<(string Body, bool Refused)> Send(HttpRequestMessage request)
     {
         request.Headers.Authorization = new("Bearer", _token);
+        request.Headers.Add("X-OLV-Client", "mcp");
+        if (_tool.Length > 0) request.Headers.Add("X-OLV-Tool", _tool);
 
         using HttpResponseMessage answer = await Http.SendAsync(request).ConfigureAwait(false);
 

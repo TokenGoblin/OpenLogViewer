@@ -415,6 +415,9 @@ public partial class App : Application
         // "--insights" opens the findings for whatever log is loaded.
         if (Array.IndexOf(e.Args, "--insights") >= 0) window.ShowInsights();
 
+        // "--console" opens the agent console, for watching an agent from the start.
+        if (Array.IndexOf(e.Args, "--console") >= 0) window.ShowConsole();
+
         int shot = Array.IndexOf(e.Args, "--screenshot");
         if (shot >= 0 && shot + 1 < e.Args.Length)
             CaptureAndExit(window, e.Args[shot + 1]);
