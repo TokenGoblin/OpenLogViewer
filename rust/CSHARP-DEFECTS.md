@@ -38,3 +38,4 @@ in the agents' reports. Each one names where it is and how it was found.
 | `MaxxUsbSource` status | ECU status bytes 0 and 1 are read as the local NoAnswer and Uncertain states. | w4-live |
 | `MaxxCanSource` | If the drop count is unavailable at open it is never counted. | w4-live |
 | `MaxxTune` write | `offset + length` can overflow int before the ceiling check; the Rust checks in 64 bits. The C# ceiling test (offset ceiling-2, length 4) would still pass with the ceiling one higher. | w4-live |
+| `TuningProject.With(TuneVersion)` | Moves a replaced version to the end, so re-burning an old version makes it "latest" and the parent of the next version, breaking the documented oldest-first order. | w5-projects |
