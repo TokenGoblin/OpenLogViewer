@@ -156,7 +156,7 @@ Same checks that proved the C# app, from the hardware notes:
 | rusEFI uaEFI | COM8 | read, write, burn across a reboot (status 0x04 = burn OK) |
 | MicroSquirt (in a live car) | COM3 | **read-only** unless the user says otherwise |
 | MaxxECU Race | USB/FTDI | live data, writes (no separate burn step), needs 12 V, MTune closed |
-| OBD2 dongle | Bluetooth LE | trims, MAP, lambda on a running engine |
+| OBD2 dongle | Bluetooth LE | trims, MAP, lambda on a running engine. **Also record the session with WireTrace** (an ELM327 conversation, and an SSM one on the Subaru): the repo has no captured OBD traffic, so ELM327 reply timing is tested only against scripted fakes, in both apps. One recording becomes a byte-and-timing replay test. |
 | Vgate Wi-Fi | TCP | still never tested in either app |
 | Holley Sniper | USB (`nusb`) | layers 1–2 again on the new USB code: interface number, IN packet size, the GetHardwareVersion reply length, that a read cancelled on timeout loses no records, and that nusb finds the dongle on Windows (it looks the device up by registry GUID, not the C#'s path). Then Linux (udev rules, no kernel driver holding it) and macOS. Layer 3 stays blocked in both apps until a USB capture exists. |
 
