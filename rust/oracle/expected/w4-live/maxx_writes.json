@@ -1,0 +1,371 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "small",
+      "offset": 1000,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA",
+        "18191A1BAF006A9B"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "E1653FFA"
+    },
+    {
+      "name": "at_zero",
+      "offset": 0,
+      "length": 1,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "010500000100FBF94053",
+        "30EBB03613"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "BB15C80B"
+    },
+    {
+      "name": "offset_255",
+      "offset": 255,
+      "length": 2,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105FF0002006BB35152",
+        "2F30137B9A57"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "C9D42FE3"
+    },
+    {
+      "name": "max_length",
+      "offset": 100,
+      "length": 256,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "010564000001A593A8E0",
+        "9495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7C8C9CACBCCCDCECFD0D1D2D3D4D5D6D7D8D9DADBDCDDDEDFE0E1E2E3E4E5E6E7E8E9EAEBECEDEEEFF0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192938F7281F4"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "D67BCB00"
+    },
+    {
+      "name": "one_too_long",
+      "offset": 100,
+      "length": 257,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "data.Length (\u0027257\u0027) must be less than or equal to \u0027256\u0027. (Parameter \u0027data.Length\u0027)\r\nActual value was 257.",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "empty",
+      "offset": 100,
+      "length": 0,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "data.Length (\u00270\u0027) must be a non-zero value. (Parameter \u0027data.Length\u0027)\r\nActual value was 0.",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "negative_offset",
+      "offset": -1,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "offset (\u0027-1\u0027) must be a non-negative value. (Parameter \u0027offset\u0027)\r\nActual value was -1.",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "top_of_the_tune",
+      "offset": 61440,
+      "length": 256,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "010500F000010B21D0B0",
+        "303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7C8C9CACBCCCDCECFD0D1D2D3D4D5D6D7D8D9DADBDCDDDEDFE0E1E2E3E4E5E6E7E8E9EAEBECEDEEEFF0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2FAEB0C16A"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "19FD5E71"
+    },
+    {
+      "name": "ends_on_the_ceiling",
+      "offset": 62179,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E3F204000F720B66",
+        "13141516FC05E8FF"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "B01CBBB3"
+    },
+    {
+      "name": "one_past_the_ceiling",
+      "offset": 62180,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 62184. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "two_past_the_ceiling",
+      "offset": 62181,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 62185. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "last_byte_allowed",
+      "offset": 62182,
+      "length": 1,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E6F2010086CC0507",
+        "16B94B9391"
+      ],
+      "status": "Ok",
+      "status_value": 128,
+      "tune_crc": "6566D684"
+    },
+    {
+      "name": "first_byte_refused",
+      "offset": 62183,
+      "length": 1,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 62184. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "far_past_the_ceiling",
+      "offset": 63488,
+      "length": 16,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 63504. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "past_the_frame",
+      "offset": 70000,
+      "length": 1,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 70001. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "max_int_offset",
+      "offset": 2147483647,
+      "length": 1,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "offset (\u00272147483647\u0027) must be less than or equal to \u002765535\u0027. (Parameter \u0027offset\u0027)\r\nActual value was 2147483647.",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "max_length_past_the_ceiling",
+      "offset": 62083,
+      "length": 256,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [],
+      "error_kind": "ArgumentOutOfRangeException",
+      "message": "A MaxxECU will not be written above 62183, and this would reach 62339. (Parameter \u0027offset\u0027)",
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "writer_busy",
+      "offset": 1000,
+      "length": 4,
+      "header": 64,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "WriterBusy",
+      "status_value": 64,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "out_of_range",
+      "offset": 1000,
+      "length": 4,
+      "header": 48,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "OutOfRange",
+      "status_value": 48,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "unknown_command",
+      "offset": 1000,
+      "length": 4,
+      "header": 32,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "UnknownCommand",
+      "status_value": 32,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "reader_busy",
+      "offset": 1000,
+      "length": 4,
+      "header": 96,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "ReaderBusy",
+      "status_value": 96,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "flash_busy",
+      "offset": 1000,
+      "length": 4,
+      "header": 97,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "FlashBusy",
+      "status_value": 97,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "unfamiliar_status",
+      "offset": 1000,
+      "length": 4,
+      "header": 85,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "85",
+      "status_value": 85,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "status_zero",
+      "offset": 1000,
+      "length": 4,
+      "header": 0,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "NoAnswer",
+      "status_value": 0,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "status_one",
+      "offset": 1000,
+      "length": 4,
+      "header": 1,
+      "answer_header": true,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "Uncertain",
+      "status_value": 1,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "header_unanswered",
+      "offset": 1000,
+      "length": 4,
+      "header": 128,
+      "answer_header": false,
+      "answer_payload": true,
+      "requests": [
+        "0105E80304008B6922AA"
+      ],
+      "status": "NoAnswer",
+      "status_value": 0,
+      "tune_crc": "6417D15A"
+    },
+    {
+      "name": "payload_unacknowledged",
+      "offset": 1000,
+      "length": 4,
+      "header": 128,
+      "answer_header": true,
+      "answer_payload": false,
+      "requests": [
+        "0105E80304008B6922AA",
+        "18191A1BAF006A9B"
+      ],
+      "status": "Uncertain",
+      "status_value": 1,
+      "tune_crc": "E1653FFA"
+    }
+  ]
+}

@@ -609,13 +609,9 @@ mod tests {
         assert_eq!(l[1], "77.5,,11.5");
     }
 
-    #[test]
-    #[ignore = "needs w4-live"]
-    fn a_recording_carries_a_byte_order_mark_and_still_reads_back() {
-        // Excel reads a CSV without one in the system codepage whatever is actually in it, so
-        // a channel in degrees C arrives garbled. The mark fixes that, and must not cost the
-        // application's own reader. Needs LiveSession, which is not ported yet.
-    }
+    // `ARecordingCarriesAByteOrderMarkAndStillReadsBack` needs `LiveSession`, which lives in
+    // `olv-live` (a crate that depends on this one), so it runs there:
+    // `olv-live/tests/live_recording.rs::a_recording_carries_a_byte_order_mark_and_still_reads_back`.
 
     // ----- a tuning table, for the staged-CSV path --------------------------
 

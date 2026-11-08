@@ -1,0 +1,215 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "frames_190",
+      "kind": "frames",
+      "reply": "08A43C264F952F95C75760AEBAFE3C970718A88ADB1661CB25282C9BBF6BBF2279930032643F8E31140206DFDA9FA66E9FFDE503062DAFBB427001276993D65C983D34260F0A32C8377775D90F81F08581BDFCC1851F1B4CE40AEFF43D67C7802BAA479D6A800194CB1D5F8FB7D5ABC0807BA5AC9714D61022E7422C1A3E8AD0AFF4AD653A531A010067F668C78B950E5F2F73C1C11BE917D300000000000000000000000000000000000023010000000000000000000000000000010203",
+      "frames": [
+        {
+          "id": 1327905956,
+          "extended": true,
+          "data": "5760AEBAFE3C9707",
+          "at": 3348443029
+        },
+        {
+          "id": 383486632,
+          "extended": true,
+          "data": "2C9BBF6BBF227993",
+          "at": 673565537
+        },
+        {
+          "id": -1908448206,
+          "extended": true,
+          "data": "",
+          "at": 100799537
+        },
+        {
+          "id": -1146147578,
+          "extended": true,
+          "data": "6993D6",
+          "at": 654405698
+        },
+        {
+          "id": 935866890,
+          "extended": true,
+          "data": "81F08581BDFCC185",
+          "at": 265909623
+        },
+        {
+          "id": 182733851,
+          "extended": true,
+          "data": "C7802BAA479D6A80",
+          "at": 1732113647
+        },
+        {
+          "id": 1595788180,
+          "extended": true,
+          "data": "C0",
+          "at": 2882910095
+        },
+        {
+          "id": 742582050,
+          "extended": true,
+          "data": "",
+          "at": 3498720794
+        },
+        {
+          "id": -949422489,
+          "extended": true,
+          "data": "",
+          "at": 1594791307
+        },
+        {
+          "id": 291,
+          "extended": false,
+          "data": "",
+          "at": 0
+        }
+      ],
+      "since": []
+    },
+    {
+      "name": "frames_17",
+      "kind": "frames",
+      "reply": "08A43C264F952F95C75760AEBAFE3C9707",
+      "frames": [
+        {
+          "id": 1327905956,
+          "extended": true,
+          "data": "5760AEBAFE3C9707",
+          "at": 3348443029
+        }
+      ],
+      "since": []
+    },
+    {
+      "name": "frames_34",
+      "kind": "frames",
+      "reply": "08A43C264F952F95C75760AEBAFE3C970718A88ADB1661CB25282C9BBF6BBF227993",
+      "frames": [
+        {
+          "id": 1327905956,
+          "extended": true,
+          "data": "5760AEBAFE3C9707",
+          "at": 3348443029
+        },
+        {
+          "id": 383486632,
+          "extended": true,
+          "data": "2C9BBF6BBF227993",
+          "at": 673565537
+        }
+      ],
+      "since": []
+    },
+    {
+      "name": "frames_5",
+      "kind": "frames",
+      "reply": "08A43C264F",
+      "frames": [],
+      "since": []
+    },
+    {
+      "name": "frames_0",
+      "kind": "frames",
+      "reply": "",
+      "frames": [],
+      "since": []
+    },
+    {
+      "name": "since",
+      "kind": "since",
+      "reply": "",
+      "frames": [],
+      "since": [
+        {
+          "last": 0,
+          "now": 0,
+          "distance": 0
+        },
+        {
+          "last": 10,
+          "now": 25,
+          "distance": 15
+        },
+        {
+          "last": 65530,
+          "now": 4,
+          "distance": 10
+        },
+        {
+          "last": 65535,
+          "now": 0,
+          "distance": 1
+        },
+        {
+          "last": 0,
+          "now": 65535,
+          "distance": 65535
+        },
+        {
+          "last": 65535,
+          "now": 65535,
+          "distance": 0
+        },
+        {
+          "last": 100,
+          "now": 99,
+          "distance": 65535
+        },
+        {
+          "last": 0,
+          "now": 65536,
+          "distance": 0
+        },
+        {
+          "last": 70000,
+          "now": 5,
+          "distance": 61077
+        },
+        {
+          "last": -1,
+          "now": 3,
+          "distance": 4
+        }
+      ]
+    },
+    {
+      "name": "constants",
+      "kind": "constants",
+      "reply": "15,17,2674,3201,3200,62183,256,256,17373,9,21",
+      "frames": [],
+      "since": []
+    },
+    {
+      "name": "armed",
+      "kind": "armed",
+      "reply": "",
+      "frames": [],
+      "since": [],
+      "armed": [
+        {
+          "value": 0,
+          "armed": false,
+          "without_definitions": false
+        },
+        {
+          "value": 1,
+          "armed": true,
+          "without_definitions": false
+        },
+        {
+          "value": 7,
+          "armed": true,
+          "without_definitions": false
+        },
+        {
+          "value": 1,
+          "armed": false,
+          "without_definitions": false
+        }
+      ]
+    }
+  ]
+}
