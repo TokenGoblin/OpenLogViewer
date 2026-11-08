@@ -1,0 +1,560 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "seed": 1,
+      "items": [
+        {
+          "key": "roles",
+          "value": "RPM|MAP|AFR|AFR Target|n=3000"
+        },
+        {
+          "key": "power.default",
+          "value": "h:a90b170678a785d8"
+        },
+        {
+          "key": "power.variant",
+          "value": "h:3815fea228b2d80f"
+        },
+        {
+          "key": "compare.overlap",
+          "value": "AFR,AFR Target,IAT,MAP,Pulse Width,RPM,Time,TPS///Both logs carry the same 8 channels."
+        },
+        {
+          "key": "csv.log",
+          "value": "h:46bdf583ff13a52a"
+        },
+        {
+          "key": "mask",
+          "value": "pass=2889 total=3000 applied=True h=h:d5d1fb937bc9753e"
+        },
+        {
+          "key": "auto.Mean",
+          "value": "h:8004ca863542121a"
+        },
+        {
+          "key": "auto.masked.Mean",
+          "value": "h:f4b0ebb811aa8591"
+        },
+        {
+          "key": "auto.Min",
+          "value": "h:28cba1bd1cc1f0a2"
+        },
+        {
+          "key": "auto.masked.Min",
+          "value": "h:bd2ebb3f3671d0b0"
+        },
+        {
+          "key": "auto.Max",
+          "value": "h:d4c7bafd30e9138d"
+        },
+        {
+          "key": "auto.masked.Max",
+          "value": "h:27a530354763ab2e"
+        },
+        {
+          "key": "auto.Count",
+          "value": "h:c57fec3a6610f4b2"
+        },
+        {
+          "key": "auto.masked.Count",
+          "value": "h:9474069d7592d51d"
+        },
+        {
+          "key": "auto.window",
+          "value": "h:70f408aad5fa82a6"
+        },
+        {
+          "key": "auto.reversed",
+          "value": "h:ab29805f8775e562"
+        },
+        {
+          "key": "auto.delta",
+          "value": "h:47db1980a37536d1"
+        },
+        {
+          "key": "scatter",
+          "value": "h:3086532bd297dd4b"
+        },
+        {
+          "key": "scatter.plain",
+          "value": "h:c2bd6d5e6387b37e"
+        },
+        {
+          "key": "csv.points",
+          "value": "h:eee1f7910ba103e0"
+        },
+        {
+          "key": "grid",
+          "value": "h:9b5c52b00c144759"
+        },
+        {
+          "key": "ve.grid",
+          "value": "h:461e5eb7c8a2562e"
+        },
+        {
+          "key": "tune.Mean",
+          "value": "h:e94150f5c1e27c9f"
+        },
+        {
+          "key": "tune.masked.Mean",
+          "value": "h:e9f0ce6d749d5467"
+        },
+        {
+          "key": "tune.Min",
+          "value": "h:789ea4b3a5241a5f"
+        },
+        {
+          "key": "tune.masked.Min",
+          "value": "h:b5e5116a1b325336"
+        },
+        {
+          "key": "tune.Max",
+          "value": "h:5e07915c0ed02a22"
+        },
+        {
+          "key": "tune.masked.Max",
+          "value": "h:327c2c8d9f3d3aa0"
+        },
+        {
+          "key": "tune.Count",
+          "value": "h:a22ae7c0d70300fe"
+        },
+        {
+          "key": "tune.masked.Count",
+          "value": "h:2f0584fbfacd15c9"
+        },
+        {
+          "key": "trace",
+          "value": "h:110091c739bbcd74"
+        },
+        {
+          "key": "csv.table",
+          "value": "h:7617b912e2767986"
+        },
+        {
+          "key": "csv.counts",
+          "value": "h:974ffc02500a96a7"
+        },
+        {
+          "key": "csv.tune",
+          "value": "h:829eeea5c1c5037f"
+        },
+        {
+          "key": "tune.delta",
+          "value": "h:5938f7c595891f2d"
+        },
+        {
+          "key": "ve.default",
+          "value": "h:d90a285d2c934fe2"
+        },
+        {
+          "key": "ve.default.unmasked",
+          "value": "h:eaae29274ab66010"
+        },
+        {
+          "key": "ve.delay3",
+          "value": "h:1852cd3b70e294e7"
+        },
+        {
+          "key": "ve.delay3.unmasked",
+          "value": "h:79ab73234256956b"
+        },
+        {
+          "key": "ve.raw",
+          "value": "h:49dfcde814e4d608"
+        },
+        {
+          "key": "ve.raw.unmasked",
+          "value": "h:e1c7c64f7f2fb437"
+        },
+        {
+          "key": "ve.tables",
+          "value": "h:99fb0394a236d12f"
+        },
+        {
+          "key": "delay",
+          "value": "h:e963cea296c9bc50"
+        },
+        {
+          "key": "delay.unmasked",
+          "value": "h:5f76464a230ef901"
+        },
+        {
+          "key": "compare.diff",
+          "value": "h:9168a7c7c6040727"
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "items": [
+        {
+          "key": "roles",
+          "value": "RPM|MAP|AFR|AFR Target|n=3000"
+        },
+        {
+          "key": "power.default",
+          "value": "h:a90b170678a785d8"
+        },
+        {
+          "key": "power.variant",
+          "value": "h:3815fea228b2d80f"
+        },
+        {
+          "key": "compare.overlap",
+          "value": "AFR,AFR Target,IAT,MAP,Pulse Width,RPM,Time,TPS///Both logs carry the same 8 channels."
+        },
+        {
+          "key": "csv.log",
+          "value": "h:33307bc5b8e4b97f"
+        },
+        {
+          "key": "mask",
+          "value": "pass=2889 total=3000 applied=True h=h:145d741c2c86a1e6"
+        },
+        {
+          "key": "auto.Mean",
+          "value": "h:16b35dacc2f876c5"
+        },
+        {
+          "key": "auto.masked.Mean",
+          "value": "h:80fb4bd14f63fbe1"
+        },
+        {
+          "key": "auto.Min",
+          "value": "h:391344e764f4c2c6"
+        },
+        {
+          "key": "auto.masked.Min",
+          "value": "h:c93a970c42187472"
+        },
+        {
+          "key": "auto.Max",
+          "value": "h:876560cda658a1f8"
+        },
+        {
+          "key": "auto.masked.Max",
+          "value": "h:feb5dcafe6a65761"
+        },
+        {
+          "key": "auto.Count",
+          "value": "h:0f009623102d3ccf"
+        },
+        {
+          "key": "auto.masked.Count",
+          "value": "h:f609e4ca2acc34a3"
+        },
+        {
+          "key": "auto.window",
+          "value": "h:d67e32521327520a"
+        },
+        {
+          "key": "auto.reversed",
+          "value": "h:8d698e253ad8215a"
+        },
+        {
+          "key": "auto.delta",
+          "value": "h:fd5725136edbd51e"
+        },
+        {
+          "key": "scatter",
+          "value": "h:b41e866636ed3667"
+        },
+        {
+          "key": "scatter.plain",
+          "value": "h:e42c4743e9fc5276"
+        },
+        {
+          "key": "csv.points",
+          "value": "h:3161640e04d2207a"
+        },
+        {
+          "key": "grid",
+          "value": "h:9af3da74152d25cd"
+        },
+        {
+          "key": "ve.grid",
+          "value": "h:1a1a87af046de431"
+        },
+        {
+          "key": "tune.Mean",
+          "value": "h:8b7140b335f7c896"
+        },
+        {
+          "key": "tune.masked.Mean",
+          "value": "h:f64bc09124680ad2"
+        },
+        {
+          "key": "tune.Min",
+          "value": "h:b7b352f94821c0ea"
+        },
+        {
+          "key": "tune.masked.Min",
+          "value": "h:f7ca4e9dd0ddeabb"
+        },
+        {
+          "key": "tune.Max",
+          "value": "h:7fe14c44b5ca0d9d"
+        },
+        {
+          "key": "tune.masked.Max",
+          "value": "h:539cc8b3e00b0904"
+        },
+        {
+          "key": "tune.Count",
+          "value": "h:8b4c0122ef213331"
+        },
+        {
+          "key": "tune.masked.Count",
+          "value": "h:e7bd71222441196d"
+        },
+        {
+          "key": "trace",
+          "value": "h:4710e65807c68721"
+        },
+        {
+          "key": "csv.table",
+          "value": "h:df6167af9bba8760"
+        },
+        {
+          "key": "csv.counts",
+          "value": "h:8d3e15ef3a2f59d5"
+        },
+        {
+          "key": "csv.tune",
+          "value": "h:829eeea5c1c5037f"
+        },
+        {
+          "key": "tune.delta",
+          "value": "h:0f928d142caf99cb"
+        },
+        {
+          "key": "ve.default",
+          "value": "h:c371fe5b4c6929eb"
+        },
+        {
+          "key": "ve.default.unmasked",
+          "value": "h:5f3da456c9f5e93b"
+        },
+        {
+          "key": "ve.delay3",
+          "value": "h:2a8343798aed07bc"
+        },
+        {
+          "key": "ve.delay3.unmasked",
+          "value": "h:b9f42b60aeea0912"
+        },
+        {
+          "key": "ve.raw",
+          "value": "h:25f9209a198b4798"
+        },
+        {
+          "key": "ve.raw.unmasked",
+          "value": "h:0e526f0e54e58d1a"
+        },
+        {
+          "key": "ve.tables",
+          "value": "h:ca59b8e2208ac2e4"
+        },
+        {
+          "key": "delay",
+          "value": "h:3a56965c2f5926ef"
+        },
+        {
+          "key": "delay.unmasked",
+          "value": "h:7e843b2060a7b253"
+        },
+        {
+          "key": "compare.diff",
+          "value": "h:53c285715da28c9a"
+        }
+      ]
+    },
+    {
+      "seed": 3,
+      "items": [
+        {
+          "key": "roles",
+          "value": "RPM|MAP|AFR|AFR Target|n=3000"
+        },
+        {
+          "key": "power.default",
+          "value": "h:a90b170678a785d8"
+        },
+        {
+          "key": "power.variant",
+          "value": "h:3815fea228b2d80f"
+        },
+        {
+          "key": "compare.overlap",
+          "value": "AFR,AFR Target,IAT,MAP,Pulse Width,RPM,Time,TPS///Both logs carry the same 8 channels."
+        },
+        {
+          "key": "csv.log",
+          "value": "h:852313e209be9026"
+        },
+        {
+          "key": "mask",
+          "value": "pass=2892 total=3000 applied=True h=h:b0df76aa32940baf"
+        },
+        {
+          "key": "auto.Mean",
+          "value": "h:a659fc0f3019fa3f"
+        },
+        {
+          "key": "auto.masked.Mean",
+          "value": "h:f579dc1709497bcb"
+        },
+        {
+          "key": "auto.Min",
+          "value": "h:b540d28f36452599"
+        },
+        {
+          "key": "auto.masked.Min",
+          "value": "h:e9832ea4567f712c"
+        },
+        {
+          "key": "auto.Max",
+          "value": "h:0d5859c1ace7211f"
+        },
+        {
+          "key": "auto.masked.Max",
+          "value": "h:211ac1f8a2d9ec90"
+        },
+        {
+          "key": "auto.Count",
+          "value": "h:5a31dc5002e8ad5e"
+        },
+        {
+          "key": "auto.masked.Count",
+          "value": "h:bfc36c9fbfaf6d16"
+        },
+        {
+          "key": "auto.window",
+          "value": "h:61ad1b96ab91a35b"
+        },
+        {
+          "key": "auto.reversed",
+          "value": "h:04b03530daf31520"
+        },
+        {
+          "key": "auto.delta",
+          "value": "h:279e8ed801e66cef"
+        },
+        {
+          "key": "scatter",
+          "value": "h:d03e8c253ef28b5c"
+        },
+        {
+          "key": "scatter.plain",
+          "value": "h:bd503c9945b1ed51"
+        },
+        {
+          "key": "csv.points",
+          "value": "h:cd1a8b0de06796e8"
+        },
+        {
+          "key": "grid",
+          "value": "h:cbf5d6278296e5d9"
+        },
+        {
+          "key": "ve.grid",
+          "value": "h:659cde56ba5db44e"
+        },
+        {
+          "key": "tune.Mean",
+          "value": "h:7507525d8d01e38e"
+        },
+        {
+          "key": "tune.masked.Mean",
+          "value": "h:5c768b85f00abc16"
+        },
+        {
+          "key": "tune.Min",
+          "value": "h:3d77a99e5c403e3b"
+        },
+        {
+          "key": "tune.masked.Min",
+          "value": "h:abeb79b4d6788d45"
+        },
+        {
+          "key": "tune.Max",
+          "value": "h:f3f989dff2e2b619"
+        },
+        {
+          "key": "tune.masked.Max",
+          "value": "h:fe121eca0820a32d"
+        },
+        {
+          "key": "tune.Count",
+          "value": "h:50ca0e541c2d02df"
+        },
+        {
+          "key": "tune.masked.Count",
+          "value": "h:f02d7df6328e53ef"
+        },
+        {
+          "key": "trace",
+          "value": "h:c024d0f43c6822b3"
+        },
+        {
+          "key": "csv.table",
+          "value": "h:bd10bdab68463400"
+        },
+        {
+          "key": "csv.counts",
+          "value": "h:8babec2df51d2875"
+        },
+        {
+          "key": "csv.tune",
+          "value": "h:829eeea5c1c5037f"
+        },
+        {
+          "key": "tune.delta",
+          "value": "h:b2f04875fb4a9b6a"
+        },
+        {
+          "key": "ve.default",
+          "value": "h:336b1c1577437c18"
+        },
+        {
+          "key": "ve.default.unmasked",
+          "value": "h:5ef4fa4420ce04cc"
+        },
+        {
+          "key": "ve.delay3",
+          "value": "h:86740c8b5f08b36f"
+        },
+        {
+          "key": "ve.delay3.unmasked",
+          "value": "h:94a386f7df9471c3"
+        },
+        {
+          "key": "ve.raw",
+          "value": "h:c5faff88a7ee8c9f"
+        },
+        {
+          "key": "ve.raw.unmasked",
+          "value": "h:513917adb7943b60"
+        },
+        {
+          "key": "ve.tables",
+          "value": "h:37c38e5a8c6850c9"
+        },
+        {
+          "key": "delay",
+          "value": "h:2433d8b508f21b94"
+        },
+        {
+          "key": "delay.unmasked",
+          "value": "h:395284e66a7ab19f"
+        },
+        {
+          "key": "compare.diff",
+          "value": "h:41e38961daff37d9"
+        }
+      ]
+    }
+  ]
+}
