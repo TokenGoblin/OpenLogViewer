@@ -1,0 +1,4613 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "units": "\u00B0C",
+      "system": "AsReported",
+      "label": "\u00B0C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "\u00B0C",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "\u00B0C",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "C",
+      "system": "AsReported",
+      "label": "C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "C",
+      "system": "Metric",
+      "label": "C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "C",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degC",
+      "system": "AsReported",
+      "label": "degC",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degC",
+      "system": "Metric",
+      "label": "degC",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degC",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg C",
+      "system": "AsReported",
+      "label": "deg C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg C",
+      "system": "Metric",
+      "label": "deg C",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg C",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "celsius",
+      "system": "AsReported",
+      "label": "celsius",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "celsius",
+      "system": "Metric",
+      "label": "celsius",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "celsius",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "Celsius",
+      "system": "AsReported",
+      "label": "Celsius",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "Celsius",
+      "system": "Metric",
+      "label": "Celsius",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "Celsius",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "404d3ae147ae147a",
+          "to_reported": "c02338e38e38e38e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "406a800000000000",
+          "to_reported": "4042e38e38e38e39"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "406acc51eb851eb9",
+          "to_reported": "404341c71c71c71c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407e200000000000",
+          "to_reported": "405e471c71c71c72"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "4040000000000000",
+          "to_reported": "c031c71c71c71c72"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "\u00B0F",
+      "system": "AsReported",
+      "label": "\u00B0F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "\u00B0F",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "c02338e38e38e38e",
+          "to_reported": "404d3ae147ae147a"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4042e38e38e38e39",
+          "to_reported": "406a800000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404341c71c71c71c",
+          "to_reported": "406acc51eb851eb9"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "405e471c71c71c72",
+          "to_reported": "407e200000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "\u00B0F",
+      "system": "Imperial",
+      "label": "\u00B0F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "F",
+      "system": "AsReported",
+      "label": "F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "F",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "c02338e38e38e38e",
+          "to_reported": "404d3ae147ae147a"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4042e38e38e38e39",
+          "to_reported": "406a800000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404341c71c71c71c",
+          "to_reported": "406acc51eb851eb9"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "405e471c71c71c72",
+          "to_reported": "407e200000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "F",
+      "system": "Imperial",
+      "label": "F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degF",
+      "system": "AsReported",
+      "label": "degF",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degF",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "c02338e38e38e38e",
+          "to_reported": "404d3ae147ae147a"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4042e38e38e38e39",
+          "to_reported": "406a800000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404341c71c71c71c",
+          "to_reported": "406acc51eb851eb9"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "405e471c71c71c72",
+          "to_reported": "407e200000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "degF",
+      "system": "Imperial",
+      "label": "degF",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg F",
+      "system": "AsReported",
+      "label": "deg F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg F",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "c02338e38e38e38e",
+          "to_reported": "404d3ae147ae147a"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4042e38e38e38e39",
+          "to_reported": "406a800000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404341c71c71c71c",
+          "to_reported": "406acc51eb851eb9"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "405e471c71c71c72",
+          "to_reported": "407e200000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg F",
+      "system": "Imperial",
+      "label": "deg F",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "fahrenheit",
+      "system": "AsReported",
+      "label": "fahrenheit",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "fahrenheit",
+      "system": "Metric",
+      "label": "\u00B0C",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "c02338e38e38e38e",
+          "to_reported": "404d3ae147ae147a"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4042e38e38e38e39",
+          "to_reported": "406a800000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404341c71c71c71c",
+          "to_reported": "406acc51eb851eb9"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "405e471c71c71c72",
+          "to_reported": "407e200000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "c031c71c71c71c72",
+          "to_reported": "4040000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "fahrenheit",
+      "system": "Imperial",
+      "label": "fahrenheit",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kPa",
+      "system": "AsReported",
+      "label": "kPa",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kPa",
+      "system": "Metric",
+      "label": "kPa",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kPa",
+      "system": "Imperial",
+      "label": "psi",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c01734bee8a5ee8c",
+          "to_reported": "c0713ca508f009fb"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "40010e72b7cbe140",
+          "to_reported": "4059569670fa7512"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "402d01eea2cf6a2f",
+          "to_reported": "40858bce4b2c0c7a"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "402d645365dd0b04",
+          "to_reported": "4085d4e3e8333971"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "4042213525c1a25d",
+          "to_reported": "409aeec1ddf70f98"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kpa",
+      "system": "AsReported",
+      "label": "kpa",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kpa",
+      "system": "Metric",
+      "label": "kpa",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kpa",
+      "system": "Imperial",
+      "label": "psi",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c01734bee8a5ee8c",
+          "to_reported": "c0713ca508f009fb"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "40010e72b7cbe140",
+          "to_reported": "4059569670fa7512"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "402d01eea2cf6a2f",
+          "to_reported": "40858bce4b2c0c7a"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "402d645365dd0b04",
+          "to_reported": "4085d4e3e8333971"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "4042213525c1a25d",
+          "to_reported": "409aeec1ddf70f98"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPA",
+      "system": "AsReported",
+      "label": "KPA",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPA",
+      "system": "Metric",
+      "label": "KPA",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPA",
+      "system": "Imperial",
+      "label": "psi",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c01734bee8a5ee8c",
+          "to_reported": "c0713ca508f009fb"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "40010e72b7cbe140",
+          "to_reported": "4059569670fa7512"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "402d01eea2cf6a2f",
+          "to_reported": "40858bce4b2c0c7a"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "402d645365dd0b04",
+          "to_reported": "4085d4e3e8333971"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "4042213525c1a25d",
+          "to_reported": "409aeec1ddf70f98"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psi",
+      "system": "AsReported",
+      "label": "psi",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psi",
+      "system": "Metric",
+      "label": "kPa",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c0713ca508f009fb",
+          "to_reported": "c01734bee8a5ee8c"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "4059569670fa7512",
+          "to_reported": "40010e72b7cbe140"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "40858bce4b2c0c7a",
+          "to_reported": "402d01eea2cf6a2f"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "4085d4e3e8333971",
+          "to_reported": "402d645365dd0b04"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "409aeec1ddf70f98",
+          "to_reported": "4042213525c1a25d"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psi",
+      "system": "Imperial",
+      "label": "psi",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "PSI",
+      "system": "AsReported",
+      "label": "PSI",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "PSI",
+      "system": "Metric",
+      "label": "kPa",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c0713ca508f009fb",
+          "to_reported": "c01734bee8a5ee8c"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "4059569670fa7512",
+          "to_reported": "40010e72b7cbe140"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "40858bce4b2c0c7a",
+          "to_reported": "402d01eea2cf6a2f"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "4085d4e3e8333971",
+          "to_reported": "402d645365dd0b04"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "409aeec1ddf70f98",
+          "to_reported": "4042213525c1a25d"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "PSI",
+      "system": "Imperial",
+      "label": "PSI",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psig",
+      "system": "AsReported",
+      "label": "psig",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psig",
+      "system": "Metric",
+      "label": "psig",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "psig",
+      "system": "Imperial",
+      "label": "psig",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "km/h",
+      "system": "AsReported",
+      "label": "km/h",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "km/h",
+      "system": "Metric",
+      "label": "km/h",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "km/h",
+      "system": "Imperial",
+      "label": "mph",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c038dad74c556f65",
+          "to_reported": "c05017ebaf102364"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402244b02a06798e",
+          "to_reported": "4037a8488905cd9f"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "404f118d1f6acb3e",
+          "to_reported": "40641de69ad42c3d"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404f7aef918fba9c",
+          "to_reported": "40646223117d0006"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "40636af833a2bf07",
+          "to_reported": "407925604189374c"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kph",
+      "system": "AsReported",
+      "label": "kph",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kph",
+      "system": "Metric",
+      "label": "kph",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kph",
+      "system": "Imperial",
+      "label": "mph",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c038dad74c556f65",
+          "to_reported": "c05017ebaf102364"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402244b02a06798e",
+          "to_reported": "4037a8488905cd9f"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "404f118d1f6acb3e",
+          "to_reported": "40641de69ad42c3d"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404f7aef918fba9c",
+          "to_reported": "40646223117d0006"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "40636af833a2bf07",
+          "to_reported": "407925604189374c"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kmh",
+      "system": "AsReported",
+      "label": "kmh",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kmh",
+      "system": "Metric",
+      "label": "kmh",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "kmh",
+      "system": "Imperial",
+      "label": "mph",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c038dad74c556f65",
+          "to_reported": "c05017ebaf102364"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402244b02a06798e",
+          "to_reported": "4037a8488905cd9f"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "404f118d1f6acb3e",
+          "to_reported": "40641de69ad42c3d"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404f7aef918fba9c",
+          "to_reported": "40646223117d0006"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "40636af833a2bf07",
+          "to_reported": "407925604189374c"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPH",
+      "system": "AsReported",
+      "label": "KPH",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPH",
+      "system": "Metric",
+      "label": "KPH",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "KPH",
+      "system": "Imperial",
+      "label": "mph",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c038dad74c556f65",
+          "to_reported": "c05017ebaf102364"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402244b02a06798e",
+          "to_reported": "4037a8488905cd9f"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "404f118d1f6acb3e",
+          "to_reported": "40641de69ad42c3d"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "404f7aef918fba9c",
+          "to_reported": "40646223117d0006"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "40636af833a2bf07",
+          "to_reported": "407925604189374c"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "mph",
+      "system": "AsReported",
+      "label": "mph",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "mph",
+      "system": "Metric",
+      "label": "km/h",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c05017ebaf102364",
+          "to_reported": "c038dad74c556f65"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "4037a8488905cd9f",
+          "to_reported": "402244b02a06798e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "40641de69ad42c3d",
+          "to_reported": "404f118d1f6acb3e"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "40646223117d0006",
+          "to_reported": "404f7aef918fba9c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407925604189374c",
+          "to_reported": "40636af833a2bf07"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "mph",
+      "system": "Imperial",
+      "label": "mph",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "MPH",
+      "system": "AsReported",
+      "label": "MPH",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "MPH",
+      "system": "Metric",
+      "label": "km/h",
+      "converts": true,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c05017ebaf102364",
+          "to_reported": "c038dad74c556f65"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "4037a8488905cd9f",
+          "to_reported": "402244b02a06798e"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "40641de69ad42c3d",
+          "to_reported": "404f118d1f6acb3e"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "40646223117d0006",
+          "to_reported": "404f7aef918fba9c"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "407925604189374c",
+          "to_reported": "40636af833a2bf07"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "MPH",
+      "system": "Imperial",
+      "label": "MPH",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "AFR",
+      "system": "AsReported",
+      "label": "AFR",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "AFR",
+      "system": "Metric",
+      "label": "AFR",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "AFR",
+      "system": "Imperial",
+      "label": "AFR",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "lambda",
+      "system": "AsReported",
+      "label": "lambda",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "lambda",
+      "system": "Metric",
+      "label": "lambda",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "lambda",
+      "system": "Imperial",
+      "label": "lambda",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "%",
+      "system": "AsReported",
+      "label": "%",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "%",
+      "system": "Metric",
+      "label": "%",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "%",
+      "system": "Imperial",
+      "label": "%",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "ms",
+      "system": "AsReported",
+      "label": "ms",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "ms",
+      "system": "Metric",
+      "label": "ms",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "ms",
+      "system": "Imperial",
+      "label": "ms",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "rpm",
+      "system": "AsReported",
+      "label": "rpm",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "rpm",
+      "system": "Metric",
+      "label": "rpm",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "rpm",
+      "system": "Imperial",
+      "label": "rpm",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg",
+      "system": "AsReported",
+      "label": "deg",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg",
+      "system": "Metric",
+      "label": "deg",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "deg",
+      "system": "Imperial",
+      "label": "deg",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "V",
+      "system": "AsReported",
+      "label": "V",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "V",
+      "system": "Metric",
+      "label": "V",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "V",
+      "system": "Imperial",
+      "label": "V",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "",
+      "system": "AsReported",
+      "label": "",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "",
+      "system": "Metric",
+      "label": "",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": "",
+      "system": "Imperial",
+      "label": "",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": " ",
+      "system": "AsReported",
+      "label": " ",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": " ",
+      "system": "Metric",
+      "label": " ",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    },
+    {
+      "units": " ",
+      "system": "Imperial",
+      "label": " ",
+      "converts": false,
+      "values": [
+        {
+          "input": "c044000000000000",
+          "value": "c044000000000000",
+          "to_reported": "c044000000000000"
+        },
+        {
+          "input": "0000000000000000",
+          "value": "0000000000000000",
+          "to_reported": "0000000000000000"
+        },
+        {
+          "input": "402d666666666666",
+          "value": "402d666666666666",
+          "to_reported": "402d666666666666"
+        },
+        {
+          "input": "4059000000000000",
+          "value": "4059000000000000",
+          "to_reported": "4059000000000000"
+        },
+        {
+          "input": "405954cccccccccd",
+          "value": "405954cccccccccd",
+          "to_reported": "405954cccccccccd"
+        },
+        {
+          "input": "406f400000000000",
+          "value": "406f400000000000",
+          "to_reported": "406f400000000000"
+        },
+        {
+          "input": "8000000000000000",
+          "value": "8000000000000000",
+          "to_reported": "8000000000000000"
+        },
+        {
+          "input": "fff8000000000000",
+          "value": "fff8000000000000",
+          "to_reported": "fff8000000000000"
+        }
+      ]
+    }
+  ]
+}

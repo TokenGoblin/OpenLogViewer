@@ -1,0 +1,304 @@
+# The work packages of the port, in the form `cargo xtask` reads.
+#
+# Every C# source file in src/ belongs to exactly one package, and `cargo xtask check`
+# fails if one is missing, listed twice, or depends on code a later wave ports. Names
+# without a slash are looked up in src/OpenLogViewer.Core and src/OpenLogViewer.App
+# (".cs" and ".xaml.cs" both tried); names with one are repo-relative.
+#
+# model:  opus | sonnet | haiku     effort: lower | default | higher
+# review: an Opus review of the diff is part of the gate (see PLAN.md, rule 8)
+# kind:   port (default) | spec (produces a document, not code)
+
+# ----- Wave 0: foundation (two packages in parallel)
+
+[[package]]
+id = "w0-model"
+wave = 0
+crate = "olv-core"
+module = "model"
+model = "opus"
+effort = "higher"
+files = ["UnitConvert", "SafeXml", "TuningText", "TraceScale", "LogChannel", "LogDocument", "ILogReader", "TuneAxes", "RealtimeCommand", "CanFrame", "WireTrace", "ILiveSource", "IRawTelemetrySource"]
+
+[[package]]
+id = "w0-base"
+wave = 0
+crate = "olv-core"
+module = "base"
+model = "sonnet"
+files = ["TuningMath", "MathExpression", "Smoothing", "JsonSettingsFile", "SafeFolder"]
+
+# ----- Wave 1: leaf logic and protocols
+
+[[package]]
+id = "w1-calc-a"
+wave = 1
+crate = "olv-core"
+module = "calc"
+model = "sonnet"
+effort = "lower"
+files = ["TurboSizing", "Intercooling", "OctaneBlend", "Sprayables", "EngineRecipe", "EngineGeometry"]
+
+[[package]]
+id = "w1-calc-b"
+wave = 1
+crate = "olv-core"
+module = "calc"
+model = "sonnet"
+effort = "lower"
+files = ["DragStrip", "Gearing", "CamProfiles", "RunningCosts", "EngineFamilies"]
+
+[[package]]
+id = "w1-channels"
+wave = 1
+crate = "olv-core"
+module = "channels"
+model = "sonnet"
+files = ["ChannelClassifier", "ChannelStyle", "ChannelStatistics", "ChannelRoles"]
+
+[[package]]
+id = "w1-ini"
+wave = 1
+crate = "olv-core"
+module = "ini"
+model = "sonnet"
+files = ["IniCatalog", "MsqIni", "IniDefines", "DialogCondition", "TableEditorReader", "TuneDialogs", "TuningContext", "GaugeCatalog", "TuneLayout", "Guide"]
+
+[[package]]
+id = "w1-ms-maxx"
+wave = 1
+crate = "olv-protocol"
+module = "ms"
+model = "sonnet"
+review = true
+files = ["MsProtocol", "Obd2Adapters", "MaxxFrameReader", "MaxxProtocol", "MaxxUsbProtocol", "LiveSubscriber"]
+
+[[package]]
+id = "w1-sniper"
+wave = 1
+crate = "olv-protocol"
+module = "sniper"
+model = "sonnet"
+review = true
+files = ["SniperCan", "SniperHefi", "SniperTelemetryChannels", "SniperCanTransport", "SniperSession"]
+
+[[package]]
+id = "w1-stores"
+wave = 1
+crate = "olv-store"
+module = "store"
+model = "haiku"
+effort = "lower"
+files = ["Workspace", "SettingsStore", "PresetStore", "AgentActivityLog"]
+
+# ----- Wave 2: readers, transports, definitions
+
+[[package]]
+id = "w2-logs"
+wave = 2
+crate = "olv-core"
+module = "logs"
+model = "sonnet"
+files = ["DelimitedLogReader", "MlgReader", "MaxxGauges", "MaxxChannelTable", "MaxxChannelDefinitions", "MaxxLogReader", "LogReaderFactory"]
+
+[[package]]
+id = "w2-math-channels"
+wave = 2
+crate = "olv-core"
+module = "math"
+model = "sonnet"
+files = ["ChannelUnits", "MathChannel", "MathChannelStore", "DerivedChannels"]
+
+[[package]]
+id = "w2-obd"
+wave = 2
+crate = "olv-protocol"
+module = "obd"
+model = "sonnet"
+review = true
+files = ["RealtimeDecoder", "Obd2Codes", "Obd2Pids", "Elm327", "Obd2Faults", "Ssm", "Obd2Gauges", "SsmParameterFile"]
+
+[[package]]
+id = "w2-transports"
+wave = 2
+crate = "olv-transport"
+module = "transport"
+model = "sonnet"
+review = true
+files = ["SerialEcuTransport", "WifiEcuTransport", "FtdiEcuTransport", "BleEcuTransport", "BleDevices", "SerialPortNames"]
+
+[[package]]
+id = "w2-definitions"
+wave = 2
+crate = "olv-core"
+module = "definitions"
+model = "sonnet"
+review = true
+files = ["MsqFile", "DefinitionFile", "DefinitionImport", "DefinitionNeed", "DangerousConstants"]
+
+[[package]]
+id = "w2-filters"
+wave = 2
+crate = "olv-core"
+module = "filters"
+model = "haiku"
+effort = "lower"
+files = ["LogFilter", "FilterStore", "LogSearch"]
+
+[[package]]
+id = "w2-manifold"
+wave = 2
+crate = "olv-core"
+module = "calc"
+model = "sonnet"
+effort = "lower"
+files = ["ManifoldTuning"]
+
+# ----- Wave 3: connections and analysis
+
+[[package]]
+id = "w3-connection"
+wave = 3
+crate = "olv-live"
+module = "connection"
+model = "sonnet"
+review = true
+files = ["EcuConnection", "Elm327Source", "SsmSource", "TunerStudioSource", "MaxxEcuSource"]
+
+[[package]]
+id = "w3-analysis"
+wave = 3
+crate = "olv-core"
+module = "analysis"
+model = "sonnet"
+files = ["HistogramTable", "ScatterPlot", "WidebandDelay", "VeAnalysis", "PowerEstimate", "CsvExport", "LogComparison"]
+
+# ----- Wave 4: tune operations, insights, live sessions
+
+[[package]]
+id = "w4-tune"
+wave = 4
+crate = "olv-core"
+module = "tune"
+model = "sonnet"
+review = true
+files = ["EcuTune", "MsqApply", "MsqWriter", "TuneCompare", "TuneCurveEdit", "TuneEdit", "TuneSettingsEdit", "TuneRestore", "TuneVersion"]
+
+[[package]]
+id = "w4-insights"
+wave = 4
+crate = "olv-core"
+module = "insights"
+model = "sonnet"
+files = ["LogInsights"]
+
+[[package]]
+id = "w4-live"
+wave = 4
+crate = "olv-live"
+module = "live"
+model = "sonnet"
+review = true
+files = ["LiveSession", "MaxxTune", "MaxxTuneDefinitions", "MaxxCan", "MaxxUsbSource", "MaxxCanSource"]
+
+# ----- Wave 5: agent API and projects
+
+[[package]]
+id = "w5-agent"
+wave = 5
+crate = "olv-agent"
+module = "agent"
+model = "sonnet"
+review = true
+files = ["AgentApi", "AgentServer", "AgentStaging", "tools/OpenLogViewer.Mcp/Program.cs", "tools/OpenLogViewer.Dump/Program.cs", "tools/OpenLogViewer.Insights/Program.cs", "tools/OpenLogViewer.Probe/Program.cs"]
+
+[[package]]
+id = "w5-projects"
+wave = 5
+crate = "olv-store"
+module = "projects"
+model = "haiku"
+effort = "lower"
+files = ["TuningProject", "TuningProjectRecorder", "TuningProjectStore", "TuneHistory"]
+
+# ----- Wave 6: interface spec and UI base
+
+[[package]]
+id = "w6-spec"
+wave = 6
+kind = "spec"
+crate = "olv"
+module = "spec"
+model = "opus"
+files = ["src/OpenLogViewer.App/App.xaml", "src/OpenLogViewer.App/MainWindow.xaml", "src/OpenLogViewer.App/CalculatorsWindow.xaml", "src/OpenLogViewer.App/FaultsPanel.xaml", "src/OpenLogViewer.App/FaultsWindow.xaml", "src/OpenLogViewer.App/InsightsWindow.xaml", "src/OpenLogViewer.App/PowerWindow.xaml", "src/OpenLogViewer.App/ProjectWindow.xaml"]
+
+[[package]]
+id = "w6-ui-base"
+wave = 6
+crate = "olv"
+module = "ui"
+model = "sonnet"
+files = ["Theme", "ThemeCatalog", "ThemeManager", "ColorMath", "TitleBar", "Mvvm", "WorkspaceMode", "ImageExport"]
+
+# ----- Wave 7: interface screens
+
+[[package]]
+id = "w7-plot"
+wave = 7
+crate = "olv"
+module = "plot"
+model = "sonnet"
+files = ["LogPlot", "ChannelItem", "FilterItem"]
+
+[[package]]
+id = "w7-analysis-views"
+wave = 7
+crate = "olv"
+module = "analysis_views"
+model = "sonnet"
+files = ["HistogramView", "ScatterView"]
+
+[[package]]
+id = "w7-calibration"
+wave = 7
+crate = "olv"
+module = "calibration"
+model = "sonnet"
+files = ["TuneTableView", "TuneTableEdit", "CurveView", "SettingRow", "SettingsDialog", "SettingsMenuEntry", "SavedTuneCommands"]
+
+[[package]]
+id = "w7-gauges-faults"
+wave = 7
+crate = "olv"
+module = "gauges"
+model = "sonnet"
+files = ["GaugeView", "GaugeItem", "FaultsPanel", "FaultsWindow"]
+
+[[package]]
+id = "w7-calculators"
+wave = 7
+crate = "olv"
+module = "calculators"
+model = "sonnet"
+files = ["CalculatorsWindow", "PowerWindow"]
+
+# ----- Wave 8: application state
+
+[[package]]
+id = "w8-viewmodel"
+wave = 8
+crate = "olv"
+module = "state"
+model = "sonnet"
+effort = "higher"
+files = ["MainViewModel", "AgentBridge", "AgentCommands", "ProjectWindow", "ProjectCommands"]
+
+# ----- Wave 9: the shell (App, MainWindow and InsightsWindow use each other)
+
+[[package]]
+id = "w9-shell"
+wave = 9
+crate = "olv"
+module = "shell"
+model = "sonnet"
+files = ["App", "MainWindow", "InsightsWindow", "AssemblyInfo"]

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The reference the Rust port is measured against. Runs the shipping C# over
+    synthetic inputs and over the local corpus, and writes what it got to
+    rust/oracle/expected. Deleted with the rest of the C# at cut-over.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenLogViewer.Core\OpenLogViewer.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>olv-oracle</AssemblyName>
+  </PropertyGroup>
+
+</Project>

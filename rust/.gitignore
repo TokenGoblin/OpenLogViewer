@@ -1,0 +1,6 @@
+target/
+# Real logs, tunes and definitions: personal data, copied in by `cargo xtask corpus`.
+corpus/
+corpus.toml
+# Reference outputs made from the corpus are personal too; synthetic ones are committed.
+oracle/expected/corpus/

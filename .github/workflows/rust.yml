@@ -1,0 +1,69 @@
+# The Rust port (rust/PLAN.md). Separate from build.yml so the C# keeps its own
+# gate until cut-over.
+#
+# Windows, Linux and macOS are all release targets: nothing above
+# the transport crate may be platform-specific, and the only way that stays true is a
+# build that would fail if it were not.
+name: rust
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["rust/**", "src/**", "tools/OpenLogViewer.Oracle/**", ".github/workflows/rust.yml"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: rust
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      # The package manifest against the C#: every file assigned once, and no
+      # package depending on a later wave.
+      - name: Package manifest
+        run: cargo xtask check
+
+  licences:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: rust/Cargo.toml
+
+  # The reference outputs are committed. If the C# changes what it computes and
+  # nobody regenerates them, the Rust is being measured against the past; this
+  # fails instead.
+  oracle-drift:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Regenerate synthetic references
+        working-directory: .
+        run: dotnet run --project tools/OpenLogViewer.Oracle -- --synthetic
+      - name: Fail if they changed
+        working-directory: .
+        run: git diff --exit-code -- rust/oracle/expected

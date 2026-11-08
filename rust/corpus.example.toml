@@ -1,0 +1,8 @@
+# Copy to corpus.toml (gitignored) and run `cargo xtask corpus`.
+# Each entry is a file or a directory plus a filename pattern with one `*`.
+logs = [
+  "C:/Users/you/Downloads/*.mlg",
+  "C:/Users/you/OpenLogViewer/Logs/*.csv",
+]
+tunes = ["C:/Users/you/Downloads/*.msq"]
+definitions = ["C:/Users/you/OpenLogViewer/ECU definitions/*.ini"]
