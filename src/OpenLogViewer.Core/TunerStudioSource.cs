@@ -102,6 +102,12 @@ public sealed class TunerStudioSource : ILiveSource, IRawTelemetrySource
     public void Recover()
     {
         _connection.Reopen();
+
+        // The same wait ReadIdentity gives a port it has just opened. Opening
+        // resets a Speeduino, and a request sent into its bootloader is not
+        // answered, and can leave it stuck there.
+        Thread.Sleep(_connection.Settings.BootWait);
+
         _connection.ReadRealtime(_decoder.Layout.BlockSize);
     }
 

@@ -60,11 +60,47 @@ public sealed class EcuConnection : IDisposable
     /// </summary>
     private readonly Lock _gate = new();
 
+    // Opening a Speeduino's port resets the board, and what was written but not
+    // burned lives in RAM. These remember, per page, how many times the link had
+    // been reopened when the earliest still-unburned write landed, so a burn
+    // after a reopen can be seen for what it is: a commit of the old tune.
+    // All guarded by _gate.
+    private int _reopens;
+    private readonly Dictionary<int, int> _unburned = [];
+    private readonly HashSet<int> _lost = [];
+
+    /// <summary>How many times the link has been closed and opened again.</summary>
+    public int Reopens { get { lock (_gate) return _reopens; } }
+
+    /// <summary>Pages written to the ECU since their last burn, in ascending order.</summary>
+    public IReadOnlyList<int> UnburnedPages
+    {
+        get { lock (_gate) return [.. _unburned.Keys.Order()]; }
+    }
+
+    /// <summary>
+    /// Pages whose written changes were lost when the link was reopened, and
+    /// have not been written again since. A burn of one is refused.
+    /// </summary>
+    public IReadOnlyList<int> LostPages
+    {
+        get
+        {
+            lock (_gate)
+                return [.. _unburned.Where(p => p.Value < _reopens).Select(p => p.Key).Union(_lost).Order()];
+        }
+    }
+
     public void Open()
     {
         lock (_gate)
         {
-        if (!_transport.IsOpen) _transport.Open();
+        if (_transport.IsOpen) return;
+
+        // Counted before the attempt: an open that throws part way may still
+        // have reset the board.
+        _reopens++;
+        _transport.Open();
         }
     }
 
@@ -88,6 +124,10 @@ public sealed class EcuConnection : IDisposable
             // Closing something already gone is not a reason not to try again.
         }
 
+        // Counted before the open, not after: an open that fails part way may
+        // already have reset the board, and a count that is too high only
+        // refuses a burn that was safe, where one too low commits the old tune.
+        _reopens++;
         _transport.Open();
         }
     }
@@ -409,6 +449,14 @@ public sealed class EcuConnection : IDisposable
                 $"The ECU did not take that write: {data.Length} bytes were sent to offset {offset} "
                 + "of page " + page.Index + " and reading the same range back gave something else. "
                 + "Nothing has been burned, so a power cycle restores the ECU.");
+
+        // Recorded only now that the write has landed and been proved. The
+        // earliest unburned write keeps its place: a later write to the same
+        // page must not make an earlier one, lost to a reopen, look fresh. A
+        // page already known lost starts over, since this is the write the
+        // refusal asked for.
+        if (_lost.Remove(page.Index)) _unburned.Remove(page.Index);
+        _unburned.TryAdd(page.Index, _reopens);
         }
     }
 
@@ -426,6 +474,26 @@ public sealed class EcuConnection : IDisposable
 
         if (page.BurnCommand.Length == 0)
             throw new EcuProtocolException($"Page {page.Index} declares no burn command.");
+
+        // The reopen reset the board and took the RAM changes with it, so this
+        // burn would commit the tune as it was and then say it had burned the
+        // change. The read-back that verified the write ran before the reset
+        // and cannot see it. Refused is true because the ECU is in exactly the
+        // state of a refusal: nothing was sent and nothing was changed.
+        if (_lost.Contains(page.Index)
+            || (_unburned.TryGetValue(page.Index, out int writtenAt) && writtenAt < _reopens))
+        {
+            _unburned.Remove(page.Index);
+            _lost.Add(page.Index);
+
+            throw new EcuProtocolException(
+                $"Nothing was burned: the changes written to page {page.Index} were lost when the "
+                + "connection was reopened. Write them again, then burn.")
+            {
+                Refused = true,
+                FailureKind = WireFailureKind.Refused,
+            };
+        }
 
         byte[] identifier = RealtimeCommand.Parse(page.Identifier).Build(0, 1, Settings.CanId, littleEndian);
 
@@ -477,6 +545,9 @@ public sealed class EcuConnection : IDisposable
         // it takes, so the next request sent immediately afterwards goes into
         // silence — and desynchronises everything after it, which on a link
         // being polled at the same time is every reading until it is noticed.
+        _unburned.Remove(page.Index);
+        _lost.Remove(page.Index);
+
         if (afterBurnDelay > 0) Thread.Sleep(afterBurnDelay);
         }
     }

@@ -2552,6 +2552,17 @@ public sealed partial class MainViewModel : ObservableObject
                     _settingsPagesWritten.Remove(index);
                     throw;
                 }
+                catch (EcuProtocolException) when (connection.LostPages.Contains(index))
+                {
+                    // The link was reopened after this page was written, which
+                    // reset the controller and took the change with it. Nothing
+                    // was sent. The page comes off the list because there is
+                    // nothing left in it to burn: it has to be written again,
+                    // and that puts it back. The message says so, and reaches
+                    // the user as a failure below, never as a burn.
+                    _settingsPagesWritten.Remove(index);
+                    throw;
+                }
 
                 _settingsPagesWritten.Remove(index);
                 burned.Add(index);
@@ -3132,6 +3143,13 @@ KeepBurnedTune();
             // succeeded. Only a refusal is a failure this end can vouch for;
             // anything else is an unconfirmed burn, and its own message already
             // says what that means and how to check.
+            // A burn the connection refused because the link was reopened since
+            // the write is the same failure, and the page is no longer waiting
+            // for a burn: its change has to be written again.
+            if (connection.LostPages.Contains(page.Index)) _settingsPagesWritten.Remove(page.Index);
+
+            RaiseWriteGates();
+
             return e is EcuProtocolException { Refused: false } ? e.Message : $"The burn failed: {e.Message}";
         }
     }
@@ -4666,6 +4684,15 @@ KeepBurnedTune();
     {
         if (_live is null) return;
 
+        // Closing the port ends the session, and connecting again opens it
+        // afresh, which resets a Speeduino and loses whatever was written but
+        // not burned. Said before it happens rather than found out afterwards.
+        string unburned = _ecuConnection is { UnburnedPages.Count: > 0 } held
+            ? "Disconnected with changes that were written but never burned (page "
+              + string.Join(", ", held.UnburnedPages) + "). They are in working memory only "
+              + "and will be lost when the controller restarts. "
+            : "";
+
         _live.Stop();
         _live.Dispose();
         Live = null;
@@ -4694,7 +4721,9 @@ KeepBurnedTune();
         RaiseRecording();
 
         if (Document is not null)
-            Hint = "Disconnected. The session is still here, and its recording is on disk.";
+            Hint = unburned + "Disconnected. The session is still here, and its recording is on disk.";
+        else if (unburned.Length > 0)
+            Hint = unburned.TrimEnd();
     }
 
     /// <summary>
