@@ -1069,11 +1069,37 @@ fn a_refused_definition_says_why_and_does_not_read_as_success() {
 // ----- what this port adds: the security boundary, tried from outside -------------------------------
 
 #[test]
-fn the_token_can_arrive_as_a_header_or_in_the_query_and_either_alone_is_enough() {
+fn the_token_is_a_header_and_only_the_live_stream_also_takes_it_in_the_query() {
     let (server, _) = serve();
     let port = server.port();
 
-    assert_eq!(raw(port, "GET", &format!("/state?token={TOKEN}"), &[], "").status, 200);
+    // A URL ends up in histories and logs: no route but the stream takes the token from one.
+    assert_eq!(raw(port, "GET", &format!("/state?token={TOKEN}"), &[], "").status, 401);
+    assert_eq!(
+        raw(port, "POST", &format!("/tune/set?token={TOKEN}"), &[], "{}").status,
+        401
+    );
+    assert_eq!(
+        raw(
+            port,
+            "GET",
+            &format!("/state?token={TOKEN}"),
+            &[("Authorization", "Bearer nope")],
+            ""
+        )
+        .status,
+        401
+    );
+    // The stream, which a browser opens and cannot put a header on, does.
+    let mut socket =
+        connect(port, &format!("/live/stream?token={TOKEN}"), None).expect("the query token opens the stream");
+    drop(socket.close(None));
+    assert!(connect(port, "/live/stream?token=nope", None).is_err());
+    // But not a plain GET of the same path.
+    assert_eq!(
+        raw(port, "GET", &format!("/live/stream?token={TOKEN}"), &[], "").status,
+        401
+    );
     assert_eq!(
         raw(
             port,

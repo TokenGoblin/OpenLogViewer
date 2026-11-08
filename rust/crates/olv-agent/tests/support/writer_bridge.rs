@@ -105,6 +105,6 @@ impl AgentBridge for WriterBridge {
         self.rest.definition_needed()
     }
     fn import_definition(&self, p: &str, c: &str, s: &str, n: &str) -> AgentDefinitionImported {
-        self.rest.import_definition(p, c, s, n)
+        self.writer.import_definition(p, c, s, n, &[])
     }
 }

@@ -9,7 +9,8 @@
 //!
 //! **Deliberate differences**, each tightening and each tested on its own in `agent_server.rs`:
 //! the C# answers a request naming any `Host` or `Origin`; this refuses the ones that are not
-//! loopback (403). Those cases are listed in [`REFUSED_HERE`] and checked against that instead.
+//! loopback (403), and a token in the query string is taken only on the live stream. Those cases
+//! are listed in [`REFUSED_HERE`] and [`QUERY_TOKEN_REFUSED`] and checked against that instead.
 //! The `detail` text of a JSON *syntax* error is `System.Text.Json`'s own wording; the common
 //! ones are reproduced and the rest are compared by status and error only ([`WORDING`]).
 
@@ -48,6 +49,10 @@ struct Case {
 
 /// Requests the C# answers 200 that this server refuses with 403, on purpose.
 const REFUSED_HERE: [&str; 2] = ["host other", "origin foreign"];
+
+/// Requests the C# answers 200 on the strength of a token in the query string, which only the live
+/// stream accepts here: refused with 401 (intended divergence, review item 7).
+const QUERY_TOKEN_REFUSED: [&str; 2] = ["token in query", "bad header good query"];
 
 /// Syntax errors whose wording `System.Text.Json` owns and this does not copy to the letter.
 ///
@@ -95,6 +100,7 @@ fn start(setup: &[String]) -> (AgentServer, Arc<Bench>) {
 fn every_answer_is_the_one_the_csharp_server_gave() {
     let cases: Vec<Case> = olv_oracle::cases("w5-agent", "wire");
     let refused_here: HashSet<&str> = REFUSED_HERE.into_iter().collect();
+    let query_refused: HashSet<&str> = QUERY_TOKEN_REFUSED.into_iter().collect();
     let wording: HashSet<&str> = WORDING.into_iter().collect();
 
     let mut checked = 0;
@@ -112,6 +118,16 @@ fn every_answer_is_the_one_the_csharp_server_gave() {
             if got.status != 403 {
                 failures.push(format!(
                     "{}: expected this server to refuse with 403, got {}",
+                    case.name, got.status
+                ));
+            }
+            continue;
+        }
+
+        if query_refused.contains(case.name.as_str()) {
+            if got.status != 401 {
+                failures.push(format!(
+                    "{}: expected 401 for a query token off the stream, got {}",
                     case.name, got.status
                 ));
             }

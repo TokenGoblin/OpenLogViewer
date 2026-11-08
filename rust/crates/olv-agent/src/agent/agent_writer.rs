@@ -11,34 +11,48 @@
 //!
 //! 1. **A rationale.** Blank is refused before anything else is even checked, so the guard
 //!    cannot be routed around by leaving it empty.
-//! 2. **Armed.** Writing is off at start-up, off again on every disconnect, never persisted, and
-//!    can only be turned on by [`AgentWriter::set_armed`], which no HTTP route calls. A person
-//!    arms it; nothing an agent sends can.
+//! 2. **Armed.** Writing is off at start-up, off again on every connect and every disconnect,
+//!    never persisted, and can only be turned on by [`AgentWriter::set_armed`], which no HTTP
+//!    route calls. A person arms it; nothing an agent sends can. A connect also forgets the tune,
+//!    so nothing is written until [`AgentWriter::set_tune`] supplies one read from *this*
+//!    controller after the connect.
 //! 3. **Connected, a real tune, read off the controller.** A placeholder (a definition file's
-//!    all-noughts tune) and a tune opened from a file are both refused.
-//! 4. **Not running above idle.** Live RPM over 1,200 refuses every write; no RPM to read does
-//!    not.
-//! 5. **Not too fast.** Ten writes in five seconds; a whole batch counts as one.
+//!    all-noughts tune) and a tune opened from a file are both refused. The writer keeps using
+//!    the layout that tune was read with (ranges, dangerous names, write commands) until the next
+//!    connect: installing a definition does not change it.
+//! 4. **Not running above idle, and the engine speed must be known.** Live RPM over 1,200
+//!    refuses every write, and so does an RPM that is unknown, not a number, or older than a
+//!    second, whenever a live session can exist. Only "no live session at all" lets a write past
+//!    without a reading.
+//! 5. **Not too fast.** Ten device writes in five seconds. A batch is capped at ten items, which
+//!    is the whole allowance, and each device write it makes is counted.
 //! 6. **Names that exist.** A setting the firmware does not declare, a table that is not there.
 //! 7. **Dangerous constants.** A rev limiter, launch RPM, boost limit, or fuel or ignition cut
 //!    needs `confirmDangerous` on the same call.
 //! 8. **Not too large.** No single change may move a value by more than half of the range the
-//!    firmware declares for it.
+//!    firmware declares for it, measured from where the controller was *before the call* (so two
+//!    half-steps in one batch are one whole step, and refused).
+//! 9. **Only the agent's own bytes, and not over the person's.** What is sent is the byte runs
+//!    where the new page differs from the held one, never the whole table or every pending edit;
+//!    and a write to a page the person has unsent edits on is refused.
 //!
 //! Only then do bytes go out, and they go through the connection's read-back-and-verify. Nothing
 //! here burns, and nothing here can: the type has no method that calls `burn_page`.
 //!
-//! Everything runs under one lock, so two requests arriving together cannot interleave their
-//! edits or race the rate limit (the C# guards only the rate list).
+//! Writes run under one lock, so two requests arriving together cannot interleave or race the
+//! rate limit (the C# guards only the rate list). Reads do not take it: they are served from a
+//! snapshot swapped in after each change, so a screen reading the tune never waits on a write to
+//! the device.
 
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use olv_core::analysis::csv_export;
 use olv_core::base::safe_folder::SafeFolderError;
 use olv_core::definitions::dangerous_constants;
+use olv_core::definitions::definition_import;
 use olv_core::fmt as nf;
 use olv_core::ini::table_editor_reader::TableDefinition;
 use olv_core::ini::tune_layout::{TuneConstant, TunePage};
@@ -49,14 +63,14 @@ use olv_core::tune::tune_compare::{self, TuneDifference};
 use olv_core::tune::tune_edit::{TuneEdit, TuneSelection};
 use olv_core::tune::tune_settings_edit::TuneSettingsEdit;
 use olv_live::connection::ecu_connection::EcuConnection;
-use olv_live::live::maxx_tune::{self, MaxxWriteStatus};
+use olv_live::live::maxx_tune::{self, MAXIMUM_WRITE, MaxxTable, MaxxWriteStatus, WRITE_CEILING};
 use olv_live::live::maxx_tune_definitions::MaxxSettingDefinition;
 use olv_live::live::maxx_usb_source::MaxxUsbSource;
 use olv_store::store::workspace::Workspace;
 
 use super::agent_api::{
-    AgentCellWrite, AgentLimits, AgentRefusal, AgentSetting, AgentStageResult, AgentStagedFile, AgentTable,
-    AgentTuneFull, ProposedCell, ProposedSetting, TuneApplyResult, TuneProposalResult,
+    AgentCellWrite, AgentDefinitionImported, AgentLimits, AgentRefusal, AgentSetting, AgentStageResult,
+    AgentStagedFile, AgentTable, AgentTuneFull, ProposedCell, ProposedSetting, TuneApplyResult, TuneProposalResult,
 };
 use super::agent_staging::AgentStaging;
 
@@ -70,12 +84,26 @@ use super::agent_staging::AgentStaging;
 /// somewhere the agent cannot see the consequence of before it happens.
 pub const IDLE_ADJACENT_RPM: f64 = 1200.0;
 
+/// How old an engine speed may be and still count as "now". A reading older than this says
+/// nothing about whether the engine is being revved this moment.
+pub const MAX_RPM_AGE: Duration = Duration::from_secs(1);
+
 /// Ten writes in five seconds is far beyond any sequence of settings a person reviewing each
 /// change could keep up with, and far below what a loop gone wrong (a retried failure, a script
 /// iterating every cell of a table with no pacing) produces in the same span. It exists to catch
 /// a runaway agent, not to pace a careful one.
 pub const RATE_LIMIT_COUNT: usize = 10;
 pub const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(5);
+
+/// The most items one batch may carry. Equal to [`RATE_LIMIT_COUNT`] on purpose: a batch is one
+/// call but it is not free, and since every device write it makes is counted against the rate
+/// limit, ten items is exactly one window's allowance. A bigger change is several batches, with
+/// the agent looking at what each did.
+pub const MAX_BATCH_ITEMS: usize = 10;
+
+/// The most bytes one batch may send to the device. Only changed bytes are sent, so this is far
+/// beyond any honest batch (a cell is one or two bytes) and well short of rewriting a table.
+pub const MAX_BATCH_BYTES: usize = 512;
 
 /// A single change may not exceed this fraction of the range the firmware declares.
 ///
@@ -86,12 +114,30 @@ pub const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(5);
 /// decimal point, or an off-by-a-decade mistake.
 pub const MAGNITUDE_FRACTION: f64 = 0.5;
 
+/// What the live session knows about engine speed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RpmReading {
+    /// There is no live session and none can exist (nothing is connected that polls).
+    NoSession,
+    /// A session exists but has no engine speed: no sample yet, or no engine-speed channel.
+    Unknown,
+    /// The latest engine speed and how long ago it was sampled.
+    Sample { rpm: f64, age: Duration },
+}
+
 /// What the application tells the writer that only it knows.
 pub trait WriterHost: Send + Sync {
-    /// The engine speed of the live session, or None when no session is running or it has not
-    /// sampled one yet. (A session with no way to answer is "this cannot be answered", not "the
-    /// engine is running".)
-    fn live_rpm(&self) -> Option<f64>;
+    /// The engine speed of the live session (not of whatever log is open).
+    fn live_rpm(&self) -> RpmReading;
+
+    /// The pages on which the person at the machine has edits they have not sent. An agent write
+    /// to any of them is refused: it must not send, or overwrite, what the person has not
+    /// decided to send.
+    fn human_unsent_pages(&self) -> BTreeSet<i32>;
+
+    /// Asks the person whether a firmware definition an agent staged may be installed. Only the
+    /// person's yes installs it; the writer never answers this itself.
+    fn confirm_definition_import(&self, name: &str, signature: &str, source: &str) -> bool;
 
     /// Keeps the tune now in hand as a version of the open project, best effort: a successful
     /// write to the ECU must never be reported as failed because there was nowhere to record it.
@@ -124,6 +170,7 @@ pub enum EcuTarget {
 }
 
 /// The tune the application holds and where it came from.
+#[derive(Clone)]
 pub struct TuneInHand {
     pub tune: EcuTune,
     /// What the firmware declares as tables, for names and shapes.
@@ -138,17 +185,29 @@ pub struct TuneInHand {
 
 struct Inner {
     tune: Option<TuneInHand>,
-    settings_edit: Option<TuneSettingsEdit>,
     target: Option<EcuTarget>,
     maxx_definitions: Vec<MaxxSettingDefinition>,
-    settings_pages_written: BTreeSet<i32>,
+    maxx_tables: Vec<MaxxTable>,
     recent_writes: Vec<Instant>,
     batches_in_flight: u32,
+    /// Bytes sent so far by the batch in flight.
+    batch_bytes: usize,
+}
+
+/// What a run of device writes came to.
+struct Sent {
+    done: usize,
+    bytes: usize,
+    error: Option<String>,
 }
 
 pub struct AgentWriter {
     armed: AtomicBool,
     inner: Mutex<Inner>,
+    /// What readers see: replaced, never edited, after every change. Taking it never waits for the
+    /// device.
+    snapshot: RwLock<Option<Arc<TuneInHand>>>,
+    pages_written: Mutex<BTreeSet<i32>>,
     workspace: Workspace,
     host: Arc<dyn WriterHost>,
     window: Duration,
@@ -166,13 +225,15 @@ impl AgentWriter {
             armed: AtomicBool::new(false),
             inner: Mutex::new(Inner {
                 tune: None,
-                settings_edit: None,
                 target: None,
                 maxx_definitions: Vec::new(),
-                settings_pages_written: BTreeSet::new(),
+                maxx_tables: Vec::new(),
                 recent_writes: Vec::new(),
                 batches_in_flight: 0,
+                batch_bytes: 0,
             }),
+            snapshot: RwLock::new(None),
+            pages_written: Mutex::new(BTreeSet::new()),
             workspace,
             host,
             window,
@@ -185,13 +246,26 @@ impl AgentWriter {
             // A panic part-way through a batch must not leave the per-item rate limit stood
             // down for good.
             inner.batches_in_flight = 0;
+            inner.batch_bytes = 0;
             inner
         })
     }
 
+    /// Replaces what readers see with the tune as it now stands.
+    fn publish(&self, inner: &Inner) {
+        let fresh = inner.tune.clone().map(Arc::new);
+        *self.snapshot.write().unwrap_or_else(|p| p.into_inner()) = fresh;
+    }
+
+    /// The tune as of the last change, without waiting for any write in flight.
+    fn held(&self) -> Option<Arc<TuneInHand>> {
+        self.snapshot.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
     // ----- arming ------------------------------------------------------------------------
 
-    /// Whether writing is allowed at this moment. False on start-up and after every disconnect.
+    /// Whether writing is allowed at this moment. False on start-up and after every connect and
+    /// disconnect.
     pub fn is_armed(&self) -> bool {
         self.armed.load(Ordering::SeqCst)
     }
@@ -202,26 +276,42 @@ impl AgentWriter {
         self.armed.store(armed, Ordering::SeqCst);
     }
 
-    /// A controller is connected: the only place bytes can go. Does not arm anything.
+    /// A controller is connected: the only place bytes can go.
+    ///
+    /// Disarms, and forgets the tune: a permission granted for the bench engine must not still be
+    /// granted when the next thing plugged in is a car, and a tune read from the last controller
+    /// says nothing about this one. Every write is refused until [`set_tune`](Self::set_tune)
+    /// supplies a tune read after this call, and the person arms again.
     pub fn connect(&self, target: EcuTarget) {
-        self.lock().target = Some(target);
+        self.set_armed(false);
+
+        let mut inner = self.lock();
+        inner.target = Some(target);
+        inner.tune = None;
+        self.publish(&inner);
+        drop(inner);
+
+        self.pages_written.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
-    /// The controller is gone. Disarms: a permission granted for the bench engine must not still
-    /// be granted when the next thing plugged in is a car.
+    /// The controller is gone. Disarms and forgets the tune, as [`connect`](Self::connect) does.
     pub fn disconnect(&self) {
         self.set_armed(false);
 
         let mut inner = self.lock();
         inner.target = None;
-        inner.settings_pages_written.clear();
+        inner.tune = None;
+        self.publish(&inner);
+        drop(inner);
+
+        self.pages_written.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
-    /// The tune now in hand (or none). A new tune starts a new set of pending edits.
+    /// The tune now in hand (or none), read after the most recent connect.
     pub fn set_tune(&self, tune: Option<TuneInHand>) {
         let mut inner = self.lock();
         inner.tune = tune;
-        inner.settings_edit = None;
+        self.publish(&inner);
     }
 
     /// The setting definitions MTune declares, for the overlap warning on a MaxxECU table write.
@@ -229,33 +319,43 @@ impl AgentWriter {
         self.lock().maxx_definitions = definitions;
     }
 
-    /// The pages a settings write has touched and nothing has burned, as the C# keeps them for
-    /// the Burn button. (The connection tracks unburned pages itself too.)
+    /// The MaxxECU's tables as the ECU holds them (`MaxxTuneModel::maps`). A table write needs
+    /// them to work out the checksum the ECU keeps with each table; without them a MaxxECU table
+    /// write is refused rather than sent without one.
+    pub fn set_maxx_tables(&self, tables: Vec<MaxxTable>) {
+        self.lock().maxx_tables = tables;
+    }
+
+    /// The pages an agent write has touched and nothing has burned, for the Burn button. (The
+    /// connection tracks unburned pages itself too.)
     pub fn settings_pages_written(&self) -> Vec<i32> {
-        self.lock().settings_pages_written.iter().copied().collect()
+        self.pages_written
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .iter()
+            .copied()
+            .collect()
     }
 
-    /// Whether a settings edit is holding changes nobody has sent. A refused write must leave
-    /// nothing behind for the next call to accidentally send.
+    /// Always false: the writer keeps no pending edits. Each agent write is worked out from the
+    /// held tune, sent, or dropped; a refused write leaves nothing behind for the next call to
+    /// send.
     pub fn has_setting_changes(&self) -> bool {
-        self.lock()
-            .settings_edit
-            .as_ref()
-            .is_some_and(TuneSettingsEdit::has_changes)
+        false
     }
 
-    /// Runs a closure over the tune in hand; the app's own screens read it this way.
+    /// Runs a closure over the tune in hand; the app's own screens read it this way. Never waits
+    /// for a write.
     pub fn with_tune<R>(&self, read: impl FnOnce(Option<&TuneInHand>) -> R) -> R {
-        read(self.lock().tune.as_ref())
+        let held = self.held();
+        read(held.as_deref())
     }
 
     // ----- what an agent may read ----------------------------------------------------------
 
     /// The tune as an agent reads it, or nothing when none was read.
     pub fn tune_values(&self) -> Vec<(String, f64)> {
-        let inner = self.lock();
-
-        match &inner.tune {
+        match self.held() {
             Some(held) if !held.placeholder => held.tune.scalars().iter().map(|(k, v)| (k.to_string(), *v)).collect(),
             _ => Vec::new(),
         }
@@ -273,12 +373,7 @@ impl AgentWriter {
 
     /// Every table the firmware declares and this tune can produce.
     pub fn tables(&self) -> Vec<TuneTable> {
-        let inner = self.lock();
-        Self::tables_of(&inner)
-    }
-
-    fn tables_of(inner: &Inner) -> Vec<TuneTable> {
-        match &inner.tune {
+        match self.held() {
             Some(held) => held.tune.tables(&held.definitions),
             None => Vec::new(),
         }
@@ -295,9 +390,9 @@ impl AgentWriter {
     /// Every scalar and every table in one payload, each setting with the units, options and
     /// range the firmware declares for it.
     pub fn tune_full(&self) -> AgentTuneFull {
-        let inner = self.lock();
+        let held = self.held();
 
-        let Some(held) = inner.tune.as_ref().filter(|h| !h.placeholder) else {
+        let Some(held) = held.as_deref().filter(|h| !h.placeholder) else {
             return AgentTuneFull {
                 settings: Vec::new(),
                 tables: Vec::new(),
@@ -365,12 +460,18 @@ impl AgentWriter {
         let _origin = WireOrigin::enter(WireOrigin::Agent);
 
         let mut inner = self.lock();
-        self.set_setting_locked(&mut inner, name, value, rationale, confirm_dangerous)
+        let refused = self.set_setting_locked(&mut inner, None, name, value, rationale, confirm_dangerous);
+        self.publish(&inner);
+
+        refused
     }
 
+    /// `baseline` is where the controller was before the call (a batch's snapshot); None means the
+    /// tune as it stands.
     fn set_setting_locked(
         &self,
         inner: &mut Inner,
+        baseline: Option<&EcuTune>,
         name: &str,
         value: f64,
         rationale: &str,
@@ -402,16 +503,16 @@ impl AgentWriter {
             return Some(dangerous);
         }
 
-        let Some(tune_ref) = inner.tune.as_ref().map(|h| &h.tune) else {
-            return Some(AgentRefusal::reason("no tune has been read"));
-        };
-        let edit = inner
-            .settings_edit
-            .get_or_insert_with(|| TuneSettingsEdit::new(tune_ref));
+        // Where the controller was before the call, not after whatever an earlier item of the same
+        // batch moved it to: two half-steps in one batch are one whole step.
+        let origin = baseline.unwrap_or(&held.tune);
+        let before = TuneSettingsEdit::new(origin).original(origin, name, 0);
 
-        let before = edit.original(tune_ref, name, 0);
+        // A new edit for every call, made from the tune as it stands, so what it holds is this
+        // change and nothing else: no earlier failed attempt, no one else's pending edit.
+        let mut edit = TuneSettingsEdit::new(&held.tune);
 
-        if !edit.set(tune_ref, name, value, 0) {
+        if !edit.set(&held.tune, name, value, 0) {
             return Some(AgentRefusal::new(
                 "the value would not go in",
                 "It is out of the range the firmware declares, or the setting is not a number.",
@@ -419,20 +520,31 @@ impl AgentWriter {
         }
 
         if let Some(too_large) = magnitude_refusal(before, value, constant.low, constant.high) {
-            // Taken back out of the pending edit: a refused write must leave nothing behind for
-            // the next call to accidentally send.
-            edit.revert(tune_ref, name, 0);
             return Some(too_large);
         }
 
-        self.record_write(inner);
+        // Only the byte runs that differ from the held pages.
+        let writes = edit.writes(&held.tune);
 
-        let said = self.write_settings_to_ecu(inner);
+        if writes.is_empty() {
+            return Some(AgentRefusal::new(
+                "the write did not go through",
+                "Nothing has been changed.",
+            ));
+        }
 
-        if said.to_ascii_lowercase().starts_with("sent") {
-            None
-        } else {
-            Some(AgentRefusal::new("the write did not go through", said))
+        if let Some(clash) = self.human_unsent_refusal(&writes) {
+            return Some(clash);
+        }
+
+        let sent = self.send_all(inner, &writes);
+
+        match sent.error {
+            None => None,
+            Some(ref message) => Some(AgentRefusal::new(
+                "the write did not go through",
+                failure_text(inner.target.as_ref(), &sent, writes.len(), message),
+            )),
         }
     }
 
@@ -451,13 +563,26 @@ impl AgentWriter {
         let _origin = WireOrigin::enter(WireOrigin::Agent);
 
         let mut inner = self.lock();
-        self.set_table_cell_locked(&mut inner, table, column, row, value, rationale, confirm_dangerous)
+        let result = self.set_table_cell_locked(
+            &mut inner,
+            None,
+            table,
+            column,
+            row,
+            value,
+            rationale,
+            confirm_dangerous,
+        );
+        self.publish(&inner);
+
+        result
     }
 
     #[allow(clippy::too_many_arguments)]
     fn set_table_cell_locked(
         &self,
         inner: &mut Inner,
+        baseline: Option<&EcuTune>,
         name: &str,
         column: i32,
         row: i32,
@@ -476,8 +601,14 @@ impl AgentWriter {
             return AgentCellWrite::refused(refused);
         }
 
+        let Some(held) = inner.tune.as_ref() else {
+            return AgentCellWrite::refused(AgentRefusal::new("no such table", name));
+        };
+
         // By the name a person sees, which is the one the API hands out.
-        let Some(table) = Self::tables_of(inner)
+        let Some(table) = held
+            .tune
+            .tables(&held.definitions)
             .into_iter()
             .find(|t| eq_ignore_case(&t.name, name))
         else {
@@ -491,10 +622,6 @@ impl AgentWriter {
                 format!("\"{}\" is {columns} by {rows}.", table.name),
             ));
         }
-
-        let Some(held) = inner.tune.as_ref() else {
-            return AgentCellWrite::refused(AgentRefusal::reason("no tune has been read"));
-        };
 
         // The constant actually behind the grid, where the firmware names one. Dangerous-constant
         // matching and the magnitude limit are judged against that, not the table's display
@@ -510,7 +637,11 @@ impl AgentWriter {
             return AgentCellWrite::refused(dangerous);
         }
 
-        let before = table.values[(column as usize, row as usize)];
+        // The cell as it was before the call (for a batch, before the batch).
+        let before = match baseline {
+            Some(origin) => baseline_cell(held, origin, &table, column, row),
+            None => table.values[(column as usize, row as usize)],
+        };
 
         if let Some(constant) = &constant
             && let Some(too_large) = magnitude_refusal(before, value, constant.low, constant.high)
@@ -520,21 +651,51 @@ impl AgentWriter {
 
         let mut edit = TuneEdit::new(table.clone(), constant);
         edit.set(TuneSelection::cell(column, row), value);
+        let landed = edit.get(column, row);
 
-        self.record_write(inner);
+        let Some(encoded) = edit.encode(&held.tune) else {
+            return AgentCellWrite::refused(AgentRefusal::new(
+                "the write did not go through",
+                "This table cannot be encoded for this firmware, so nothing was sent.",
+            ));
+        };
 
-        let (said, landed) = self.write_table_to_ecu(inner, &edit, column, row);
+        // What is sent is where the encoded table differs from the held page, not the table.
+        let mut warning = None;
+        let writes = match inner.target.as_ref() {
+            Some(EcuTarget::Maxx(_)) => match plan_maxx_table(held, &inner.maxx_tables, &table.name, &encoded) {
+                Ok((record, runs)) => {
+                    let note = overlap_warning(&inner.maxx_definitions, &record);
+                    warning = note.strip_prefix(' ').filter(|n| !n.is_empty()).map(str::to_string);
+                    runs
+                }
+                Err(why) => {
+                    return AgentCellWrite::refused(AgentRefusal::new("the write did not go through", why));
+                }
+            },
+            _ => diff_runs(held.tune.pages().get(encoded.page.max(0) as usize), &encoded),
+        };
 
-        if !said.to_ascii_lowercase().starts_with("sent") {
-            return AgentCellWrite::refused(AgentRefusal::new("the write did not go through", said));
+        if writes.is_empty() {
+            return AgentCellWrite::refused(AgentRefusal::new(
+                "the write did not go through",
+                "Nothing has been changed.",
+            ));
         }
 
-        // A MaxxECU table write appends " Warning: ..." to its own success message rather than
-        // carrying a separate field. Split out here so an agent sees it as its own thing rather
-        // than buried in prose meant for a person reading a status line.
-        let warning = said.find(" Warning:").map(|at| said[at + 1..].to_string());
+        if let Some(clash) = self.human_unsent_refusal(&writes) {
+            return AgentCellWrite::refused(clash);
+        }
 
-        AgentCellWrite::landed(landed, warning)
+        let sent = self.send_all(inner, &writes);
+
+        match sent.error {
+            None => AgentCellWrite::landed(landed, warning),
+            Some(message) => AgentCellWrite::refused(AgentRefusal::new(
+                "the write did not go through",
+                format!("The write failed: {message}"),
+            )),
+        }
     }
 
     // ----- the gates every write meets first --------------------------------------------------
@@ -550,7 +711,7 @@ impl AgentWriter {
         if !self.is_armed() {
             return Some(AgentRefusal::new(
                 "writes are not armed",
-                "Tick \"Allow agent writes\" in the application. It clears itself on disconnect.",
+                "Tick \"Allow agent writes\" in the application. It clears itself on connect and disconnect.",
             ));
         }
 
@@ -584,292 +745,208 @@ impl AgentWriter {
         self.rate_limit_refusal(inner)
     }
 
-    /// Refuses a write while live RPM reads above [`IDLE_ADJACENT_RPM`].
+    /// Refuses a write while live RPM reads above [`IDLE_ADJACENT_RPM`], and while it cannot be
+    /// trusted.
     ///
     /// Read from the live session itself rather than from a log document: opening a saved log
     /// while connected replaces the document without ending the session, and judging the engine
     /// by the last row of somebody's old file gets it wrong in both directions.
     ///
-    /// Silently allows the write through when RPM cannot be found at all: a session with no
-    /// engine-speed channel, or one that has not sampled yet, is not "the engine is running
-    /// above idle", it is "this cannot be answered", and the other gates already keep a write off
-    /// anything that is not a live, connected controller.
+    /// **Fails closed.** The C# let a write through when RPM could not be found, reasoning that the
+    /// other gates keep a write off anything that is not a live controller. But a connected
+    /// controller whose RPM channel is missing, stalled or stale is exactly one that may be
+    /// running, so an unknown, non-finite or old reading refuses. Only [`RpmReading::NoSession`],
+    /// where no live session can exist, passes without a number.
     fn running_above_idle_refusal(&self) -> Option<AgentRefusal> {
-        let rpm = self.host.live_rpm()?;
+        match self.host.live_rpm() {
+            RpmReading::NoSession => None,
+            RpmReading::Unknown => Some(AgentRefusal::new(
+                "the engine speed is not known",
+                "Writes are refused while the engine speed cannot be read, because the engine may be \
+                 running. Wait for the live session to report it, or stop the engine.",
+            )),
+            RpmReading::Sample { rpm, age } => {
+                if !rpm.is_finite() {
+                    return Some(AgentRefusal::new(
+                        "the engine speed is not a number",
+                        "The last reading of RPM was not a usable number, so the engine may be running.",
+                    ));
+                }
 
-        if !rpm.is_finite() || rpm <= IDLE_ADJACENT_RPM {
-            return None;
+                if age > MAX_RPM_AGE {
+                    return Some(AgentRefusal::new(
+                        "the engine speed is out of date",
+                        format!(
+                            "The last reading of RPM is {} seconds old, which says nothing about the engine now. \
+                             Wait for the live session to catch up.",
+                            nf::f64(age.as_secs_f64(), "0.0")
+                        ),
+                    ));
+                }
+
+                if rpm <= IDLE_ADJACENT_RPM {
+                    return None;
+                }
+
+                Some(AgentRefusal::new(
+                    "the engine is running above idle",
+                    format!(
+                        "RPM reads {}, above the {} rpm guard. Writes are refused while the engine may be \
+                         under load or being driven; try again at idle or with it off.",
+                        nf::f64(rpm, "0"),
+                        nf::f64(IDLE_ADJACENT_RPM, "0")
+                    ),
+                ))
+            }
         }
-
-        Some(AgentRefusal::new(
-            "the engine is running above idle",
-            format!(
-                "RPM reads {}, above the {} rpm guard. Writes are refused while the engine may be \
-                 under load or being driven; try again at idle or with it off.",
-                nf::f64(rpm, "0"),
-                nf::f64(IDLE_ADJACENT_RPM, "0")
-            ),
-        ))
     }
 
     /// Refuses a write once too many have landed too quickly.
     ///
-    /// **One batch apply counts as one write, not as its items.** The limit is checked once for
-    /// the batch as a whole and then stands down for the items inside it, because the failure it
-    /// guards against is an agent looping, not an agent making one deliberate change that
-    /// happens to move twenty cells. Counting the items instead would let the first ten reach a
-    /// running engine and refuse the rest, and half a table row moved is worse than either the
-    /// whole row or none of it. The magnitude, dangerous-constant and RPM guards still run on
-    /// every single item regardless.
+    /// Every device write counts, a batch's included; the batch cap ([`MAX_BATCH_ITEMS`]) is one
+    /// window's allowance, so a batch fits in a window and the one after it waits. The check is
+    /// made once for a batch (before it starts) and stands down for its items so a batch is not
+    /// cut in half, which would leave half a table row moved. The magnitude, dangerous-constant
+    /// and RPM guards still run on every single item regardless.
     fn rate_limit_refusal(&self, inner: &mut Inner) -> Option<AgentRefusal> {
         if inner.batches_in_flight > 0 {
             return None;
         }
 
-        let now = Instant::now();
-        let window = self.window;
-        inner.recent_writes.retain(|at| now.duration_since(*at) <= window);
+        self.prune(inner);
 
         if inner.recent_writes.len() < RATE_LIMIT_COUNT {
             return None;
         }
 
-        Some(AgentRefusal::new(
+        Some(self.too_many(inner))
+    }
+
+    fn too_many(&self, inner: &Inner) -> AgentRefusal {
+        AgentRefusal::new(
             "too many writes in a short time",
             format!(
                 "{} agent writes landed in the last {} seconds. Slow down, and check what each one \
                  did before sending the next.",
                 inner.recent_writes.len(),
-                nf::f64(window.as_secs_f64(), "0")
+                nf::f64(self.window.as_secs_f64(), "0")
+            ),
+        )
+    }
+
+    fn prune(&self, inner: &mut Inner) {
+        let now = Instant::now();
+        let window = self.window;
+        inner.recent_writes.retain(|at| now.duration_since(*at) <= window);
+    }
+
+    /// Refuses a write to a page the person has unsent edits on.
+    fn human_unsent_refusal(&self, writes: &[TuneWrite]) -> Option<AgentRefusal> {
+        let unsent = self.host.human_unsent_pages();
+        if unsent.is_empty() {
+            return None;
+        }
+
+        let clash: BTreeSet<i32> = writes.iter().map(|w| w.page).filter(|p| unsent.contains(p)).collect();
+
+        if clash.is_empty() {
+            return None;
+        }
+
+        let pages = clash.iter().map(i32::to_string).collect::<Vec<_>>().join(", ");
+
+        Some(AgentRefusal::new(
+            "there are unsent edits on that page",
+            format!(
+                "Page {pages} holds changes the person at the machine has not sent yet. An agent write \
+                 must not send them or overwrite them. Ask the person to send or discard those edits first."
             ),
         ))
     }
 
-    /// Notes that a write actually reached the ECU, for the rate limit.
-    fn record_write(&self, inner: &mut Inner) {
-        // Inside a batch the batch itself has already been counted, and counting its items again
-        // would spend the whole allowance on one deliberate action.
-        if inner.batches_in_flight > 0 {
-            return;
-        }
-
-        inner.recent_writes.push(Instant::now());
-
-        // A generous backstop rather than a rolling trim on every call: nothing in normal use
-        // gets near it, since the refusal already prunes anything outside the window.
-        if inner.recent_writes.len() > 1000 {
-            let excess = inner.recent_writes.len() - 1000;
-            inner.recent_writes.drain(..excess);
-        }
-    }
-
     // ----- sending ------------------------------------------------------------------------------
 
-    /// Sends the changed settings to the controller. The only place a setting write leaves.
-    ///
-    /// Unlike a table, this is several writes and they may span pages, so a failure part way
-    /// through leaves some of them applied. That is reported as what it is rather than as "the
-    /// write failed", because the two call for different things: one means try again, the other
-    /// means find out what the ECU is now running before doing anything else.
-    fn write_settings_to_ecu(&self, inner: &mut Inner) -> String {
-        let Inner {
-            tune,
-            settings_edit,
-            target,
-            settings_pages_written,
-            ..
-        } = inner;
-
-        let Some(edit) = settings_edit.as_mut() else {
-            return "No tune has been read.".to_string();
+    /// Sends the planned writes, in order, to the controller. **The only place an agent's bytes
+    /// leave.** Each device write is counted against the rate limit as it is attempted. Stops at the
+    /// first failure and says how far it got.
+    fn send_all(&self, inner: &mut Inner, writes: &[TuneWrite]) -> Sent {
+        let fail = |message: String| Sent {
+            done: 0,
+            bytes: 0,
+            error: Some(message),
         };
 
-        let Some(target) = target.clone() else {
-            return "Not connected to an ECU.".to_string();
+        let Some(target) = inner.target.clone() else {
+            return fail("Not connected to an ECU.".to_string());
         };
 
-        let Some(held) = tune.as_mut() else {
-            return "No tune has been read.".to_string();
-        };
+        let planned: usize = writes.iter().map(|w| w.data.len()).sum();
 
-        if !edit.has_changes() {
-            return "Nothing has been changed.".to_string();
+        if inner.batches_in_flight > 0 && inner.batch_bytes + planned > MAX_BATCH_BYTES {
+            return fail(format!(
+                "The batch would send more than the {MAX_BATCH_BYTES} bytes one batch may, so this item was not sent."
+            ));
         }
 
-        let writes = edit.writes(&held.tune);
-        if writes.is_empty() {
-            return "Nothing has been changed.".to_string();
+        // Before the first byte of any of it: a MaxxECU write past its ceiling is refused whole, not
+        // after the pieces ahead of it have already landed permanently.
+        if matches!(target, EcuTarget::Maxx(_))
+            && let Err(why) = maxx_ceiling_check(writes)
+        {
+            return fail(why);
         }
 
-        let settings = edit.changed_count();
-        let (mut bytes, mut done) = (0usize, 0usize);
+        let (mut done, mut bytes) = (0, 0);
 
-        let outcome: Result<(), String> = (|| {
-            for write in &writes {
-                match &target {
-                    EcuTarget::Maxx(source) => send_to_maxx(source, write)?,
-                    EcuTarget::Pages(connection) => {
-                        send_to_page(connection, &held.tune, write)?;
-                        settings_pages_written.insert(write.page);
-                    }
-                }
-
-                // The copy held here has to move with the controller, or the next
-                // read-modify-write is against stale bytes.
-                held.tune.accept(write);
-
-                bytes += write.data.len();
-                done += 1;
+        for write in writes {
+            inner.recent_writes.push(Instant::now());
+            if inner.recent_writes.len() > 1000 {
+                let excess = inner.recent_writes.len() - 1000;
+                inner.recent_writes.drain(..excess);
             }
 
-            Ok(())
-        })();
+            let Some(held) = inner.tune.as_mut() else {
+                return Sent {
+                    done,
+                    bytes,
+                    error: Some("No tune has been read.".to_string()),
+                };
+            };
 
-        let said = match (outcome, &target) {
-            (Ok(()), EcuTarget::Maxx(_)) => format!(
-                "Sent {settings} setting{} ({} bytes) to the MaxxECU, verified. There is no burn \
-                 step on this controller \u{2014} it is already running them, permanently, and a \
-                 power cycle will not undo it.",
-                if settings == 1 { "" } else { "s" },
-                nf::int(bytes as i32, "N0")
-            ),
-            (Ok(()), EcuTarget::Pages(_)) => format!(
-                "Sent {settings} setting{} ({} bytes) to the ECU. It is running them now, and will \
-                 forget them at the next power cycle unless you burn them.",
-                if settings == 1 { "" } else { "s" },
-                nf::int(bytes as i32, "N0")
-            ),
-            (Err(message), EcuTarget::Maxx(_)) => {
-                if done == 0 {
-                    format!("Nothing was sent: {message}")
-                } else {
-                    format!(
-                        "{done} of {} writes reached the ECU ({} bytes), verified, and then this \
-                         failed: {message} Those {done} are already applied and permanent \u{2014} \
-                         there is no burn to skip and no power cycle that undoes them.",
-                        writes.len(),
-                        nf::int(bytes as i32, "N0")
-                    )
-                }
+            let outcome = match &target {
+                EcuTarget::Maxx(source) => send_to_maxx(source, write),
+                EcuTarget::Pages(connection) => send_to_page(connection, &held.tune, write),
+            };
+
+            if let Err(message) = outcome {
+                return Sent {
+                    done,
+                    bytes,
+                    error: Some(message),
+                };
             }
-            (Err(message), EcuTarget::Pages(_)) => {
-                if done == 0 {
-                    format!("Nothing was sent: {message}")
-                } else {
-                    format!(
-                        "{done} of {} writes reached the ECU ({} bytes) and then this failed: \
-                         {message} Some settings have changed and some have not. Nothing was \
-                         burned, so turning the key off restores all of it.",
-                        writes.len(),
-                        nf::int(bytes as i32, "N0")
-                    )
-                }
+
+            // The copy held here has to move with the controller, or the next read-modify-write
+            // is against stale bytes.
+            held.tune.accept(write);
+
+            if matches!(target, EcuTarget::Pages(_)) {
+                self.pages_written
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .insert(write.page);
             }
-        };
 
-        // What the ECU took stops being a pending change; what it did not stays one. Which is
-        // which is answered by comparing, not by counting the writes that got through.
-        edit.reconcile(&held.tune);
-
-        said
-    }
-
-    /// Sends one table edit to the controller. The only place a table write leaves. Returns the
-    /// message and the value the cell holds afterwards (clamped into the firmware's range by the
-    /// edit where it needed to be), read from the edit that was just encoded and sent rather
-    /// than from anything on screen.
-    fn write_table_to_ecu(&self, inner: &mut Inner, edit: &TuneEdit, column: i32, row: i32) -> (String, f64) {
-        let landed = edit.get(column, row);
-
-        let Inner {
-            tune,
-            settings_edit,
-            target,
-            maxx_definitions,
-            ..
-        } = inner;
-
-        let Some(held) = tune.as_mut() else {
-            return ("No tune has been read.".to_string(), landed);
-        };
-
-        // What the tune is comes before what is on screen: the same refusal the settings make,
-        // and for the same reason. A placeholder tune is all zeros and a tune from a file belongs
-        // to whatever saved it.
-        if held.placeholder {
-            return (
-                "This is a firmware definition rather than a tune \u{2014} every value in it reads \
-                 as zero, so nothing here may be sent to a controller."
-                    .to_string(),
-                landed,
-            );
+            done += 1;
+            bytes += write.data.len();
+            inner.batch_bytes += write.data.len();
         }
 
-        if held.from_file {
-            return (
-                "This tune was opened from a file rather than read off the controller, so it \
-                 cannot be sent back. Read the ECU's own tune first."
-                    .to_string(),
-                landed,
-            );
+        Sent {
+            done,
+            bytes,
+            error: None,
         }
-
-        let Some(target) = target.clone() else {
-            return ("Not connected to an ECU.".to_string(), landed);
-        };
-
-        if !edit.has_changes() {
-            return ("Nothing has been changed.".to_string(), landed);
-        }
-
-        let Some(write) = edit.encode(&held.tune) else {
-            return (
-                "This table cannot be encoded for this firmware, so nothing was sent.".to_string(),
-                landed,
-            );
-        };
-
-        let cells = edit.changed_count();
-
-        let sent: Result<(), String> = match &target {
-            EcuTarget::Maxx(source) => send_to_maxx(source, &write),
-            EcuTarget::Pages(connection) => send_to_page(connection, &held.tune, &write),
-        };
-
-        if let Err(message) = sent {
-            return (format!("The write failed: {message}"), landed);
-        }
-
-        // The tune held in memory has to move with the ECU, or the next read-modify-write would
-        // be against stale bytes and would undo this one.
-        held.tune.accept(&write);
-
-        // And so does the settings edit, which holds a copy of the pages taken when it was made
-        // and works out what to send by comparing the two. Left behind, those table bytes read
-        // as pending settings changes carrying the values from before this write, so the next
-        // time anything is sent from a settings page it puts the table back, on a running
-        // engine, with nothing reporting an error.
-        if let Some(settings) = settings_edit.as_mut() {
-            settings.accept(&write);
-        }
-
-        let said = match &target {
-            EcuTarget::Pages(_) => format!(
-                "Sent {cells} changed cell{} to the ECU. It is running this now, and will forget it \
-                 at the next power cycle unless you burn it.",
-                if cells == 1 { "" } else { "s" }
-            ),
-            EcuTarget::Maxx(_) => format!(
-                "Sent {cells} changed cell{} ({} bytes) to the MaxxECU, verified. There is no burn \
-                 step on this controller \u{2014} it is already running this, permanently, and a \
-                 power cycle will not undo it.{}",
-                if cells == 1 { "" } else { "s" },
-                nf::int(write.data.len() as i32, "N0"),
-                overlap_warning(maxx_definitions, &write)
-            ),
-        };
-
-        (said, landed)
     }
 
     // ----- propose / apply -------------------------------------------------------------------------
@@ -881,9 +958,9 @@ impl AgentWriter {
     /// because nothing here can reach an ECU: a placeholder tune (all noughts, from a definition
     /// alone) is the one thing refused, since a diff against it would not mean anything.
     pub fn propose_tune(&self, settings: &[ProposedSetting], cells: &[ProposedCell]) -> TuneProposalResult {
-        let inner = self.lock();
+        let held = self.held();
 
-        let Some(held) = inner.tune.as_ref().filter(|h| !h.placeholder) else {
+        let Some(held) = held.as_deref().filter(|h| !h.placeholder) else {
             return TuneProposalResult {
                 changes: Vec::new(),
                 rejected: vec!["no tune has been read".to_string()],
@@ -903,10 +980,17 @@ impl AgentWriter {
         }
     }
 
-    /// Applies the same shape of batch for real: the usual gate once for the whole thing, then
-    /// each setting and cell through the single-write paths in turn, the same machinery a lone
-    /// call uses, so this is not a second way of writing to the ECU. Keeps a version of what
-    /// landed on success, the way a person pressing "keep tune" would.
+    /// Applies a batch for real: the usual gate once for the whole thing, then each setting and
+    /// cell through the single-write paths in turn, the same machinery a lone call uses, so this is
+    /// not a second way of writing to the ECU. Keeps a version of what landed on success, the way
+    /// a person pressing "keep tune" would.
+    ///
+    /// A batch cannot be used to get past a limit a lone call has:
+    /// - at most [`MAX_BATCH_ITEMS`] items and [`MAX_BATCH_BYTES`] sent bytes;
+    /// - the same target named twice keeps only the last, and the earlier ones are reported as
+    ///   superseded, so a batch is not a way to send several values to one place;
+    /// - every item's size is judged from where the controller was before the batch;
+    /// - every device write is counted against the rate limit.
     pub fn apply_tune(
         &self,
         settings: &[ProposedSetting],
@@ -916,9 +1000,21 @@ impl AgentWriter {
     ) -> TuneApplyResult {
         let _origin = WireOrigin::enter(WireOrigin::Agent);
 
-        let mut inner = self.lock();
-        let inner = &mut *inner;
+        let mut guard = self.lock();
+        let result = self.apply_locked(&mut guard, settings, cells, note, confirm_dangerous);
+        self.publish(&guard);
 
+        result
+    }
+
+    fn apply_locked(
+        &self,
+        inner: &mut Inner,
+        settings: &[ProposedSetting],
+        cells: &[ProposedCell],
+        note: &str,
+        confirm_dangerous: bool,
+    ) -> TuneApplyResult {
         if note.trim().is_empty() {
             return TuneApplyResult::refused(AgentRefusal::new(
                 "no rationale given",
@@ -930,6 +1026,25 @@ impl AgentWriter {
             return TuneApplyResult::refused(refused);
         }
 
+        let (settings, cells, mut rejected) = dedupe(settings, cells);
+
+        let items = settings.len() + cells.len();
+        if items > MAX_BATCH_ITEMS {
+            return TuneApplyResult::refused(AgentRefusal::new(
+                "that batch is too large for one call",
+                format!(
+                    "{items} items were given, and one call may carry {MAX_BATCH_ITEMS}. Send the change in smaller \
+                     batches, checking what each did."
+                ),
+            ));
+        }
+
+        // The batch needs room in the window for the writes it will make.
+        self.prune(inner);
+        if inner.recent_writes.len() + items > RATE_LIMIT_COUNT {
+            return TuneApplyResult::refused(self.too_many(inner));
+        }
+
         let Some(held) = inner.tune.as_ref() else {
             return TuneApplyResult::refused(AgentRefusal::reason("no tune has been read"));
         };
@@ -937,7 +1052,8 @@ impl AgentWriter {
         // The same working copy that answers /tune/propose, so what is about to be sent cannot
         // silently differ from what a caller who proposed first was shown.
         let tables = held.tune.tables(&held.definitions);
-        let (working, mut rejected) = build_proposal(held, &tables, settings, cells);
+        let (working, mut more) = build_proposal(held, &tables, &settings, &cells);
+        rejected.append(&mut more);
         let wanted = tune_compare::compare(&working, &held.tune);
 
         if wanted.is_empty() {
@@ -955,18 +1071,15 @@ impl AgentWriter {
             };
         }
 
-        // What the controller held before any of this went out, so what actually landed can be
-        // measured rather than inferred. Inferring it from which calls returned null is wrong in
-        // exactly the case that matters: a table where three of five cells took reports the
-        // whole five-cell difference as applied, and then records that overstatement as the
-        // version note.
-        let before = EcuTune::from_pages(Arc::clone(held.tune.layout_arc()), held.tune.pages().to_vec());
+        // What the controller held before any of this went out: the baseline every item is
+        // measured from, and what "applied" is measured against, so a table where three of five
+        // cells took reports three, not the whole difference.
+        let before = held.tune.clone();
 
-        // One batch counts as one write.
-        inner.recent_writes.push(Instant::now());
         inner.batches_in_flight += 1;
+        inner.batch_bytes = 0;
 
-        for s in settings {
+        for s in &settings {
             let known = inner
                 .tune
                 .as_ref()
@@ -975,18 +1088,34 @@ impl AgentWriter {
                 continue;
             }
 
-            if let Some(refused) = self.set_setting_locked(inner, &s.name, s.value, note, confirm_dangerous) {
+            if let Some(refused) =
+                self.set_setting_locked(inner, Some(&before), &s.name, s.value, note, confirm_dangerous)
+            {
                 rejected.push(format!("{}: {}", s.name, refused.reason));
             }
         }
 
-        for c in cells {
-            let known = Self::tables_of(inner).iter().any(|t| eq_ignore_case(&t.name, &c.table));
+        for c in &cells {
+            let known = inner.tune.as_ref().is_some_and(|h| {
+                h.tune
+                    .tables(&h.definitions)
+                    .iter()
+                    .any(|t| eq_ignore_case(&t.name, &c.table))
+            });
             if !known {
                 continue; // already rejected by build_proposal
             }
 
-            let result = self.set_table_cell_locked(inner, &c.table, c.column, c.row, c.value, note, confirm_dangerous);
+            let result = self.set_table_cell_locked(
+                inner,
+                Some(&before),
+                &c.table,
+                c.column,
+                c.row,
+                c.value,
+                note,
+                confirm_dangerous,
+            );
 
             if let Some(refused) = result.refusal {
                 rejected.push(format!("{}[{},{}]: {}", c.table, c.column, c.row, refused.reason));
@@ -994,6 +1123,7 @@ impl AgentWriter {
         }
 
         inner.batches_in_flight = inner.batches_in_flight.saturating_sub(1);
+        inner.batch_bytes = 0;
 
         // Measured against the bytes as they were, so a partly applied batch reports the part
         // that landed and nothing more.
@@ -1049,9 +1179,9 @@ impl AgentWriter {
     /// batch of proposed changes would make it. Not gated like a write: it reaches no
     /// controller. The only thing that can refuse it is a name that tries to leave the folder.
     pub fn stage_tune(&self, settings: &[ProposedSetting], cells: &[ProposedCell], filename: &str) -> AgentStageResult {
-        let inner = self.lock();
+        let held = self.held();
 
-        let Some(held) = inner.tune.as_ref().filter(|h| !h.placeholder) else {
+        let Some(held) = held.as_deref().filter(|h| !h.placeholder) else {
             return AgentStageResult::refused(
                 "no tune has been read",
                 "There is nothing to stage. Connect to an ECU and read its tune, or open a saved one.",
@@ -1128,6 +1258,325 @@ impl AgentWriter {
             Err(_) => Vec::new(),
         }
     }
+
+    // ----- firmware definitions -----------------------------------------------------------------------
+
+    /// An agent's firmware definition: checked and **staged**, installed only if the person says so.
+    ///
+    /// A definition decides which byte of an engine is the rev limiter, what ranges are sane, which
+    /// names are dangerous and how a write is sent. Letting an agent install one is letting it
+    /// rewrite the gates in front of it. So this validates the file exactly as a person's import
+    /// would (it must declare the signature the ECU reported, `identity`) and keeps it in the
+    /// staging folder; it reaches the definitions folder only if [`WriterHost::confirm_definition_import`]
+    /// returns true, which is the person's answer and never the writer's.
+    ///
+    /// Either way nothing changes in how writes are judged: the held tune keeps the layout it was
+    /// read with until the next connect.
+    pub fn import_definition(
+        &self,
+        path: &str,
+        content: &str,
+        source: &str,
+        name: &str,
+        identity: &[String],
+    ) -> AgentDefinitionImported {
+        let refuse = |problem: String| AgentDefinitionImported {
+            problem,
+            path: String::new(),
+            name: String::new(),
+            signature: String::new(),
+            source: source.to_string(),
+        };
+
+        let staging = self.workspace.staging().join("definitions");
+        let staging_text = staging.to_string_lossy().into_owned();
+
+        let staged = if path.is_empty() {
+            definition_import::keep(content, &staging_text, identity, source, name)
+        } else {
+            definition_import::keep_file(path, &staging_text, identity, source, name)
+        };
+
+        let staged = match staged {
+            Ok(result) if result.accepted() => result,
+            Ok(result) => return refuse(result.problem),
+            Err(e) => return refuse(e.to_string()),
+        };
+
+        let Some(provenance) = staged.provenance.clone() else {
+            return refuse("it could not be checked".to_string());
+        };
+
+        if !self
+            .host
+            .confirm_definition_import(&provenance.name, &provenance.signature, &provenance.source)
+        {
+            return refuse(format!(
+                "it passed the checks and is staged at {}, but a definition decides how every byte of the \
+                 engine is read and written, so a person has to install it from the application. Nothing \
+                 was installed.",
+                staged.path
+            ));
+        }
+
+        let folder = match self.workspace.ensure_definitions(Some(identity)) {
+            Ok(folder) => folder.to_string_lossy().into_owned(),
+            Err(e) => return refuse(e.to_string()),
+        };
+
+        match definition_import::keep_file(&staged.path, &folder, identity, source, name) {
+            Ok(done) if done.accepted() => {
+                let kept = done.provenance.unwrap_or(provenance);
+
+                AgentDefinitionImported {
+                    problem: String::new(),
+                    path: done.path,
+                    name: kept.name,
+                    signature: kept.signature,
+                    source: kept.source,
+                }
+            }
+            Ok(done) => refuse(done.problem),
+            Err(e) => refuse(e.to_string()),
+        }
+    }
+}
+
+/// Where a cell was before the call: read from the batch's baseline tune.
+fn baseline_cell(held: &TuneInHand, baseline: &EcuTune, table: &TuneTable, column: i32, row: i32) -> f64 {
+    let read = held
+        .definitions
+        .iter()
+        .find(|d| d.title == table.name)
+        .and_then(|d| baseline.table(&d.title, &d.values, &d.x_bins, &d.y_bins));
+
+    match read {
+        Some(old) => old.values[(column as usize, row as usize)],
+        None => table.values[(column as usize, row as usize)],
+    }
+}
+
+/// The last item for each target stands; the earlier ones are reported, not sent.
+fn dedupe(
+    settings: &[ProposedSetting],
+    cells: &[ProposedCell],
+) -> (Vec<ProposedSetting>, Vec<ProposedCell>, Vec<String>) {
+    let mut rejected = Vec::new();
+
+    let key = |s: &ProposedSetting| s.name.trim().to_lowercase();
+    let kept_settings: Vec<ProposedSetting> = settings
+        .iter()
+        .enumerate()
+        .filter(|(i, s)| {
+            let later = !s.name.trim().is_empty() && settings[i + 1..].iter().any(|t| key(t) == key(s));
+            if later {
+                rejected.push(format!("{}: superseded by a later item for the same setting", s.name));
+            }
+            !later
+        })
+        .map(|(_, s)| s.clone())
+        .collect();
+
+    let same = |a: &ProposedCell, b: &ProposedCell| {
+        a.column == b.column && a.row == b.row && a.table.trim().to_lowercase() == b.table.trim().to_lowercase()
+    };
+    let kept_cells: Vec<ProposedCell> = cells
+        .iter()
+        .enumerate()
+        .filter(|(i, c)| {
+            let later = cells[i + 1..].iter().any(|d| same(c, d));
+            if later {
+                rejected.push(format!(
+                    "{}[{},{}]: superseded by a later item for the same cell",
+                    c.table, c.column, c.row
+                ));
+            }
+            !later
+        })
+        .map(|(_, c)| c.clone())
+        .collect();
+
+    (kept_settings, kept_cells, rejected)
+}
+
+/// The runs of bytes where `write` differs from the page the controller holds: the agent's own
+/// change and nothing else. Whole when the page cannot be compared (the connection then refuses
+/// it for being out of range).
+pub(crate) fn diff_runs(held: Option<&Vec<u8>>, write: &TuneWrite) -> Vec<TuneWrite> {
+    let (Some(page), Ok(start)) = (held, usize::try_from(write.offset)) else {
+        return vec![write.clone()];
+    };
+
+    if start + write.data.len() > page.len() {
+        return vec![write.clone()];
+    }
+
+    let mut runs = Vec::new();
+    let mut at = 0;
+
+    while at < write.data.len() {
+        if page[start + at] == write.data[at] {
+            at += 1;
+            continue;
+        }
+
+        let from = at;
+        while at < write.data.len() && page[start + at] != write.data[at] {
+            at += 1;
+        }
+
+        runs.push(TuneWrite::new(
+            write.page,
+            write.offset + from as i32,
+            write.data[from..at].to_vec(),
+        ));
+    }
+
+    runs
+}
+
+/// A MaxxECU table write: the cells the edit produced, with the checksum the ECU keeps beside
+/// them, cut to the runs that differ from what the ECU holds. Returns the whole record (for the
+/// overlap warning) and the runs, ascending, so the checksum, which sits at the end, goes last.
+///
+/// Refuses, sending nothing, if the table is not one the ECU map knows, or the edit does not line
+/// up with it: a table sent without a checksum that matches reads as nought to the ECU.
+pub(crate) fn plan_maxx_table(
+    held: &TuneInHand,
+    tables: &[MaxxTable],
+    name: &str,
+    encoded: &TuneWrite,
+) -> Result<(TuneWrite, Vec<TuneWrite>), String> {
+    let Some(table) = tables.iter().find(|t| eq_ignore_case(&t.name, name)) else {
+        return Err(
+            "This MaxxECU table's checksum cannot be worked out (the table map is not loaded), so nothing was sent."
+                .to_string(),
+        );
+    };
+
+    let count = table.columns * table.rows;
+
+    if usize::try_from(encoded.offset).ok() != Some(table.cells_at) || encoded.data.len() != count * 2 {
+        return Err("The edit does not line up with the MaxxECU's table, so nothing was sent.".to_string());
+    }
+
+    let Some(page) = held.tune.pages().get(encoded.page.max(0) as usize) else {
+        return Err("The tune holds no such page, so nothing was sent.".to_string());
+    };
+
+    let cells: Vec<i16> = encoded
+        .data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| i16::from_le_bytes(*b))
+        .collect();
+
+    let record = maxx_tune::record(page, table, &cells).map_err(|e| e.to_string())?;
+    let whole = TuneWrite::new(encoded.page, encoded.offset, record);
+
+    Ok((whole.clone(), diff_runs(Some(page), &whole)))
+}
+
+/// Refuses a MaxxECU write that would reach past the ceiling, before any piece of anything is
+/// sent. (`MaxxTune::write` refuses it again, piece by piece, as the last line of defence.)
+fn maxx_ceiling_check(writes: &[TuneWrite]) -> Result<(), String> {
+    for write in writes {
+        let reach = i64::from(write.offset) + write.data.len() as i64;
+
+        if write.offset < 0 || reach > i64::from(WRITE_CEILING) {
+            return Err(format!(
+                "A MaxxECU will not be written above {WRITE_CEILING}, and this would reach {reach}."
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// What a partly-done or failed run of settings writes says, as the C# words it.
+fn failure_text(target: Option<&EcuTarget>, sent: &Sent, total: usize, message: &str) -> String {
+    if sent.done == 0 {
+        return format!("Nothing was sent: {message}");
+    }
+
+    match target {
+        Some(EcuTarget::Maxx(_)) => format!(
+            "{} of {total} writes reached the ECU ({} bytes), verified, and then this failed: {message} \
+             Those {} are already applied and permanent \u{2014} there is no burn to skip and no power cycle \
+             that undoes them.",
+            sent.done,
+            nf::int(sent.bytes as i32, "N0"),
+            sent.done
+        ),
+        _ => format!(
+            "{} of {total} writes reached the ECU ({} bytes) and then this failed: {message} Some settings \
+             have changed and some have not. Nothing was burned, so turning the key off restores all of it.",
+            sent.done,
+            nf::int(sent.bytes as i32, "N0")
+        ),
+    }
+}
+
+/// One write to a page-protocol controller: through the connection's read-back-and-verify.
+fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -> Result<(), String> {
+    let layout = tune.layout();
+
+    let page: &TunePage = layout
+        .pages
+        .iter()
+        .find(|p| p.index == write.page)
+        .ok_or_else(|| format!("The firmware declares no page {}.", write.page))?;
+
+    if page.chunk_write_command.is_empty() {
+        return Err(format!("This firmware declares no way to write page {}.", write.page));
+    }
+
+    connection
+        .write_tune_page(
+            page,
+            layout.blocking_factor,
+            layout.little_endian,
+            write.offset,
+            &write.data,
+            layout.inter_write_delay,
+        )
+        .map_err(|e| e.message())
+}
+
+/// One write to a MaxxECU over USB, in pieces of at most [`MAXIMUM_WRITE`] bytes (all the ECU takes
+/// at once), each read back before the next goes. There is no page here and no burn: the bytes land
+/// straight at their offset in the one 64 KB blob, applied and permanent the moment the ECU
+/// answers Ok. The write ceiling is checked for the whole write before any piece is sent
+/// ([`maxx_ceiling_check`]) and again by `MaxxTune::write` for each piece.
+#[doc(hidden)]
+pub fn send_to_maxx(source: &MaxxUsbSource, write: &TuneWrite) -> Result<(), String> {
+    let mut at = 0;
+
+    while at < write.data.len() {
+        let end = (at + MAXIMUM_WRITE).min(write.data.len());
+        let offset = write.offset + at as i32;
+        let piece = &write.data[at..end];
+
+        let status = source.write_tune(offset, piece).map_err(|e| e.to_string())?;
+
+        if status != MaxxWriteStatus::Ok {
+            return Err(format!(
+                "The MaxxECU answered \"{}\" for the write at offset {offset}.",
+                status_name(status)
+            ));
+        }
+
+        if !source.verify_tune(offset, piece).map_err(|e| e.to_string())? {
+            return Err(format!(
+                "The MaxxECU took the write at offset {offset} but reads back something else now."
+            ));
+        }
+
+        at = end;
+    }
+
+    Ok(())
 }
 
 fn stage_failure(e: &SafeFolderError) -> AgentStageResult {
@@ -1224,62 +1673,6 @@ fn magnitude_refusal(before: f64, after: f64, low: f64, high: f64) -> Option<Age
             nf::f64(high, "0.###")
         ),
     ))
-}
-
-/// One write to a page-protocol controller: through the connection's read-back-and-verify.
-fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -> Result<(), String> {
-    let layout = tune.layout();
-
-    let page: &TunePage = layout
-        .pages
-        .iter()
-        .find(|p| p.index == write.page)
-        .ok_or_else(|| format!("The firmware declares no page {}.", write.page))?;
-
-    if page.chunk_write_command.is_empty() {
-        return Err(format!("This firmware declares no way to write page {}.", write.page));
-    }
-
-    connection
-        .write_tune_page(
-            page,
-            layout.blocking_factor,
-            layout.little_endian,
-            write.offset,
-            &write.data,
-            layout.inter_write_delay,
-        )
-        .map_err(|e| e.message())
-}
-
-/// One write to a MaxxECU over USB, read back before it counts. There is no page here and no
-/// burn: the bytes land straight at their offset in the one 64 KB blob, applied and permanent
-/// the moment the ECU answers Ok. The write ceiling (`0xF2E7`) is enforced by
-/// `MaxxTune::write`, below this, and a write past it comes back as the error text.
-fn send_to_maxx(source: &MaxxUsbSource, write: &TuneWrite) -> Result<(), String> {
-    let status = source
-        .write_tune(write.offset, &write.data)
-        .map_err(|e| e.to_string())?;
-
-    if status != MaxxWriteStatus::Ok {
-        return Err(format!(
-            "The MaxxECU answered \"{}\" for the write at offset {}.",
-            status_name(status),
-            write.offset
-        ));
-    }
-
-    if !source
-        .verify_tune(write.offset, &write.data)
-        .map_err(|e| e.to_string())?
-    {
-        return Err(format!(
-            "The MaxxECU took the write at offset {} but reads back something else now.",
-            write.offset
-        ));
-    }
-
-    Ok(())
 }
 
 /// The enum member's name as `ToString()` gives it; an unnamed value is its number.

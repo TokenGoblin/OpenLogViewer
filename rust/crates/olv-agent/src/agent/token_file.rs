@@ -6,8 +6,12 @@
 //! Jupyter does it: a person copying a secret by hand picks a short one, and a short one on a
 //! port any local program can reach is not worth having. The location is the C#'s on every OS
 //! (the workspace folder, `OpenLogViewer` under the user's home), and the format is the same
-//! three keys. On Unix the file is created readable by its owner only; on Windows the profile
-//! folder's own permissions already do that.
+//! three keys. The file is readable by its owner only. On Unix that is mode 0600. On Windows the
+//! file inherits whatever the folder allows (on a shared machine, other accounts and groups), so
+//! its inherited permissions are removed and the current user alone is granted access, with
+//! `icacls` (the workspace denies `unsafe`, which the Win32 security calls would need). Best
+//! effort: if the tool or the user name is not there the file is left as the folder has it, and
+//! it is not an error.
 //!
 //! Written fresh each time the server starts, so a stale file never points an agent at a port
 //! nobody is listening on with a token that no longer opens it, and deleted when the server
@@ -59,6 +63,10 @@ pub fn write(workspace: &Workspace, port: u16, token: &str) -> Result<PathBuf> {
 
     let mut handle = options.open(&file)?;
 
+    // Before the token is written, so there is never a moment it is readable by anyone else.
+    #[cfg(windows)]
+    restrict_to_owner(&file);
+
     // A file that already existed keeps the mode it had; make it private either way.
     #[cfg(unix)]
     {
@@ -75,6 +83,34 @@ pub fn write(workspace: &Workspace, port: u16, token: &str) -> Result<PathBuf> {
 /// The file describes a socket that is no longer there.
 pub fn remove(workspace: &Workspace) {
     let _ = fs::remove_file(path(workspace));
+}
+
+/// Removes inherited permissions from the file and grants the current user alone full control.
+#[cfg(windows)]
+pub fn restrict_to_owner(file: &std::path::Path) -> bool {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let Ok(user) = std::env::var("USERNAME") else {
+        return false;
+    };
+
+    let who = match std::env::var("USERDOMAIN") {
+        Ok(domain) if !domain.is_empty() => format!("{domain}\\{user}"),
+        _ => user,
+    };
+
+    std::process::Command::new("icacls")
+        .arg(file)
+        .arg("/inheritance:r")
+        .arg("/grant:r")
+        .arg(format!("{who}:(F)"))
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
 }
 
 #[cfg(test)]
@@ -116,6 +152,29 @@ mod tests {
 
         remove(&workspace);
         assert!(!file.exists());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// On Windows the file must not keep the folder's inherited permissions.
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_only_the_current_user_has_access() {
+        let root = std::env::temp_dir().join(format!("olv-token-acl-{}", std::process::id()));
+        let workspace = Workspace::new(Some(&root));
+
+        let file = write(&workspace, 1, "t").unwrap();
+
+        let listing = std::process::Command::new("icacls").arg(&file).output().unwrap();
+        let text = String::from_utf8_lossy(&listing.stdout).to_string();
+
+        // One entry, the user; no SYSTEM, no Administrators, no Users.
+        assert_eq!(text.matches(":(").count(), 1, "{text}");
+        let user = std::env::var("USERNAME").unwrap().to_lowercase();
+        assert!(text.to_lowercase().contains(&user), "{text}");
+
+        // And the owner can still read it.
+        assert!(fs::read_to_string(&file).unwrap().contains("\"token\""));
 
         let _ = fs::remove_dir_all(&root);
     }

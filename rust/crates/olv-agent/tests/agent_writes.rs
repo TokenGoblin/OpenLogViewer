@@ -506,23 +506,28 @@ fn a_refused_write_does_not_spend_the_allowance() {
 }
 
 #[test]
-fn a_batch_larger_than_the_rate_limit_still_applies_wholly() {
-    // The limit exists to catch an agent looping, not one deliberate change that happens to move
-    // a lot of cells. Counting the items would leave the first ten applied and the rest refused:
-    // half a table row moved on a running engine, which is the one outcome nobody asked for.
+fn a_batch_up_to_the_cap_applies_wholly_and_is_not_cut_by_the_per_item_rate_limit() {
+    // The limit exists to catch an agent looping, not one deliberate change that moves several
+    // cells. Counting the items one by one against the window would leave the first few applied and
+    // the rest refused: half a table row moved on a running engine, which is the one outcome nobody
+    // asked for. A batch is capped at ten items, so it always fits the window it starts in.
     let rig = armed_rig("batch");
 
-    let whole_table = [
-        cell("VE Table", 0, 0, 41.0),
-        cell("VE Table", 1, 0, 42.0),
-        cell("VE Table", 0, 1, 43.0),
-        cell("VE Table", 1, 1, 44.0),
+    let mut items = Vec::new();
+    for column in 0..2 {
+        for row in 0..2 {
+            items.push(cell("VE Table", column, row, 41.0 + f64::from(column * 2 + row)));
+        }
+    }
+    items.push(cell("Launch Table", 0, 0, 5.0));
+    items.push(cell("Launch Table", 1, 1, 6.0));
+    let settings = [
+        setting("crankingRPM", 301.0),
+        setting("crankingRPM", 302.0), // supersedes the one before
+        setting("revLimit", 6501.0),
     ];
 
-    // Twelve settings and four cells: sixteen items, well past the ten a per-item count allows.
-    let many: Vec<ProposedSetting> = (0..12).map(|i| setting("crankingRPM", 300.0 + f64::from(i))).collect();
-
-    let result = rig.writer.apply_tune(&many, &whole_table, "filling the table", false);
+    let result = rig.writer.apply_tune(&settings, &items, "filling the table", true);
 
     assert!(result.refusal.is_none());
     assert!(
@@ -534,8 +539,8 @@ fn a_batch_larger_than_the_rate_limit_still_applies_wholly() {
     // Every cell of the table landed, not just the ones before the tenth write.
     let page = rig.board.page();
     assert_eq!(page[16], 41);
-    assert_eq!(page[17], 42);
-    assert_eq!(page[18], 43);
+    assert_eq!(page[17], 43);
+    assert_eq!(page[18], 42);
     assert_eq!(page[19], 44);
 }
 
@@ -656,15 +661,18 @@ fn a_write_is_not_refused_for_rpm_when_there_is_nothing_to_read_it_from() {
 }
 
 #[test]
-fn a_reading_that_is_not_a_number_does_not_stand_for_a_running_engine() {
+fn a_reading_that_is_not_a_number_does_not_stand_for_an_idle_engine() {
+    // The C# let this through. A controller whose RPM reads as junk may well be running.
     let rig = armed_rig("rpm-nan");
     rig.host.set_rpm(Some(f64::NAN));
 
-    assert!(
-        rig.writer
-            .set_setting("crankingRPM", 310.0, "small nudge", false)
-            .is_none()
-    );
+    let refused = rig
+        .writer
+        .set_setting("crankingRPM", 310.0, "small nudge", false)
+        .expect("refused");
+
+    assert_eq!(refused.reason, "the engine speed is not a number");
+    assert!(rig.board.writes().is_empty());
 }
 
 #[test]

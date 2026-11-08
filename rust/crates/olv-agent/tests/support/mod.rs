@@ -5,12 +5,13 @@
 
 #![allow(dead_code)]
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use olv_agent::agent::agent_writer::{AgentWriter, EcuTarget, TuneInHand, WriterHost};
+use olv_agent::agent::agent_writer::{AgentWriter, EcuTarget, RpmReading, TuneInHand, WriterHost};
 use olv_core::Result;
 use olv_core::ini::{table_editor_reader, tune_layout};
 use olv_core::model::WireTrace;
@@ -75,6 +76,10 @@ struct BoardState {
     flash: Option<Vec<u8>>,
     /// Every chunk write that reached it: offset and count.
     writes: Vec<(usize, usize)>,
+    /// Refuse every chunk write (a controller that says no).
+    refuse_writes: bool,
+    /// How long a chunk write takes (a slow link).
+    write_delay: Duration,
 }
 
 /// A controller answering the MegaSquirt page protocol well enough to be written to and read
@@ -99,6 +104,8 @@ impl Board {
             burns: 0,
             flash: None,
             writes: Vec::new(),
+            refuse_writes: false,
+            write_delay: Duration::ZERO,
         })))
     }
 
@@ -112,6 +119,14 @@ impl Board {
 
     pub fn flash(&self) -> Option<Vec<u8>> {
         lock(&self.0).flash.clone()
+    }
+
+    pub fn refuse_writes(&self, refuse: bool) {
+        lock(&self.0).refuse_writes = refuse;
+    }
+
+    pub fn slow_writes(&self, delay: Duration) {
+        lock(&self.0).write_delay = delay;
     }
 
     pub fn writes(&self) -> Vec<(usize, usize)> {
@@ -166,7 +181,7 @@ impl BoardState {
                 let offset = (usize::from(payload[3]) << 8) | usize::from(payload[4]);
                 let count = (usize::from(payload[5]) << 8) | usize::from(payload[6]);
 
-                if offset + count > self.page.len() || payload.len() < 7 + count {
+                if offset + count > self.page.len() || payload.len() < 7 + count || self.refuse_writes {
                     return refusal(0x84);
                 }
 
@@ -203,6 +218,10 @@ impl EcuTransport for Board {
 
     fn write(&mut self, data: &[u8]) -> Result<()> {
         let payload = payload_of(data);
+        let delay = lock(&self.0).write_delay;
+        if payload.first() == Some(&b'w') && !delay.is_zero() {
+            std::thread::sleep(delay);
+        }
         let mut state = lock(&self.0);
         state.pending = if payload.is_empty() {
             Vec::new()
@@ -223,17 +242,54 @@ impl EcuTransport for Board {
     fn discard_input(&mut self) {}
 }
 
-/// The application, as far as the writer needs it: a live RPM that a test can set, and a record
-/// of the versions kept.
-#[derive(Default)]
+/// The application, as far as the writer needs it: a live RPM that a test can set, the pages a
+/// person has unsent edits on, the person's answer to an import, and a record of the versions kept.
 pub struct Host {
-    pub rpm: Mutex<Option<f64>>,
+    pub rpm: Mutex<RpmReading>,
+    pub unsent: Mutex<BTreeSet<i32>>,
+    pub confirm: AtomicBool,
+    pub confirmations: Mutex<Vec<String>>,
     pub kept: Mutex<Vec<String>>,
 }
 
+impl Default for Host {
+    fn default() -> Self {
+        Self {
+            rpm: Mutex::new(RpmReading::NoSession),
+            unsent: Mutex::default(),
+            confirm: AtomicBool::new(false),
+            confirmations: Mutex::default(),
+            kept: Mutex::default(),
+        }
+    }
+}
+
 impl Host {
+    /// Some(x) is a fresh reading of x; None is "no live session at all".
     pub fn set_rpm(&self, rpm: Option<f64>) {
-        *lock(&self.rpm) = rpm;
+        *lock(&self.rpm) = match rpm {
+            Some(rpm) => RpmReading::Sample {
+                rpm,
+                age: Duration::ZERO,
+            },
+            None => RpmReading::NoSession,
+        };
+    }
+
+    pub fn set_reading(&self, reading: RpmReading) {
+        *lock(&self.rpm) = reading;
+    }
+
+    pub fn set_unsent(&self, pages: &[i32]) {
+        *lock(&self.unsent) = pages.iter().copied().collect();
+    }
+
+    pub fn answer_imports_with(&self, yes: bool) {
+        self.confirm.store(yes, Ordering::SeqCst);
+    }
+
+    pub fn confirmations(&self) -> Vec<String> {
+        lock(&self.confirmations).clone()
     }
 
     pub fn kept(&self) -> Vec<String> {
@@ -242,8 +298,17 @@ impl Host {
 }
 
 impl WriterHost for Host {
-    fn live_rpm(&self) -> Option<f64> {
+    fn live_rpm(&self) -> RpmReading {
         *lock(&self.rpm)
+    }
+
+    fn human_unsent_pages(&self) -> BTreeSet<i32> {
+        lock(&self.unsent).clone()
+    }
+
+    fn confirm_definition_import(&self, name: &str, _signature: &str, _source: &str) -> bool {
+        lock(&self.confirmations).push(name.to_string());
+        self.confirm.load(Ordering::SeqCst)
     }
 
     fn keep_tune(&self, note: &str) {
@@ -285,14 +350,22 @@ pub struct Rig {
 }
 
 pub fn tune_of(board: &Board) -> EcuTune {
-    let layout = tune_layout::read(FIRMWARE, None);
+    tune_of_firmware(board, FIRMWARE)
+}
+
+pub fn tune_of_firmware(board: &Board, firmware: &str) -> EcuTune {
+    let layout = tune_layout::read(firmware, None);
     EcuTune::from_pages(layout, vec![board.page()])
 }
 
 pub fn tune_in_hand(board: &Board) -> TuneInHand {
+    tune_in_hand_for(board, FIRMWARE)
+}
+
+pub fn tune_in_hand_for(board: &Board, firmware: &str) -> TuneInHand {
     TuneInHand {
-        tune: tune_of(board),
-        definitions: table_editor_reader::read(FIRMWARE, None),
+        tune: tune_of_firmware(board, firmware),
+        definitions: table_editor_reader::read(firmware, None),
         signature: SIGNATURE.to_string(),
         placeholder: false,
         from_file: false,
@@ -346,3 +419,5 @@ pub mod bench;
 pub mod http;
 
 pub mod writer_bridge;
+
+pub mod maxx_ecu;

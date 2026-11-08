@@ -12,7 +12,8 @@
 //! is a subscription, pushed as the ECU produces it rather than polled, because polling a 25 Hz
 //! source over HTTP is the wrong tool.
 //!
-//! Every request carries the token, as `Authorization: Bearer ...` or `?token=`. Binding to the
+//! Every request carries the token, as `Authorization: Bearer ...`; only the live stream, which a
+//! browser opens and cannot put a header on, also takes `?token=`. Binding to the
 //! loopback address keeps other machines out; it does not keep out other programs on this one,
 //! and a browser tab on any page can reach a localhost port. The token is what stands between a
 //! web page you happened to open and a socket that can move numbers in an engine. It is compared
@@ -402,7 +403,13 @@ fn serve(shared: &Arc<Shared>, stream: &mut TcpStream) {
         return;
     }
 
-    if !authorised(shared, &head) {
+    // The token may ride in the query string only for the live stream, which a browser opens and
+    // cannot put a header on. A URL is kept in histories, logs and referrers; every other route
+    // takes the header and nothing else.
+    let path = head.path();
+    let query_ok = head.is_websocket_request() && path == "/live/stream";
+
+    if !authorised(shared, &head, query_ok) {
         let reply = Reply::refuse(
             401,
             "unauthorised",
@@ -411,8 +418,6 @@ fn serve(shared: &Arc<Shared>, stream: &mut TcpStream) {
         let _ = http::respond_json(stream, reply.status, &reply.body);
         return;
     }
-
-    let path = head.path();
 
     if head.is_websocket_request() {
         if path == "/live/stream" {
@@ -479,7 +484,7 @@ fn is_loopback_authority(authority: &str) -> bool {
     host == "127.0.0.1" || host == "::1" || host.eq_ignore_ascii_case("localhost")
 }
 
-fn authorised(shared: &Shared, head: &Head) -> bool {
+fn authorised(shared: &Shared, head: &Head, query_ok: bool) -> bool {
     // Repeated headers arrive joined with a comma, as `HttpListenerRequest.Headers` does.
     let joined: Vec<&str> = head
         .headers
@@ -500,7 +505,7 @@ fn authorised(shared: &Shared, head: &Head) -> bool {
         }
     }
 
-    same(head.query().get("token").as_deref(), &shared.token)
+    query_ok && same(head.query().get("token").as_deref(), &shared.token)
 }
 
 /// Compared without giving away where two tokens start to differ.
