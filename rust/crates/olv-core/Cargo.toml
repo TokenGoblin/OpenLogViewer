@@ -9,12 +9,14 @@ description = "Data model, log readers, INI and .msq handling, analysis, calcula
 [dependencies]
 regex.workspace = true
 roxmltree.workspace = true
+miniz_oxide.workspace = true
 serde.workspace = true
 # preserve_order keeps properties in declaration order, as System.Text.Json writes them.
 serde_json = { workspace = true, features = ["preserve_order"] }
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
+time.workspace = true
 
 [lints]
 workspace = true
