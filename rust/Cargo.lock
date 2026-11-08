@@ -800,6 +800,7 @@ dependencies = [
  "olv-store",
  "serde",
  "serde_json",
+ "sha2",
  "time",
  "tungstenite",
 ]

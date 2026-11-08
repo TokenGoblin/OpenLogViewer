@@ -40,7 +40,8 @@ fn connecting_disarms_and_forgets_the_tune_so_nothing_is_written_until_one_is_re
     assert!(rig.writer.is_armed());
 
     // The next thing plugged in (or the same one again, after a reset).
-    rig.writer.connect(EcuTarget::Pages(Arc::clone(&rig.connection)));
+    rig.writer
+        .connect(EcuTarget::Pages(Arc::clone(&rig.connection)), SIGNATURE);
 
     assert!(!rig.writer.is_armed(), "a connect must clear the arming");
     assert!(
@@ -66,7 +67,7 @@ fn connecting_disarms_and_forgets_the_tune_so_nothing_is_written_until_one_is_re
     assert!(cell_write.refusal.is_some());
     assert!(rig.board.writes().is_empty());
 
-    rig.writer.set_tune(Some(tune_in_hand(&rig.board)));
+    set_tune(&rig.writer, Some(tune_in_hand(&rig.board)));
     assert!(rig.writer.set_setting("crankingRPM", 310.0, "reason", false).is_none());
 }
 
@@ -215,7 +216,7 @@ fn two_names_for_the_same_bytes_cannot_dodge_the_batch_baseline() {
         "   crankAlias  = scalar, U16, 0, \"rpm\", 1, 0, 0, 10000, 0
    launchTable",
     );
-    rig.writer.set_tune(Some(tune_in_hand_for(&rig.board, &aliased)));
+    set_tune(&rig.writer, Some(tune_in_hand_for(&rig.board, &aliased)));
 
     let result = rig.writer.apply_tune(
         &[setting("crankingRPM", 3300.0), setting("crankAlias", 6300.0)],
@@ -250,7 +251,7 @@ fn two_tables_over_the_same_cells_cannot_dodge_the_batch_baseline_either() {
       zBins = veTable
 "
     );
-    rig.writer.set_tune(Some(tune_in_hand_for(&rig.board, &copied)));
+    set_tune(&rig.writer, Some(tune_in_hand_for(&rig.board, &copied)));
 
     // 0 -> 100 is within half of 255; 100 -> 200 is too; 0 -> 200 is not.
     let result = rig.writer.apply_tune(
@@ -387,6 +388,8 @@ fn every_device_write_of_a_batch_counts_toward_the_rate_limit() {
 fn an_engine_speed_that_cannot_be_trusted_refuses_every_write() {
     let cases = [
         (RpmReading::Unknown, "the engine speed is not known"),
+        // The host's label is not trusted: a connected controller may be running.
+        (RpmReading::NoSession, "the engine speed is not known"),
         (
             RpmReading::Sample {
                 rpm: f64::NAN,
@@ -436,7 +439,7 @@ fn an_engine_speed_that_cannot_be_trusted_refuses_every_write() {
 }
 
 #[test]
-fn a_fresh_reading_at_idle_and_no_live_session_at_all_both_let_a_write_through() {
+fn a_fresh_reading_at_idle_lets_a_write_through() {
     let rig = armed_rig("fix-rpm-ok");
 
     rig.host.set_reading(RpmReading::Sample {
@@ -444,13 +447,6 @@ fn a_fresh_reading_at_idle_and_no_live_session_at_all_both_let_a_write_through()
         age: Duration::from_millis(900),
     });
     assert!(rig.writer.set_setting("crankingRPM", 310.0, "fresh", false).is_none());
-
-    rig.host.set_reading(RpmReading::NoSession);
-    assert!(
-        rig.writer
-            .set_setting("crankingRPM", 320.0, "no session", false)
-            .is_none()
-    );
 }
 
 // ----- 5. an agent's definition is staged, not installed --------------------------------------------
@@ -563,19 +559,22 @@ fn maxx_rig(what: &str) -> (AgentWriter, FakeMaxx, maxx_tune::MaxxTable, Scratch
         olv_store::store::workspace::Workspace::new(Some(&scratch.0)),
         Arc::new(Host::default()),
     );
-    writer.connect(EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(
-        Box::new(ecu.clone()),
-        None,
-    ))));
+    writer.connect(
+        EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(Box::new(ecu.clone()), None))),
+        "MaxxECU",
+    );
     writer.set_maxx_definitions(definitions);
     writer.set_maxx_tables(model.maps.clone());
-    writer.set_tune(Some(TuneInHand {
-        tune: EcuTune::from_pages(model.layout, vec![blob]),
-        definitions: model.tables,
-        signature: "MaxxECU".to_string(),
-        placeholder: false,
-        from_file: false,
-    }));
+    set_tune(
+        &writer,
+        Some(TuneInHand {
+            tune: EcuTune::from_pages(model.layout, vec![blob]),
+            definitions: model.tables,
+            signature: "MaxxECU".to_string(),
+            placeholder: false,
+            from_file: false,
+        }),
+    );
     writer.set_armed(true);
 
     (writer, ecu, model.maps[0].clone(), scratch)
@@ -659,17 +658,20 @@ fn a_maxx_write_that_would_cross_the_ceiling_sends_none_of_it() {
         olv_store::store::workspace::Workspace::new(Some(&scratch.0)),
         Arc::new(Host::default()),
     );
-    w.connect(EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(
-        Box::new(fresh.clone()),
-        None,
-    ))));
-    w.set_tune(Some(TuneInHand {
-        tune: EcuTune::from_pages(model.layout, vec![blob]),
-        definitions: model.tables,
-        signature: "MaxxECU".to_string(),
-        placeholder: false,
-        from_file: false,
-    }));
+    w.connect(
+        EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(Box::new(fresh.clone()), None))),
+        "MaxxECU",
+    );
+    set_tune(
+        &w,
+        Some(TuneInHand {
+            tune: EcuTune::from_pages(model.layout, vec![blob]),
+            definitions: model.tables,
+            signature: "MaxxECU".to_string(),
+            placeholder: false,
+            from_file: false,
+        }),
+    );
     w.set_armed(true);
 
     let refused = w
@@ -721,4 +723,407 @@ fn reading_the_tune_does_not_wait_for_a_write_to_the_device() {
             .iter()
             .any(|(n, v)| n == "crankingRPM" && *v == 310.0)
     );
+}
+
+// ===== the second review ==========================================================================
+
+use sha2::{Digest, Sha256};
+
+fn sha_of(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+// ----- 2. a tune must belong to the connection it was read for -------------------------------
+
+#[test]
+fn a_tune_read_for_an_earlier_connection_is_ignored() {
+    let rig = rig("r2-generation");
+    let first = rig.writer.generation();
+
+    // The controller changes while a slow read of the old one is still finishing.
+    let second = rig
+        .writer
+        .connect(EcuTarget::Pages(Arc::clone(&rig.connection)), SIGNATURE);
+    assert_ne!(first, second);
+
+    assert!(
+        !rig.writer.set_tune(first, Some(tune_in_hand(&rig.board))),
+        "the late read must be refused"
+    );
+    assert!(rig.writer.with_tune(|t| t.is_none()));
+
+    assert!(rig.writer.set_tune(second, Some(tune_in_hand(&rig.board))));
+    assert!(rig.writer.with_tune(|t| t.is_some()));
+
+    // A disconnect is a change of controller too.
+    rig.writer.disconnect();
+    assert!(!rig.writer.set_tune(second, Some(tune_in_hand(&rig.board))));
+    assert!(rig.writer.with_tune(|t| t.is_none()));
+}
+
+#[test]
+fn a_tune_for_other_firmware_than_the_connected_controller_reported_is_ignored() {
+    let rig = rig("r2-signature");
+    let generation = rig
+        .writer
+        .connect(EcuTarget::Pages(Arc::clone(&rig.connection)), SIGNATURE);
+
+    let other = TuneInHand {
+        signature: "SOME OTHER FIRMWARE 9.9".to_string(),
+        ..tune_in_hand(&rig.board)
+    };
+
+    assert!(!rig.writer.set_tune(generation, Some(other)));
+    assert!(rig.writer.with_tune(|t| t.is_none()));
+
+    // Case and padding do not matter.
+    let same = TuneInHand {
+        signature: format!(" {} ", SIGNATURE.to_lowercase()),
+        ..tune_in_hand(&rig.board)
+    };
+    assert!(rig.writer.set_tune(generation, Some(same)));
+}
+
+// ----- 3. an agent's definition: one at a time, hashed, only the file that was shown ----------
+
+fn sha_of_staged(rig: &Rig, name: &str) -> String {
+    sha_of(&std::fs::read(rig.workspace.staging().join("definitions").join(name)).expect("staged"))
+}
+
+#[test]
+fn the_person_is_shown_the_hash_of_the_file_that_would_be_installed() {
+    let rig = armed_rig("r2-hash");
+    rig.host.answer_imports_with(true);
+
+    let result = rig.writer.import_definition("", EVIL, "x", "shown.ini", &identity());
+    assert!(result.accepted(), "{result:?}");
+
+    let requests = rig.host.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].0, sha_of_staged(&rig, "shown.ini"));
+    assert!(!requests[0].1, "there was an identity to check against");
+}
+
+#[test]
+fn a_staged_file_that_changes_while_the_person_decides_is_not_installed() {
+    let rig = armed_rig("r2-swap");
+    rig.host.answer_imports_with(true);
+
+    let staged = rig.workspace.staging().join("definitions").join("swapped.ini");
+    *rig.host.while_asking.lock().unwrap() = Some(Box::new(move || {
+        std::fs::write(&staged, "[MegaTune]\nsignature = \"TEST Format 0001.00\"\n; tampered\n").unwrap();
+    }));
+
+    let result = rig.writer.import_definition("", EVIL, "x", "swapped.ini", &identity());
+
+    assert!(!result.accepted());
+    assert!(
+        result.problem.contains("changed after it was shown"),
+        "{}",
+        result.problem
+    );
+    let installed = std::fs::read_dir(rig.workspace.definitions())
+        .map(|d| d.filter_map(Result::ok).any(|e| e.file_name() == "swapped.ini"))
+        .unwrap_or(false);
+    assert!(!installed);
+}
+
+#[test]
+fn an_import_with_no_ecu_to_check_against_says_so_and_needs_an_explicit_yes() {
+    let rig = armed_rig("r2-unverified");
+
+    let refused = rig.writer.import_definition("", EVIL, "x", "loose.ini", &[]);
+    assert!(!refused.accepted());
+    assert_eq!(rig.host.requests().len(), 1);
+    assert!(
+        rig.host.requests()[0].1,
+        "the request must say it could not be verified"
+    );
+
+    rig.host.answer_imports_with(true);
+    assert!(rig.writer.import_definition("", EVIL, "x", "loose.ini", &[]).accepted());
+}
+
+#[test]
+fn a_path_outside_the_staging_folder_gets_one_answer_whether_or_not_it_exists() {
+    let rig = armed_rig("r2-path");
+    let outside = rig.workspace.root().join("outside.ini");
+    std::fs::create_dir_all(rig.workspace.root()).unwrap();
+    std::fs::write(&outside, EVIL).unwrap();
+    let missing = rig.workspace.root().join("missing.ini");
+
+    let present = rig
+        .writer
+        .import_definition(&outside.to_string_lossy(), "", "x", "", &identity());
+    let absent = rig
+        .writer
+        .import_definition(&missing.to_string_lossy(), "", "x", "", &identity());
+    let nonsense = rig
+        .writer
+        .import_definition("C:/definitely/not/a/path.ini", "", "x", "", &identity());
+
+    assert!(!present.accepted());
+    assert!(present.problem.starts_with("Only a file inside"), "{}", present.problem);
+    assert_eq!(present.problem, absent.problem, "existence must not show");
+    assert_eq!(present.problem, nonsense.problem);
+    assert!(
+        rig.host.confirmations().is_empty(),
+        "nothing outside staging was even considered"
+    );
+
+    // A file in the staging folder is fine.
+    std::fs::create_dir_all(rig.workspace.staging()).unwrap();
+    let inside = rig.workspace.staging().join("mine.ini");
+    std::fs::write(&inside, EVIL).unwrap();
+    let ok = rig
+        .writer
+        .import_definition(&inside.to_string_lossy(), "", "x", "", &identity());
+    assert!(ok.problem.contains("staged"), "{}", ok.problem);
+    assert_eq!(rig.host.confirmations().len(), 1);
+}
+
+#[test]
+fn two_imports_at_once_take_turns_from_staging_to_install() {
+    let rig = armed_rig("r2-lock");
+    rig.host.answer_imports_with(true);
+    *rig.host.think_for.lock().unwrap() = Duration::from_millis(150);
+
+    let threads: Vec<_> = ["a.ini", "b.ini"]
+        .into_iter()
+        .map(|name| {
+            let writer = Arc::clone(&rig.writer);
+            std::thread::spawn(move || writer.import_definition("", EVIL, "x", name, &identity()))
+        })
+        .collect();
+
+    for t in threads {
+        assert!(t.join().unwrap().accepted());
+    }
+
+    assert_eq!(rig.host.asking_most.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+// ----- 4. a MaxxECU table that is left half-written ---------------------------------------------
+
+fn maxx_rig_with(
+    what: &str,
+    extra: Vec<MaxxSettingDefinition>,
+) -> (AgentWriter, FakeMaxx, maxx_tune::MaxxTable, Scratch) {
+    let scratch = Scratch::new(what);
+    let blob = maxx_ecu::blob_with_ve_table();
+    let mut definitions = vec![MaxxSettingDefinition::new(
+        "VE Table 1 data",
+        "dynamicTable",
+        maxx_ecu::CONFIG as i32,
+        22 * 22,
+        0.1,
+        0.0,
+        2500.0,
+    )];
+    definitions.extend(extra);
+    let model = maxx_tune::build(&blob, &definitions, None);
+    let ecu = FakeMaxx::holding(blob.clone());
+
+    let writer = AgentWriter::new(
+        olv_store::store::workspace::Workspace::new(Some(&scratch.0)),
+        Arc::new(Host::default()),
+    );
+    let generation = writer.connect(
+        EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(Box::new(ecu.clone()), None))),
+        "MaxxECU",
+    );
+    writer.set_maxx_definitions(definitions);
+    writer.set_maxx_tables(model.maps.clone());
+    writer.set_tune(
+        generation,
+        Some(TuneInHand {
+            tune: EcuTune::from_pages(model.layout, vec![blob]),
+            definitions: model.tables,
+            signature: "MaxxECU".to_string(),
+            placeholder: false,
+            from_file: false,
+        }),
+    );
+    writer.set_armed(true);
+
+    (writer, ecu, model.maps[0].clone(), scratch)
+}
+
+#[test]
+fn a_checksum_write_that_fails_once_is_tried_again() {
+    let (writer, ecu, table, _scratch) = maxx_rig_with("r2-crc-retry", vec![]);
+    ecu.refuse_payloads_after(1, 1);
+
+    let landed = writer.set_table_cell("VE Table 1", 0, 0, 30.0, "one cell", false);
+
+    assert!(landed.refusal.is_none(), "{:?}", landed.refusal);
+    let crc_at = table.cells_at + table.columns * table.rows * 2;
+    assert_eq!(ecu.writes(), vec![(table.cells_at, 1), (crc_at, 4)]);
+}
+
+#[test]
+fn a_table_whose_checksum_could_not_be_written_is_never_reported_as_done() {
+    let (writer, ecu, table, _scratch) = maxx_rig_with("r2-crc-fails", vec![]);
+    ecu.refuse_payloads_after(1, 100);
+
+    let result = writer.set_table_cell("VE Table 1", 0, 0, 30.0, "one cell", false);
+
+    let refusal = result.refusal.expect("never success");
+    assert_eq!(refusal.reason, "the table's checksum is now invalid");
+    assert!(refusal.detail.contains("checksum"), "{}", refusal.detail);
+    assert!(
+        refusal.detail.contains("Send the same cell again"),
+        "{}",
+        refusal.detail
+    );
+    // The cell did land; that is exactly why it must be said.
+    assert_eq!(ecu.writes(), vec![(table.cells_at, 1)]);
+}
+
+#[test]
+fn a_maxx_setting_that_overlaps_a_table_is_refused() {
+    let inside = (maxx_tune::TABLE_DATA + maxx_ecu::DATA_OFFSET + 1 + 54 + 9 + 4) as i32;
+    let (writer, ecu, _table, _scratch) = maxx_rig_with(
+        "r2-overlap",
+        vec![MaxxSettingDefinition::new(
+            "Overlap Setting",
+            "uint16",
+            inside,
+            1,
+            1.0,
+            0.0,
+            65535.0,
+        )],
+    );
+
+    let refused = writer
+        .set_setting("Overlap Setting", 1000.0, "x", false)
+        .expect("refused");
+
+    assert_eq!(refused.reason, "that setting shares bytes with a table");
+    assert_eq!(ecu.frames_sent(), 0);
+}
+
+// ----- 5. the rate pre-check counts device writes -----------------------------------------------
+
+#[test]
+fn a_maxx_batch_counts_the_checksum_write_of_every_cell() {
+    let (writer, ecu, _table, _scratch) = maxx_rig_with("r2-rate", vec![]);
+
+    // Six cells are twelve device writes (a cell and its table's checksum each), over the ten.
+    let cells: Vec<ProposedCell> = (0..6).map(|c| cell("VE Table 1", c, 0, 40.0)).collect();
+    let result = writer.apply_tune(&[], &cells, "six cells", false);
+
+    assert_eq!(
+        result.refusal.expect("refused").reason,
+        "too many writes in a short time"
+    );
+    assert_eq!(ecu.frames_sent(), 0);
+
+    // Five are ten, which fits.
+    let five = writer.apply_tune(&[], &cells[..5], "five cells", false);
+    assert!(five.refusal.is_none(), "{:?}", five.refusal);
+}
+
+// ----- 8. a page a write may have partly reached is not trusted --------------------------------
+
+#[test]
+fn a_write_whose_acknowledgement_was_lost_marks_the_page_until_it_is_read_again() {
+    let rig = armed_rig("r2-stale");
+    rig.board.silent_writes(true);
+
+    let failed = rig
+        .writer
+        .set_setting("crankingRPM", 310.0, "first", false)
+        .expect("refused");
+    assert_eq!(failed.reason, "the write did not go through");
+    assert_eq!(rig.writer.stale_pages(), vec![0]);
+
+    // The controller is fine again, but what is held of the page is a guess.
+    rig.board.silent_writes(false);
+    let stale = rig
+        .writer
+        .set_setting("revLimit", 6600.0, "second", true)
+        .expect("refused");
+    assert_eq!(stale.reason, "that page needs reading again");
+    let cell_write = rig.writer.set_table_cell("VE Table", 0, 0, 5.0, "c", false);
+    assert_eq!(
+        cell_write.refusal.expect("refused").reason,
+        "that page needs reading again"
+    );
+
+    // Reading the tune again clears it.
+    assert!(set_tune(&rig.writer, Some(tune_in_hand(&rig.board))));
+    assert!(rig.writer.stale_pages().is_empty());
+    assert!(rig.writer.set_setting("revLimit", 6600.0, "third", true).is_none());
+}
+
+#[test]
+fn a_controller_that_simply_said_no_leaves_nothing_in_doubt() {
+    let rig = armed_rig("r2-clean-no");
+    rig.board.refuse_writes(true);
+
+    assert!(rig.writer.set_setting("crankingRPM", 310.0, "first", false).is_some());
+
+    assert!(rig.writer.stale_pages().is_empty());
+}
+
+// ----- 9. settings that other settings are scaled by --------------------------------------------
+
+#[test]
+fn a_setting_that_other_settings_are_scaled_by_is_not_the_agents_to_change() {
+    let direct = FIRMWARE
+        .replace(
+            "veTable     = array,  U08, 16, [2x2], \"%\", 1,",
+            "veTable     = array,  U08, 16, [2x2], \"%\", {rpmDiv},",
+        )
+        .replace(
+            "   crankingRPM",
+            "   rpmDiv      = scalar, U08, 26, \"\", 1, 0, 1, 10, 0\n   crankingRPM",
+        );
+    assert!(direct.contains("{rpmDiv}"), "the scale was not put in");
+
+    let rig = armed_rig("r2-scale-direct");
+    set_tune(&rig.writer, Some(tune_in_hand_for(&rig.board, &direct)));
+
+    for confirm in [false, true] {
+        let refused = rig
+            .writer
+            .set_setting("rpmDiv", 2.0, "retune", confirm)
+            .expect("refused");
+        assert_eq!(
+            refused.reason, "this setting rescales other settings",
+            "confirm {confirm}"
+        );
+    }
+    assert!(rig.board.writes().is_empty());
+
+    // Not everything is refused.
+    assert!(rig.writer.set_setting("crankingRPM", 310.0, "fine", false).is_none());
+}
+
+#[test]
+fn nor_one_the_scale_is_derived_from() {
+    // Speeduino scales every load axis by {fuelLoadRes}, which is worked out from `algo`.
+    let derived = FIRMWARE
+        .replace(
+            "veTable     = array,  U08, 16, [2x2], \"%\", 1,",
+            "veTable     = array,  U08, 16, [2x2], \"%\", {fuelLoadRes},",
+        )
+        .replace(
+            "   crankingRPM",
+            "   algo        = scalar, U08, 27, \"\", 1, 0, 0, 3, 0\n   crankingRPM",
+        )
+        .replace(
+            "   rpm  = scalar, U16, 0, \"rpm\", 1, 0\n",
+            "   rpm  = scalar, U16, 0, \"rpm\", 1, 0\n   fuelLoadRes = { (algo == 0) || (algo == 2) ? 2.000 : 0.500 }\n",
+        );
+    assert!(derived.contains("fuelLoadRes = {"));
+
+    let rig = armed_rig("r2-scale-derived");
+    set_tune(&rig.writer, Some(tune_in_hand_for(&rig.board, &derived)));
+
+    let refused = rig.writer.set_setting("algo", 1.0, "retune", true).expect("refused");
+    assert_eq!(refused.reason, "this setting rescales other settings");
+    assert!(rig.board.writes().is_empty());
 }

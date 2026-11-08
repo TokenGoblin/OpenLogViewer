@@ -21,6 +21,7 @@ use super::token_file;
 pub struct AgentService {
     server: AgentServer,
     workspace: Workspace,
+    restricted: bool,
 }
 
 // The token lives in the server and in the file; this prints neither.
@@ -54,25 +55,43 @@ impl AgentService {
 
         server.start().map_err(|e| failed(e.to_string()))?;
 
-        let file = match token_file::write(&workspace, server.port(), &token) {
-            Ok(file) => file,
+        let (file, restricted) = match token_file::write_checked(&workspace, server.port(), &token) {
+            Ok(done) => done,
             Err(e) => {
                 server.dispose();
                 return Err(failed(e.to_string()));
             }
         };
 
-        let message = format!(
+        let mut message = format!(
             "The agent API is listening on {}. Its token is in {}.",
             server.address(),
             file.display()
         );
 
-        Ok((Self { server, workspace }, message))
+        if !restricted {
+            message.push(' ');
+            message.push_str(token_file::NOT_RESTRICTED);
+        }
+
+        Ok((
+            Self {
+                server,
+                workspace,
+                restricted,
+            },
+            message,
+        ))
     }
 
     pub fn server(&self) -> &AgentServer {
         &self.server
+    }
+
+    /// Whether the token file could be made readable by its owner alone. When it could not the
+    /// status line says so; the API still runs.
+    pub fn token_file_restricted(&self) -> bool {
+        self.restricted
     }
 
     /// Where an agent points itself.

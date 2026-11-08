@@ -48,6 +48,16 @@ pub fn contents(port: u16, token: &str) -> String {
 
 /// Leaves the address and the token in the workspace, as JSON, and says where.
 pub fn write(workspace: &Workspace, port: u16, token: &str) -> Result<PathBuf> {
+    write_checked(workspace, port, token).map(|(file, _)| file)
+}
+
+/// What the application should say when the file could not be made private.
+pub const NOT_RESTRICTED: &str = "Warning: the token file could not be restricted to your account, so other     accounts on this machine may be able to read it.";
+
+/// As [`write`], and whether the file was made readable by its owner alone. Not being able to is a
+/// warning on stderr and a `false` here, never a failure to start: the caller says so in the
+/// status it shows.
+pub fn write_checked(workspace: &Workspace, port: u16, token: &str) -> Result<(PathBuf, bool)> {
     let file = path(workspace);
 
     fs::create_dir_all(workspace.root())?;
@@ -65,7 +75,10 @@ pub fn write(workspace: &Workspace, port: u16, token: &str) -> Result<PathBuf> {
 
     // Before the token is written, so there is never a moment it is readable by anyone else.
     #[cfg(windows)]
-    restrict_to_owner(&file);
+    let restricted = restrict_to_owner(&file);
+    // On Unix the mode is set below and a failure to set it is an error.
+    #[cfg(not(windows))]
+    let restricted = true;
 
     // A file that already existed keeps the mode it had; make it private either way.
     #[cfg(unix)]
@@ -77,7 +90,11 @@ pub fn write(workspace: &Workspace, port: u16, token: &str) -> Result<PathBuf> {
     handle.write_all(contents(port, token).as_bytes())?;
     handle.flush()?;
 
-    Ok(file)
+    if !restricted {
+        eprintln!("olv-agent: {NOT_RESTRICTED}");
+    }
+
+    Ok((file, restricted))
 }
 
 /// The file describes a socket that is no longer there.
@@ -85,27 +102,58 @@ pub fn remove(workspace: &Workspace) {
     let _ = fs::remove_file(path(workspace));
 }
 
-/// Removes inherited permissions from the file and grants the current user alone full control.
+/// The account's security identifier out of `whoami /user /fo csv /nh`, whose one line is
+/// `"DOMAIN\user","S-1-5-21-..."`.
+pub fn parse_sid(whoami: &str) -> Option<String> {
+    let line = whoami.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let sid = line.rsplit(',').next()?.trim().trim_matches('"');
+
+    let valid = sid.starts_with("S-1-") && sid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+
+    valid.then(|| sid.to_string())
+}
+
+/// A tool in the system folder, by its full path: nothing earlier on the search path can stand in
+/// for it.
+#[cfg(windows)]
+fn system_tool(name: &str) -> PathBuf {
+    let root = std::env::var_os("SystemRoot").map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+
+    root.join("System32").join(name)
+}
+
+/// Removes inherited permissions from the file and grants the current account, by its SID, alone
+/// full control. Best effort, by the exit status: the tools are run by full path from System32
+/// (the workspace denies `unsafe`, which the Win32 security calls would need).
 #[cfg(windows)]
 pub fn restrict_to_owner(file: &std::path::Path) -> bool {
     use std::os::windows::process::CommandExt;
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    let Ok(user) = std::env::var("USERNAME") else {
+    let Ok(who) = std::process::Command::new(system_tool("whoami.exe"))
+        .args(["/user", "/fo", "csv", "/nh"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .stderr(std::process::Stdio::null())
+        .output()
+    else {
         return false;
     };
 
-    let who = match std::env::var("USERDOMAIN") {
-        Ok(domain) if !domain.is_empty() => format!("{domain}\\{user}"),
-        _ => user,
+    let Some(sid) = who
+        .status
+        .success()
+        .then(|| parse_sid(&String::from_utf8_lossy(&who.stdout)))
+        .flatten()
+    else {
+        return false;
     };
 
-    std::process::Command::new("icacls")
+    std::process::Command::new(system_tool("icacls.exe"))
         .arg(file)
         .arg("/inheritance:r")
         .arg("/grant:r")
-        .arg(format!("{who}:(F)"))
+        .arg(format!("*{sid}:(F)"))
         .creation_flags(CREATE_NO_WINDOW)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -125,6 +173,28 @@ mod tests {
         assert_eq!(a.len(), 64);
         assert!(a.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn the_sid_is_read_from_the_csv_whoami_prints() {
+        assert_eq!(
+            parse_sid("\"DESKTOP\\me\",\"S-1-5-21-111-222-333-1001\"\r\n").as_deref(),
+            Some("S-1-5-21-111-222-333-1001")
+        );
+        assert_eq!(parse_sid(""), None);
+        assert_eq!(parse_sid("\"a\",\"not a sid\""), None);
+        // Nothing that could be taken for an option or a second argument gets through.
+        assert_eq!(parse_sid("\"a\",\"S-1-5-21 /grant Everyone:F\""), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_tools_are_run_by_full_path_from_the_system_folder() {
+        let icacls = system_tool("icacls.exe");
+
+        assert!(icacls.is_absolute(), "{icacls:?}");
+        assert!(icacls.ends_with(r"System32\icacls.exe"), "{icacls:?}");
+        assert!(icacls.exists());
     }
 
     #[test]

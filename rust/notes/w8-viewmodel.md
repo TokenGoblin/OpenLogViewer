@@ -12,3 +12,4 @@
   - Answer `confirm_definition_import` with a real human confirmation.
   - The AgentBridge must delegate every write to `AgentWriter` and never hold an `EcuConnection` of its own for writing.
   - Read the tune through the writer's snapshot, never under its lock, from the UI thread.
+- **`WriterHost::human_unsent_pages` must be answered under a lock the human edit path also takes** (from the second w5-agent review). The agent writer asks it just before it sends, and the person can still be typing: if the answer is read without the lock the edit path holds while it adds an edit, an agent write can land on a page between "no unsent edits" and the edit appearing. Also: `AgentWriter::connect(target, signature)` returns a generation that the tune read after it must carry to `set_tune` (a late read from an earlier connection is ignored), and the tune's signature must equal the one the controller reported.

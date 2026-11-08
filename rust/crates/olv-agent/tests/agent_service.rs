@@ -37,6 +37,12 @@ fn starting_leaves_the_address_and_a_token_that_opens_the_door() {
     let token = json["token"].as_str().unwrap().to_string();
     assert_eq!(token.len(), 64);
 
+    assert!(
+        service.token_file_restricted(),
+        "the token file must be private to this account"
+    );
+    assert!(!message.contains("could not be restricted"), "{message}");
+
     // The sentence the application shows says where the token is, never what it is.
     assert!(message.contains(&format!("http://127.0.0.1:{port}")));
     assert!(message.contains("agent-api.json"));

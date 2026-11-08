@@ -11,7 +11,9 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use olv_agent::agent::agent_writer::{AgentWriter, EcuTarget, RpmReading, TuneInHand, WriterHost};
+use olv_agent::agent::agent_writer::{
+    AgentWriter, DefinitionImportRequest, EcuTarget, RpmReading, TuneInHand, WriterHost,
+};
 use olv_core::Result;
 use olv_core::ini::{table_editor_reader, tune_layout};
 use olv_core::model::WireTrace;
@@ -78,6 +80,8 @@ struct BoardState {
     writes: Vec<(usize, usize)>,
     /// Refuse every chunk write (a controller that says no).
     refuse_writes: bool,
+    /// Apply chunk writes and say nothing (an acknowledgement lost on the way back).
+    silent_writes: bool,
     /// How long a chunk write takes (a slow link).
     write_delay: Duration,
 }
@@ -105,6 +109,7 @@ impl Board {
             flash: None,
             writes: Vec::new(),
             refuse_writes: false,
+            silent_writes: false,
             write_delay: Duration::ZERO,
         })))
     }
@@ -119,6 +124,10 @@ impl Board {
 
     pub fn flash(&self) -> Option<Vec<u8>> {
         lock(&self.0).flash.clone()
+    }
+
+    pub fn silent_writes(&self, silent: bool) {
+        lock(&self.0).silent_writes = silent;
     }
 
     pub fn refuse_writes(&self, refuse: bool) {
@@ -188,6 +197,10 @@ impl BoardState {
                 self.writes.push((offset, count));
                 self.page[offset..offset + count].copy_from_slice(&payload[7..7 + count]);
 
+                if self.silent_writes {
+                    return Vec::new();
+                }
+
                 reply(0, &[])
             }
 
@@ -249,16 +262,31 @@ pub struct Host {
     pub unsent: Mutex<BTreeSet<i32>>,
     pub confirm: AtomicBool,
     pub confirmations: Mutex<Vec<String>>,
+    /// (sha256, unverified) of each import put to the person.
+    pub requests: Mutex<Vec<(String, bool)>>,
+    /// Runs while the person is being asked, before the answer comes back.
+    pub while_asking: Mutex<Option<Box<dyn Fn() + Send>>>,
+    pub asking_now: std::sync::atomic::AtomicUsize,
+    pub asking_most: std::sync::atomic::AtomicUsize,
+    pub think_for: Mutex<Duration>,
     pub kept: Mutex<Vec<String>>,
 }
 
 impl Default for Host {
     fn default() -> Self {
         Self {
-            rpm: Mutex::new(RpmReading::NoSession),
+            rpm: Mutex::new(RpmReading::Sample {
+                rpm: 0.0,
+                age: Duration::ZERO,
+            }),
             unsent: Mutex::default(),
             confirm: AtomicBool::new(false),
             confirmations: Mutex::default(),
+            requests: Mutex::default(),
+            while_asking: Mutex::new(None),
+            asking_now: std::sync::atomic::AtomicUsize::new(0),
+            asking_most: std::sync::atomic::AtomicUsize::new(0),
+            think_for: Mutex::new(Duration::ZERO),
             kept: Mutex::default(),
         }
     }
@@ -292,6 +320,10 @@ impl Host {
         lock(&self.confirmations).clone()
     }
 
+    pub fn requests(&self) -> Vec<(String, bool)> {
+        lock(&self.requests).clone()
+    }
+
     pub fn kept(&self) -> Vec<String> {
         lock(&self.kept).clone()
     }
@@ -306,8 +338,20 @@ impl WriterHost for Host {
         lock(&self.unsent).clone()
     }
 
-    fn confirm_definition_import(&self, name: &str, _signature: &str, _source: &str) -> bool {
-        lock(&self.confirmations).push(name.to_string());
+    fn confirm_definition_import(&self, request: &DefinitionImportRequest<'_>) -> bool {
+        lock(&self.confirmations).push(request.name.to_string());
+        lock(&self.requests).push((request.sha256.to_string(), request.unverified));
+
+        let now = self.asking_now.fetch_add(1, Ordering::SeqCst) + 1;
+        self.asking_most.fetch_max(now, Ordering::SeqCst);
+        if let Some(hook) = lock(&self.while_asking).as_ref() {
+            hook();
+        }
+        let pause = *lock(&self.think_for);
+        if !pause.is_zero() {
+            std::thread::sleep(pause);
+        }
+        self.asking_now.fetch_sub(1, Ordering::SeqCst);
         self.confirm.load(Ordering::SeqCst)
     }
 
@@ -394,8 +438,8 @@ pub fn rig(what: &str) -> Rig {
     connection.open().expect("the fake opens");
 
     let writer = Arc::new(AgentWriter::new(workspace.clone(), host.clone()));
-    writer.connect(EcuTarget::Pages(Arc::clone(&connection)));
-    writer.set_tune(Some(tune_in_hand(&board)));
+    let generation = writer.connect(EcuTarget::Pages(Arc::clone(&connection)), SIGNATURE);
+    writer.set_tune(generation, Some(tune_in_hand(&board)));
 
     Rig {
         writer,
@@ -421,3 +465,8 @@ pub mod http;
 pub mod writer_bridge;
 
 pub mod maxx_ecu;
+
+/// A tune read after the connection now in force.
+pub fn set_tune(writer: &AgentWriter, tune: Option<TuneInHand>) -> bool {
+    writer.set_tune(writer.generation(), tune)
+}

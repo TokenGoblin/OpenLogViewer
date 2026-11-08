@@ -18,7 +18,7 @@ use olv_live::live::maxx_tune::{self, WRITE_CEILING};
 use olv_live::live::maxx_tune_definitions::MaxxSettingDefinition;
 use olv_live::live::maxx_usb_source::MaxxUsbSource;
 use olv_protocol::ms::ms_protocol::EcuTransport;
-use support::{Host, Scratch};
+use support::{Host, Scratch, set_tune};
 
 /// A cable that records what is put on it and never answers.
 #[derive(Clone, Default)]
@@ -94,17 +94,20 @@ fn rig() -> Rig {
         olv_store::store::workspace::Workspace::new(Some(&scratch.0)),
         Arc::new(Host::default()),
     );
-    writer.connect(EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(
-        Box::new(cable.clone()),
-        None,
-    ))));
-    writer.set_tune(Some(TuneInHand {
-        tune: EcuTune::from_pages(model.layout, vec![blob]),
-        definitions: model.tables,
-        signature: "MaxxECU".to_string(),
-        placeholder: false,
-        from_file: false,
-    }));
+    writer.connect(
+        EcuTarget::Maxx(Arc::new(MaxxUsbSource::new(Box::new(cable.clone()), None))),
+        "MaxxECU",
+    );
+    set_tune(
+        &writer,
+        Some(TuneInHand {
+            tune: EcuTune::from_pages(model.layout, vec![blob]),
+            definitions: model.tables,
+            signature: "MaxxECU".to_string(),
+            placeholder: false,
+            from_file: false,
+        }),
+    );
     writer.set_armed(true);
 
     Rig {

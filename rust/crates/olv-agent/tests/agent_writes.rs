@@ -129,7 +129,8 @@ fn disconnecting_disarms_and_reconnecting_does_not_arm_again() {
     assert!(!rig.writer.is_armed());
 
     // A new connection (the next thing plugged in may be a car) starts disarmed too.
-    rig.writer.connect(EcuTarget::Pages(Arc::clone(&rig.connection)));
+    rig.writer
+        .connect(EcuTarget::Pages(Arc::clone(&rig.connection)), SIGNATURE);
     assert!(!rig.writer.is_armed());
 
     let refused = rig
@@ -158,10 +159,13 @@ fn armed_but_not_connected_is_refused() {
 #[test]
 fn a_placeholder_tune_is_never_written_from_even_when_armed() {
     let rig = armed_rig("placeholder");
-    rig.writer.set_tune(Some(TuneInHand {
-        placeholder: true,
-        ..tune_in_hand(&rig.board)
-    }));
+    set_tune(
+        &rig.writer,
+        Some(TuneInHand {
+            placeholder: true,
+            ..tune_in_hand(&rig.board)
+        }),
+    );
 
     let one = rig
         .writer
@@ -177,10 +181,13 @@ fn a_placeholder_tune_is_never_written_from_even_when_armed() {
 #[test]
 fn a_tune_opened_from_a_file_is_never_written_back_but_can_still_be_proposed_against() {
     let rig = armed_rig("from-file");
-    rig.writer.set_tune(Some(TuneInHand {
-        from_file: true,
-        ..tune_in_hand(&rig.board)
-    }));
+    set_tune(
+        &rig.writer,
+        Some(TuneInHand {
+            from_file: true,
+            ..tune_in_hand(&rig.board)
+        }),
+    );
 
     let refused = rig
         .writer
@@ -197,7 +204,7 @@ fn a_tune_opened_from_a_file_is_never_written_back_but_can_still_be_proposed_aga
 #[test]
 fn with_no_tune_at_all_a_write_is_refused() {
     let rig = armed_rig("no-tune");
-    rig.writer.set_tune(None);
+    set_tune(&rig.writer, None);
 
     let refused = rig
         .writer
@@ -466,8 +473,8 @@ fn the_window_expires_so_a_careful_agent_is_not_locked_out() {
     let rig = rig("rate-window");
     let writer =
         AgentWriter::with_window_for_tests(rig.workspace.clone(), rig.host.clone(), Duration::from_millis(150));
-    writer.connect(EcuTarget::Pages(Arc::clone(&rig.connection)));
-    writer.set_tune(Some(tune_in_hand(&rig.board)));
+    writer.connect(EcuTarget::Pages(Arc::clone(&rig.connection)), SIGNATURE);
+    set_tune(&writer, Some(tune_in_hand(&rig.board)));
     writer.set_armed(true);
 
     for i in 0..10 {
@@ -646,18 +653,30 @@ fn a_write_goes_through_at_idle() {
 }
 
 #[test]
-fn a_write_is_not_refused_for_rpm_when_there_is_nothing_to_read_it_from() {
-    // No sample has ever been taken, so there is nothing to read RPM off at all. This must not
-    // be mistaken for "the engine is running", or every write over a fresh connection would be
-    // refused.
+fn a_hosts_word_that_there_is_no_live_session_does_not_get_a_write_past_the_engine_speed_gate() {
+    // The writer only gets this far with a controller connected, and a connected controller may be
+    // running whatever the host's label says. "No session" is refused exactly like "unknown".
     let rig = armed_rig("rpm-none");
     rig.host.set_rpm(None);
 
+    let one = rig
+        .writer
+        .set_setting("crankingRPM", 310.0, "small nudge", false)
+        .expect("refused");
+    assert_eq!(one.reason, "the engine speed is not known");
     assert!(
         rig.writer
-            .set_setting("crankingRPM", 310.0, "small nudge", false)
-            .is_none()
+            .set_table_cell("VE Table", 0, 0, 5.0, "c", false)
+            .refusal
+            .is_some()
     );
+    assert!(
+        rig.writer
+            .apply_tune(&[setting("crankingRPM", 310.0)], &[], "b", false)
+            .refusal
+            .is_some()
+    );
+    assert!(rig.board.writes().is_empty());
 }
 
 #[test]
@@ -821,7 +840,7 @@ fn proposing_a_table_cell_reports_the_difference_against_the_live_table() {
 #[test]
 fn proposing_with_no_tune_says_so() {
     let rig = rig("propose-none");
-    rig.writer.set_tune(None);
+    set_tune(&rig.writer, None);
 
     let result = rig.writer.propose_tune(&[setting("crankingRPM", 1.0)], &[]);
 
@@ -1002,7 +1021,7 @@ fn staging_with_proposed_changes_stages_the_hypothetical_tune_not_the_live_one()
 #[test]
 fn staging_with_no_tune_in_hand_is_refused_rather_than_writing_an_empty_file() {
     let rig = rig("stage-none");
-    rig.writer.set_tune(None);
+    set_tune(&rig.writer, None);
 
     let result = rig.writer.stage_tune(&[], &[], "");
 
@@ -1118,10 +1137,13 @@ fn the_tune_is_read_by_name_and_a_placeholder_reads_as_nothing() {
     );
     assert_eq!(full.tables.len(), 2);
 
-    rig.writer.set_tune(Some(TuneInHand {
-        placeholder: true,
-        ..tune_in_hand(&rig.board)
-    }));
+    set_tune(
+        &rig.writer,
+        Some(TuneInHand {
+            placeholder: true,
+            ..tune_in_hand(&rig.board)
+        }),
+    );
     assert!(rig.writer.tune_values().is_empty());
     assert!(rig.writer.tune_full().settings.is_empty());
 }

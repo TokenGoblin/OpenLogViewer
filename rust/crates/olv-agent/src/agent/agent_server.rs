@@ -413,7 +413,7 @@ fn serve(shared: &Arc<Shared>, stream: &mut TcpStream) {
         let reply = Reply::refuse(
             401,
             "unauthorised",
-            "Pass the token as an Authorization: Bearer header, or ?token=",
+            "Pass the token as an Authorization: Bearer header.",
         );
         let _ = http::respond_json(stream, reply.status, &reply.body);
         return;

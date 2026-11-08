@@ -20,6 +20,9 @@ struct State {
     /// Every accepted payload: offset and length.
     writes: Vec<(usize, usize)>,
     sent: Vec<Vec<u8>>,
+    /// Once this many payloads have been accepted, refuse the next `refusals_left` of them.
+    refuse_after: usize,
+    refusals_left: usize,
 }
 
 #[derive(Clone)]
@@ -33,7 +36,16 @@ impl FakeMaxx {
             expecting: None,
             writes: Vec::new(),
             sent: Vec::new(),
+            refuse_after: usize::MAX,
+            refusals_left: 0,
         })))
+    }
+
+    /// After `accepted` payloads have landed, answer the next `times` with a refusal.
+    pub fn refuse_payloads_after(&self, accepted: usize, times: usize) {
+        let mut s = self.0.lock().unwrap();
+        s.refuse_after = accepted;
+        s.refusals_left = times;
     }
 
     pub fn tune(&self) -> Vec<u8> {
@@ -65,6 +77,12 @@ impl EcuTransport for FakeMaxx {
         s.sent.push(data.to_vec());
 
         if let Some((offset, length)) = s.expecting.take() {
+            if s.writes.len() >= s.refuse_after && s.refusals_left > 0 {
+                s.refusals_left -= 1;
+                s.reply = vec![0x30];
+                return Ok(());
+            }
+
             let sent = u32::from_le_bytes(data[length..length + 4].try_into().unwrap());
 
             if sent == maxx_protocol::crc32(&data[..length]) {

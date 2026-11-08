@@ -50,6 +50,11 @@ struct Case {
 /// Requests the C# answers 200 that this server refuses with 403, on purpose.
 const REFUSED_HERE: [&str; 2] = ["host other", "origin foreign"];
 
+/// The 401 text the C# sends invites `?token=` on any route. Here only the stream takes it, so the
+/// text no longer says so; every 401 body differs by exactly this (intended divergence).
+const C_SHARP_401: &str = "Pass the token as an Authorization: Bearer header, or ?token=";
+const HERE_401: &str = "Pass the token as an Authorization: Bearer header.";
+
 /// Requests the C# answers 200 on the strength of a token in the query string, which only the live
 /// stream accepts here: refused with 401 (intended divergence, review item 7).
 const QUERY_TOKEN_REFUSED: [&str; 2] = ["token in query", "bad header good query"];
@@ -145,8 +150,9 @@ fn every_answer_is_the_one_the_csharp_server_gave() {
                 got.content_type, case.content_type
             ));
         }
-        if got.body != case.response && !wording.contains(case.name.as_str()) {
-            problems.push(format!("body\n   ours: {}\n   C#:   {}", got.body, case.response));
+        let expected = case.response.replace(C_SHARP_401, HERE_401);
+        if got.body != expected && !wording.contains(case.name.as_str()) {
+            problems.push(format!("body\n   ours: {}\n   C#:   {}", got.body, expected));
         }
         if bench.calls() != case.calls {
             problems.push(format!(

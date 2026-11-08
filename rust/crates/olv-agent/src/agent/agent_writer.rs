@@ -44,11 +44,12 @@
 //! snapshot swapped in after each change, so a screen reading the tune never waits on a write to
 //! the device.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
+use olv_core::Error;
 use olv_core::analysis::csv_export;
 use olv_core::base::safe_folder::SafeFolderError;
 use olv_core::definitions::dangerous_constants;
@@ -67,6 +68,7 @@ use olv_live::live::maxx_tune::{self, MAXIMUM_WRITE, MaxxTable, MaxxWriteStatus,
 use olv_live::live::maxx_tune_definitions::MaxxSettingDefinition;
 use olv_live::live::maxx_usb_source::MaxxUsbSource;
 use olv_store::store::workspace::Workspace;
+use sha2::{Digest, Sha256};
 
 use super::agent_api::{
     AgentCellWrite, AgentDefinitionImported, AgentLimits, AgentRefusal, AgentSetting, AgentStageResult,
@@ -117,12 +119,28 @@ pub const MAGNITUDE_FRACTION: f64 = 0.5;
 /// What the live session knows about engine speed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RpmReading {
-    /// There is no live session and none can exist (nothing is connected that polls).
+    /// The host says there is no live session. **The writer does not take its word for it**: a
+    /// controller is connected whenever a write gets this far, and a connected controller may be
+    /// running whatever the host's label says, so this is refused exactly like [`Unknown`](Self::Unknown).
     NoSession,
     /// A session exists but has no engine speed: no sample yet, or no engine-speed channel.
     Unknown,
     /// The latest engine speed and how long ago it was sampled.
     Sample { rpm: f64, age: Duration },
+}
+
+/// A firmware definition an agent staged, put to the person.
+#[derive(Clone, Debug)]
+pub struct DefinitionImportRequest<'a> {
+    pub name: &'a str,
+    /// What the file declares itself to be.
+    pub signature: &'a str,
+    pub source: &'a str,
+    /// SHA-256 of the staged file, lower-case hex; what a yes is a yes to.
+    pub sha256: &'a str,
+    /// True when there was no ECU identity to check the file's signature against, so nothing says
+    /// it is for the controller that is connected. A yes then means the person accepts that.
+    pub unverified: bool,
 }
 
 /// What the application tells the writer that only it knows.
@@ -136,8 +154,10 @@ pub trait WriterHost: Send + Sync {
     fn human_unsent_pages(&self) -> BTreeSet<i32>;
 
     /// Asks the person whether a firmware definition an agent staged may be installed. Only the
-    /// person's yes installs it; the writer never answers this itself.
-    fn confirm_definition_import(&self, name: &str, signature: &str, source: &str) -> bool;
+    /// person's yes installs it; the writer never answers this itself. The request carries the
+    /// SHA-256 of the staged file, which is the only file the writer will install: if its bytes
+    /// differ when the answer comes back, nothing is installed.
+    fn confirm_definition_import(&self, request: &DefinitionImportRequest<'_>) -> bool;
 
     /// Keeps the tune now in hand as a version of the open project, best effort: a successful
     /// write to the ECU must never be reported as failed because there was nowhere to record it.
@@ -192,6 +212,13 @@ struct Inner {
     batches_in_flight: u32,
     /// Bytes sent so far by the batch in flight.
     batch_bytes: usize,
+    /// Counts connects and disconnects; a tune carries the one it was read after.
+    generation: u64,
+    /// The signature the connected controller reported; a tune must declare the same.
+    signature: String,
+    /// Pages a write may have partly reached. The held copy of them cannot be trusted until the
+    /// tune is read again.
+    stale_pages: BTreeSet<i32>,
 }
 
 /// What a run of device writes came to.
@@ -208,6 +235,8 @@ pub struct AgentWriter {
     /// device.
     snapshot: RwLock<Option<Arc<TuneInHand>>>,
     pages_written: Mutex<BTreeSet<i32>>,
+    /// One definition import at a time, from staging to install.
+    import_lock: Mutex<()>,
     workspace: Workspace,
     host: Arc<dyn WriterHost>,
     window: Duration,
@@ -231,9 +260,13 @@ impl AgentWriter {
                 recent_writes: Vec::new(),
                 batches_in_flight: 0,
                 batch_bytes: 0,
+                generation: 0,
+                signature: String::new(),
+                stale_pages: BTreeSet::new(),
             }),
             snapshot: RwLock::new(None),
             pages_written: Mutex::new(BTreeSet::new()),
+            import_lock: Mutex::new(()),
             workspace,
             host,
             window,
@@ -276,22 +309,32 @@ impl AgentWriter {
         self.armed.store(armed, Ordering::SeqCst);
     }
 
-    /// A controller is connected: the only place bytes can go.
+    /// A controller is connected, and says its firmware is `signature`: the only place bytes can go.
     ///
     /// Disarms, and forgets the tune: a permission granted for the bench engine must not still be
     /// granted when the next thing plugged in is a car, and a tune read from the last controller
     /// says nothing about this one. Every write is refused until [`set_tune`](Self::set_tune)
     /// supplies a tune read after this call, and the person arms again.
-    pub fn connect(&self, target: EcuTarget) {
+    ///
+    /// Returns the generation of this connection. A tune read before a later connect or disconnect
+    /// carries an older one and is ignored, so a slow read that finishes after the controller has
+    /// changed cannot put its tune in front of the new one.
+    pub fn connect(&self, target: EcuTarget, signature: &str) -> u64 {
         self.set_armed(false);
 
         let mut inner = self.lock();
+        inner.generation += 1;
         inner.target = Some(target);
+        inner.signature = signature.trim().to_string();
         inner.tune = None;
+        inner.stale_pages.clear();
         self.publish(&inner);
+        let generation = inner.generation;
         drop(inner);
 
         self.pages_written.lock().unwrap_or_else(|p| p.into_inner()).clear();
+
+        generation
     }
 
     /// The controller is gone. Disarms and forgets the tune, as [`connect`](Self::connect) does.
@@ -299,19 +342,61 @@ impl AgentWriter {
         self.set_armed(false);
 
         let mut inner = self.lock();
+        inner.generation += 1;
         inner.target = None;
+        inner.signature.clear();
         inner.tune = None;
+        inner.stale_pages.clear();
         self.publish(&inner);
         drop(inner);
 
         self.pages_written.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
-    /// The tune now in hand (or none), read after the most recent connect.
-    pub fn set_tune(&self, tune: Option<TuneInHand>) {
+    /// The generation of the connection now in force (see [`connect`](Self::connect)).
+    pub fn generation(&self) -> u64 {
+        self.lock().generation
+    }
+
+    /// The tune read after the connect that returned `generation`, or none.
+    ///
+    /// Ignored, with a note on stderr, and `false` returned, if `generation` is not the current
+    /// one (the controller has changed since the read began), or if the tune declares a firmware
+    /// other than the connected controller reported. Accepting one clears what a failed write left
+    /// in doubt: this is the re-read.
+    pub fn set_tune(&self, generation: u64, tune: Option<TuneInHand>) -> bool {
         let mut inner = self.lock();
+
+        if generation != inner.generation {
+            eprintln!(
+                "olv-agent: ignored a tune read for connection {generation}; connection {} is in force",
+                inner.generation
+            );
+            return false;
+        }
+
+        if let Some(held) = &tune
+            && inner.target.is_some()
+            && !eq_ignore_case(held.signature.trim(), &inner.signature)
+        {
+            eprintln!(
+                "olv-agent: ignored a tune for \"{}\"; the connected controller reported \"{}\"",
+                held.signature, inner.signature
+            );
+            return false;
+        }
+
         inner.tune = tune;
+        inner.stale_pages.clear();
         self.publish(&inner);
+
+        true
+    }
+
+    /// Pages a failed write may have partly reached, which agent writes are refused until the tune
+    /// is read again.
+    pub fn stale_pages(&self) -> Vec<i32> {
+        self.lock().stale_pages.iter().copied().collect()
     }
 
     /// The setting definitions MTune declares, for the overlap warning on a MaxxECU table write.
@@ -503,6 +588,10 @@ impl AgentWriter {
             return Some(dangerous);
         }
 
+        if let Some(driver) = scale_driver_refusal(held, name) {
+            return Some(driver);
+        }
+
         // Where the controller was before the call, not after whatever an earlier item of the same
         // batch moved it to: two half-steps in one batch are one whole step.
         let origin = baseline.unwrap_or(&held.tune);
@@ -537,7 +626,17 @@ impl AgentWriter {
             return Some(clash);
         }
 
-        let sent = self.send_all(inner, &writes);
+        if let Some(stale) = stale_refusal(inner, &writes) {
+            return Some(stale);
+        }
+
+        if matches!(inner.target, Some(EcuTarget::Maxx(_)))
+            && let Some(shared) = table_overlap_refusal(&inner.maxx_tables, &writes)
+        {
+            return Some(shared);
+        }
+
+        let sent = self.send_all(inner, &writes, false);
 
         match sent.error {
             None => None,
@@ -637,6 +736,10 @@ impl AgentWriter {
             return AgentCellWrite::refused(dangerous);
         }
 
+        if let Some(driver) = constant.as_ref().and_then(|c| scale_driver_refusal(held, &c.name)) {
+            return AgentCellWrite::refused(driver);
+        }
+
         // The cell as it was before the call (for a batch, before the batch).
         let before = match baseline {
             Some(origin) => baseline_cell(held, origin, &table, column, row),
@@ -687,10 +790,27 @@ impl AgentWriter {
             return AgentCellWrite::refused(clash);
         }
 
-        let sent = self.send_all(inner, &writes);
+        if let Some(stale) = stale_refusal(inner, &writes) {
+            return AgentCellWrite::refused(stale);
+        }
+
+        // A MaxxECU table is its cells and then the checksum, in that order. If the cells land and
+        // the checksum does not, the ECU holds a table it distrusts, so the checksum is tried
+        // twice.
+        let maxx = matches!(inner.target, Some(EcuTarget::Maxx(_)));
+        let sent = self.send_all(inner, &writes, maxx);
 
         match sent.error {
             None => AgentCellWrite::landed(landed, warning),
+            Some(message) if maxx && sent.done > 0 => AgentCellWrite::refused(AgentRefusal::new(
+                "the table's checksum is now invalid",
+                format!(
+                    "The cell was written to the MaxxECU but the table's checksum was not (${message}), so the ECU now \
+                     holds a table whose checksum does not match its cells and will read it as nought until the \
+                     checksum is written. There is no burn and no undo. Send the same cell again to write the \
+                     checksum, and do not run the engine until a read of the table shows it is right."
+                ),
+            )),
             Some(message) => AgentCellWrite::refused(AgentRefusal::new(
                 "the write did not go through",
                 format!("The write failed: {message}"),
@@ -755,12 +875,12 @@ impl AgentWriter {
     /// **Fails closed.** The C# let a write through when RPM could not be found, reasoning that the
     /// other gates keep a write off anything that is not a live controller. But a connected
     /// controller whose RPM channel is missing, stalled or stale is exactly one that may be
-    /// running, so an unknown, non-finite or old reading refuses. Only [`RpmReading::NoSession`],
-    /// where no live session can exist, passes without a number.
+    /// running, so an unknown, non-finite or old reading refuses, and so does the host's claim that there
+    /// is no session at all (the writer only gets here with a controller connected). Nothing
+    /// passes without a fresh number.
     fn running_above_idle_refusal(&self) -> Option<AgentRefusal> {
         match self.host.live_rpm() {
-            RpmReading::NoSession => None,
-            RpmReading::Unknown => Some(AgentRefusal::new(
+            RpmReading::NoSession | RpmReading::Unknown => Some(AgentRefusal::new(
                 "the engine speed is not known",
                 "Writes are refused while the engine speed cannot be read, because the engine may be \
                  running. Wait for the live session to report it, or stop the engine.",
@@ -869,7 +989,7 @@ impl AgentWriter {
     /// Sends the planned writes, in order, to the controller. **The only place an agent's bytes
     /// leave.** Each device write is counted against the rate limit as it is attempted. Stops at the
     /// first failure and says how far it got.
-    fn send_all(&self, inner: &mut Inner, writes: &[TuneWrite]) -> Sent {
+    fn send_all(&self, inner: &mut Inner, writes: &[TuneWrite], retry_last: bool) -> Sent {
         let fail = |message: String| Sent {
             done: 0,
             bytes: 0,
@@ -899,10 +1019,51 @@ impl AgentWriter {
         let (mut done, mut bytes) = (0, 0);
 
         for write in writes {
-            inner.recent_writes.push(Instant::now());
-            if inner.recent_writes.len() > 1000 {
-                let excess = inner.recent_writes.len() - 1000;
-                inner.recent_writes.drain(..excess);
+            // The last piece of a MaxxECU table is its checksum. The cells before it have landed for
+            // good, so a second try is worth making before saying the table is left invalid.
+            let tries = if retry_last && done > 0 && done + 1 == writes.len() {
+                2
+            } else {
+                1
+            };
+            let mut result = Ok(());
+
+            for _ in 0..tries {
+                inner.recent_writes.push(Instant::now());
+                if inner.recent_writes.len() > 1000 {
+                    let excess = inner.recent_writes.len() - 1000;
+                    inner.recent_writes.drain(..excess);
+                }
+
+                let Some(held) = inner.tune.as_ref() else {
+                    return Sent {
+                        done,
+                        bytes,
+                        error: Some("No tune has been read.".to_string()),
+                    };
+                };
+
+                result = match &target {
+                    EcuTarget::Maxx(source) => send_to_maxx(source, write),
+                    EcuTarget::Pages(connection) => send_to_page(connection, &held.tune, write),
+                };
+
+                if result.is_ok() {
+                    break;
+                }
+            }
+
+            if let Err(failure) = result {
+                // What may have partly landed cannot be trusted in the held copy until it is read.
+                if failure.maybe_landed {
+                    inner.stale_pages.insert(write.page);
+                }
+
+                return Sent {
+                    done,
+                    bytes,
+                    error: Some(failure.message),
+                };
             }
 
             let Some(held) = inner.tune.as_mut() else {
@@ -912,19 +1073,6 @@ impl AgentWriter {
                     error: Some("No tune has been read.".to_string()),
                 };
             };
-
-            let outcome = match &target {
-                EcuTarget::Maxx(source) => send_to_maxx(source, write),
-                EcuTarget::Pages(connection) => send_to_page(connection, &held.tune, write),
-            };
-
-            if let Err(message) = outcome {
-                return Sent {
-                    done,
-                    bytes,
-                    error: Some(message),
-                };
-            }
 
             // The copy held here has to move with the controller, or the next read-modify-write
             // is against stale bytes.
@@ -1041,7 +1189,15 @@ impl AgentWriter {
 
         // The batch needs room in the window for the writes it will make.
         self.prune(inner);
-        if inner.recent_writes.len() + items > RATE_LIMIT_COUNT {
+        // Counted in device writes, not items: on a MaxxECU a cell is two (the cell and the table's
+        // checksum).
+        let per_cell = if matches!(inner.target, Some(EcuTarget::Maxx(_))) {
+            2
+        } else {
+            1
+        };
+        let device_writes = settings.len() + cells.len() * per_cell;
+        if inner.recent_writes.len() + device_writes > RATE_LIMIT_COUNT {
             return TuneApplyResult::refused(self.too_many(inner));
         }
 
@@ -1267,8 +1423,18 @@ impl AgentWriter {
     /// names are dangerous and how a write is sent. Letting an agent install one is letting it
     /// rewrite the gates in front of it. So this validates the file exactly as a person's import
     /// would (it must declare the signature the ECU reported, `identity`) and keeps it in the
-    /// staging folder; it reaches the definitions folder only if [`WriterHost::confirm_definition_import`]
-    /// returns true, which is the person's answer and never the writer's.
+    /// staging folder; it reaches the definitions folder only if
+    /// [`WriterHost::confirm_definition_import`] returns true, which is the person's answer and
+    /// never the writer's.
+    ///
+    /// - One import at a time holds a lock from staging to install, so two cannot swap files under
+    ///   each other.
+    /// - The person is shown the SHA-256 of the staged file, and what is installed is those bytes
+    ///   and only those: a file that has changed on disk since is refused.
+    /// - With no ECU `identity` there is nothing to check the signature against; the request says
+    ///   so (`unverified`) and a yes then means the person accepts that.
+    /// - `path` names a file in the staging folder or it names nothing: any other path gets one
+    ///   answer, whether or not the file exists, so this cannot be used to look around the disk.
     ///
     /// Either way nothing changes in how writes are judged: the held tune keeps the layout it was
     /// read with until the next connect.
@@ -1280,6 +1446,8 @@ impl AgentWriter {
         name: &str,
         identity: &[String],
     ) -> AgentDefinitionImported {
+        let _one_at_a_time = self.import_lock.lock().unwrap_or_else(|p| p.into_inner());
+
         let refuse = |problem: String| AgentDefinitionImported {
             problem,
             path: String::new(),
@@ -1288,8 +1456,23 @@ impl AgentWriter {
             source: source.to_string(),
         };
 
-        let staging = self.workspace.staging().join("definitions");
+        let staging_root = self.workspace.staging();
+        let staging = staging_root.join("definitions");
         let staging_text = staging.to_string_lossy().into_owned();
+
+        if !path.is_empty() {
+            let inside = std::fs::canonicalize(path)
+                .ok()
+                .zip(std::fs::canonicalize(&staging_root).ok())
+                .is_some_and(|(file, root)| file.starts_with(root));
+
+            if !inside {
+                return refuse(format!(
+                    "Only a file inside {} can be imported by path. Save it there, or pass its content.",
+                    staging_root.display()
+                ));
+            }
+        }
 
         let staged = if path.is_empty() {
             definition_import::keep(content, &staging_text, identity, source, name)
@@ -1307,16 +1490,35 @@ impl AgentWriter {
             return refuse("it could not be checked".to_string());
         };
 
-        if !self
-            .host
-            .confirm_definition_import(&provenance.name, &provenance.signature, &provenance.source)
-        {
+        let Ok(bytes) = std::fs::read(&staged.path) else {
+            return refuse("the staged file could not be read back".to_string());
+        };
+        let digest = sha256_hex(&bytes);
+
+        let confirmed = self.host.confirm_definition_import(&DefinitionImportRequest {
+            name: &provenance.name,
+            signature: &provenance.signature,
+            source: &provenance.source,
+            sha256: &digest,
+            unverified: identity.is_empty(),
+        });
+
+        if !confirmed {
             return refuse(format!(
-                "it passed the checks and is staged at {}, but a definition decides how every byte of the \
-                 engine is read and written, so a person has to install it from the application. Nothing \
-                 was installed.",
+                "it passed the checks and is staged at {} (SHA-256 {digest}), but a definition decides how \
+                 every byte of the engine is read and written, so a person has to install it from the \
+                 application. Nothing was installed.",
                 staged.path
             ));
+        }
+
+        // Exactly the bytes that were shown: read again, and compared, before anything is kept.
+        let Ok(again) = std::fs::read(&staged.path) else {
+            return refuse("the staged file could not be read back".to_string());
+        };
+
+        if sha256_hex(&again) != digest {
+            return refuse("the staged file changed after it was shown to you, so nothing was installed.".to_string());
         }
 
         let folder = match self.workspace.ensure_definitions(Some(identity)) {
@@ -1324,7 +1526,10 @@ impl AgentWriter {
             Err(e) => return refuse(e.to_string()),
         };
 
-        match definition_import::keep_file(&staged.path, &folder, identity, source, name) {
+        // Definitions are written and read as Latin-1; one byte, one character.
+        let text: String = again.iter().map(|b| char::from(*b)).collect();
+
+        match definition_import::keep(&text, &folder, identity, source, &provenance.name) {
             Ok(done) if done.accepted() => {
                 let kept = done.provenance.unwrap_or(provenance);
 
@@ -1340,6 +1545,160 @@ impl AgentWriter {
             Err(e) => refuse(e.to_string()),
         }
     }
+}
+
+/// Lower-case hex SHA-256.
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Why a write failed and whether it may have reached the controller anyway.
+#[derive(Debug)]
+#[doc(hidden)]
+pub struct Failure {
+    pub message: String,
+    pub maybe_landed: bool,
+}
+
+impl Failure {
+    /// Refused or never sent: nothing of it is on the controller.
+    fn clean(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            maybe_landed: false,
+        }
+    }
+
+    /// Could be anywhere between "not at all" and "all of it".
+    fn doubtful(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            maybe_landed: true,
+        }
+    }
+}
+
+/// Refuses a write to a page a failed write may have partly reached: what the writer holds of it
+/// is not known to be what the controller holds, so the next write would be worked out from a
+/// guess. Reading the tune again (`set_tune`) clears it.
+fn stale_refusal(inner: &Inner, writes: &[TuneWrite]) -> Option<AgentRefusal> {
+    let pages: BTreeSet<i32> = writes
+        .iter()
+        .map(|w| w.page)
+        .filter(|p| inner.stale_pages.contains(p))
+        .collect();
+
+    if pages.is_empty() {
+        return None;
+    }
+
+    let list = pages.iter().map(i32::to_string).collect::<Vec<_>>().join(", ");
+
+    Some(AgentRefusal::new(
+        "that page needs reading again",
+        format!(
+            "An earlier write to page {list} may have partly reached the controller, so what is held of it \
+             cannot be trusted. Ask the person to read the tune from the ECU again before writing there."
+        ),
+    ))
+}
+
+/// Refuses a MaxxECU write whose bytes fall inside a table's cells or its checksum, unless it is
+/// that table's own write (which goes through `plan_maxx_table`, with the checksum recomputed): a
+/// setting that overlaps a table changes cells the checksum covers and leaves it wrong, and the ECU
+/// then reads the whole table as nought.
+fn table_overlap_refusal(tables: &[MaxxTable], writes: &[TuneWrite]) -> Option<AgentRefusal> {
+    for write in writes {
+        let start = i64::from(write.offset);
+        let end = start + write.data.len() as i64;
+
+        for table in tables {
+            // The byte in front of the grid is covered by the checksum too; the checksum follows.
+            let from = table.cells_at as i64 - 1;
+            let to = (table.cells_at + table.columns * table.rows * 2 + 4) as i64;
+
+            if start < to && end > from {
+                return Some(AgentRefusal::new(
+                    "that setting shares bytes with a table",
+                    format!(
+                        "The write would land inside the table \"{}\" (or its checksum), which would leave the \
+                         checksum wrong. Change the table through its own cells.",
+                        table.name
+                    ),
+                ));
+            }
+        }
+    }
+
+    None
+}
+
+/// The names that stand for a value another constant is scaled or offset by, directly in its
+/// scale or translate expression, or through a value the firmware derives (Speeduino scales every
+/// load axis by `{fuelLoadRes}`, which is itself worked out from the `algorithm` setting).
+fn scale_drivers(layout: &olv_core::ini::tune_layout::TuneLayout) -> HashSet<String> {
+    fn words(expression: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut current = String::new();
+
+        for c in expression.chars().chain(std::iter::once(' ')) {
+            if c.is_alphanumeric() || c == '_' {
+                current.push(c);
+            } else if !current.is_empty() {
+                if !current.starts_with(|d: char| d.is_ascii_digit()) {
+                    found.push(current.to_lowercase());
+                }
+                current.clear();
+            }
+        }
+
+        found
+    }
+
+    let mut drivers: HashSet<String> = HashSet::new();
+    let mut queue: Vec<String> = layout
+        .constants
+        .iter()
+        .chain(&layout.pc_variables)
+        .flat_map(|c| [c.scale_expression.as_str(), c.transform_expression.as_str()])
+        .filter(|e| !e.is_empty())
+        .flat_map(words)
+        .collect();
+
+    while let Some(word) = queue.pop() {
+        if !drivers.insert(word.clone()) {
+            continue;
+        }
+
+        // A derived value stands for what it is worked out from.
+        if let Some(expression) = layout
+            .derived
+            .iter()
+            .find(|(k, _)| k.to_lowercase() == word)
+            .map(|(_, v)| v)
+        {
+            queue.extend(words(expression));
+        }
+    }
+
+    drivers
+}
+
+/// Refuses an agent write to a constant that other constants are scaled by: a small step there
+/// rescales whole tables, and every cell then means something else. Not a matter of confirming; an
+/// agent does not change these.
+fn scale_driver_refusal(held: &TuneInHand, name: &str) -> Option<AgentRefusal> {
+    if name.is_empty() || !scale_drivers(held.tune.layout()).contains(&name.to_lowercase()) {
+        return None;
+    }
+
+    Some(AgentRefusal::new(
+        "this setting rescales other settings",
+        format!(
+            "\"{name}\" appears in the scale of other settings in this firmware, so changing it changes what \
+             every one of their values means, tables included. An agent may not change it; a person can."
+        ),
+    ))
 }
 
 /// Where a cell was before the call: read from the batch's baseline tune.
@@ -1519,17 +1878,20 @@ fn failure_text(target: Option<&EcuTarget>, sent: &Sent, total: usize, message: 
 }
 
 /// One write to a page-protocol controller: through the connection's read-back-and-verify.
-fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -> Result<(), String> {
+fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -> Result<(), Failure> {
     let layout = tune.layout();
 
     let page: &TunePage = layout
         .pages
         .iter()
         .find(|p| p.index == write.page)
-        .ok_or_else(|| format!("The firmware declares no page {}.", write.page))?;
+        .ok_or_else(|| Failure::clean(format!("The firmware declares no page {}.", write.page)))?;
 
     if page.chunk_write_command.is_empty() {
-        return Err(format!("This firmware declares no way to write page {}.", write.page));
+        return Err(Failure::clean(format!(
+            "This firmware declares no way to write page {}.",
+            write.page
+        )));
     }
 
     connection
@@ -1541,7 +1903,20 @@ fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -
             &write.data,
             layout.inter_write_delay,
         )
-        .map_err(|e| e.message())
+        .map_err(|e| {
+            // A controller that said no, or an argument refused before anything was sent, left
+            // nothing behind. Anything else (a lost acknowledgement, a failed read-back) may have.
+            if e.refused()
+                || matches!(
+                    e,
+                    olv_live::connection::ecu_connection::EcuError::Other(Error::Argument(_))
+                )
+            {
+                Failure::clean(e.message())
+            } else {
+                Failure::doubtful(e.message())
+            }
+        })
 }
 
 /// One write to a MaxxECU over USB, in pieces of at most [`MAXIMUM_WRITE`] bytes (all the ECU takes
@@ -1550,7 +1925,7 @@ fn send_to_page(connection: &EcuConnection, tune: &EcuTune, write: &TuneWrite) -
 /// answers Ok. The write ceiling is checked for the whole write before any piece is sent
 /// ([`maxx_ceiling_check`]) and again by `MaxxTune::write` for each piece.
 #[doc(hidden)]
-pub fn send_to_maxx(source: &MaxxUsbSource, write: &TuneWrite) -> Result<(), String> {
+pub fn send_to_maxx(source: &MaxxUsbSource, write: &TuneWrite) -> Result<(), Failure> {
     let mut at = 0;
 
     while at < write.data.len() {
@@ -1558,19 +1933,36 @@ pub fn send_to_maxx(source: &MaxxUsbSource, write: &TuneWrite) -> Result<(), Str
         let offset = write.offset + at as i32;
         let piece = &write.data[at..end];
 
-        let status = source.write_tune(offset, piece).map_err(|e| e.to_string())?;
+        let status = source.write_tune(offset, piece).map_err(|e| match e {
+            Error::Argument(_) => Failure::clean(e.to_string()),
+            other => Failure::doubtful(other.to_string()),
+        })?;
 
         if status != MaxxWriteStatus::Ok {
-            return Err(format!(
+            let message = format!(
                 "The MaxxECU answered \"{}\" for the write at offset {offset}.",
                 status_name(status)
-            ));
+            );
+
+            // Refused outright, or never sent, leaves nothing; an unknown answer may not.
+            return Err(match status {
+                MaxxWriteStatus::NoAnswer
+                | MaxxWriteStatus::UnknownCommand
+                | MaxxWriteStatus::OutOfRange
+                | MaxxWriteStatus::WriterBusy
+                | MaxxWriteStatus::ReaderBusy
+                | MaxxWriteStatus::FlashBusy => Failure::clean(message),
+                _ => Failure::doubtful(message),
+            });
         }
 
-        if !source.verify_tune(offset, piece).map_err(|e| e.to_string())? {
-            return Err(format!(
+        if !source
+            .verify_tune(offset, piece)
+            .map_err(|e| Failure::doubtful(e.to_string()))?
+        {
+            return Err(Failure::doubtful(format!(
                 "The MaxxECU took the write at offset {offset} but reads back something else now."
-            ));
+            )));
         }
 
         at = end;
