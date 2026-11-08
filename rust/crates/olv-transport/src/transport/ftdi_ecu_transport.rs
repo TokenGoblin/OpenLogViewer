@@ -11,17 +11,20 @@
 //! "MaxxECU" under the `FTDIBUS` service with no child port.
 //!
 //! The C# therefore went through FTDI's D2XX library (`ftd2xx.dll`), which is what MTune uses
-//! too. That DLL is a third-party C library and is not linked here. Instead, per OS:
+//! too. That DLL is a third-party C library: it is never linked at build time and never shipped.
+//! On Windows it is loaded at run time (see `d2xx.rs`); elsewhere, per OS:
 //!
 //! * **Linux and macOS**: the chip is driven directly over USB with `nusb`. [`protocol`] is
 //!   FTDI's vendor control requests (reset, purge, baud-rate divisor, line properties, flow
 //!   control, latency timer) as pure functions with byte-level tests, and the 2-byte modem
 //!   status header FTDI puts at the front of every IN packet is stripped. On Linux the kernel's
 //!   `ftdi_sio` driver is detached for the session (and returns when the device is released).
-//! * **Windows**: FTDI's driver owns the device and there is no way in through USB, so the
-//!   route is the virtual COM port the driver can expose, found in the serial port list by the
-//!   FTDI vendor/product id and opened through our own `SerialPort`. If no such port exists the error
-//!   says the FTDI VCP driver option is needed (the Windows INF for the MaxxECU does not
+//! * **Windows**: FTDI's driver owns the device and there is no way in through USB. The route is
+//!   FTDI's D2XX library, `ftd2xx.dll`, loaded at run time with `libloading` and called exactly
+//!   as the C# called it (`d2xx.rs`). If it will not load, the fall-back is the virtual COM port
+//!   the driver can expose, found in the serial port list by the FTDI vendor/product id and
+//!   opened through our own `SerialPort`. If neither exists the error says the library is missing
+//!   and the FTDI VCP driver option is needed (the Windows INF for the MaxxECU does not
 //!   create one; enabling "Load VCP" in the device's advanced driver properties, or installing
 //!   FTDI's CDM driver, does).
 //!
@@ -58,6 +61,9 @@ use olv_protocol::ms::ms_protocol::EcuTransport;
 
 use super::serial_ecu_transport::{SerialIo, list_system_ports, open_real_port_with};
 use super::serial_port::{PortInfo, PortType};
+
+#[cfg(any(windows, test))]
+mod d2xx;
 
 // ---------------------------------------------------------------------------------------------
 // Devices.
@@ -464,6 +470,12 @@ pub trait FtdiLink: Send {
 pub trait FtdiBackend: Send + Sync {
     fn devices(&self) -> Vec<FtdiDevice>;
 
+    /// Why no device can be listed at all, when that is because the means of reaching one is
+    /// missing (on Windows, FTDI's D2XX library): said instead of "no device is plugged in".
+    fn unavailable_reason(&self) -> Option<String> {
+        None
+    }
+
     /// Opens `device` at `baud_rate`, configured and purged, ready to read.
     fn open(&self, device: &FtdiDevice, baud_rate: u32, write_timeout: Duration) -> Result<Box<dyn FtdiLink>>;
 }
@@ -496,18 +508,19 @@ pub fn find_vcp_port(device: &FtdiDevice, ports: &[PortInfo]) -> Option<String> 
         .map(|(p, _)| p.port_name.clone())
 }
 
+fn vcp_missing_text(device: &FtdiDevice) -> String {
+    format!(
+        "{} is plugged in, but it has no virtual COM port. On Windows the FTDI driver owns \
+         the device and a COM port is the only way to reach it without FTDI's D2XX library, so \
+         the FTDI VCP driver option is needed: install FTDI's CDM driver, or in Device Manager \
+         open the device's Properties > Advanced and tick \"Load VCP\", then unplug and replug \
+         it. The MaxxECU driver package alone does not create one.",
+        device.label()
+    )
+}
+
 fn vcp_missing(device: &FtdiDevice) -> Error {
-    Error::Io(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!(
-            "{} is plugged in, but it has no virtual COM port. On Windows the FTDI driver owns \
-             the device and a COM port is the only way to reach it, so the FTDI VCP driver option \
-             is needed: install FTDI's CDM driver, or in Device Manager open the device's \
-             Properties > Advanced and tick \"Load VCP\", then unplug and replug it. The MaxxECU \
-             driver package alone does not create one.",
-            device.label()
-        ),
-    ))
+    Error::Io(io::Error::new(io::ErrorKind::NotFound, vcp_missing_text(device)))
 }
 
 /// The virtual-COM-port route: the FTDI device as an ordinary serial port.
@@ -850,22 +863,29 @@ mod usb_link {
 }
 
 /// The real machine: USB on Linux and macOS (with the virtual COM port as the fallback when
-/// the system's own driver holds the chip), the virtual COM port alone on Windows.
+/// the system's own driver holds the chip), D2XX then the virtual COM port on Windows.
 struct SystemBackend;
 
 impl FtdiBackend for SystemBackend {
     fn devices(&self) -> Vec<FtdiDevice> {
-        system_devices()
+        #[cfg(windows)]
+        {
+            d2xx::WindowsBackend::system().devices()
+        }
+        #[cfg(not(windows))]
+        {
+            system_devices()
+        }
     }
 
     #[cfg(windows)]
-    fn open(&self, device: &FtdiDevice, baud_rate: u32, _write_timeout: Duration) -> Result<Box<dyn FtdiLink>> {
-        ensure_maxx_ecu(device)?;
-        Ok(Box::new(vcp_link::VcpLink::open(
-            device,
-            &list_system_ports(),
-            baud_rate,
-        )?))
+    fn open(&self, device: &FtdiDevice, baud_rate: u32, write_timeout: Duration) -> Result<Box<dyn FtdiLink>> {
+        d2xx::WindowsBackend::system().open(device, baud_rate, write_timeout)
+    }
+
+    #[cfg(windows)]
+    fn unavailable_reason(&self) -> Option<String> {
+        d2xx::WindowsBackend::system().unavailable_reason()
     }
 
     #[cfg(not(windows))]
@@ -966,6 +986,11 @@ impl EcuTransport for FtdiEcuTransport {
         }
 
         let all = self.backend.devices();
+        if all.is_empty()
+            && let Some(reason) = self.backend.unavailable_reason()
+        {
+            return Err(Error::Io(io::Error::new(io::ErrorKind::NotFound, reason)));
+        }
         let device =
             choose_device(&all, &self.serial).map_err(|m| Error::Io(io::Error::new(io::ErrorKind::NotFound, m)))?;
 
@@ -1309,6 +1334,27 @@ mod tests {
             message,
             "No FTDI device with serial MX999 is plugged in. Present: FT232R USB UART (A50285BI), MaxxECU (MX000001)."
         );
+    }
+
+    #[test]
+    fn nothing_listed_because_the_library_is_missing_says_the_driver_is_not_installed() {
+        struct NoLibrary;
+        impl FtdiBackend for NoLibrary {
+            fn devices(&self) -> Vec<FtdiDevice> {
+                Vec::new()
+            }
+            fn open(&self, _: &FtdiDevice, _: u32, _: Duration) -> Result<Box<dyn FtdiLink>> {
+                unreachable!("nothing to open")
+            }
+            fn unavailable_reason(&self) -> Option<String> {
+                Some("The FTDI driver is not installed.".into())
+            }
+        }
+        let mut t = FtdiEcuTransport::with_backend("", 115_200, Arc::new(NoLibrary)).unwrap();
+        let Err(Error::Io(e)) = t.open() else {
+            panic!("expected an I/O error")
+        };
+        assert_eq!(e.to_string(), "The FTDI driver is not installed.");
     }
 
     #[test]

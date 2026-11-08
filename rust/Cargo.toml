@@ -51,6 +51,8 @@ objc2-core-bluetooth = "0.3"
 dispatch2 = "0.3"
 zbus = "5"
 winreg = "0.55"
+# Loads FTDI's ftd2xx.dll at run time on Windows (ISC). Never a -sys crate that links it.
+libloading = "0.9"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 
 [workspace.lints.rust]
