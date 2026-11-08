@@ -116,6 +116,28 @@ fn a_snapshot_is_reused_until_more_samples_arrive() {
 }
 
 #[test]
+fn a_snapshot_of_a_full_view_follows_the_samples_that_keep_arriving() {
+    // Defect fixed in the Rust: the snapshot was cached by sample count, which stops changing
+    // once the view is full, so a full view went stale for good.
+    let session = session(repeating(block(1000, 500)), settings(|s| s.maximum_samples = 3));
+
+    session.start().unwrap();
+    until(&session, 3);
+    let first = session.snapshot();
+    let first_end = first.time().at(first.sample_count() - 1);
+
+    wait_for(5.0, 10, || {
+        let now = session.snapshot();
+        now.time().at(now.sample_count() - 1) > first_end
+    });
+    session.stop();
+
+    let last = session.snapshot();
+    assert_eq!(last.sample_count(), 3);
+    assert!(last.time().at(2) > first_end, "the view went stale at {first_end}");
+}
+
+#[test]
 fn the_recording_reopens_as_a_log() {
     // A session that cannot be reopened is not much of a record.
     let mut temp = TempFiles::new();
@@ -403,6 +425,25 @@ fn a_link_that_never_comes_back_ends_the_session_with_a_reason() {
 
     assert!(!session.is_running());
     assert!(session.status().error.unwrap().contains("did not come back"));
+}
+
+#[test]
+fn stopping_while_reconnecting_is_not_reported_as_the_ecu_not_coming_back() {
+    // Defect fixed in the Rust: the stop cut the reconnect short and the session then claimed
+    // the ECU "did not come back within N seconds".
+    let transport = FlakyTransport::new(block(1000, 400));
+    let session = session(transport.clone(), recovering(30.0));
+
+    session.start().unwrap();
+    until(&session, 2);
+    transport.set_down(Some(Fault::Io("gone")));
+    wait_for(6.0, 10, || session.status().reconnecting);
+    assert!(session.status().reconnecting);
+
+    session.stop();
+
+    assert!(!session.is_running());
+    assert_eq!(session.status().error, None);
 }
 
 #[test]

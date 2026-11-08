@@ -662,3 +662,32 @@ fn tune_operations_are_serialised_against_the_poll() {
     );
     assert!(samples > 0, "the poll ran alongside");
 }
+
+// ----- 5. fixed defects of the C# ---------------------------------------------------------------
+
+/// Defect fixed in the Rust: if the drop counter would not answer when the analyzer opened, the C#
+/// never counted drops for the whole capture.
+#[test]
+fn a_drop_counter_that_answers_late_is_counted_from_when_it_does() {
+    use live_doubles::model::ModelEcu;
+    use olv_core::model::CanSource;
+    use olv_live::live::maxx_can_source::MaxxCanSource;
+
+    let ecu = ModelEcu::new();
+    let mut source = MaxxCanSource::new(MaxxUsbSource::new(Box::new(ecu.clone()), None).link(), false);
+
+    // The counter is not answered at open.
+    ecu.with(|s| s.silent_replies = 1);
+    source.open().unwrap();
+    assert_eq!(source.dropped(), None);
+
+    // The first read finds it and takes its value as the starting point.
+    ecu.with(|s| s.drop_counter = 100);
+    source.read().unwrap();
+    assert_eq!(source.dropped(), Some(0));
+
+    // After that, losses are counted.
+    ecu.with(|s| s.drop_counter = 107);
+    source.read().unwrap();
+    assert_eq!(source.dropped(), Some(7));
+}

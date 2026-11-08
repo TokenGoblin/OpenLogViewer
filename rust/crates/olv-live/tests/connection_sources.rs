@@ -196,6 +196,33 @@ fn an_address_that_never_answers_is_dropped_after_eight_silences_and_reported() 
 }
 
 #[test]
+fn a_source_with_every_parameter_dropped_reports_a_dead_link_and_recovers_when_the_car_returns() {
+    // Defect fixed in the Rust: once every address had been dropped the C# returned NaN rows
+    // with no error, so a dead link looked healthy for ever.
+    let car = FakeSubaru::new();
+    let mut source = connect_subaru(&car, template()).unwrap();
+    source.read().unwrap();
+
+    let memory = car.with(|s| std::mem::take(&mut s.memory));
+    for _ in 0..8 {
+        assert!(source.read().is_err());
+    }
+    assert_eq!(source.dropped().len(), source.parameters().len());
+
+    let e = source.read().unwrap_err();
+    assert!(
+        e.to_string().starts_with("Every SSM parameter has stopped answering"),
+        "{e}"
+    );
+
+    // The car comes back: a fresh link asks for them all again.
+    car.with(|s| s.memory = memory);
+    source.recover().unwrap();
+    assert!(source.dropped().is_empty());
+    assert!(source.read().unwrap()[0].is_finite());
+}
+
+#[test]
 fn a_dropped_link_is_recovered_by_reopening_resetting_and_proving_it_with_a_read() {
     let car = FakeSubaru::new();
     let mut source = connect_subaru(&car, template()).unwrap();

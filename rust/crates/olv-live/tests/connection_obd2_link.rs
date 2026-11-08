@@ -461,6 +461,35 @@ fn a_link_killed_by_batching_comes_back_without_it_rather_than_being_killed_agai
 }
 
 #[test]
+fn a_failed_proving_read_does_not_lose_the_suspicion_against_batching() {
+    // Defect fixed in the Rust: the proving read of a recovery runs with batching already
+    // switched off, and the wrapper that records a link's death wrote that post-reset value
+    // over the suspicion the recovery was keeping. A key still off when the link came back
+    // therefore threw away the only evidence against the adapter, as the C# did.
+    let car = car(BatchReply::All);
+    let wire = KilledByBatching {
+        inner: car.clone(),
+        dead: false,
+    };
+    let memory = Arc::new(Remembered::default());
+
+    let mut source = connect_remembering(wire, DONGLE, &memory);
+    assert!(matches!(source.read(), Err(Error::Protocol(_))));
+
+    // The link is back, but the car still answers nothing: the proving read fails.
+    let answers = car.with(|s| std::mem::take(&mut s.answers));
+    assert!(source.recover().is_err());
+    assert!(memory.recorded().is_empty(), "nothing was proved yet");
+
+    // Key on: the next recovery proves the link and must still remember what killed the last.
+    car.with(|s| s.answers = answers);
+    source.recover().unwrap();
+
+    assert_eq!(memory.recorded(), [DONGLE]);
+    assert!(!source.batching());
+}
+
+#[test]
 fn a_reconnection_that_followed_no_death_blames_nothing() {
     // Recover is public and is not only reached from a link that has died: a reconnection
     // can be asked for. Nothing was in flight, so there is nothing to draw a conclusion from,

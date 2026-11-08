@@ -175,7 +175,11 @@ struct Data {
     columns: Vec<Vec<f32>>,
     time: Vec<f64>,
     snapshot: Option<Arc<LogDocument>>,
-    snapshot_at: Option<usize>,
+    /// How many changes the store had seen when the snapshot was built.
+    snapshot_at: Option<u64>,
+    /// Counts every change to the samples. The snapshot is cached against this and not
+    /// against the sample count, which stops moving once the view is full.
+    generation: u64,
 }
 
 /// The open recording file, and where on the session's clock it began.
@@ -381,6 +385,7 @@ impl Inner {
         data.units = source.units().to_vec();
         data.digits = source.digits().to_vec();
         data.columns = data.names.iter().map(|_| Vec::new()).collect();
+        data.generation += 1;
     }
 
     fn status(&self) -> LiveSessionStatus {
@@ -467,6 +472,7 @@ impl Inner {
         for (column, value) in data.columns.iter_mut().zip(values) {
             column.push(*value as f32);
         }
+        data.generation += 1;
 
         // Trimmed from the front, so the view stays bounded on a long session while the
         // recording on disk keeps everything.
@@ -555,6 +561,12 @@ impl Inner {
 
                 if self.recover(source, cancel) {
                     continue;
+                }
+
+                // Stopped while the link was being won back: the person ended it, the ECU
+                // did not fail to return. (The C# reported "did not come back" anyway.)
+                if cancel.is_cancelled() {
+                    break;
                 }
 
                 *lock(&self.error) = Some(if self.settings.reconnect_for > Duration::ZERO {
@@ -1168,13 +1180,14 @@ impl LiveSession {
     ///
     /// Cached against the sample count: the plot asks for this on every repaint, and copying a
     /// few hundred columns each time for a document that has not changed would cost more than
-    /// drawing it. (As in the C#, the count stops moving once the view is full, so a full view
-    /// keeps handing back the snapshot it first built.)
+    /// drawing it. Cached against a change counter and not the count, which stops moving once
+    /// the view is full: the C# keyed on the count, so a full view kept handing back the
+    /// snapshot it first built.
     pub fn snapshot(&self) -> Arc<LogDocument> {
         let mut data = lock(&self.inner.data);
 
         if let Some(snapshot) = &data.snapshot
-            && data.snapshot_at == Some(data.time.len())
+            && data.snapshot_at == Some(data.generation)
         {
             return Arc::clone(snapshot);
         }
@@ -1190,7 +1203,7 @@ impl LiveSession {
             })
             .collect();
 
-        data.snapshot_at = Some(data.time.len());
+        data.snapshot_at = Some(data.generation);
 
         // The last recording rather than the current one, so stopping a recording does not
         // rename the document out from under the view.

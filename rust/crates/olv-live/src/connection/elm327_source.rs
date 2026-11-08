@@ -584,7 +584,12 @@ impl Elm327Source {
             // time anything is plainly wrong there is no link left to ask. What was in
             // flight is the only evidence there will ever be, and `recover` is where it is
             // weighed.
-            self.died_batching = self.batching;
+            //
+            // Only ever raised here, never lowered: a recovery that has switched batching
+            // off runs its proving read with it off, and writing that over the suspicion
+            // the recovery is keeping would lose the evidence the moment the read failed.
+            // (The C# overwrote it.)
+            self.died_batching |= self.batching;
 
             self.retries += 1;
 
@@ -945,7 +950,8 @@ impl LiveSource for Elm327Source {
 
         match self.read_round() {
             Err(e) if is_link_failure(&e) => {
-                self.died_batching = batching;
+                // Raised, not assigned: see `read_round`.
+                self.died_batching |= batching;
                 Err(e)
             }
             other => other,

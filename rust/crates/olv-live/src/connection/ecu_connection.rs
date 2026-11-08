@@ -159,8 +159,8 @@ pub struct EcuConnectionSettings {
     /// Extra attempts before a request is considered failed.
     pub retries: i32,
 
-    /// Settling time after a bad reply, so its tail does not corrupt the next.
-    /// (Declared by the C# and never read by it; kept so settings round-trip.)
+    /// Settling time after a bad reply, so its tail does not corrupt the next. Waited, after
+    /// the link has been drained, before each retry. (The C# declared it and never read it.)
     pub retry_pause: Duration,
 
     /// How long to keep draining a link before giving up on it going quiet.
@@ -1223,6 +1223,10 @@ impl Core {
 
                     if refused && !ask.retry_refusals {
                         break;
+                    }
+
+                    if attempt + 1 < tries {
+                        std::thread::sleep(self.settings.retry_pause);
                     }
                 }
             }

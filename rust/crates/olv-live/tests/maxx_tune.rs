@@ -1000,6 +1000,21 @@ fn a_refused_write_says_why() {
     }
 }
 
+/// Defect fixed in the Rust: the C# cast the ECU's byte to the enum, so an ECU that answered 0 or 1
+/// read as the *local* NoAnswer ("nothing was sent") or Uncertain ("it may have landed"). Those
+/// are made here when nothing comes back; an ECU that said 0 or 1 said something else.
+#[test]
+fn an_ecu_answering_zero_or_one_is_not_the_local_no_answer_or_uncertain() {
+    assert_eq!(MaxxWriteStatus::from_byte(0), MaxxWriteStatus::Other(0));
+    assert_eq!(MaxxWriteStatus::from_byte(1), MaxxWriteStatus::Other(1));
+    assert_ne!(MaxxWriteStatus::from_byte(1), MaxxWriteStatus::Uncertain);
+    assert_eq!(MaxxWriteStatus::from_byte(1).value(), 1);
+
+    // The values the local statuses carry are unchanged.
+    assert_eq!(MaxxWriteStatus::NoAnswer.value(), 0);
+    assert_eq!(MaxxWriteStatus::Uncertain.value(), 1);
+}
+
 /// A write past what the ECU accepts is refused here rather than sent.
 ///
 /// The ECU would answer 0x30 and nothing would happen, so this is not about safety on the wire: it is
