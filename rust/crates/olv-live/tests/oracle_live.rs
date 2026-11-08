@@ -322,7 +322,21 @@ fn every_write_scenario_sends_the_same_bytes_and_is_refused_in_the_same_places()
                     MaxxWriteStatus::Other(byte) => byte.to_string(),
                     other => format!("{other:?}"),
                 };
-                assert_eq!(Some(&named), c.status.as_ref(), "{}: status name", c.name);
+                // INTENDED DIVERGENCE (CSHARP-DEFECTS.md, MaxxUsbSource status): an ECU that
+                // answers a bare 0 or 1 is no longer read as the local NoAnswer / Uncertain.
+                // The value is the same; the name is "0" / "1", and the Rust-only test
+                // `an_ecu_answering_zero_or_one_is_not_the_local_no_answer_or_uncertain` pins it.
+                let diverges = matches!(c.name.as_str(), "status_zero" | "status_one");
+                if diverges {
+                    assert_eq!(
+                        Some(&named),
+                        c.status_value.map(|v| v.to_string()).as_ref(),
+                        "{}",
+                        c.name
+                    );
+                } else {
+                    assert_eq!(Some(&named), c.status.as_ref(), "{}: status name", c.name);
+                }
             }
             Err(error) => {
                 assert!(

@@ -99,11 +99,12 @@ impl<T: SniperCanTransport> SniperSession<T> {
                 // dst/src thereafter." Which field of the frame carries the node id is not
                 // given by the spec beyond "learn... from NODE-DISCOVERY frames".
                 //
-                // KNOWN-DEFECT: this reads the low 11 bits of the id, but every id in
-                // section 2 packs a node as `node << 3`, so the node is really
-                // `(can_id >> 3) & 0x7FF`. Found in hardware testing; ported as-is (see
-                // the ignored test `open_reads_the_node_from_bits_three_to_thirteen`).
-                self.dst_node = (frame.can_id & 0x7FF) as i32;
+                // Every id in section 2 packs a node as `node << 3`, so the node is
+                // `(can_id >> 3) & 0x7FF`. (The C# read `can_id & 0x7FF`, which keeps the
+                // three command bits below the node and so addressed the wrong node. Found
+                // in hardware testing 2026-09-19; fixed here. The bench must confirm the
+                // corrected read against a real ECU.)
+                self.dst_node = ((frame.can_id >> 3) & 0x7FF) as i32;
                 return Ok(());
             }
         }
@@ -276,23 +277,14 @@ mod tests {
         assert!(s.transport.sent[0].data.is_empty());
     }
 
-    /// Pins the behaviour the C# has today (see the KNOWN-DEFECT in `open`): the node is the
-    /// low 11 bits of the id, `node << 3 | 0x...4` read back without the shift.
+    /// Ids pack the node as `node << 3`, so a reply from node 5 gives `ecu_node() == 5`.
+    /// Hardware testing found the C# read `CanId & 0x7FF` and got `(5 << 3) | 4` instead.
     #[test]
-    fn open_reads_the_node_from_the_low_eleven_bits_as_the_csharp_does() {
-        let s = opened(5);
-        let id = sniper_can::simple_id(5, simple_command::NODE_ACK);
-        assert_eq!(s.ecu_node(), (id & 0x7FF) as i32);
-        assert_eq!(s.ecu_node(), 0x2C); // (5 << 3) | 4, not 5
-    }
-
-    /// The correct reading: ids pack the node as `node << 3`, so a reply from node 5 must
-    /// give `ecu_node() == 5`. Hardware testing found the C# gets this wrong.
-    #[test]
-    #[ignore = "KNOWN-DEFECT: the C# (and so this port) reads CanId & 0x7FF; the correct read is (CanId >> 3) & 0x7FF"]
     fn open_reads_the_node_from_bits_three_to_thirteen() {
         let s = opened(5);
         assert_eq!(s.ecu_node(), 5);
+        assert_eq!(opened(0).ecu_node(), 0);
+        assert_eq!(opened(0x7FF).ecu_node(), 0x7FF);
     }
 
     #[test]

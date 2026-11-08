@@ -197,12 +197,14 @@ impl TuningProject {
 
     /// Adds a version, or replaces the one with the same id.
     ///
-    /// The replacement is appended, so it moves to the end: `latest` and the parent of the next
-    /// version then follow whichever version was touched last. The C# does the same; see the
-    /// report.
+    /// A replacement keeps its place, so the list stays oldest first: `latest` and the parent of
+    /// the next version are the newest *recorded*, not the last one touched. (The C# moved the
+    /// replaced version to the end, so re-burning an old version made it "latest".)
     pub fn with_version(mut self, version: TuneVersion) -> Self {
-        self.versions.retain(|v| !eq_ignore_case(&v.id, &version.id));
-        self.versions.push(version);
+        match self.versions.iter().position(|v| eq_ignore_case(&v.id, &version.id)) {
+            Some(index) => self.versions[index] = version,
+            None => self.versions.push(version),
+        }
         self
     }
 
@@ -368,6 +370,23 @@ mod tests {
         }
 
         assert_eq!(project.next_version_id(), "v8");
+    }
+
+    // Defect fixed in the Rust: replacing a version moved it to the end of the list.
+    #[test]
+    fn replacing_a_version_keeps_its_place_so_latest_stays_the_newest() {
+        let mut old = TuneVersion::new("v1", "f1", "tunes/v1.msq");
+        let newer = TuneVersion::new("v2", "f2", "tunes/v2.msq");
+        let project = TuningProject::new("car").with_version(old.clone()).with_version(newer);
+
+        old.burned = true;
+        let project = project.with_version(old);
+
+        let ids: Vec<&str> = project.versions.iter().map(|v| v.id.as_str()).collect();
+        assert_eq!(ids, ["v1", "v2"]);
+        assert_eq!(project.latest().unwrap().id, "v2");
+        assert!(project.version("V1").unwrap().burned);
+        assert_eq!(project.next_version_id(), "v3");
     }
 
     #[test]

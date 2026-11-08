@@ -398,10 +398,14 @@ impl EcuTune {
     pub fn scalars(&self) -> IgnoreCaseMap<f64> {
         let mut values = IgnoreCaseMap::new();
 
-        for constant in &self.layout.constants {
-            if constant.is_array() {
+        for declared in &self.layout.constants {
+            if declared.is_array() {
                 continue;
             }
+            // The resolved constant, as `scalar` reads it: a scale written as an expression
+            // is worked out there, and the declared copy still has the fallback. (The C#
+            // read through the declared one, so the two could show different numbers.)
+            let constant = self.exact.get(&declared.name).map_or(declared, |c| &**c);
             if let Some(value) = self.value(constant, 0)
                 && !value.is_nan()
             {

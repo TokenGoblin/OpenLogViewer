@@ -118,19 +118,22 @@ pub enum MaxxWriteStatus {
     /// Refused: the flash path is busy (0x61).
     FlashBusy,
 
-    /// Any other byte the ECU answered, as the C#'s cast of an unnamed value to the enum.
+    /// Any other byte the ECU answered, including 0 and 1, which only the local statuses use.
     Other(u8),
 }
 
 impl MaxxWriteStatus {
-    /// The C#'s `(MaxxWriteStatus)byte`: the named value where there is one, the byte itself
-    /// where there is not. Note that 0 and 1 are the named *local* statuses, so an ECU that
-    /// answered a bare 0 or 1 reads as `NoAnswer` or `Uncertain`, exactly as in the C#.
+    /// The status an ECU answered with: the named value where there is one, the byte itself
+    /// where there is not.
+    ///
+    /// 0 and 1 are the *local* statuses [`NoAnswer`](Self::NoAnswer) and
+    /// [`Uncertain`](Self::Uncertain), made when nothing came back, and are never what an ECU
+    /// said. The C# cast the byte to the enum, so an ECU that answered a bare 0 or 1 read as
+    /// "nothing was sent, the tune is untouched" or "the write may have landed"; here they are
+    /// [`Other`](Self::Other), an unfamiliar answer, which is a refusal.
     pub fn from_byte(byte: u8) -> Self {
         match byte {
             0x80 => Self::Ok,
-            0 => Self::NoAnswer,
-            1 => Self::Uncertain,
             0x20 => Self::UnknownCommand,
             0x30 => Self::OutOfRange,
             0x40 => Self::WriterBusy,

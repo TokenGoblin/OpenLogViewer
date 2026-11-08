@@ -370,37 +370,58 @@ impl Parser {
 
         // Right-associative, as in maths: 2^3^2 is 2^9.
         if self.take("^") {
-            let right = self.parse_power()?;
-            Ok(Self::binary(BinaryOp::Pow, left, right))
+            self.enter()?;
+            let right = self.parse_power();
+            self.depth -= 1;
+            Ok(Self::binary(BinaryOp::Pow, left, right?))
         } else {
             Ok(left)
         }
     }
 
+    /// A run of prefix operators recurses once per operator, so it is counted like a bracket.
+    /// (The C# counted only brackets, so "-----...1" with enough minus signs overflowed the
+    /// stack; so did a long run of `!` or `^`.)
     fn parse_unary(&mut self) -> Parse<Node> {
-        if self.take("-") {
-            return Ok(Node::Negate(Box::new(self.parse_unary()?)));
+        let negate = self.take("-");
+        let not = !negate && self.take("!");
+        let plus = !negate && !not && self.take("+");
+        if !(negate || not || plus) {
+            return self.parse_primary();
         }
-        if self.take("!") {
-            return Ok(Node::Not(Box::new(self.parse_unary()?)));
+
+        self.enter()?;
+        let operand = self.parse_unary();
+        self.depth -= 1;
+        let operand = operand?;
+
+        Ok(if negate {
+            Node::Negate(Box::new(operand))
+        } else if not {
+            Node::Not(Box::new(operand))
+        } else {
+            operand
+        })
+    }
+
+    /// One more level of nesting, or the error that refuses it. The caller undoes it.
+    fn enter(&mut self) -> Parse<()> {
+        self.depth += 1;
+        if self.depth > MAXIMUM_DEPTH {
+            self.depth -= 1;
+            return Err(Self::error(
+                format!("The expression nests more than {MAXIMUM_DEPTH} levels deep."),
+                self.at,
+            ));
         }
-        if self.take("+") {
-            return self.parse_unary();
-        }
-        self.parse_primary()
+        Ok(())
     }
 
     /// Counted here because everything that recurses comes through it: a bracketed group, a
     /// function's arguments, the arms of a ternary. One place to count is one place to get
     /// right.
     fn parse_primary(&mut self) -> Parse<Node> {
-        self.depth += 1;
-        if self.depth > MAXIMUM_DEPTH {
-            return Err(Self::error(
-                format!("The expression nests more than {MAXIMUM_DEPTH} levels deep."),
-                self.at,
-            ));
-        }
+        self.enter()?;
 
         let result = self.parse_primary_inner();
         self.depth -= 1;
@@ -818,6 +839,33 @@ mod tests {
             (actual * scale).round(),
             "expected {expected}, got {actual}"
         );
+    }
+
+    // Defect fixed in the Rust: only bracket nesting was depth-limited, so a long run of
+    // prefix operators or `^` overflowed the stack (an abort nothing can catch).
+    #[test]
+    fn long_runs_of_prefix_operators_and_powers_are_refused_not_overflowed() {
+        let run = 100_000;
+        for text in [
+            format!("{}1", "-".repeat(run)),
+            format!("{}1", "!".repeat(run)),
+            format!("{}1", "+".repeat(run)),
+            format!("{}1", "-!".repeat(run)),
+            format!("1{}", "^1".repeat(run)),
+        ] {
+            let message = error_for(&text).expect("a hostile run must be a parse error");
+            assert!(message.contains("nests more than"), "{message}");
+        }
+        // Sensible use is untouched.
+        assert_eq!(eval("--1", &[]), 1.0);
+        assert_eq!(eval("2^3^2", &[]), 512.0);
+    }
+
+    // The C#'s `Math.Clamp` throws when min > max; the Rust yields an unknown sample.
+    #[test]
+    fn clamp_with_reversed_bounds_is_unknown_not_a_crash() {
+        assert!(eval("clamp(1, 5, 0)", &[]).is_nan());
+        assert_eq!(eval("clamp(9, 0, 5)", &[]), 5.0);
     }
 
     #[test]

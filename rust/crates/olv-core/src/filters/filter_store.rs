@@ -73,10 +73,13 @@ impl FilterStore {
         }
     }
 
-    /// Replaces every filter, keeping at most the limit, and saves.
+    /// Replaces every filter, keeping at most the limit, and saves. A filter that cannot be
+    /// written (a non-finite bound) is refused before anything changes.
     pub fn replace(&mut self, filters: Vec<LogFilter>) -> Result<()> {
-        self.filters = filters.into_iter().take(MAX_FILTERS).collect();
-        self.persist()
+        let filters: Vec<LogFilter> = filters.into_iter().take(MAX_FILTERS).collect();
+        let document = document(&filters)?;
+        self.filters = filters;
+        self.write(&document)
     }
 
     /// Adds a filter and saves. Refused at the limit.
@@ -87,8 +90,11 @@ impl FilterStore {
             )));
         }
 
-        self.filters.push(filter);
-        self.persist()
+        let mut filters = self.filters.clone();
+        filters.push(filter);
+        let document = document(&filters)?;
+        self.filters = filters;
+        self.write(&document)
     }
 
     /// Removes the first filter equal to `filter` and saves. Returns false where none was.
@@ -97,21 +103,30 @@ impl FilterStore {
             return Ok(false);
         };
 
-        self.filters.remove(index);
-        self.persist()?;
+        let mut filters = self.filters.clone();
+        filters.remove(index);
+        let document = document(&filters)?;
+        self.filters = filters;
+        self.write(&document)?;
         Ok(true)
     }
 
-    fn persist(&self) -> Result<()> {
-        let mut root = Map::new();
-        root.insert("version".into(), Value::from(1));
-        root.insert(
-            "filters".into(),
-            Value::Array(self.filters.iter().map(filter_to_json).collect::<Result<Vec<_>>>()?),
-        );
-
-        json_settings_file::write(&self.path, &Value::Object(root)).map_err(Error::Io)
+    fn write(&self, document: &Value) -> Result<()> {
+        json_settings_file::write(&self.path, document).map_err(Error::Io)
     }
+}
+
+/// The file's contents for these filters. Built before the in-memory list changes, so a bound
+/// the serializer refuses (NaN, infinity) leaves the list as it was. (The C# changed the list
+/// first and threw while saving, leaving a filter in memory that could never be saved.)
+fn document(filters: &[LogFilter]) -> Result<Value> {
+    let mut root = Map::new();
+    root.insert("version".into(), Value::from(1));
+    root.insert(
+        "filters".into(),
+        Value::Array(filters.iter().map(filter_to_json).collect::<Result<Vec<_>>>()?),
+    );
+    Ok(Value::Object(root))
 }
 
 /// A property of a JSON object, matched without regard to case (the last one wins when a file
@@ -331,6 +346,25 @@ mod tests {
         assert!(store.filters()[0].enabled());
     }
 
+    // The C# threw a NullReferenceException on a null element and lost the whole file.
+    #[test]
+    fn a_null_element_is_skipped_and_the_rest_of_the_file_survives() {
+        let scratch = Scratch::new("null-element");
+        std::fs::write(
+            scratch.path(),
+            r#"{"version":1,"filters":[
+                null,
+                {"name":"Good","channel":"CLT","comparison":"above","low":1}
+            ]}"#,
+        )
+        .unwrap();
+
+        let store = FilterStore::new(Some(scratch.path()));
+
+        assert_eq!(store.filters().len(), 1);
+        assert_eq!(store.filters()[0].name(), "Good");
+    }
+
     #[test]
     fn one_entry_missing_a_required_property_refuses_the_whole_file() {
         // As System.Text.Json does with a required property: the file reads as absent, so one bad
@@ -393,13 +427,21 @@ mod tests {
 
     #[test]
     fn a_non_finite_bound_is_refused_on_save() {
-        // The C# serializer throws on NaN; the filter is still in memory, as in the C#.
+        // The C# serializer throws on NaN after the filter was added, leaving it in memory;
+        // the Rust refuses it before anything changes.
         let scratch = Scratch::new("nan");
         let mut store = FilterStore::new(Some(scratch.path()));
 
         let result = store.add(LogFilter::new("x", "CLT", FilterComparison::Above).with_low(f64::NAN));
 
         assert!(matches!(result, Err(Error::Json(_))));
+        assert!(store.filters().is_empty());
+
+        // The same through replace, and a good list is untouched by a refused one.
+        store.add(LogFilter::new("ok", "CLT", FilterComparison::Above)).unwrap();
+        let bad = LogFilter::new("x", "CLT", FilterComparison::Above).with_high(f64::INFINITY);
+        assert!(store.replace(vec![bad]).is_err());
         assert_eq!(store.filters().len(), 1);
+        assert_eq!(store.filters()[0].name(), "ok");
     }
 }

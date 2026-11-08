@@ -98,7 +98,15 @@ struct Parser<'a, F: Fn(&str) -> f64> {
     text: Vec<char>,
     lookup: &'a F,
     at: usize,
+    /// How deeply the parse has recursed, for [`MAXIMUM_DEPTH`].
+    depth: usize,
 }
+
+/// How deeply a condition may nest (brackets, runs of prefix operators, chained `?:`) before it
+/// is called malformed. The parser recurses once per level and a definition is a file from the
+/// internet, so without a limit a long enough run of `(` or `!` overflows the stack, which
+/// nothing can catch. (The C# had no limit.) Far past anything written on purpose.
+const MAXIMUM_DEPTH: usize = 64;
 
 impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
     fn new(text: &str, lookup: &'a F) -> Self {
@@ -109,7 +117,18 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
                 .collect(),
             lookup,
             at: 0,
+            depth: 0,
         }
+    }
+
+    /// One level deeper, or [`Malformed`] past the limit. Undone by the caller.
+    fn enter(&mut self) -> Result<(), Malformed> {
+        self.depth += 1;
+        if self.depth > MAXIMUM_DEPTH {
+            self.depth -= 1;
+            return Err(Malformed);
+        }
+        Ok(())
     }
 
     fn parse_all(&mut self) -> Parsed {
@@ -148,7 +167,10 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         }
 
         self.at += 1;
-        let when_true = self.ternary()?;
+        self.enter()?;
+        let when_true = self.ternary();
+        self.depth -= 1;
+        let when_true = when_true?;
 
         self.skip_space();
         if self.at >= self.text.len() || self.text[self.at] != ':' {
@@ -156,7 +178,10 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         }
 
         self.at += 1;
-        let when_false = self.ternary()?;
+        self.enter()?;
+        let when_false = self.ternary();
+        self.depth -= 1;
+        let when_false = when_false?;
 
         // Unknown in, unknown out: a condition nothing could answer must not
         // quietly settle on the false arm.
@@ -324,7 +349,7 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         self.skip_space();
 
         if self.take("!") {
-            let value = self.unary()?;
+            let value = self.nested_unary()?;
             return Ok(if value.is_nan() {
                 f64::NAN
             } else if value == 0.0 {
@@ -335,7 +360,7 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         }
 
         if self.take("~") {
-            let value = self.unary()?;
+            let value = self.nested_unary()?;
             return Ok(if value.is_nan() {
                 f64::NAN
             } else {
@@ -344,15 +369,23 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         }
 
         if self.take("-") {
-            let value = self.unary()?;
+            let value = self.nested_unary()?;
             return Ok(if value.is_nan() { f64::NAN } else { -value });
         }
 
         if self.take("+") {
-            return self.unary();
+            return self.nested_unary();
         }
 
         self.primary()
+    }
+
+    /// The operand of a prefix operator, one level deeper.
+    fn nested_unary(&mut self) -> Parsed {
+        self.enter()?;
+        let value = self.unary();
+        self.depth -= 1;
+        value
     }
 
     fn primary(&mut self) -> Parsed {
@@ -363,7 +396,13 @@ impl<'a, F: Fn(&str) -> f64> Parser<'a, F> {
         }
 
         if self.take("(") {
-            let value = self.or()?;
+            // The whole grammar inside the brackets, ternary included. The C# started at
+            // `or`, so "(a ? b : c)" was malformed and came out Unknown while the same
+            // ternary without brackets worked.
+            self.enter()?;
+            let value = self.ternary();
+            self.depth -= 1;
+            let value = value?;
             self.skip_space();
 
             if !self.take(")") {
@@ -796,6 +835,37 @@ mod tests {
         assert_eq!(number(expression, with(0.0)), 2.0);
         assert_eq!(number(expression, with(2.0)), 2.0);
         assert_eq!(number(expression, with(1.0)), 0.5);
+    }
+
+    /// New defect, found while fixing the others and fixed the same way: nothing limited the
+    /// nesting, so a long run of `(`, `!` or `?` overflowed the stack. Now it is malformed
+    /// (Unknown), and sensible nesting is untouched.
+    #[test]
+    fn hostile_nesting_is_malformed_not_a_stack_overflow() {
+        let run = 100_000;
+        for text in [
+            format!("{}1{}", "(".repeat(run), ")".repeat(run)),
+            format!("{}1", "!".repeat(run)),
+            format!("{}1", "-".repeat(run)),
+            format!("{}1", "1 ? 1 : ".repeat(run)),
+        ] {
+            assert!(number(&text, nan).is_nan());
+            assert_eq!(evaluate(&text, nan), ConditionVerdict::Unknown);
+        }
+
+        assert_eq!(number("((((1 + 2))))", nan), 3.0);
+        assert_eq!(number("!!!!1", nan), 1.0);
+    }
+
+    /// Defect fixed in the Rust: a bracketed ternary evaluated its group with `or`, so it
+    /// was malformed (and the verdict Unknown) while the bare one worked.
+    #[test]
+    fn a_parenthesised_ternary_is_evaluated_like_a_bare_one() {
+        assert_eq!(number("(1 ? 2 : 3)", nan), 2.0);
+        assert_eq!(number("(0 ? 2 : 3) + 10", nan), 13.0);
+        assert_eq!(number("((1 > 2) ? 10 : 20)", nan), 20.0);
+        assert_eq!(evaluate("(0 ? 1 : 0)", nan), ConditionVerdict::Hidden);
+        assert_eq!(evaluate("(1 ? 1 : 0) && 1", nan), ConditionVerdict::Shown);
     }
 
     /// a ? b : c ? d : e is a ? b : (c ? d : e), as it is in C.

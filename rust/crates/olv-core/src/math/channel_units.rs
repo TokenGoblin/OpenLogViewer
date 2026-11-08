@@ -87,10 +87,16 @@ pub fn to_fraction(channel: &LogChannel) -> String {
 /// The unit decides where it says so. Where it does not, the values do: lambda lives around
 /// one and an air-fuel ratio around fifteen.
 pub fn is_lambda(channel: &LogChannel) -> bool {
+    // ":1" is an air-fuel ratio ("14.7:1"). The C# tested for it after `simplify` had
+    // removed the colon, so it could never match and fell through to the value guess; the
+    // Rust tests the unit as written.
+    if channel.units().trim() == ":1" {
+        return false;
+    }
+
     match simplify(channel.units()).as_str() {
         "lambda" | "l" => return true,
-        // ":1" can never match: `simplify` removes the colon (ported as-is).
-        "afr" | ":1" | "ratio" => return false,
+        "afr" | "ratio" => return false,
         _ => {}
     }
 
@@ -171,6 +177,14 @@ mod tests {
         assert!(is_lambda(&ch("", &[0.9, 1.0, 1.1])));
         assert!(!is_lambda(&ch("", &[12.0, 14.7])));
         assert!(!is_lambda(&ch("AFR", &[0.9])));
+    }
+
+    // Defect fixed in the Rust: ":1" is an air-fuel ratio whatever the values look like.
+    #[test]
+    fn a_unit_of_colon_one_is_an_air_fuel_ratio() {
+        assert!(!is_lambda(&ch(":1", &[0.9, 1.0, 1.1])));
+        assert!(!is_lambda(&ch(" :1 ", &[0.9, 1.0, 1.1])));
+        assert!(is_lambda(&ch("Lambda", &[14.0])));
     }
 
     #[test]

@@ -106,7 +106,15 @@ impl CanSource for MaxxCanSource {
             }
         }
 
-        if let (Some(now), Some(last)) = (self.drop_count()?, self.last_count) {
+        let now = self.drop_count()?;
+
+        // A counter that would not answer at open is counted from the first time it does, so
+        // a capture can still say how much it missed from there on. (The C# never started
+        // counting, and `dropped` stayed unknown for the whole capture.)
+        if let (Some(now), None) = (now, self.last_count) {
+            self.last_count = Some(now);
+            self.dropped = Some(0);
+        } else if let (Some(now), Some(last)) = (now, self.last_count) {
             // Added up rather than subtracted from the start.
             //
             // The counter is sixteen bits and free-running, so on a bus losing frames steadily

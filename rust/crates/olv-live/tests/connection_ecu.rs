@@ -79,6 +79,32 @@ fn silence_is_also_retried_and_eventually_given_up_on() {
 }
 
 #[test]
+fn the_retry_pause_is_waited_between_attempts() {
+    // Defect fixed in the Rust: the C# declared RetryPause and never read it.
+    let transport = FakeTransport::new(); // never replies
+    let connection = with_settings(
+        &transport,
+        EcuConnectionSettings {
+            retries: 2,
+            timeout: Duration::from_millis(1),
+            retry_pause: Duration::from_millis(60),
+            ..EcuConnectionSettings::default()
+        },
+    );
+
+    let started = std::time::Instant::now();
+    assert!(connection.read_signature().is_err());
+
+    // Three attempts, so two pauses; none after the last.
+    assert!(
+        started.elapsed() >= Duration::from_millis(120),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(transport.written().len(), 3);
+}
+
+#[test]
 fn the_input_is_cleared_before_every_attempt() {
     // The tail of an abandoned reply would otherwise be read as the head of the next one,
     // which fails in a way that looks like corruption.

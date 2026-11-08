@@ -450,10 +450,11 @@ pub fn parse(reply: &str, mode: u8, state: DtcState, counted: bool) -> Vec<Dtc> 
 
         while at + 1 < unit.len() {
             // Replies are padded to the frame with zeros, and P0000 is not an assigned
-            // code, so a zero pair is the padding.
+            // code, so a zero pair is the padding and so is everything after it in this
+            // unit. (The C# skipped only that one pair, against its own comment, and so
+            // decoded whatever followed the padding as codes.)
             if unit[at] == 0 && unit[at + 1] == 0 {
-                at += 2;
-                continue;
+                break;
             }
 
             let code = decode(unit[at], unit[at + 1]);
@@ -847,6 +848,18 @@ mod tests {
 
         assert_eq!(faults.len(), 2);
         assert!(!faults.iter().any(|f| f.code == "P0000"));
+    }
+
+    /// Defect fixed in the Rust: a zero pair is padding and so is the rest of the unit; the
+    /// C# skipped just the pair and decoded what followed it.
+    #[test]
+    fn nothing_after_the_padding_is_a_code() {
+        let faults = parse("43 03 01 71 00 00 03 01\r", 0x03, DtcState::Stored, true);
+
+        assert_eq!(codes(&faults), ["P0171"]);
+
+        // Padding first means nothing follows it either (the C# gave P0133 here).
+        assert!(parse("43 00 00 01 33", 0x03, DtcState::Stored, false).is_empty());
     }
 
     /// A fragment that arrives without the piece that started it is half a reply, and half

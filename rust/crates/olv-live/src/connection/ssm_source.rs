@@ -249,6 +249,18 @@ impl LiveSource for SsmSource {
             answered |= self.poll(i)?;
         }
 
+        // Everything has been given up on. That is a dead link, not a healthy quiet one, and
+        // returning the last values as if they were readings hid it. (The C# returned the
+        // rows without an error.)
+        if !asked && !self.parameters.is_empty() {
+            self.retries += 1;
+
+            return Err(Error::Protocol(
+                "Every SSM parameter has stopped answering and been dropped, so there is nothing left to read. The link may have died; reconnecting asks for them again."
+                    .to_string(),
+            ));
+        }
+
         if asked && !answered {
             self.retries += 1;
 
@@ -268,6 +280,12 @@ impl LiveSource for SsmSource {
 
         self.transport.open()?;
         self.reopen()?;
+
+        // A fresh link is a fresh start: parameters given up on over the one that died are
+        // asked for again, or a car switched back on would never be read.
+        if self.dropped().len() == self.parameters.len() {
+            self.silences.fill(0);
+        }
 
         self.read()?;
         Ok(())

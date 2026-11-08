@@ -423,8 +423,9 @@ fn number(value: Option<f64>, constant: &TuneConstant) -> String {
 /// to the controller does, so that "does this round trip" is asked of the bytes rather than of
 /// the text.
 ///
-/// `Math.Round` here is the C#'s default, to-even, where the encoder itself rounds half away
-/// from zero. Ported as it is.
+/// Rounds half away from zero, as the encoder does. (The C# check rounded ties to even, so on
+/// an exact .5 the check and the bytes could disagree and the check passed or failed on the
+/// wrong value.)
 fn stored(value: f64, constant: &TuneConstant) -> f64 {
     let scaled = if constant.scale != 0.0 {
         (value / constant.scale) - constant.transform
@@ -435,7 +436,7 @@ fn stored(value: f64, constant: &TuneConstant) -> f64 {
     if constant.type_ == RealtimeType::F32 {
         scaled
     } else {
-        scaled.round_ties_even()
+        scaled.round()
     }
 }
 
@@ -450,6 +451,22 @@ fn attribute(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Defect fixed in the Rust: the round-trip check rounded ties to even while the encoder
+    // rounds half away from zero.
+    #[test]
+    fn the_round_trip_check_rounds_the_way_the_encoder_does() {
+        let constant = TuneConstant::new("x", 0, 0, RealtimeType::U08);
+
+        // Raw 2.5 is stored as 3 by the encoder.
+        assert_eq!(stored(2.5, &constant), 3.0);
+        assert_eq!(stored(3.5, &constant), 4.0);
+
+        // 2.4999999999 stores as 2, so "2.5" (which stores as 3) must not be accepted for it.
+        let written = number(Some(2.4999999999), &constant);
+        assert_ne!(written, "2.5");
+        assert!(fmt::parse_f64_inv(&written).is_some_and(|back| stored(back, &constant) == 2.0));
+    }
 
     #[test]
     fn the_stamp_reads_like_the_csharp_builds_it() {
