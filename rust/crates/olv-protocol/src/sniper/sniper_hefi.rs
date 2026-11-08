@@ -280,17 +280,28 @@ mod tests {
         assert_eq!(message.len(), 24);
     }
 
-    /// Byte-level pin of one whole message, so the placeholder marker, the swap and the CRC
-    /// are all visible in one assertion. The expected CRC is zlib's over bytes 4..16.
+    /// Whole messages taken byte for byte from the C# (rust/oracle/expected/w1-sniper/wire.json),
+    /// so the placeholder marker, the swap and the CRC are pinned to the C#, not to this code.
     #[test]
-    fn build_message_exact_bytes() {
-        let message = build_message(0x4000_0A01, 0, 0x1008, &[]);
-        let body: [u8; 12] = [0x40, 0x00, 0x0A, 0x01, 0, 0, 0, 0, 0x00, 0x00, 0x10, 0x08];
-        let mut expected = vec![0, 0, 0, 0];
-        expected.extend_from_slice(&body);
-        expected.extend_from_slice(&standard_crc32(&body).to_be_bytes());
-        assert_eq!(message, expected);
-        assert_eq!(message.len(), 20);
+    fn build_message_matches_bytes_the_csharp_produced() {
+        let hex = |s: &str| -> Vec<u8> {
+            (0..s.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+                .collect()
+        };
+        assert_eq!(
+            build_message(0, 0, 0, &[]),
+            hex("000000000000000000000000000000007BD5C66F")
+        );
+        assert_eq!(
+            build_message(0x4000_0A01, 0, 0x1008, &[]),
+            hex("0000000040000A0100000000000010080FF66F76")
+        );
+        assert_eq!(
+            build_message(0, 0, 0, &[0xAA]),
+            hex("00000000000000000000000000000000AA39770C74")
+        );
     }
 
     #[test]

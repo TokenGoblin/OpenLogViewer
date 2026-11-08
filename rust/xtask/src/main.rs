@@ -463,7 +463,11 @@ fn test_owner(t: &TestFile, file_pkg: &BTreeMap<String, String>) -> Option<Strin
             .to_string_lossy()
             .replace(".xaml.cs", "")
             .replace(".cs", "");
-        if fstem == stem && latest_used.is_none_or(|w| wave_of(pkg) >= w) {
+        // Plurals too: EngineFamilyTests tests EngineFamilies, ProbeTests tests Probes.
+        let named = fstem == stem
+            || fstem == format!("{stem}s")
+            || stem.strip_suffix('y').is_some_and(|s| fstem == format!("{s}ies"));
+        if named && latest_used.is_none_or(|w| wave_of(pkg) >= w) {
             return Some(pkg.clone());
         }
     }
@@ -962,6 +966,12 @@ fn brief(id: &str) -> Res {
             let _ = writeln!(b, "- `{}` ({} tests)", t.path, t.tests);
         }
         let _ = writeln!(b);
+    }
+
+    // Findings from earlier packages' reviews that this package must act on, so they
+    // reach the agent that needs them without the orchestrator re-pasting them.
+    if let Ok(notes) = fs::read_to_string(rust_dir().join("notes").join(format!("{}.md", p.id))) {
+        let _ = writeln!(b, "## Carried over from earlier reviews\n\n{}\n", notes.trim());
     }
 
     let cases = rust_dir().join("oracle").join("expected").join(&p.id);

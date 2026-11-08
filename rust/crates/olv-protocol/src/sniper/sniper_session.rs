@@ -336,8 +336,12 @@ mod tests {
         let reply = s.send_request(0x45, 0, 0, &[], None).unwrap();
         assert_eq!(reply, vec![0xAA, 0xBB, 0xCC]);
 
-        let message = sniper_hefi::build_message(0x45, 0, 0, &[]);
-        let expected: Vec<Vec<u8>> = message.chunks(8).map(<[u8]>::to_vec).collect();
+        // Bytes taken from the C# (rust/oracle/expected/w1-sniper/wire.json), not from build_message.
+        let expected: Vec<Vec<u8>> = vec![
+            vec![0, 0, 0, 0, 0, 0, 0, 0x45],
+            vec![0; 8],
+            vec![0xEF, 0xD0, 0x80, 0x27],
+        ];
         let id = sniper_can::bulk_id(node, 0);
         assert_eq!(s.transport.sent.len(), expected.len());
         for (frame, chunk) in s.transport.sent.iter().zip(&expected) {
@@ -389,7 +393,10 @@ mod tests {
         let mut s = opened(2);
         s.transport.sent.clear();
         let _ = s.poll_telemetry_raw(Some(Duration::from_millis(10)));
-        let message = sniper_hefi::build_message(0x4000_0A01, 0, 0x1008, &[]);
+        // Message bytes from the C# (wire.json), not from build_message.
+        let message: Vec<u8> = vec![
+            0, 0, 0, 0, 0x40, 0, 0x0A, 0x01, 0, 0, 0, 0, 0, 0, 0x10, 0x08, 0x0F, 0xF6, 0x6F, 0x76,
+        ];
         let sent: Vec<u8> = s.transport.sent.iter().flat_map(|f| f.data.clone()).collect();
         assert_eq!(sent, message);
     }

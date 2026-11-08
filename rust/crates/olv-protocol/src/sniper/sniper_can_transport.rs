@@ -17,6 +17,12 @@
 //! **Nothing here has been run against real hardware.** Treat a successful `open` as "the
 //! USB layer answered", not as "this dongle and this code agree on anything above USB".
 //!
+//! # Differences from the C# the bench must confirm
+//!
+//! * Control requests and bulk writes time out after 1 s (the C# set no timeout).
+//! * A bulk IN read is bounded by the receive deadline and cancelled when it passes (the C#
+//!   blocked until data arrived).
+//!
 //! # The bootloader sequence cannot be sent
 //!
 //! The vendor control request that enters the dongle's firmware-flash bootloader
@@ -349,15 +355,15 @@ impl ControlRequest {
     }
 }
 
-/// Reads the 4-byte little-endian firmware version out of a GetHardwareVersion reply.
-pub fn parse_hardware_version(reply: &[u8]) -> Result<u32> {
-    match reply.get(0..4) {
-        Some(b) => Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]])),
-        None => Err(Error::Protocol(format!(
-            "GetHardwareVersion returned {} bytes, expected 4.",
-            reply.len()
-        ))),
-    }
+/// Reads the little-endian firmware version out of a GetHardwareVersion reply.
+///
+/// Matches the C#, which ignored how many bytes the control read returned and decoded its
+/// zeroed 4-byte buffer: a short reply is zero-extended (`[1, 2]` gives `0x0201`), not an error.
+pub fn parse_hardware_version(reply: &[u8]) -> u32 {
+    let mut word = [0u8; 4];
+    let n = reply.len().min(4);
+    word[..n].copy_from_slice(&reply[..n]);
+    u32::from_le_bytes(word)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -385,8 +391,9 @@ const RX_CHUNK: usize = 512;
 /// The dongle over `nusb`: pure Rust, WinUSB on Windows, usbfs on Linux, IOKit on macOS.
 ///
 /// On Windows the dongle must be bound to the WinUSB driver (as it is for Holley's own
-/// software). `nusb` does not expose the C#'s AUTO_FLUSH/RAW_IO pipe policies; whether the
-/// dongle needs them is UNCONFIRMED **[CONFIRM ON HW]**.
+/// software). The C# set the IN pipe's AUTO_FLUSH and RAW_IO policies. `nusb` 0.2.9 turns on
+/// RAW_IO itself for every IN endpoint on Windows; it has no AUTO_FLUSH, which does not
+/// matter while every IN request is a whole number of packets (as it is here).
 pub struct NusbLink {
     // Held so the interface stays claimed while the endpoints are in use.
     interface: nusb::Interface,
@@ -411,25 +418,35 @@ impl NusbLink {
                 ))
             })?;
         let device = info.open().wait().map_err(usb_error)?;
-        let interface = device.claim_interface(0).wait().map_err(usb_error)?;
+        // The C# used whichever interface WinUSB named for the device path. Here: the
+        // interface (alternate setting 0) that has the bulk IN and OUT pipes, else 0.
+        let layout: Vec<(u8, Vec<EndpointInfo>)> = device
+            .active_configuration()
+            .map(|config| {
+                config
+                    .interface_alt_settings()
+                    .filter(|alt| alt.alternate_setting() == 0)
+                    .map(|alt| {
+                        let eps = alt
+                            .endpoints()
+                            .map(|ep| EndpointInfo {
+                                address: ep.address(),
+                                bulk: ep.transfer_type() == TransferType::Bulk,
+                            })
+                            .collect();
+                        (alt.interface_number(), eps)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let number = choose_interface(&layout);
+        let interface = device.claim_interface(number).wait().map_err(usb_error)?;
 
-        // Find the one bulk-in and one bulk-out pipe spec section 1 says this interface
-        // presents. The direction bit (0x80) selects the role.
-        let mut in_addr = None;
-        let mut out_addr = None;
-        if let Some(descriptor) = interface.descriptor() {
-            for ep in descriptor.endpoints() {
-                if ep.transfer_type() != TransferType::Bulk {
-                    continue;
-                }
-                if ep.address() & 0x80 != 0 {
-                    in_addr.get_or_insert(ep.address());
-                } else {
-                    out_addr.get_or_insert(ep.address());
-                }
-            }
-        }
-        let (Some(in_addr), Some(out_addr)) = (in_addr, out_addr) else {
+        let found = layout
+            .iter()
+            .find(|(n, _)| *n == number)
+            .and_then(|(_, eps)| bulk_pipes(eps));
+        let Some((in_addr, out_addr)) = found else {
             return Err(Error::Io(io::Error::other(
                 "The Sniper dongle did not present the two bulk pipes this protocol expects.",
             )));
@@ -445,12 +462,49 @@ impl NusbLink {
     }
 }
 
+/// One endpoint of an interface, reduced to what choosing the dongle's pipes needs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EndpointInfo {
+    pub address: u8,
+    pub bulk: bool,
+}
+
+/// The first bulk IN and first bulk OUT address among `endpoints` (spec section 1: the
+/// direction bit 0x80 selects the role), if both exist.
+pub fn bulk_pipes(endpoints: &[EndpointInfo]) -> Option<(u8, u8)> {
+    let bulk = || endpoints.iter().filter(|e| e.bulk);
+    let in_addr = bulk().find(|e| e.address & 0x80 != 0)?.address;
+    let out_addr = bulk().find(|e| e.address & 0x80 == 0)?.address;
+    Some((in_addr, out_addr))
+}
+
+/// The interface number to claim: the first whose endpoints include the bulk IN/OUT pair,
+/// falling back to 0 only if none does.
+pub fn choose_interface(interfaces: &[(u8, Vec<EndpointInfo>)]) -> u8 {
+    interfaces
+        .iter()
+        .find(|(_, eps)| bulk_pipes(eps).is_some())
+        .map_or(0, |(n, _)| *n)
+}
+
+/// Read failures that polling again cannot cure: the device disconnected (`nusb` maps that to
+/// `ConnectionAborted`), is gone, or the request itself is invalid.
+fn is_fatal_read(e: &io::Error) -> bool {
+    matches!(
+        e.kind(),
+        io::ErrorKind::ConnectionAborted | io::ErrorKind::NotFound | io::ErrorKind::InvalidInput
+    )
+}
+
 fn usb_error(e: nusb::Error) -> Error {
     Error::Io(io::Error::from(e))
 }
 
 fn transfer_error(what: &str, e: nusb::transfer::TransferError) -> Error {
-    Error::Io(io::Error::other(format!("The Sniper dongle refused {what}: {e}")))
+    // Keep the error kind `nusb` maps to (a disconnect is ConnectionAborted), which the
+    // transport uses to tell a fatal read failure from a transient one.
+    let kind = io::Error::from(e).kind();
+    Error::Io(io::Error::new(kind, format!("The Sniper dongle refused {what}: {e}")))
 }
 
 impl UsbLink for NusbLink {
@@ -468,7 +522,14 @@ impl UsbLink for NusbLink {
     fn bulk_read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<usize> {
         // An IN transfer's length must be a nonzero multiple of the endpoint's packet size.
         let mps = self.ep_in.max_packet_size().max(1);
-        let want = (buf.len().max(mps) / mps) * mps;
+        // Never request more than `buf` holds: round down to whole packets, never up.
+        let want = (buf.len() / mps) * mps;
+        if want == 0 {
+            return Err(Error::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "The read buffer is smaller than one USB packet.",
+            )));
+        }
         let completion = self.ep_in.transfer_blocking(Buffer::new(want), timeout);
         match completion.status {
             Ok(()) => {}
@@ -618,8 +679,14 @@ impl SniperCanTransport for SniperUsbTransport {
             // Unlike the C#'s WinUsb_ReadPipe (which blocked until something arrived, so a
             // quiet bus hung forever), every read is bounded by what is left of the deadline.
             let mut chunk = [0u8; RX_CHUNK];
-            let read = self.link()?.bulk_read(&mut chunk, remaining)?;
-            self.rx.push(&chunk[..read]);
+            match self.link()?.bulk_read(&mut chunk, remaining) {
+                Ok(read) => self.rx.push(&chunk[..read]),
+                // The C# dropped a failed read and kept polling until the deadline. Do the
+                // same for a transient failure (stall, abort, timeout); stop only when the
+                // device is gone or the read can never succeed.
+                Err(Error::Io(e)) if !is_fatal_read(&e) => {}
+                Err(e) => return Err(e),
+            }
         }
     }
 
@@ -632,7 +699,7 @@ impl SniperCanTransport for SniperUsbTransport {
     fn hardware_version(&mut self) -> Result<u32> {
         let request = ControlRequest::for_command(DongleCommand::GetHardwareVersion);
         let reply = self.link()?.control(&request, CONTROL_TIMEOUT)?;
-        parse_hardware_version(&reply)
+        Ok(parse_hardware_version(&reply))
     }
 }
 
@@ -649,6 +716,8 @@ mod tests {
         /// Chunks `bulk_read` hands out, one per call; empty means a quiet bus.
         reads: VecDeque<Vec<u8>>,
         version_reply: Vec<u8>,
+        /// Errors `bulk_read` returns before it hands out any data, one per call.
+        read_errors: VecDeque<io::ErrorKind>,
     }
 
     struct FakeLink(Arc<Mutex<Shared>>);
@@ -660,6 +729,9 @@ mod tests {
         }
 
         fn bulk_read(&mut self, buf: &mut [u8], timeout: Duration) -> Result<usize> {
+            if let Some(kind) = self.0.lock().unwrap().read_errors.pop_front() {
+                return Err(Error::Io(io::Error::new(kind, "scripted read failure")));
+            }
             let next = self.0.lock().unwrap().reads.pop_front();
             match next {
                 Some(chunk) => {
@@ -796,8 +868,10 @@ mod tests {
 
     #[test]
     fn the_hardware_version_is_read_little_endian_and_a_short_reply_is_an_error() {
-        assert_eq!(parse_hardware_version(&[0x01, 0x02, 0x03, 0x04]).unwrap(), 0x0403_0201);
-        assert!(matches!(parse_hardware_version(&[1, 2]), Err(Error::Protocol(_))));
+        assert_eq!(parse_hardware_version(&[0x01, 0x02, 0x03, 0x04]), 0x0403_0201);
+        // The C# decodes its zeroed 4-byte buffer whatever the transfer length was.
+        assert_eq!(parse_hardware_version(&[0x01, 0x02]), 0x0201);
+        assert_eq!(parse_hardware_version(&[]), 0);
     }
 
     /// The bootloader sequence (control request 0x03 then 0x04) can brick the dongle. Neither
@@ -933,6 +1007,46 @@ mod tests {
             SniperUsbTransport::with_connector(|| Err(Error::Io(io::Error::new(io::ErrorKind::NotFound, "none"))));
         assert!(t.open().is_err());
         assert!(!t.is_open());
+    }
+
+    /// The C# dropped a failed read and kept polling. A stall or abort during discovery must
+    /// not end the wait: the frame that follows is still delivered.
+    #[test]
+    fn a_transient_read_error_is_survived() {
+        let (mut t, shared) = fake();
+        {
+            let mut s = shared.lock().unwrap();
+            s.read_errors.push_back(io::ErrorKind::BrokenPipe); // a stall
+            s.read_errors.push_back(io::ErrorKind::Interrupted); // a cancelled transfer
+            s.reads.push_back(record(0x7001_4004, &[]));
+        }
+        t.open().unwrap();
+        let frame = t.receive(Duration::from_secs(1)).unwrap().unwrap();
+        assert_eq!(frame.can_id, 0x7001_4004);
+    }
+
+    #[test]
+    fn a_disconnect_ends_the_wait() {
+        let (mut t, shared) = fake();
+        shared
+            .lock()
+            .unwrap()
+            .read_errors
+            .push_back(io::ErrorKind::ConnectionAborted);
+        t.open().unwrap();
+        assert!(matches!(t.receive(Duration::from_secs(1)), Err(Error::Io(_))));
+    }
+
+    #[test]
+    fn the_interface_with_the_bulk_pair_is_chosen_and_zero_is_the_fallback() {
+        let ep = |address, bulk| EndpointInfo { address, bulk };
+        let control_only = vec![ep(0x83, false)];
+        let bulk_pair = vec![ep(0x83, false), ep(0x81, true), ep(0x02, true)];
+        assert_eq!(bulk_pipes(&bulk_pair), Some((0x81, 0x02)));
+        assert_eq!(bulk_pipes(&[ep(0x81, true)]), None);
+        assert_eq!(choose_interface(&[(0, control_only.clone()), (1, bulk_pair)]), 1);
+        assert_eq!(choose_interface(&[(2, control_only)]), 0);
+        assert_eq!(choose_interface(&[]), 0);
     }
 
     #[test]
