@@ -31,3 +31,9 @@ in the agents' reports. Each one names where it is and how it was found.
 | `MsqWriter` round-trip check | Its round-trip check rounds ties to even while the page encoder rounds half away from zero, so the two can disagree on an exact .5 and the check can pass or fail on the wrong value. | w4-tune |
 | `TuneCompare` | Counts NaN cells as differing, even between identical tunes. | w4-tune |
 | `EcuTune.Scalars()` | Reads through the declared scale, not the resolved one `Scalar()` uses, so an expression-scaled constant (e.g. `{fuelLoadRes}`) can show differently in the two. | w4-tune |
+| `LiveSession` recording | A recording write error (e.g. a full disk) counts as an ECU failure but the failure count resets each poll, so the session loops unpaced and never ends. | w4-live |
+| `LiveSession.Snapshot` | Cached by sample count, which stops changing once the view is full, so the snapshot goes stale. | w4-live |
+| `LiveSession` stop | Stopping during a reconnect sets the "did not come back" error. | w4-live |
+| `MaxxUsbSource` status | ECU status bytes 0 and 1 are read as the local NoAnswer and Uncertain states. | w4-live |
+| `MaxxCanSource` | If the drop count is unavailable at open it is never counted. | w4-live |
+| `MaxxTune` write | `offset + length` can overflow int before the ceiling check; the Rust checks in 64 bits. The C# ceiling test (offset ceiling-2, length 4) would still pass with the ceiling one higher. | w4-live |
