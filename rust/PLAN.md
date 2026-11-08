@@ -38,9 +38,9 @@ rust/
                    analysis, calculators. Pure: no I/O beyond files, no threads.
     olv-protocol   every ECU protocol as a sans-IO state machine (bytes in, bytes/events out):
                    MS/Speeduino/rusEFI, ELM327/OBD2, SSM, MaxxECU BT+USB+CAN, Sniper.
-    olv-transport  serial (serialport), Wi-Fi TCP, BLE (btleplug), FTDI (our own FTDI
+    olv-transport  serial (our own layer, no serialport crate), Wi-Fi TCP, BLE (btleplug), FTDI (our own FTDI
                    protocol over nusb, or its virtual COM port), USB (nusb), port naming
-                   (serialport's USB info, all three OSes). The only platform-specific crate.
+                   (our own SetupAPI / sysfs / IOKit enumeration). The only platform-specific crate.
     olv-live       LiveSession, EcuConnection, recording, sources (ties protocol to transport).
     olv-store      settings, presets, filters, workspace, tuning projects (serde JSON).
     olv-agent      the local agent HTTP/WebSocket API, with write gates and guardrails.

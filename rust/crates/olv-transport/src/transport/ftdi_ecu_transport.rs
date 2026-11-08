@@ -20,7 +20,7 @@
 //!   `ftdi_sio` driver is detached for the session (and returns when the device is released).
 //! * **Windows**: FTDI's driver owns the device and there is no way in through USB, so the
 //!   route is the virtual COM port the driver can expose, found in the serial port list by the
-//!   FTDI vendor/product id and opened through `serialport`. If no such port exists the error
+//!   FTDI vendor/product id and opened through our own `SerialPort`. If no such port exists the error
 //!   says the FTDI VCP driver option is needed (the Windows INF for the MaxxECU does not
 //!   create one; enabling "Load VCP" in the device's advanced driver properties, or installing
 //!   FTDI's CDM driver, does).
@@ -57,6 +57,7 @@ use olv_core::{Error, Result};
 use olv_protocol::ms::ms_protocol::EcuTransport;
 
 use super::serial_ecu_transport::{SerialIo, list_system_ports, open_real_port_with};
+use super::serial_port::{PortInfo, PortType};
 
 // ---------------------------------------------------------------------------------------------
 // Devices.
@@ -139,8 +140,15 @@ fn system_devices() -> Vec<FtdiDevice> {
 
 /// The device this transport is for, or the message saying why there is none.
 ///
-/// The serial is matched case-insensitively when one is given; otherwise the first MaxxECU,
-/// and failing that the first FTDI device.
+/// The serial is matched case-insensitively when one is given; otherwise the first MaxxECU.
+///
+/// **Stricter than the C#.** `FtdiEcuTransport.Find()` fell back to the first FTDI device of
+/// any kind when no MaxxECU was plugged in. Here only a device that
+/// [`is_maxx_ecu`](FtdiDevice::is_maxx_ecu) is ever chosen, even when its serial is named. The
+/// fallback is dangerous on Linux and macOS, where opening a device means taking it from the
+/// kernel's own driver: a MicroSquirt on an FT232R cable that happened to be the only FTDI
+/// device would have its session killed (mid-burn, perhaps) and then be sent MaxxECU frames.
+/// A device that is not positively a MaxxECU is left alone.
 pub fn choose_device<'a>(all: &'a [FtdiDevice], serial: &str) -> std::result::Result<&'a FtdiDevice, String> {
     if all.is_empty() {
         return Err(
@@ -151,22 +159,43 @@ pub fn choose_device<'a>(all: &'a [FtdiDevice], serial: &str) -> std::result::Re
         );
     }
 
-    let wanted = if serial.is_empty() {
-        all.iter().find(|d| d.is_maxx_ecu()).or_else(|| all.first())
-    } else {
-        all.iter().find(|d| d.serial.eq_ignore_ascii_case(serial))
-    };
+    let present = || all.iter().map(FtdiDevice::label).collect::<Vec<_>>().join(", ");
 
-    wanted.ok_or_else(|| {
-        if serial.is_empty() {
-            "No MaxxECU is plugged in.".to_string()
-        } else {
+    if serial.is_empty() {
+        return all.iter().find(|d| d.is_maxx_ecu()).ok_or_else(|| {
             format!(
-                "No FTDI device with serial {serial} is plugged in. Present: {}.",
-                all.iter().map(FtdiDevice::label).collect::<Vec<_>>().join(", ")
+                "No MaxxECU is plugged in. The FTDI devices present are not MaxxECUs and are left \
+                 alone: {}.",
+                present()
             )
-        }
-    })
+        });
+    }
+
+    match all.iter().find(|d| d.serial.eq_ignore_ascii_case(serial)) {
+        Some(d) if d.is_maxx_ecu() => Ok(d),
+        Some(d) => Err(format!(
+            "{} is not a MaxxECU, so it is left alone. Only a device identified as a MaxxECU is \
+             ever opened here, because opening an FTDI device takes it from the driver that owns it.",
+            d.label()
+        )),
+        None => Err(format!(
+            "No FTDI device with serial {serial} is plugged in. Present: {}.",
+            present()
+        )),
+    }
+}
+
+/// Refuses to touch a device that is not a MaxxECU. The last line of defence before a kernel
+/// driver is detached: [`choose_device`] already only returns a MaxxECU, and this holds if a
+/// backend is ever handed some other device.
+fn ensure_maxx_ecu(device: &FtdiDevice) -> Result<()> {
+    if device.is_maxx_ecu() {
+        return Ok(());
+    }
+    Err(Error::Io(io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        format!("{} is not a MaxxECU, so it is left alone.", device.label()),
+    )))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -445,11 +474,11 @@ pub trait FtdiBackend: Send + Sync {
 /// have one. FTDI's Windows instance ids append the port letter to the EEPROM serial
 /// (`A50285BIA` for `A50285BI`), so a serial one character longer than the device's still
 /// matches.
-pub fn find_vcp_port(device: &FtdiDevice, ports: &[serialport::SerialPortInfo]) -> Option<String> {
+pub fn find_vcp_port(device: &FtdiDevice, ports: &[PortInfo]) -> Option<String> {
     ports
         .iter()
         .filter_map(|p| match &p.port_type {
-            serialport::SerialPortType::UsbPort(usb)
+            PortType::Usb(usb)
                 if usb.vid == protocol::FTDI_VENDOR_ID && (device.product_id == 0 || usb.pid == device.product_id) =>
             {
                 Some((p, usb))
@@ -496,7 +525,7 @@ mod vcp_link {
 
         /// Opens the device's virtual COM port, 8-N-1 and no flow control, leaving DTR and RTS
         /// alone as D2XX did.
-        pub(super) fn open(device: &FtdiDevice, ports: &[serialport::SerialPortInfo], baud_rate: u32) -> Result<Self> {
+        pub(super) fn open(device: &FtdiDevice, ports: &[PortInfo], baud_rate: u32) -> Result<Self> {
             let name = find_vcp_port(device, ports).ok_or_else(|| vcp_missing(device))?;
             let port = open_real_port_with(&name, baud_rate, false)?;
             let mut link = Self::new(port);
@@ -507,7 +536,7 @@ mod vcp_link {
 
     impl FtdiLink for VcpLink {
         fn write(&mut self, data: &[u8], timeout: Duration) -> Result<()> {
-            self.port.set_timeout(timeout)?;
+            self.port.set_write_timeout(timeout);
             self.port.write_all(data).map_err(|e| {
                 Error::Io(io::Error::new(
                     e.kind(),
@@ -518,7 +547,7 @@ mod vcp_link {
 
         fn read_some(&mut self, buf: &mut [u8], timeout: Duration) -> Result<usize> {
             // The driver's own timeout is the caller's remaining time, floored at 1 ms.
-            self.port.set_timeout(timeout.max(Duration::from_millis(1)))?;
+            self.port.set_read_timeout(timeout.max(Duration::from_millis(1)));
             match self.port.read(buf) {
                 Ok(n) => Ok(n),
                 Err(e) if matches!(e.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) => Ok(0),
@@ -607,6 +636,9 @@ mod usb_link {
 
     impl UsbLink {
         pub(super) fn open(device: &FtdiDevice, baud_rate: u32) -> Result<Self> {
+            // Detaching the kernel driver below is only ever for a positively identified MaxxECU.
+            ensure_maxx_ecu(device)?;
+
             let info = nusb::list_devices()
                 .wait()
                 .map_err(|e| open_error(device, &e))?
@@ -828,6 +860,7 @@ impl FtdiBackend for SystemBackend {
 
     #[cfg(windows)]
     fn open(&self, device: &FtdiDevice, baud_rate: u32, _write_timeout: Duration) -> Result<Box<dyn FtdiLink>> {
+        ensure_maxx_ecu(device)?;
         Ok(Box::new(vcp_link::VcpLink::open(
             device,
             &list_system_ports(),
@@ -837,6 +870,7 @@ impl FtdiBackend for SystemBackend {
 
     #[cfg(not(windows))]
     fn open(&self, device: &FtdiDevice, baud_rate: u32, _write_timeout: Duration) -> Result<Box<dyn FtdiLink>> {
+        ensure_maxx_ecu(device)?;
         match usb_link::UsbLink::open(device, baud_rate) {
             Ok(link) => Ok(Box::new(link)),
             // Something else (macOS's own FTDI driver, another program) holds the chip, or this
@@ -1211,10 +1245,57 @@ mod tests {
             FtdiDevice::new(1, "MX000001", "MaxxECU", false),
         ];
         assert_eq!(choose_device(&all, "").unwrap().index, 1);
+    }
 
-        // And with no MaxxECU at all, the first FTDI device is what is left to try.
+    #[test]
+    fn with_no_maxx_ecu_an_other_ftdi_device_is_never_chosen() {
+        // The C# fell back to the first FTDI device. On Linux that detaches the kernel driver, so
+        // a MicroSquirt on an FT232R cable would have its session killed and be sent MaxxECU
+        // frames. Only a device identified as a MaxxECU is ever chosen.
         let none = [FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false)];
-        assert_eq!(choose_device(&none, "").unwrap().index, 0);
+        let message = choose_device(&none, "").unwrap_err();
+        assert!(message.starts_with("No MaxxECU is plugged in."), "{message}");
+        assert!(message.contains("FT232R USB UART (A50285BI)"));
+        assert!(message.contains("left alone"));
+    }
+
+    #[test]
+    fn naming_the_serial_of_an_other_ftdi_device_does_not_choose_it_either() {
+        let all = [
+            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
+            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
+        ];
+        let message = choose_device(&all, "a50285bi").unwrap_err();
+        assert!(message.contains("is not a MaxxECU"), "{message}");
+        assert!(message.contains("left alone"));
+    }
+
+    #[test]
+    fn a_device_that_is_not_a_maxx_ecu_is_refused_before_any_driver_is_detached() {
+        // The last line of defence: every route to a link goes through this first.
+        let microsquirt = FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false);
+        let Err(Error::Io(e)) = ensure_maxx_ecu(&microsquirt) else {
+            panic!("expected a refusal")
+        };
+        assert!(e.to_string().contains("is not a MaxxECU, so it is left alone."));
+        assert!(ensure_maxx_ecu(&FtdiDevice::new(0, "MX000000", "", false)).is_ok());
+        assert!(ensure_maxx_ecu(&FtdiDevice::new(0, "", "MaxxECU", false)).is_ok());
+    }
+
+    #[test]
+    fn a_transport_given_only_another_ftdi_device_opens_nothing() {
+        let wire = Arc::new(Mutex::new(Wire::default()));
+        let backend = FakeBackend::new(
+            vec![FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false)],
+            Some(Box::new(FakeLink(wire))),
+        );
+        let mut t = FtdiEcuTransport::with_backend("", 115_200, backend).unwrap();
+
+        let Err(Error::Io(e)) = t.open() else {
+            panic!("expected an I/O error")
+        };
+        assert!(e.to_string().starts_with("No MaxxECU is plugged in."));
+        assert!(!t.is_open());
     }
 
     #[test]
@@ -1480,10 +1561,10 @@ mod tests {
 
     // ----- finding the virtual COM port (Windows' route) ------------------------------------
 
-    fn vcp(port: &str, vid: u16, pid: u16, serial: Option<&str>) -> serialport::SerialPortInfo {
-        serialport::SerialPortInfo {
+    fn vcp(port: &str, vid: u16, pid: u16, serial: Option<&str>) -> PortInfo {
+        PortInfo {
             port_name: port.into(),
-            port_type: serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
+            port_type: PortType::Usb(crate::transport::serial_port::UsbPortInfo {
                 vid,
                 pid,
                 serial_number: serial.map(String::from),

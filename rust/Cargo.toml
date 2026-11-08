@@ -17,7 +17,10 @@ ttf-parser = "0.25"
 ab_glyph = "0.2"
 png = "0.18"
 nusb = "0.2"
-serialport = { version = "4", default-features = false }
+rustix = { version = "1", default-features = false, features = ["std", "termios", "event", "fs", "pty"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Registry", "Win32_Devices_Communication", "Win32_Devices_DeviceAndDriverInstallation"] }
+io-kit-sys = "0.5"
+core-foundation = "0.10"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "sync"] }
 futures = "0.3"
 uuid = "1"

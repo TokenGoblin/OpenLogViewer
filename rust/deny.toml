@@ -40,7 +40,7 @@ multiple-versions = "warn"
 # The OS's own interfaces (windows-sys, IOKit, CoreFoundation) are not on this list.
 deny = [
   { name = "libdbus-sys", reason = "links libdbus; talk to BlueZ with zbus instead" },
-  { name = "libudev-sys", reason = "links libudev; disable serialport's libudev feature" },
+  { name = "libudev-sys", reason = "links libudev; port enumeration reads sysfs directly instead" },
   { name = "libusb1-sys", reason = "links libusb; use nusb" },
   { name = "libftd2xx-ffi", reason = "links FTDI's ftd2xx; drive the chip over nusb or its VCP" },
   { name = "openssl-sys", reason = "links OpenSSL; use rustls" },

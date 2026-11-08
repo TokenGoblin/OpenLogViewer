@@ -4,20 +4,19 @@
 //! a serial port and neither knows the difference.
 //!
 //! The device itself sits behind the small [`SerialIo`] trait, implemented for real ports by
-//! the `serialport` crate (no libudev: pure Rust) and by fakes in the tests. Everything the C#
-//! decided (timeouts, the open retry, how a partial read is reported, which errors become what)
-//! is plain logic on top of that trait.
+//! our own [`SerialPort`] (`serial_port.rs`: Win32 on Windows, termios on Linux and macOS) and
+//! by fakes in the tests. Everything the C# decided (timeouts, the open retry, how a partial
+//! read is reported, which errors become what) is plain logic on top of that trait.
 //!
 //! # Differences the bench must confirm
 //!
-//! * .NET's `SerialPort` has separate read and write timeouts; the `serialport` crate has one
-//!   timeout for both. This transport sets it to the write timeout just before each write and
-//!   to the time remaining before each read, so the two behave as the C#'s did. The write
-//!   timeout is still 500 ms, widened around a burn.
+//! * .NET's `SerialPort` has separate read and write timeouts, and so does our `SerialPort`
+//!   (the `serialport` crate it replaces had one). This transport sets the write timeout to
+//!   500 ms (widened around a burn) and the read timeout to the time remaining before each read.
 //! * `SerialPort.Read` returns as soon as one byte is available and throws `TimeoutException`
-//!   when none arrives; `serialport` does the same (a read returns what is there, `TimedOut`
-//!   when nothing is). Confirm on a real MicroSquirt that a 512-byte block still arrives whole
-//!   through the read loop.
+//!   when none arrives; our `SerialPort::read` does the same (a read returns what is there,
+//!   `TimedOut` when nothing is, any other error for a port that has failed). Confirm on a real
+//!   MicroSquirt that a 512-byte block still arrives whole through the read loop.
 //! * The "semaphore timeout" rewording of an RFCOMM failure matches the message text, as the
 //!   C# did, so on a Windows installed in another language it will not trigger. It also
 //!   matches Windows error 121, which the C# message came from.
@@ -34,15 +33,21 @@ use std::time::{Duration, Instant};
 use olv_core::{Error, Result};
 use olv_protocol::ms::ms_protocol::EcuTransport;
 
+use super::serial_port::{PortInfo, SerialPort, SerialSettings, available_ports, is_timeout};
+
 /// What a write is given before it is called a dead port.
 pub const DEFAULT_WRITE_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// A serial device, reduced to what the transport needs, so the logic is testable with fakes.
 ///
-/// A timeout is reported as [`io::ErrorKind::TimedOut`] (or `WouldBlock`), as `serialport` does.
+/// A timeout is reported as [`io::ErrorKind::TimedOut`] (or `WouldBlock`); any other error is a
+/// port that has failed.
 pub trait SerialIo: Send {
-    /// Sets how long the next read or write may block. One value for both, as in `serialport`.
-    fn set_timeout(&mut self, timeout: Duration) -> io::Result<()>;
+    /// Sets how long the next reads may wait for a first byte.
+    fn set_read_timeout(&mut self, timeout: Duration);
+
+    /// Sets how long the next writes may take to be accepted.
+    fn set_write_timeout(&mut self, timeout: Duration);
 
     /// Reads whatever is available, up to `buf.len()`: at least one byte, or a timeout error.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>;
@@ -62,28 +67,29 @@ pub trait SerialIo: Send {
 /// Opens a port by name and baud rate, ready to use: 8-N-1, no flow control, DTR and RTS asserted.
 pub type PortOpener = Arc<dyn Fn(&str, u32) -> io::Result<Box<dyn SerialIo>> + Send + Sync>;
 
-/// The real thing: a `serialport` handle.
-struct RealPort(Box<dyn serialport::SerialPort>);
+impl SerialIo for SerialPort {
+    fn set_read_timeout(&mut self, timeout: Duration) {
+        SerialPort::set_read_timeout(self, timeout);
+    }
 
-impl SerialIo for RealPort {
-    fn set_timeout(&mut self, timeout: Duration) -> io::Result<()> {
-        self.0.set_timeout(timeout).map_err(io::Error::from)
+    fn set_write_timeout(&mut self, timeout: Duration) {
+        SerialPort::set_write_timeout(self, timeout);
     }
 
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        io::Read::read(&mut self.0, buf)
+        SerialPort::read(self, buf)
     }
 
     fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
-        io::Write::write_all(&mut self.0, data)
+        SerialPort::write_all(self, data)
     }
 
     fn discard_input(&mut self) -> io::Result<()> {
-        self.0.clear(serialport::ClearBuffer::Input).map_err(io::Error::from)
+        SerialPort::discard_input(self)
     }
 
     fn discard_all(&mut self) -> io::Result<()> {
-        self.0.clear(serialport::ClearBuffer::All).map_err(io::Error::from)
+        SerialPort::discard_all(self)
     }
 }
 
@@ -92,34 +98,32 @@ pub fn open_real_port(name: &str, baud_rate: u32) -> io::Result<Box<dyn SerialIo
     open_real_port_with(name, baud_rate, true)
 }
 
-/// As [`open_real_port`], choosing whether DTR and RTS are asserted (a MaxxECU's virtual COM
-/// port left them alone, as FTDI's D2XX did).
+/// As [`open_real_port`], choosing whether DTR and RTS are asserted. When they are not, the
+/// modem lines are not touched at all: a MaxxECU's virtual COM port left them alone, as FTDI's
+/// D2XX did.
 pub fn open_real_port_with(name: &str, baud_rate: u32, assert_lines: bool) -> io::Result<Box<dyn SerialIo>> {
-    let mut port = serialport::new(name, baud_rate)
-        .data_bits(serialport::DataBits::Eight)
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
-        .timeout(Duration::from_millis(500))
-        .open()
-        .map_err(io::Error::from)?;
-
-    // Some adapters hold the line low until these are asserted, and stay silent rather than
-    // reporting anything wrong.
-    if assert_lines {
-        port.write_data_terminal_ready(true).map_err(io::Error::from)?;
-        port.write_request_to_send(true).map_err(io::Error::from)?;
-    }
-
-    Ok(Box::new(RealPort(port)))
+    let mut port = SerialPort::open(name, &port_settings(baud_rate, assert_lines))?;
+    port.set_read_timeout(Duration::from_millis(500));
+    port.set_write_timeout(DEFAULT_WRITE_TIMEOUT);
+    Ok(Box::new(port))
 }
 
-/// The serial ports the operating system lists, with whatever USB / Bluetooth detail the
-/// `serialport` crate finds. Empty rather than failing: a port list is for a menu.
-pub(crate) fn list_system_ports() -> Vec<serialport::SerialPortInfo> {
-    // The crate's Linux enumeration without libudev (it reads /sys/class/tty) panics when /sys
-    // is missing, which is the case in some containers; a connect menu is no place for that.
-    std::panic::catch_unwind(|| serialport::available_ports().unwrap_or_default()).unwrap_or_default()
+/// 8 data bits, no parity, one stop bit, no flow control. Some adapters hold the line low until DTR
+/// and RTS are asserted, and stay silent rather than reporting anything wrong. Without
+/// `assert_lines` the two lines are not touched at all (not cleared either), as D2XX left them.
+fn port_settings(baud_rate: u32, assert_lines: bool) -> SerialSettings {
+    let settings = SerialSettings::new(baud_rate);
+    if assert_lines {
+        settings.with_lines(true)
+    } else {
+        settings
+    }
+}
+
+/// The serial ports the operating system lists, with whatever USB detail it knows. Empty
+/// rather than failing: a port list is for a menu.
+pub(crate) fn list_system_ports() -> Vec<PortInfo> {
+    available_ports().unwrap_or_default()
 }
 
 /// A serial port, whether that is a USB tuning cable or a Bluetooth adapter.
@@ -230,10 +234,6 @@ fn is_semaphore_timeout(e: &io::Error) -> bool {
     e.raw_os_error() == Some(121) || e.to_string().to_ascii_lowercase().contains("semaphore")
 }
 
-fn is_timeout(e: &io::Error) -> bool {
-    matches!(e.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock)
-}
-
 impl EcuTransport for SerialEcuTransport {
     fn is_open(&self) -> bool {
         self.port.is_some()
@@ -284,7 +284,7 @@ impl EcuTransport for SerialEcuTransport {
             return Err(Error::InvalidOperation("The port is not open.".into()));
         };
 
-        port.set_timeout(timeout)?;
+        port.set_write_timeout(timeout);
 
         match port.write_all(data) {
             Ok(()) => Ok(()),
@@ -349,7 +349,7 @@ impl EcuTransport for SerialEcuTransport {
             // The port's own blocking read, rather than polling with a sleep: Windows rounds a
             // 1 ms sleep up to a timer tick of about 15 ms, which was costing more per poll than
             // the transfer itself.
-            port.set_timeout(Duration::from_millis(remaining))?;
+            port.set_read_timeout(Duration::from_millis(remaining));
 
             match port.read(&mut buffer[total..]) {
                 Ok(0) => break,
@@ -391,6 +391,7 @@ mod tests {
         pieces: VecDeque<Vec<u8>>,
         written: Vec<u8>,
         timeouts: Vec<Duration>,
+        write_timeouts: Vec<Duration>,
         write_error: Option<io::ErrorKind>,
         discard_error: bool,
         discards: usize,
@@ -399,9 +400,12 @@ mod tests {
     struct FakePort(Arc<Mutex<Script>>);
 
     impl SerialIo for FakePort {
-        fn set_timeout(&mut self, timeout: Duration) -> io::Result<()> {
+        fn set_read_timeout(&mut self, timeout: Duration) {
             self.0.lock().unwrap().timeouts.push(timeout);
-            Ok(())
+        }
+
+        fn set_write_timeout(&mut self, timeout: Duration) {
+            self.0.lock().unwrap().write_timeouts.push(timeout);
         }
 
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -474,6 +478,27 @@ mod tests {
         assert_eq!(port_number("ttyS"), i32::MAX);
         assert_eq!(port_number("COM3"), 3);
         assert_eq!(port_number("99999999999"), i32::MAX);
+    }
+
+    #[test]
+    fn the_modem_lines_are_asserted_only_when_asked_and_otherwise_untouched() {
+        let on = port_settings(115_200, true);
+        assert_eq!((on.dtr, on.rts), (Some(true), Some(true)));
+
+        // A MaxxECU's virtual COM port: neither raised nor cleared.
+        let alone = port_settings(921_600, false);
+        assert_eq!((alone.dtr, alone.rts), (None, None));
+        assert_eq!(alone.baud_rate, 921_600);
+    }
+
+    #[test]
+    fn the_port_is_8n1_with_no_flow_control() {
+        use crate::transport::serial_port::{DataBits, Parity, StopBits};
+        let s = port_settings(115_200, true);
+        assert_eq!(
+            (s.data_bits, s.parity, s.stop_bits),
+            (DataBits::Eight, Parity::None, StopBits::One)
+        );
     }
 
     #[test]
@@ -562,7 +587,7 @@ mod tests {
 
         let s = script.lock().unwrap();
         assert_eq!(s.written, b"Q");
-        assert_eq!(*s.timeouts.last().unwrap(), DEFAULT_WRITE_TIMEOUT);
+        assert_eq!(*s.write_timeouts.last().unwrap(), DEFAULT_WRITE_TIMEOUT);
     }
 
     #[test]
@@ -592,7 +617,10 @@ mod tests {
         assert_eq!(t.write_timeout(), Duration::from_secs(9));
 
         t.write(b"B").unwrap();
-        assert_eq!(*script.lock().unwrap().timeouts.last().unwrap(), Duration::from_secs(9));
+        assert_eq!(
+            *script.lock().unwrap().write_timeouts.last().unwrap(),
+            Duration::from_secs(9)
+        );
 
         t.set_write_timeout(Duration::ZERO);
         assert_eq!(t.write_timeout(), Duration::from_secs(9));
