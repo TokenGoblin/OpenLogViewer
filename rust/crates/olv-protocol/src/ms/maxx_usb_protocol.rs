@@ -73,11 +73,24 @@ pub const REPLY_OVERHEAD: usize = 1 + 4;
 /// never observed, so this is also as much as is asked for.
 pub const MAXIMUM_DATA: usize = 512;
 
+/// The command that erases the ECU's flash: the firmware flasher's, not anything a
+/// viewer or tuner sends. [`request`] refuses to build it.
+pub const ERASE_FLASH: u8 = 0x2F;
+
 /// Builds a request.
 ///
 /// `[direction][command][offset u16][length u16][crc32]`, all little-endian, with the
 /// checksum over the six header bytes.
+///
+/// Refuses [`ERASE_FLASH`]. This is deliberately stricter than the C#, whose
+/// `MaxxUsbProtocol.Request` would build any command; it was safe only because no
+/// caller happened to pass 0x2F. One wrong constant there would have erased an ECU.
 pub fn request(direction: u8, command: u8, offset: i32, length: i32) -> Result<Vec<u8>> {
+    if command == ERASE_FLASH {
+        return Err(Error::Argument(
+            "command 0x2F erases the ECU's flash and is never sent".to_string(),
+        ));
+    }
     if offset < 0 {
         return Err(Error::Argument(format!(
             "offset ('{offset}') must be a non-negative value."
@@ -129,7 +142,9 @@ pub fn are_you_there() -> Vec<u8> {
 
 /// How long a reply to a request for this many bytes should be.
 pub fn reply_length(data_length: i32) -> i32 {
-    data_length + REPLY_OVERHEAD as i32
+    // Wrapping, as the C#'s unchecked int arithmetic does: a length near i32::MAX
+    // then simply never matches a real reply, rather than panicking a debug build.
+    data_length.wrapping_add(REPLY_OVERHEAD as i32)
 }
 
 /// Checks a reply and hands back its data.
@@ -514,5 +529,30 @@ mod tests {
                 .is_none()
         );
         assert!(transport.writes.is_empty());
+    }
+
+    /// The flash eraser is refused whatever the direction, offset or length, so no
+    /// caller (and no future caller) can reach it through this builder.
+    #[test]
+    fn the_flash_erase_command_is_never_built() {
+        for direction in [READ, 0x01, 0xFF] {
+            for (offset, length) in [(0, 0), (0, 2), (0x1234, 512), (65535, 65535)] {
+                assert!(matches!(
+                    request(direction, ERASE_FLASH, offset, length),
+                    Err(Error::Argument(_))
+                ));
+            }
+        }
+        // Its neighbours still build, so this refuses one command, not a range.
+        assert!(request(READ, 0x2E, 0, 1).is_ok());
+        assert!(request(READ, 0x30, 0, 1).is_ok());
+    }
+
+    /// A length near the top of i32 wraps as the C# does and never matches a reply,
+    /// rather than overflowing (which panics in a debug build).
+    #[test]
+    fn an_absurd_reply_length_is_refused_not_a_panic() {
+        assert!(try_read_reply(&[OK, 0, 0, 0, 0], i32::MAX).is_none());
+        assert_eq!(reply_length(i32::MAX), i32::MIN + 4);
     }
 }
