@@ -16,6 +16,7 @@ roxmltree = "0.20"
 ttf-parser = "0.25"
 ab_glyph = "0.2"
 png = "0.18"
+nusb = "0.2"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
