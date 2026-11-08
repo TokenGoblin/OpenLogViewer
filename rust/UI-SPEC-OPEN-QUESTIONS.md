@@ -8,6 +8,14 @@ not repeated here.
 Answer inline (e.g. "A: keep C#" / "A: fix as recommended") and the orchestrator will fold the answers into the
 spec before Wave 7 starts.
 
+## Answered by the user, 2026-11-08
+
+- **0.1 Bug policy: fix all the bugs.** Every behaviour this spec or `CSHARP-DEFECTS.md` marks as a bug is fixed in the Rust, not ported. Each fix gets a test that fails on the C#'s behaviour, and each is listed in `CSHARP-DEFECTS.md` as "fixed in Rust". The C# reference stays the rule for everything that isn't a listed bug.
+- **1.1 / 1.2 Lost changes: confirm, naming the pages.** A Yes/No dialog listing the unburned pages and unsent edits before window close, ECU switch, reconnect (including Ctrl+K while live), opening another table, saved tune or definition. Cancel keeps everything.
+- **1.6 / 1.7 Agent writes: clear arming on connect, send only agent bytes.** Every connect and reconnect disarms the agent. An agent write sends only its own change, and is refused while the human has unsent edits on the same page.
+- **1.4 RPM: warn above idle, allow.** Human Send, Burn and Restore confirmations say prominently when the engine is above about 1,200 rpm; the user can still proceed. The agent's hard gate stays.
+- Everything else below: fix as recommended, per 0.1. Where the spec gives no recommendation, the builder proposes one in its report.
+
 ## 0. Policy
 
 0.1 **Port C# bugs, or fix them?** About 60 behaviours in the spec look like bugs (stale state, lost edits,

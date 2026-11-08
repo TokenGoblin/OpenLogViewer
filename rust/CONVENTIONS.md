@@ -18,6 +18,7 @@ the sections it decided are marked *(Wave 0)*.
 
 ## Porting
 
+- **Bugs are fixed, not ported** (user decision, 2026-11-08). Anything listed in `CSHARP-DEFECTS.md`, or marked as a bug in `UI-SPEC.md`, is fixed in the Rust. The fix needs a test that would fail on the C#'s behaviour, and the entry in `CSHARP-DEFECTS.md` is updated to say "fixed in Rust". A newly found bug is fixed the same way and added. Everything else follows the rule below.
 - **Behaviour is the C#'s, exactly.** Same branches, same order of floating-point
   operations (`x * 9.0 / 5.0` is not `x * 1.8`; the reference test compares bits and
   will catch it), same edge cases. Improve nothing while porting; note it in the report.
