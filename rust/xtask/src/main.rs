@@ -436,16 +436,6 @@ fn test_owner(t: &TestFile, file_pkg: &BTreeMap<String, String>) -> Option<Strin
         .to_string_lossy()
         .trim_end_matches("Tests")
         .to_string();
-    for (file, pkg) in file_pkg {
-        let fstem = Path::new(file)
-            .file_name()?
-            .to_string_lossy()
-            .replace(".xaml.cs", "")
-            .replace(".cs", "");
-        if fstem == stem {
-            return Some(pkg.clone());
-        }
-    }
     // The interface tests exercise the view model through core types; what they
     // test is the interface, so only interface files can own them.
     let ui_test = t.path.contains("App.Tests");
@@ -454,9 +444,35 @@ fn test_owner(t: &TestFile, file_pkg: &BTreeMap<String, String>) -> Option<Strin
         .iter()
         .filter(|f| !ui_test || f.contains("OpenLogViewer.App/"))
         .collect();
+    let latest_used = t
+        .covers
+        .iter()
+        .filter_map(|f| file_pkg.get(f))
+        .map(|p| wave_of(p))
+        .max();
+
+    // Named after a file (MlgReaderTests -> MlgReader): that file's package, unless
+    // the test also uses something ported later.
+    for (file, pkg) in file_pkg {
+        let fstem = Path::new(file)
+            .file_name()?
+            .to_string_lossy()
+            .replace(".xaml.cs", "")
+            .replace(".cs", "");
+        if fstem == stem && latest_used.is_none_or(|w| wave_of(pkg) >= w) {
+            return Some(pkg.clone());
+        }
+    }
+    // A test can only run once everything it uses is ported, so it belongs to the
+    // latest wave among the packages it touches; within that wave, the one it uses
+    // most. (MaxxLogTests uses LogDocument from wave 0 and MaxxLogReader from wave 2:
+    // it is a wave 2 test.)
+    let latest = covers.iter().filter_map(|f| file_pkg.get(*f)).map(|p| wave_of(p)).max();
     let mut tally: BTreeMap<&String, usize> = BTreeMap::new();
     for (rank, f) in covers.iter().enumerate() {
-        if let Some(pkg) = file_pkg.get(*f) {
+        if let Some(pkg) = file_pkg.get(*f)
+            && Some(wave_of(pkg)) == latest
+        {
             // earlier = more-used; weight so the top file dominates ties
             *tally.entry(pkg).or_default() += covers.len() - rank;
         }
@@ -475,6 +491,14 @@ fn test_owner(t: &TestFile, file_pkg: &BTreeMap<String, String>) -> Option<Strin
             })
             .flatten()
     })
+}
+
+/// The wave a package id names: `w2-logs` is wave 2. `check` holds every id to this.
+fn wave_of(id: &str) -> u32 {
+    id.strip_prefix('w')
+        .and_then(|s| s.split('-').next())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(u32::MAX)
 }
 
 fn file_to_package(pkgs: &[Package]) -> BTreeMap<String, String> {
@@ -530,6 +554,12 @@ fn check() -> Res {
     let mut seen: BTreeMap<String, String> = BTreeMap::new();
     let mut ids = BTreeSet::new();
     for p in &pkgs {
+        if wave_of(&p.id) != p.wave {
+            errors.push(format!(
+                "{} is in wave {}; its id must start w{}-",
+                p.id, p.wave, p.wave
+            ));
+        }
         if !ids.insert(&p.id) {
             errors.push(format!("package id {} is used twice", p.id));
         }
