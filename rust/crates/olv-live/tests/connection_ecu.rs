@@ -1265,19 +1265,18 @@ fn a_burn_after_a_reopen_is_refused_because_the_written_change_is_lost() {
     let error = connection.burn_page(&page, true, 0).unwrap_err();
 
     assert!(error.refused(), "a lost change is a refusal, never a success");
-    assert!(
-        error
-            .to_string()
-            .starts_with("Nothing was burned: the changes written to page 0 are lost.")
+    assert_eq!(
+        error.to_string(),
+        "Nothing was burned: changes written to page 0 were lost when the connection was reopened. \
+         Send them to the ECU again, then burn."
     );
     assert_eq!(transport.written().len(), sent, "nothing was sent to the ECU");
     // And the write timeout was never widened for a burn that did not happen.
     assert!(transport.with(|s| s.write_timeout_history.is_empty()));
 
-    // The loss has been reported; a deliberate burn of the page as it now is, is not blocked
-    // for ever.
-    assert!(connection.lost_pages().unwrap().is_empty());
-    connection.burn_page(&page, true, 0).unwrap();
+    // The refusal does not forget the loss: asking again is refused again.
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+    assert_eq!(connection.lost_ranges(0).unwrap(), [(0x10, 4)]);
 }
 
 #[test]
@@ -1450,4 +1449,125 @@ fn the_widened_write_timeout_is_put_back_even_if_the_burn_panics() {
     assert_eq!(*timeout.lock().unwrap(), Duration::from_millis(500));
     // And the connection is still usable: neither its gate nor its owner record was left held.
     assert!(connection.unburned_pages().unwrap().is_empty());
+}
+
+// ----- tracking by byte range ----------------------------------------------------------------
+
+/// The app writes only the bytes that changed. After a reopen has lost cells A and B, a
+/// write of cell C alone must not make the page look fresh: a burn would commit C with A and
+/// B back at their old values and report success.
+#[test]
+fn rewriting_only_some_of_the_lost_bytes_still_refuses_the_burn() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap(); // A
+    connection.write_tune_page(&page, 0, true, 0x30, &DATA, 0).unwrap(); // B
+    connection.reopen().unwrap();
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+
+    connection.write_tune_page(&page, 0, true, 0x50, &DATA, 0).unwrap(); // C only
+
+    assert_eq!(connection.lost_pages().unwrap(), [0]);
+    assert_eq!(connection.lost_ranges(0).unwrap(), [(0x10, 4), (0x30, 4)]);
+    assert_eq!(connection.unburned_pages().unwrap(), [0], "C is waiting for a burn");
+
+    let sent = transport.written().len();
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+    assert_eq!(transport.written().len(), sent, "no burn was sent");
+}
+
+#[test]
+fn a_rewrite_removes_only_its_own_bytes_from_the_lost_set() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &[1u8; 16], 0).unwrap();
+    connection.reopen().unwrap();
+
+    // The middle of the lost range, written again: what is left is the two ends.
+    connection.write_tune_page(&page, 0, true, 0x14, &[2u8; 8], 0).unwrap();
+
+    assert_eq!(connection.lost_ranges(0).unwrap(), [(0x10, 4), (0x1C, 4)]);
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+}
+
+#[test]
+fn rewriting_all_the_lost_bytes_allows_the_burn_and_a_burn_clears_the_page() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.write_tune_page(&page, 0, true, 0x30, &DATA, 0).unwrap();
+    connection.reopen().unwrap();
+
+    // One write covering both and the gap between them is more than enough...
+    connection
+        .write_tune_page(&page, 0, true, 0x10, &[7u8; 0x24], 0)
+        .unwrap();
+    assert!(connection.lost_ranges(0).unwrap().is_empty());
+    assert!(connection.lost_pages().unwrap().is_empty());
+
+    connection.burn_page(&page, true, 0).unwrap();
+
+    assert!(connection.unburned_pages().unwrap().is_empty());
+    assert!(connection.lost_ranges(0).unwrap().is_empty());
+}
+
+#[test]
+fn the_lost_bytes_can_be_sent_again_piece_by_piece_and_a_second_reopen_loses_them_again() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.write_tune_page(&page, 0, true, 0x30, &DATA, 0).unwrap();
+    connection.reopen().unwrap();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    assert_eq!(connection.lost_ranges(0).unwrap(), [(0x30, 4)]);
+    connection.write_tune_page(&page, 0, true, 0x30, &DATA, 0).unwrap();
+    assert!(connection.lost_ranges(0).unwrap().is_empty());
+
+    // Everything sent again, then the port goes again before the burn: lost again.
+    connection.reopen().unwrap();
+    assert_eq!(connection.lost_ranges(0).unwrap(), [(0x10, 4), (0x30, 4)]);
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+}
+
+#[test]
+fn lost_bytes_on_one_page_do_not_block_a_burn_of_another() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+    let other = TunePage {
+        index: 1,
+        ..speeduino_page()
+    };
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.reopen().unwrap();
+    connection.write_tune_page(&other, 0, true, 0x10, &DATA, 0).unwrap();
+
+    connection.burn_page(&other, true, 0).unwrap();
+    assert_eq!(connection.lost_pages().unwrap(), [0]);
+}
+
+#[test]
+fn giving_up_on_the_lost_bytes_is_an_explicit_act_and_lifts_the_refusal() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.reopen().unwrap();
+    assert!(connection.burn_page(&page, true, 0).is_err());
+
+    connection.discard_lost(0).unwrap();
+
+    assert!(connection.lost_pages().unwrap().is_empty());
+    connection.burn_page(&page, true, 0).unwrap();
 }

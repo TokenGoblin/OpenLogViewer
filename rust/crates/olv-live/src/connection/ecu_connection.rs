@@ -28,10 +28,11 @@
 //!
 //! **Stricter than the C#:** the C# let a burn follow a reopen, so a Speeduino that had
 //! reset (losing the written change) was told to burn its unchanged tune and reported
-//! success. Here the connection counts reopens, remembers which pages have unburned writes
+//! success. Here the connection counts reopens, remembers which byte ranges of which pages are unburned
 //! and the count at the time, and [`EcuConnection::burn_page`] refuses (as a refusal, never
-//! as success) a page whose writes were made before a reopen. See
-//! [`EcuConnection::unburned_pages`] and [`EcuConnection::lost_pages`].
+//! as success) a page that still has bytes lost to a reopen, and tracks them by byte range
+//! because the app writes only what changed. See [`EcuConnection::unburned_pages`],
+//! [`EcuConnection::lost_pages`] and [`EcuConnection::lost_ranges`].
 //!
 //! **Re-entry and `dispose`.** The C#'s lock was re-entrant; this gate is not. A progress
 //! callback that calls back into the same connection from the reading thread gets an error
@@ -234,12 +235,70 @@ struct Core {
     /// Times the port has been closed and opened again. A Speeduino resets each time.
     reopens: u64,
 
-    /// Pages written and not yet burned, with the value of `reopens` at their first
-    /// unburned write. An entry older than `reopens` is a write the ECU has lost.
-    unburned: Vec<(i32, u64)>,
+    /// Per page, the byte ranges written and not yet burned. See [`PageWrites`].
+    unburned: Vec<PageWrites>,
 
     /// Set by a `dispose` called from inside a progress callback on the reading thread.
     dispose_requested: Arc<AtomicBool>,
+}
+
+/// The unburned writes to one page, as byte ranges.
+///
+/// The app writes only the bytes that changed, not whole pages, so "this page has lost
+/// writes" is not enough: a later write of some other cell must not make the lost ones
+/// look fresh. Each range carries the value of `reopens` when it was written; a range
+/// older than the current count was lost when the port was reopened (a Speeduino resets).
+/// Ranges are disjoint and half-open, `(start, end, generation)`.
+struct PageWrites {
+    page: i32,
+    ranges: Vec<(usize, usize, u64)>,
+}
+
+impl PageWrites {
+    /// Records `[start, end)` as written at `generation`. It replaces whatever it overlaps
+    /// (rewriting a lost range makes exactly those bytes fresh and no others) and joins
+    /// neighbours written in the same generation.
+    fn record(&mut self, start: usize, end: usize, generation: u64) {
+        let mut kept = Vec::with_capacity(self.ranges.len() + 2);
+
+        for &(s, e, g) in &self.ranges {
+            if e <= start || s >= end {
+                kept.push((s, e, g));
+                continue;
+            }
+            if s < start {
+                kept.push((s, start, g));
+            }
+            if e > end {
+                kept.push((end, e, g));
+            }
+        }
+
+        kept.push((start, end, generation));
+        kept.sort_unstable();
+
+        let mut merged: Vec<(usize, usize, u64)> = Vec::with_capacity(kept.len());
+        for (s, e, g) in kept {
+            match merged.last_mut() {
+                Some(last) if last.1 == s && last.2 == g => last.1 = e,
+                _ => merged.push((s, e, g)),
+            }
+        }
+
+        self.ranges = merged;
+    }
+
+    fn lost(&self, reopens: u64) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.ranges.iter().filter(move |r| r.2 != reopens).map(|r| (r.0, r.1))
+    }
+
+    fn has_lost(&self, reopens: u64) -> bool {
+        self.lost(reopens).next().is_some()
+    }
+
+    fn has_fresh(&self, reopens: u64) -> bool {
+        self.ranges.iter().any(|r| r.2 == reopens)
+    }
 }
 
 /// The gate, held: the lock plus a record of which thread holds it, so a second request
@@ -403,21 +462,50 @@ impl EcuConnection {
         Ok(core
             .unburned
             .iter()
-            .filter(|(_, at)| *at == core.reopens)
-            .map(|(page, _)| *page)
+            .filter(|w| w.has_fresh(core.reopens))
+            .map(|w| w.page)
             .collect())
     }
 
-    /// Pages whose unburned writes were lost because the port was reopened after them
-    /// (a Speeduino resets). [`burn_page`](Self::burn_page) refuses these.
+    /// Pages that have written bytes the ECU has lost because the port was reopened after
+    /// them (a Speeduino resets). [`burn_page`](Self::burn_page) refuses these until every
+    /// lost byte has been sent again.
     pub fn lost_pages(&self) -> EcuResult<Vec<i32>> {
         let core = self.gate()?;
         Ok(core
             .unburned
             .iter()
-            .filter(|(_, at)| *at != core.reopens)
-            .map(|(page, _)| *page)
+            .filter(|w| w.has_lost(core.reopens))
+            .map(|w| w.page)
             .collect())
+    }
+
+    /// The byte ranges of `page` that were written and then lost to a reopen and have not
+    /// been written again since, as `(offset, length)` pairs in ascending order. Sending
+    /// exactly these again, from the app's current tune image, makes a burn possible; a
+    /// rewrite removes only the bytes it covers.
+    pub fn lost_ranges(&self, page: i32) -> EcuResult<Vec<(usize, usize)>> {
+        let core = self.gate()?;
+        Ok(core
+            .unburned
+            .iter()
+            .find(|w| w.page == page)
+            .map(|w| w.lost(core.reopens).map(|(s, e)| (s, e - s)).collect())
+            .unwrap_or_default())
+    }
+
+    /// Gives up on the lost bytes of `page`: the user has decided the ECU may keep what it
+    /// has, so a burn is no longer refused for them. Never called by this crate.
+    pub fn discard_lost(&self, page: i32) -> EcuResult<()> {
+        let mut core = self.gate()?;
+        let reopens = core.reopens;
+
+        if let Some(w) = core.unburned.iter_mut().find(|w| w.page == page) {
+            w.ranges.retain(|r| r.2 == reopens);
+        }
+        core.unburned.retain(|w| !w.ranges.is_empty());
+
+        Ok(())
     }
 
     /// How many times the port has been reopened.
@@ -745,12 +833,21 @@ impl EcuConnection {
             )));
         }
 
-        // Written, and so lost at the next reset until burned. The count of reopens is the
-        // one from the first unburned write: a later write must not make an earlier,
-        // already lost one look fresh.
+        // Written, and so lost at the next reset until burned. Recorded by range: a later
+        // write of other bytes must not make an earlier, already lost one look fresh.
         let reopens = core.reopens;
-        if !core.unburned.iter().any(|(index, _)| *index == page.index) {
-            core.unburned.push((page.index, reopens));
+        let start = offset as usize;
+        let end = start + data.len();
+        match core.unburned.iter_mut().find(|w| w.page == page.index) {
+            Some(w) => w.record(start, end, reopens),
+            None => {
+                let mut w = PageWrites {
+                    page: page.index,
+                    ranges: Vec::new(),
+                };
+                w.record(start, end, reopens);
+                core.unburned.push(w);
+            }
         }
 
         Ok(())
@@ -773,22 +870,21 @@ impl EcuConnection {
             )));
         }
 
-        // Writes made before the port was last reopened are gone: a Speeduino resets when
-        // its port opens. Burning now would commit the tune as it was before those writes
-        // and report success. Stricter than the C#, which let that happen. Nothing is sent,
-        // and the loss is reported as the refusal it is; the page is then no longer waiting
-        // for a burn, so a later, deliberate burn is not blocked for ever.
+        // Bytes written before the port was last reopened are gone: a Speeduino resets when
+        // its port opens. Burning now would commit those bytes as they were before and
+        // report success. Stricter than the C#, which let that happen. Nothing is sent, and
+        // the loss is a refusal. It stays a refusal until every lost byte has been sent
+        // again: writing some other cell of the page does not lift it.
         let reopens = core.reopens;
         if core
             .unburned
             .iter()
-            .any(|(index, at)| *index == page.index && *at != reopens)
+            .any(|w| w.page == page.index && w.has_lost(reopens))
         {
-            core.unburned.retain(|(index, _)| *index != page.index);
-
             return Err(EcuError::Protocol(EcuProtocolError {
                 message: format!(
-                    "Nothing was burned: the changes written to page {} are lost. The connection was reopened                      after they were written, which resets some ECUs (a Speeduino reboots when its port opens),                      and burning now would store the tune as it was before them. Write the changes again,                      then burn.",
+                    "Nothing was burned: changes written to page {} were lost when the connection was reopened. \
+                     Send them to the ECU again, then burn.",
                     page.index
                 ),
                 refused: true,
@@ -844,7 +940,7 @@ impl EcuConnection {
             other => other?,
         }
 
-        core.unburned.retain(|(index, _)| *index != page.index);
+        core.unburned.retain(|w| w.page != page.index);
 
         // The wait the firmware asks for after a burn, which TunerStudio also observes.
         // Writing flash stops the controller answering for as long as it takes, so the
