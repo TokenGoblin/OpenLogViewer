@@ -13,4 +13,8 @@ pub mod units;
 pub use error::{Error, Result};
 pub mod calc;
 pub mod channels;
+pub mod definitions;
+pub mod filters;
 pub mod ini;
+pub mod logs;
+pub mod math;

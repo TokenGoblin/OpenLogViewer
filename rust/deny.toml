@@ -35,6 +35,17 @@ confidence-threshold = 0.9
 
 [bans]
 multiple-versions = "warn"
+# Pure Rust means no third-party C library (PLAN.md). These are the crates that
+# would link one; a dependency that pulls any of them in fails the build here.
+# The OS's own interfaces (windows-sys, IOKit, CoreFoundation) are not on this list.
+deny = [
+  { name = "libdbus-sys", reason = "links libdbus; talk to BlueZ with zbus instead" },
+  { name = "libudev-sys", reason = "links libudev; disable serialport's libudev feature" },
+  { name = "libusb1-sys", reason = "links libusb; use nusb" },
+  { name = "libftd2xx-ffi", reason = "links FTDI's ftd2xx; drive the chip over nusb or its VCP" },
+  { name = "openssl-sys", reason = "links OpenSSL; use rustls" },
+  { name = "libz-sys", reason = "links zlib; use miniz_oxide" },
+]
 wildcards = "deny"
 # Crates inside this workspace refer to each other by path, which is fine.
 allow-wildcard-paths = true

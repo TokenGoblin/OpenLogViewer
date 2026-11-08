@@ -7,6 +7,7 @@ pub mod engine_geometry;
 pub mod engine_recipe;
 pub mod gearing;
 pub mod intercooling;
+pub mod manifold_tuning;
 pub mod octane_blend;
 pub mod running_costs;
 pub mod sprayables;
