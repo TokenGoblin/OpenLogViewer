@@ -277,6 +277,7 @@ name = "olv-core"
 version = "0.1.0"
 dependencies = [
  "olv-oracle",
+ "regex",
  "roxmltree",
  "serde",
  "serde_json",
