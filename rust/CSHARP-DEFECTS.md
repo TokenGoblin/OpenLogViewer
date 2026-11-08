@@ -6,7 +6,7 @@ in the agents' reports. Each one names where it is and how it was found.
 
 | Where | Defect | Found by |
 |---|---|---|
-| **`TunerStudioSource.Recover` + `EcuConnection` (HIGH, shipping app)** | A port reopen between `WriteTunePage` and `BurnPage` (a poll-thread recovery) resets a Speeduino, so the written change is lost, and the burn then commits the unchanged tune **and reports success**. The read-back ran before the reset, so it can't catch it. Recovery also reads straight after the reset with no boot wait, into the bootloader. **Fix in the C# too.** | w3-connection review |
+| **`TunerStudioSource.Recover` + `EcuConnection` (HIGH, shipping app)** | A port reopen between `WriteTunePage` and `BurnPage` (a poll-thread recovery) resets a Speeduino, so the written change is lost, and the burn then commits the unchanged tune **and reports success**. The read-back ran before the reset, so it can't catch it. Recovery also reads straight after the reset with no boot wait, into the bootloader. **Fixed in the C# on branch `fix-burn-after-reopen` (aecc523, 3c1896d), not yet merged to main.** | w3-connection review |
 | `ChannelClassifier` (units check) | `Simplify` removes `/` and `°`, so the `"g/s"`, `"kg/h"`, `"lb/min"`, `"km/h"` and `"m/s"` arms can never match; only the slash-free spellings work. `"°"` simplifies to empty and is accepted for every role. | w1-channels |
 | `SafeFolder` | A safe folder at a filesystem root rejects every file: `Folder + separator` already ends in a separator. | w0-base |
 | `MathExpression` | Long runs of unary `-`, `!` or `^` are not depth-limited (only parenthesised nesting is capped at 64), so a hostile expression can overflow the stack. | w0-base |
