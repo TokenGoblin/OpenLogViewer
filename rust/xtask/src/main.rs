@@ -1219,7 +1219,21 @@ fn corpus() -> Res {
         serde_json::to_string_pretty(&manifest).unwrap(),
     )
     .map_err(|e| e.to_string())?;
-    Ok(ExitCode::SUCCESS)
+
+    // The corpus references are gitignored, so they exist only where they were last
+    // generated. Without them every corpus test returns early and passes, which twice
+    // hid a test that was not running. Regenerate them whenever the corpus is gathered.
+    println!("regenerating the corpus references from the C#…");
+    let status = Command::new("dotnet")
+        .args(["run", "--project", "tools/OpenLogViewer.Oracle", "--", "--corpus"])
+        .current_dir(repo())
+        .status()
+        .map_err(|e| format!("dotnet: {e}"))?;
+    Ok(if status.success() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 /// A path whose last component may hold one `*`.
