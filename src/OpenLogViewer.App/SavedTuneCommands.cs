@@ -349,7 +349,10 @@ public sealed partial class MainViewModel
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
 
-        if (plan.IsEmpty) return "The ECU already holds this tune, so nothing was sent.";
+        if (plan.IsEmpty)
+            return HasLostWrites
+                ? NothingToSend()
+                : "The ECU already holds this tune, so nothing was sent.";
 
         foreach (TuneWrite write in plan.Writes)
         {
@@ -365,6 +368,8 @@ public sealed partial class MainViewModel
 
         try
         {
+            int resent = ResendLost(connection, layout);
+
             foreach (TuneWrite write in plan.Writes)
             {
                 TunePage page = layout.Pages.First(p => p.Index == write.Page);
@@ -382,7 +387,7 @@ public sealed partial class MainViewModel
             return $"Restored {settings:N0} setting{(settings == 1 ? "" : "s")} to the ECU — "
                    + $"{plan.Bytes:N0} bytes across {plan.Pages.Count} "
                    + $"page{(plan.Pages.Count == 1 ? "" : "s")}. It is running this now, and will "
-                   + "forget it at the next power cycle unless you burn it.";
+                   + "forget it at the next power cycle unless you burn it." + ResentNote(resent);
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {

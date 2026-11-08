@@ -175,6 +175,71 @@ public class ConnectedEcuTests : IDisposable
         Assert.True(vm.CanBurnSettings, $"nothing was left to burn; the write said: {said}");
     }
 
+    /// <summary>
+    /// Sends two settings, then reopens the port as the poll thread would after
+    /// a dropped link, which resets the board and takes both with it.
+    /// </summary>
+    private static void SendTwoThenLoseThem(MainViewModel vm, FakeController board)
+    {
+        byte[] atBoot = board.Page.ToArray();
+
+        Row(vm, "Cranking RPM").Value = "400";
+        Row(vm, "Rev limit").Value = "7000";
+        vm.WriteSettingsToEcu();
+
+        vm.EcuConnectionForTests!.Reopen();
+        atBoot.CopyTo(board.Page, 0);
+    }
+
+    [Fact]
+    public void ABurnAfterAReopenIsRefusedAndTheNextSendOffersTheLostBytesAgain()
+    {
+        MainViewModel vm = Connected(out FakeController board);
+        SendTwoThenLoseThem(vm, board);
+
+        string said = vm.BurnSettingsToEcu();
+
+        Assert.Equal(0, board.Burns);
+        Assert.Contains("Send to ECU again", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("Burned", said, StringComparison.Ordinal);
+
+        // Nothing was edited since, yet Send is offered and carries the bytes,
+        // taken from the values the user chose rather than the board's.
+        Assert.True(vm.CanWriteSettings);
+        Assert.Equal(300, (board.Page[0] << 8) | board.Page[1]);
+
+        vm.WriteSettingsToEcu();
+
+        Assert.Equal(400, (board.Page[0] << 8) | board.Page[1]);
+        Assert.Equal(7000, (board.Page[2] << 8) | board.Page[3]);
+        Assert.False(vm.HasLostWrites);
+
+        vm.BurnSettingsToEcu();
+
+        Assert.Equal(1, board.Burns);
+        Assert.Equal(400, (board.Flash![0] << 8) | board.Flash[1]);
+        Assert.Equal(7000, (board.Flash[2] << 8) | board.Flash[3]);
+    }
+
+    [Fact]
+    public void SendingSomethingElseAfterTheReopenStillCarriesTheLostBytes()
+    {
+        MainViewModel vm = Connected(out FakeController board);
+        SendTwoThenLoseThem(vm, board);
+
+        // The user edits a third setting and sends only that. Before, the
+        // page looked written again and the burn committed the other two at
+        // their old values while the screen showed them as burned.
+        Row(vm, "Vehicle").Value = "Track";
+        vm.WriteSettingsToEcu();
+        vm.BurnSettingsToEcu();
+
+        Assert.Equal(1, board.Burns);
+        Assert.Equal(400, (board.Flash![0] << 8) | board.Flash[1]);
+        Assert.Equal(7000, (board.Flash[2] << 8) | board.Flash[3]);
+        Assert.Equal((byte)'T', board.Flash[4]);
+    }
+
     [Fact]
     public void AConfirmedBurnClearsThePageAndSaysSo()
     {

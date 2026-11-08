@@ -61,34 +61,113 @@ public sealed class EcuConnection : IDisposable
     private readonly Lock _gate = new();
 
     // Opening a Speeduino's port resets the board, and what was written but not
-    // burned lives in RAM. These remember, per page, how many times the link had
-    // been reopened when the earliest still-unburned write landed, so a burn
-    // after a reopen can be seen for what it is: a commit of the old tune.
+    // burned lives in RAM. These remember, per page and per BYTE RANGE, what
+    // has been written since the last burn (and so is still waiting for one)
+    // and what a reopen has since taken away. Page-level bookkeeping is not
+    // enough: after a reopen, writing one cell must not make the other cells
+    // that were lost look fresh, or a burn commits them at their old values.
     // All guarded by _gate.
     private int _reopens;
-    private readonly Dictionary<int, int> _unburned = [];
-    private readonly HashSet<int> _lost = [];
+    private readonly Dictionary<int, RangeSet> _pending = [];
+    private readonly Dictionary<int, RangeSet> _lost = [];
 
     /// <summary>How many times the link has been closed and opened again.</summary>
     public int Reopens { get { lock (_gate) return _reopens; } }
 
-    /// <summary>Pages written to the ECU since their last burn, in ascending order.</summary>
+    /// <summary>Pages with bytes written since their last burn, lost or not, in ascending order.</summary>
     public IReadOnlyList<int> UnburnedPages
-    {
-        get { lock (_gate) return [.. _unburned.Keys.Order()]; }
-    }
-
-    /// <summary>
-    /// Pages whose written changes were lost when the link was reopened, and
-    /// have not been written again since. A burn of one is refused.
-    /// </summary>
-    public IReadOnlyList<int> LostPages
     {
         get
         {
             lock (_gate)
-                return [.. _unburned.Where(p => p.Value < _reopens).Select(p => p.Key).Union(_lost).Order()];
+                return [.. _pending.Where(p => !p.Value.IsEmpty).Select(p => p.Key)
+                    .Union(_lost.Where(p => !p.Value.IsEmpty).Select(p => p.Key)).Order()];
         }
+    }
+
+    /// <summary>
+    /// Pages with written bytes that a reopen has taken away and that have not
+    /// been written again since. A burn of one is refused.
+    /// </summary>
+    public IReadOnlyList<int> LostPages
+    {
+        get { lock (_gate) return [.. _lost.Where(p => !p.Value.IsEmpty).Select(p => p.Key).Order()]; }
+    }
+
+    /// <summary>
+    /// The byte ranges of a page that were written, then lost to a reopen, and
+    /// not written again. These are what the ECU no longer holds.
+    /// </summary>
+    public IReadOnlyList<(int Offset, int Length)> LostRanges(int page)
+    {
+        lock (_gate)
+            return _lost.TryGetValue(page, out RangeSet? set) ? set.ToList() : [];
+    }
+
+    /// <summary>
+    /// Stops counting lost ranges as owed. For when the caller has just read
+    /// the ECU's own bytes back, so what it holds now is what the ECU holds.
+    /// </summary>
+    public void ForgetLost()
+    {
+        lock (_gate) _lost.Clear();
+    }
+
+    /// <summary>The reopen has reset the board: every unburned write is gone from RAM.</summary>
+    private void WritesLostToReopen()
+    {
+        foreach ((int page, RangeSet set) in _pending)
+        {
+            if (set.IsEmpty) continue;
+
+            if (!_lost.TryGetValue(page, out RangeSet? lost)) _lost[page] = lost = new RangeSet();
+            foreach ((int offset, int length) in set.ToList()) lost.Add(offset, length);
+        }
+
+        _pending.Clear();
+    }
+
+    /// <summary>Sorted, non-overlapping half-open byte ranges.</summary>
+    private sealed class RangeSet
+    {
+        private readonly List<(int Start, int End)> _ranges = [];
+
+        public bool IsEmpty => _ranges.Count == 0;
+
+        public void Add(int offset, int length)
+        {
+            int start = offset, end = offset + length;
+            var next = new List<(int, int)>();
+
+            foreach ((int s, int e) in _ranges)
+            {
+                if (e < start || s > end) next.Add((s, e));
+                else { start = Math.Min(start, s); end = Math.Max(end, e); }
+            }
+
+            next.Add((start, end));
+            next.Sort();
+            _ranges.Clear();
+            _ranges.AddRange(next);
+        }
+
+        public void Subtract(int offset, int length)
+        {
+            int cutStart = offset, cutEnd = offset + length;
+            var next = new List<(int, int)>();
+
+            foreach ((int s, int e) in _ranges)
+            {
+                if (e <= cutStart || s >= cutEnd) { next.Add((s, e)); continue; }
+                if (s < cutStart) next.Add((s, cutStart));
+                if (e > cutEnd) next.Add((cutEnd, e));
+            }
+
+            _ranges.Clear();
+            _ranges.AddRange(next);
+        }
+
+        public List<(int Offset, int Length)> ToList() => [.. _ranges.Select(r => (r.Start, r.End - r.Start))];
     }
 
     public void Open()
@@ -100,6 +179,7 @@ public sealed class EcuConnection : IDisposable
         // Counted before the attempt: an open that throws part way may still
         // have reset the board.
         _reopens++;
+        WritesLostToReopen();
         _transport.Open();
         }
     }
@@ -128,6 +208,7 @@ public sealed class EcuConnection : IDisposable
         // already have reset the board, and a count that is too high only
         // refuses a burn that was safe, where one too low commits the old tune.
         _reopens++;
+        WritesLostToReopen();
         _transport.Open();
         }
     }
@@ -450,13 +531,14 @@ public sealed class EcuConnection : IDisposable
                 + "of page " + page.Index + " and reading the same range back gave something else. "
                 + "Nothing has been burned, so a power cycle restores the ECU.");
 
-        // Recorded only now that the write has landed and been proved. The
-        // earliest unburned write keeps its place: a later write to the same
-        // page must not make an earlier one, lost to a reopen, look fresh. A
-        // page already known lost starts over, since this is the write the
-        // refusal asked for.
-        if (_lost.Remove(page.Index)) _unburned.Remove(page.Index);
-        _unburned.TryAdd(page.Index, _reopens);
+        // Recorded only now that the write has landed and been proved, and by
+        // byte range: this write makes exactly its own bytes current again. Any
+        // other bytes a reopen took away stay lost.
+        if (_lost.TryGetValue(page.Index, out RangeSet? stillLost))
+            stillLost.Subtract(offset, data.Length);
+
+        if (!_pending.TryGetValue(page.Index, out RangeSet? pending)) _pending[page.Index] = pending = new RangeSet();
+        pending.Add(offset, data.Length);
         }
     }
 
@@ -480,15 +562,11 @@ public sealed class EcuConnection : IDisposable
         // change. The read-back that verified the write ran before the reset
         // and cannot see it. Refused is true because the ECU is in exactly the
         // state of a refusal: nothing was sent and nothing was changed.
-        if (_lost.Contains(page.Index)
-            || (_unburned.TryGetValue(page.Index, out int writtenAt) && writtenAt < _reopens))
+        if (_lost.TryGetValue(page.Index, out RangeSet? lostHere) && !lostHere.IsEmpty)
         {
-            _unburned.Remove(page.Index);
-            _lost.Add(page.Index);
-
             throw new EcuProtocolException(
                 $"Nothing was burned: the changes written to page {page.Index} were lost when the "
-                + "connection was reopened. Write them again, then burn.")
+                + "connection was reopened. Send to ECU again, then burn.")
             {
                 Refused = true,
                 FailureKind = WireFailureKind.Refused,
@@ -545,7 +623,7 @@ public sealed class EcuConnection : IDisposable
         // it takes, so the next request sent immediately afterwards goes into
         // silence — and desynchronises everything after it, which on a link
         // being polled at the same time is every reading until it is noticed.
-        _unburned.Remove(page.Index);
+        _pending.Remove(page.Index);
         _lost.Remove(page.Index);
 
         if (afterBurnDelay > 0) Thread.Sleep(afterBurnDelay);

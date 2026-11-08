@@ -1944,7 +1944,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Whether the curve on screen could be sent.</summary>
     public bool CanWriteCurve =>
-        HasCurveChanges && _ecuConnection is not null && _tuneLayout is not null
+        (HasCurveChanges || HasLostWrites) && _ecuConnection is not null && _tuneLayout is not null
         && !TuneIsPlaceholder && !TuneIsFromFile;
 
     /// <summary>Puts every curve on the page back to what the ECU holds.</summary>
@@ -1991,7 +1991,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasOpenCurves) return "No curve is open.";
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
-        if (!HasCurveChanges) return "Nothing has been changed.";
+        if (!HasCurveChanges) return NothingToSend();
 
         // Every write worked out and every page checked before the first byte
         // goes out. A curve's two rows have to land together — values sent
@@ -2026,6 +2026,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
+            int resent = ResendLost(connection, layout);
+
             foreach (TuneWrite write in planned)
             {
                 TunePage page = layout.Pages.First(p => p.Index == write.Page);
@@ -2047,7 +2049,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             return $"Sent {moved} moved point{(moved == 1 ? "" : "s")} to the ECU. "
                    + "It is running this now, and will forget it at the next power cycle "
-                   + "unless you burn it.";
+                   + "unless you burn it." + ResentNote(resent);
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2289,6 +2291,108 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Bytes this session sent and the controller then lost, as writes.
+    ///
+    /// A reopen resets a Speeduino and its working memory goes with it, but the
+    /// tune held here still says those bytes were sent: every Send path takes
+    /// what the controller accepted as settled, so none of them would offer
+    /// those bytes again, and a burn would commit them at their old values. The
+    /// connection knows exactly which byte ranges were lost, and the values the
+    /// user chose are in the tune image, so they are read from there. Nothing
+    /// is sent by asking; <see cref="ResendLost"/> does that when the user
+    /// presses Send.
+    /// </summary>
+    private IReadOnlyList<TuneWrite> LostWrites()
+    {
+        if (TuneIsPlaceholder || TuneIsFromFile) return [];
+        if (_ecuConnection is not { } connection || _ecuTune is not { } tune) return [];
+
+        var writes = new List<TuneWrite>();
+
+        foreach (int page in connection.LostPages)
+        {
+            if (page < 0 || page >= tune.Pages.Count) continue;
+
+            foreach ((int offset, int length) in connection.LostRanges(page))
+            {
+                if (offset < 0 || length < 1 || offset + length > tune.Pages[page].Length) continue;
+
+                writes.Add(new TuneWrite(page, offset, tune.Pages[page][offset..(offset + length)]));
+            }
+        }
+
+        return writes;
+    }
+
+    /// <summary>Whether a reopen has left bytes the user sent that the controller no longer holds.</summary>
+    public bool HasLostWrites => LostWrites().Count > 0;
+
+    /// <summary>
+    /// Sends the lost bytes again, from the tune image. Every Send path calls
+    /// this first, so a later Send of something else cannot leave them behind
+    /// and then burn over them. Returns the bytes sent.
+    /// </summary>
+    private int ResendLost(EcuConnection connection, TuneLayout layout)
+    {
+        int bytes = 0;
+
+        try
+        {
+            foreach (TuneWrite write in LostWrites())
+            {
+                TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
+
+                if (page is null || page.ChunkWriteCommand.Length == 0)
+                    throw new EcuProtocolException($"This firmware declares no way to write page {write.Page}.");
+
+                connection.WriteTunePage(
+                    page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
+                    layout.InterWriteDelay);
+
+                // Not tune.Accept: the tune already holds these bytes, and
+                // accepting them into the settings edit would overwrite a
+                // pending change to the same setting.
+                _settingsPagesWritten.Add(write.Page);
+                bytes += write.Data.Length;
+            }
+        }
+        finally
+        {
+            RaiseWriteGates();
+        }
+
+        return bytes;
+    }
+
+    private static string ResentNote(int bytes) =>
+        bytes == 0
+            ? ""
+            : $" {bytes:N0} bytes sent earlier and lost when the connection was reopened were sent again too.";
+
+    /// <summary>
+    /// What a Send says when nothing new was edited: if bytes were lost to a
+    /// reopen it sends those, otherwise there is nothing to do.
+    /// </summary>
+    private string NothingToSend()
+    {
+        if (!HasLostWrites || _ecuConnection is not { } connection || _tuneLayout is not { } layout)
+            return "Nothing has been changed.";
+
+        try
+        {
+            int bytes = ResendLost(connection, layout);
+
+            return $"Nothing new was edited, but {bytes:N0} bytes sent earlier were lost when the "
+                   + "connection was reopened. They have been sent again. Nothing is burned until "
+                   + "you burn it.";
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
+        {
+            return $"Nothing was sent: {e.Message}";
+        }
+    }
+
+    /// <summary>
     /// Tells the screen that what may be written has changed.
     ///
     /// <b>Every one of these depends on the connection, and the connection is
@@ -2330,7 +2434,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Whether there is something to send, and somewhere to send it.</summary>
     public bool CanWriteSettings =>
-        HasSettingChanges && _ecuConnection is not null && _tuneLayout is not null
+        (HasSettingChanges || HasLostWrites) && _ecuConnection is not null && _tuneLayout is not null
         && !TuneIsPlaceholder && !TuneIsFromFile;
 
     /// <summary>Pages written since the tune was read, which a burn would commit.</summary>
@@ -2376,10 +2480,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (_ecuConnection is null && _maxxUsbSource is null) return "Not connected to an ECU.";
 
         if (_tuneLayout is not { } layout || _ecuTune is not { } tune) return "No tune has been read.";
-        if (!edit.HasChanges) return "Nothing has been changed.";
+        if (!edit.HasChanges) return NothingToSend();
 
         IReadOnlyList<TuneWrite> writes = edit.Writes();
-        if (writes.Count == 0) return "Nothing has been changed.";
+        if (writes.Count == 0) return NothingToSend();
 
         if (_maxxUsbSource is { } maxx) return WriteSettingsToMaxxEcu(maxx, edit, tune, writes);
 
@@ -2390,6 +2494,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
+            int resent = ResendLost(connection, layout);
+
             foreach (TuneWrite write in writes)
             {
                 TunePage? page = layout.Pages.FirstOrDefault(p => p.Index == write.Page);
@@ -2416,7 +2522,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             return $"Sent {settings} setting{(settings == 1 ? "" : "s")} "
                    + $"({bytes:N0} bytes) to the ECU. It is running them now, and will forget them "
-                   + "at the next power cycle unless you burn them.";
+                   + "at the next power cycle unless you burn them." + ResentNote(resent);
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -2552,18 +2658,6 @@ public sealed partial class MainViewModel : ObservableObject
                     _settingsPagesWritten.Remove(index);
                     throw;
                 }
-                catch (EcuProtocolException) when (connection.LostPages.Contains(index))
-                {
-                    // The link was reopened after this page was written, which
-                    // reset the controller and took the change with it. Nothing
-                    // was sent. The page comes off the list because there is
-                    // nothing left in it to burn: it has to be written again,
-                    // and that puts it back. The message says so, and reaches
-                    // the user as a failure below, never as a burn.
-                    _settingsPagesWritten.Remove(index);
-                    throw;
-                }
-
                 _settingsPagesWritten.Remove(index);
                 burned.Add(index);
             }
@@ -2696,7 +2790,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// a firmware that admits to being writable.
     /// </summary>
     public bool CanWriteTable =>
-        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null
+        (HasTableChanges || HasLostWrites) && _ecuConnection is not null && _tuneLayout is not null
         && !TuneIsPlaceholder && !TuneIsFromFile;
 
     /// <summary>
@@ -2968,7 +3062,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_ecuConnection is null && _maxxUsbSource is null) return "Not connected to an ECU.";
 
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
-        if (!edit.HasChanges) return "Nothing has been changed.";
+        if (!edit.HasChanges) return NothingToSend();
 
         if (edit.Encode(tune) is not { } write)
             return "This table cannot be encoded for this firmware, so nothing was sent.";
@@ -2988,6 +3082,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
+            int resent = ResendLost(connection, layout);
+
             connection.WriteTunePage(
                 page, layout.BlockingFactor, layout.LittleEndian, write.Offset, write.Data,
                 layout.InterWriteDelay);
@@ -3021,7 +3117,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             return $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the ECU. "
                    + "It is running this now, and will forget it at the next power cycle "
-                   + "unless you burn it.";
+                   + "unless you burn it." + ResentNote(resent);
         }
         catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException)
         {
@@ -3143,14 +3239,16 @@ KeepBurnedTune();
             // succeeded. Only a refusal is a failure this end can vouch for;
             // anything else is an unconfirmed burn, and its own message already
             // says what that means and how to check.
-            // A burn the connection refused because the link was reopened since
-            // the write is the same failure, and the page is no longer waiting
-            // for a burn: its change has to be written again.
-            if (connection.LostPages.Contains(page.Index)) _settingsPagesWritten.Remove(page.Index);
-
+            // A burn refused because a reopen took the written bytes is not a
+            // failed burn: nothing was sent, and its own message says to Send
+            // again. The Send buttons light up for it, so the gates are raised.
             RaiseWriteGates();
 
-            return e is EcuProtocolException { Refused: false } ? e.Message : $"The burn failed: {e.Message}";
+            bool lost = connection.LostPages.Contains(page.Index);
+
+            return e is EcuProtocolException { Refused: false } || lost
+                ? e.Message
+                : $"The burn failed: {e.Message}";
         }
     }
 
@@ -3238,6 +3336,10 @@ KeepBurnedTune();
         _settingsEdit = null;
         _derived = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _settingsPagesWritten.Clear();
+
+        // The tune about to be read is the controller's own, so whatever a
+        // reopen took away is simply what it holds now.
+        connection.ForgetLost();
         TuneIsPlaceholder = false;
         TuneIsFromFile = false;
 
@@ -4564,6 +4666,9 @@ KeepBurnedTune();
 
         return text.ToString();
     }
+
+    /// <summary>The live connection, for tests to reach the reopen the poll thread would make.</summary>
+    internal EcuConnection? EcuConnectionForTests => _ecuConnection;
 
     public void Connect(IEcuTransport transport, string port, EcuConnectionSettings? settings = null)
     {
