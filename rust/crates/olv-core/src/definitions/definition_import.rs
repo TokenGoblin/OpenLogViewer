@@ -220,8 +220,16 @@ pub fn imported(folder: &str) -> Vec<DefinitionProvenance> {
 
     let mut kept = Vec::with_capacity(rows.len());
     for row in rows {
-        let Some(at) = parse_time(&row.at) else {
-            return Vec::new();
+        // A missing date is the default, as in the C# (DateTimeOffset's minimum, which
+        // the epoch stands in for: both sort after every real entry). A date that is
+        // there but unreadable is a JsonException in the C#, which costs the ledger.
+        let at = if row.at.is_empty() {
+            SystemTime::UNIX_EPOCH
+        } else {
+            match parse_time(&row.at) {
+                Some(at) => at,
+                None => return Vec::new(),
+            }
         };
         kept.push(DefinitionProvenance {
             name: row.name,
@@ -243,8 +251,11 @@ pub fn of(folder: &str, name: &str) -> Option<DefinitionProvenance> {
     imported(folder).into_iter().find(|p| eq_ignore_case(&p.name, name))
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// One ledger entry. Every field defaults when absent, as System.Text.Json fills a
+/// missing property with its default: an entry missing one field must not cost the
+/// whole ledger.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
 struct Row {
     name: String,
     signature: String,
@@ -802,5 +813,26 @@ ochGetCommand = "r\x00\x07%2o%2c"
             json_string("a+b&c\u{b0}\"\\"),
             "\"a\\u002Bb\\u0026c\\u00B0\\u0022\\\\\""
         );
+    }
+
+    #[test]
+    fn a_ledger_entry_missing_fields_keeps_the_rest_of_the_ledger() {
+        // System.Text.Json fills a missing property with its default; an entry written
+        // by an older version without `forIdentity` must not cost every other entry.
+        let dir = std::env::temp_dir().join(format!("olv-ledger-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(LEDGER),
+            r#"[{"name":"a.ini","signature":"s","source":"x","sha256":"00","at":"2026-01-02T03:04:05+00:00"},{"name":"b.ini"}]"#,
+        )
+        .unwrap();
+
+        let got = imported(dir.to_str().unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0].name, "a.ini");
+        assert!(got[0].for_identity.is_empty());
+        assert_eq!(got[1].name, "b.ini");
     }
 }

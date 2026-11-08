@@ -174,6 +174,8 @@ fn every_ini_and_tune_in_the_corpus_matches_the_csharp() {
         mine.sort();
         mine.dedup();
         assert_eq!(mine.len(), case.symbols.len(), "{what} symbols distinct");
+        // And the other way: nothing in the Rust's set that the C# didn't read.
+        assert_eq!(msq.symbols.len(), case.symbols.len(), "{what} symbol count");
 
         let actual: Vec<[String; 2]> = msq.values.iter().map(|(k, v)| [k.to_string(), v.to_string()]).collect();
         assert_eq!(actual.len(), case.values.len(), "{what} value count");
