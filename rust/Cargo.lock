@@ -628,6 +628,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "olv-agent"
+version = "0.1.0"
+dependencies = [
+ "olv-core",
+ "olv-oracle",
+ "serde",
+]
+
+[[package]]
 name = "olv-core"
 version = "0.1.0"
 dependencies = [
