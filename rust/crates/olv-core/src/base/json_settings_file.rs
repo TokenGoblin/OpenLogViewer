@@ -23,79 +23,154 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// Skips a `//` or `/* */` comment starting at `chars[i]`, returning the index after it, or
+/// `Ok(None)` when there is no comment there, or `Err` for an unterminated block comment.
+fn skip_comment(chars: &[char], i: usize) -> Result<Option<usize>, ()> {
+    if chars.get(i) != Some(&'/') {
+        return Ok(None);
+    }
+    match chars.get(i + 1) {
+        Some('/') => {
+            // A line comment ends at either kind of line break, a bare carriage return
+            // included.
+            let mut j = i + 2;
+            while j < chars.len() && chars[j] != '\n' && chars[j] != '\r' {
+                j += 1;
+            }
+            Ok(Some(j))
+        }
+        Some('*') => {
+            let mut j = i + 2;
+            while j < chars.len() {
+                if chars[j] == '*' && chars.get(j + 1) == Some(&'/') {
+                    return Ok(Some(j + 2));
+                }
+                j += 1;
+            }
+            Err(())
+        }
+        _ => Ok(None),
+    }
+}
+
 /// Removes `//` and `/* */` comments and trailing commas, leaving string contents alone, so
 /// that strict JSON parsing accepts what `System.Text.Json` was configured to accept.
-fn make_lenient_json_strict(text: &str) -> String {
+///
+/// `None` where `System.Text.Json` would have refused the text outright: a block comment
+/// that never ends, or a comma straight after `[` or `{` (trailing commas are allowed, but
+/// not leading ones).
+pub fn make_lenient_json_strict(text: &str) -> Option<String> {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
+    let mut last_significant = '\0';
     let mut i = 0;
 
     while i < chars.len() {
         let c = chars[i];
-        match c {
-            '"' => {
-                out.push(c);
+        if c == '"' {
+            out.push(c);
+            i += 1;
+            while i < chars.len() {
+                let s = chars[i];
+                out.push(s);
                 i += 1;
-                while i < chars.len() {
-                    let s = chars[i];
-                    out.push(s);
+                if s == '\\' && i < chars.len() {
+                    out.push(chars[i]);
                     i += 1;
-                    if s == '\\' && i < chars.len() {
-                        out.push(chars[i]);
-                        i += 1;
-                    } else if s == '"' {
-                        break;
-                    }
+                } else if s == '"' {
+                    break;
                 }
             }
-            '/' if chars.get(i + 1) == Some(&'/') => {
-                while i < chars.len() && chars[i] != '\n' {
-                    i += 1;
-                }
-            }
-            '/' if chars.get(i + 1) == Some(&'*') => {
-                i += 2;
-                while i < chars.len() && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
-                    i += 1;
-                }
-                i = (i + 2).min(chars.len());
-                // A comment separates tokens, as whitespace does.
-                out.push(' ');
-            }
-            ',' => {
-                // A comma followed (past whitespace and comments) by a closer is trailing.
-                let mut j = i + 1;
-                loop {
-                    while j < chars.len() && chars[j].is_whitespace() {
-                        j += 1;
-                    }
-                    if chars.get(j) == Some(&'/') && chars.get(j + 1) == Some(&'/') {
-                        while j < chars.len() && chars[j] != '\n' {
-                            j += 1;
-                        }
-                    } else if chars.get(j) == Some(&'/') && chars.get(j + 1) == Some(&'*') {
-                        j += 2;
-                        while j < chars.len() && !(chars[j] == '*' && chars.get(j + 1) == Some(&'/')) {
-                            j += 1;
-                        }
-                        j = (j + 2).min(chars.len());
-                    } else {
-                        break;
-                    }
-                }
-                if !matches!(chars.get(j), Some('}' | ']')) {
-                    out.push(',');
-                }
-                i += 1;
-            }
-            _ => {
-                out.push(c);
-                i += 1;
-            }
+            last_significant = '"';
+            continue;
         }
+
+        if c == '/'
+            && let Some(next) = skip_comment(&chars, i).ok()?
+        {
+            // A comment separates tokens, as whitespace does.
+            out.push(' ');
+            i = next;
+            continue;
+        }
+
+        if c == ',' {
+            if last_significant == '[' || last_significant == '{' {
+                return None;
+            }
+
+            // A comma followed (past whitespace and comments) by a closer is trailing.
+            let mut j = i + 1;
+            loop {
+                while j < chars.len() && chars[j].is_whitespace() {
+                    j += 1;
+                }
+                match skip_comment(&chars, j).ok()? {
+                    Some(next) => j = next,
+                    None => break,
+                }
+            }
+            if !matches!(chars.get(j), Some('}' | ']')) {
+                out.push(',');
+                last_significant = ',';
+            }
+            i += 1;
+            continue;
+        }
+
+        out.push(c);
+        if !c.is_whitespace() {
+            last_significant = c;
+        }
+        i += 1;
     }
 
-    out
+    Some(out)
+}
+
+#[cfg(test)]
+mod lenient_tests {
+    use super::make_lenient_json_strict as strip;
+
+    fn parses(text: &str) -> bool {
+        strip(text).is_some_and(|s| serde_json::from_str::<serde_json::Value>(&s).is_ok())
+    }
+
+    #[test]
+    fn a_line_comment_ends_at_a_bare_carriage_return() {
+        assert!(parses("{// c\r\"a\":1}"));
+        assert!(parses("{// c\n\"a\":1}"));
+        assert!(!parses("{// c \"a\":1}"));
+    }
+
+    #[test]
+    fn an_unterminated_block_comment_refuses_the_text() {
+        assert!(strip("{\"a\":1} /* never ends").is_none());
+        assert!(strip("{\"a\":[1,/* x\n]}").is_none());
+        assert!(parses("{\"a\":1} /* ends */"));
+    }
+
+    #[test]
+    fn a_comma_straight_after_an_opener_is_refused() {
+        assert!(strip("[,]").is_none());
+        assert!(strip("{,}").is_none());
+        assert!(strip("[ /* c */ ,1]").is_none());
+        assert!(strip("{\"a\":[,1]}").is_none());
+    }
+
+    #[test]
+    fn a_trailing_comma_is_allowed() {
+        assert!(parses("[1,2,]"));
+        assert!(parses("{\"a\":1, // c\n}"));
+        assert!(parses("{\"a\":[1,],}"));
+        assert!(parses("[1,/* c */]"));
+    }
+
+    #[test]
+    fn comment_markers_inside_strings_are_left_alone() {
+        let text = r#"{"a":"// not /* a comment */, ]","b":"x\"//y"}"#;
+        assert_eq!(strip(text).as_deref(), Some(text));
+    }
 }
 
 /// Reads a settings file. A missing, unreadable or malformed file is `None`.
@@ -110,7 +185,7 @@ pub fn read<T: DeserializeOwned>(path: &Path) -> Option<T> {
     let text = String::from_utf8_lossy(&bytes);
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
 
-    serde_json::from_str(&make_lenient_json_strict(text)).ok()
+    serde_json::from_str(&make_lenient_json_strict(text)?).ok()
 }
 
 /// Removes `null` properties from objects, as `JsonIgnoreCondition.WhenWritingNull` does

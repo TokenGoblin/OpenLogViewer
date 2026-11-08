@@ -607,6 +607,12 @@ public sealed class W2ObdSsm : IEmitter
     private static readonly string?[] Jsons =
     [
         null, "", "  ", "not json", "[]", "null", "{}", """{"parameters":[]}""", """{"parameters":null}""", """{"parameters":{}}""",
+        "{// c\r\"parameters\":[{\"name\":\"A\",\"address\":\"10\"}]}",
+        """{"parameters":[{"name":"A","address":"10"}]} /* never ends""",
+        """{"parameters":[,{"name":"A","address":"10"}]}""",
+        """{,"parameters":[]}""",
+        """{"parameters":[{"name":"A","address":"10"},],}""",
+        "{\"parameters\":[{\"name\":\"A\",\"address\":\"10\"}]} // tail\r",
         """{"parameters":[{"name":"A","address":"0x10"}]}""",
         """{"Parameters":[{"NAME":"A","Address":"0X10","BYTES":2,"Units":" u ","Scale":0.5,"Offset":-1,"Digits":2,"Low":-5,"High":9.5,"Enabled":false}]}""",
         "// c\n{ /* c */ \"parameters\": [ { \"name\": \"A\", \"address\": \"10\", }, ], }",
