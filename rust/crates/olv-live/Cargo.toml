@@ -7,6 +7,8 @@ publish.workspace = true
 
 [dependencies]
 olv-core = { path = "../olv-core" }
+olv-protocol = { path = "../olv-protocol" }
+olv-transport = { path = "../olv-transport" }
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
