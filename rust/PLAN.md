@@ -38,7 +38,7 @@ rust/
                    analysis, calculators. Pure: no I/O beyond files, no threads.
     olv-protocol   every ECU protocol as a sans-IO state machine (bytes in, bytes/events out):
                    MS/Speeduino/rusEFI, ELM327/OBD2, SSM, MaxxECU BT+USB+CAN, Sniper.
-    olv-transport  serial (serialport), Wi-Fi TCP, BLE (btleplug), FTDI (our own FTDI
+    olv-transport  serial (serialport), Wi-Fi TCP, BLE (WinRT / CoreBluetooth / BlueZ), FTDI (our own FTDI
                    protocol over nusb, or its virtual COM port), USB (nusb), port naming
                    (serialport's USB info, all three OSes). The only platform-specific crate.
     olv-live       LiveSession, EcuConnection, recording, sources (ties protocol to transport).
@@ -188,8 +188,10 @@ synthetic references from the C# so they cannot drift from what it computes.
 
 - **Float and text formatting.** .NET and Rust print numbers differently by default.
   The `fmt` module and the oracle exist mainly because of this.
-- **Bluetooth LE.** `btleplug` (Windows, macOS, Linux) is less proven than the WinRT
-  calls in use today. The fallback per OS is the platform API through its Rust bindings.
+- **Bluetooth LE.** Each OS is reached through its own API behind one internal trait:
+  WinRT (`windows` crate, the same calls the C# made), CoreBluetooth (`objc2`; only
+  type-checked off a Mac so far) and BlueZ over D-Bus (`zbus`). `btleplug` was dropped
+  because its Linux backend links libdbus. macOS BLE is the least proven of the three.
 - **FTDI without FTDI's library.** On Linux (detach `ftdi_sio`) and macOS, the chip is
   driven over raw USB with our own implementation of its control requests. On Windows,
   FTDI's driver owns the device, so the pure-Rust path is the virtual COM port it

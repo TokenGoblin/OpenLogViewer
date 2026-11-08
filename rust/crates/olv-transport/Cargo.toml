@@ -15,17 +15,22 @@ futures.workspace = true
 uuid.workspace = true
 time.workspace = true
 
-# Bluetooth LE. btleplug's Linux backend links libdbus (banned in deny.toml), so it is
-# used only where its backend is the OS's own API: WinRT on Windows, CoreBluetooth on macOS.
-# On Linux BlueZ is spoken to directly over D-Bus with the pure-Rust zbus.
-[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
-btleplug.workspace = true
+# Bluetooth LE through the operating system's own API, each behind the same internal trait
+# (`ble_ecu_transport::BleBackend`): WinRT on Windows, CoreBluetooth on macOS, and on Linux BlueZ
+# over D-Bus with the pure-Rust zbus. No third-party C library is linked on any of them.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-foundation.workspace = true
+objc2-core-bluetooth.workspace = true
+dispatch2.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 
-# Windows lists the paired Bluetooth devices and serial ports from the registry (the C# used WMI).
+# Windows: WinRT for Bluetooth LE (`windows`), and the registry (`winreg`) for the paired devices
+# and serial ports (the C# used WMI).
 [target.'cfg(windows)'.dependencies]
+windows.workspace = true
 winreg.workspace = true
 
 [dev-dependencies]
