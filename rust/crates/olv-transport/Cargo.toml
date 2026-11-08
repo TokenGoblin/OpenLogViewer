@@ -9,34 +9,34 @@ publish.workspace = true
 olv-core = { path = "../olv-core" }
 olv-protocol = { path = "../olv-protocol" }
 nusb.workspace = true
-tokio.workspace = true
-futures.workspace = true
 uuid.workspace = true
 time.workspace = true
 
-# Bluetooth LE. btleplug's Linux backend links libdbus (banned in deny.toml), so it is
-# used only where its backend is the OS's own API: WinRT on Windows, CoreBluetooth on macOS.
-# On Linux BlueZ is spoken to directly over D-Bus with the pure-Rust zbus.
-[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
-btleplug.workspace = true
+# Bluetooth LE through the operating system's own API, each behind the same internal trait
+# (`ble_ecu_transport::BleBackend`): WinRT on Windows, CoreBluetooth on macOS, and on Linux BlueZ
+# over D-Bus with the pure-Rust zbus. No third-party C library is linked on any of them.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-foundation.workspace = true
+objc2-core-bluetooth.workspace = true
+dispatch2.workspace = true
+io-kit-sys.workspace = true
+core-foundation.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 
-# Our own serial-port layer (`transport/serial_port.rs`) replaces the `serialport` crate, which is
-# MPL-2.0. Windows: Win32 comm and SetupAPI through windows-sys. Linux and macOS: termios and poll
-# through rustix. macOS port enumeration: IOKit through io-kit-sys and core-foundation.
-# Windows also lists the paired Bluetooth devices and serial ports from the registry (the C# used WMI).
+# Windows: WinRT for Bluetooth LE (`windows`); Win32 comm and SetupAPI for our own serial-port
+# layer (`windows-sys`, replacing the MPL-2.0 `serialport`); the registry (`winreg`) for paired
+# Bluetooth devices and ports, where the C# used WMI. Linux and macOS serial: termios and poll
+# through rustix; macOS port enumeration through IOKit (io-kit-sys, core-foundation).
 [target.'cfg(windows)'.dependencies]
+windows.workspace = true
 winreg.workspace = true
 windows-sys.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
-io-kit-sys.workspace = true
-core-foundation.workspace = true
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }

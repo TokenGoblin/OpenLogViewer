@@ -112,6 +112,18 @@ pub fn address_from_id(id: &str) -> u64 {
     (hash ^ (hash >> 48)) & 0x0000_ffff_ffff_ffff
 }
 
+/// The "address" of a CoreBluetooth peripheral, from its identifier (`CBPeripheral.identifier`,
+/// an `NSUUID`).
+///
+/// Hashed as lowercase hyphenated text, the form `uuid::Uuid` prints (`NSUUID.UUIDString` is
+/// uppercase), so the number stays what the earlier `btleplug`-based code derived from the same
+/// peripheral. The identifier is stable for a peripheral on one Mac, but it is not the radio
+/// address, and another Mac sees another one.
+#[cfg(any(target_os = "macos", test))]
+pub fn address_from_peripheral_id(id: &str) -> u64 {
+    address_from_id(&id.to_ascii_lowercase())
+}
+
 /// The paired Bluetooth LE devices, and what is advertising.
 pub struct BleDevices;
 
@@ -203,7 +215,7 @@ mod platform {
     }
 
     pub(super) fn heard(window: Duration) -> HashSet<u64> {
-        crate::transport::ble_ecu_transport::btleplug_backend::scan(window)
+        crate::transport::ble_windows::scan(window)
             .map(|v| v.into_iter().map(|(a, _)| a).collect())
             .unwrap_or_default()
     }
@@ -258,10 +270,10 @@ mod platform {
 #[cfg(target_os = "macos")]
 mod platform {
     use super::*;
-    use crate::transport::ble_ecu_transport::btleplug_backend;
+    use crate::transport::ble_macos;
 
     pub(super) fn paired() -> Vec<BleDevice> {
-        btleplug_backend::scan(Duration::from_secs(2))
+        ble_macos::scan(Duration::from_secs(2))
             .unwrap_or_default()
             .into_iter()
             .filter_map(|(address, name)| name.map(|name| BleDevice { name, address }))
@@ -269,7 +281,7 @@ mod platform {
     }
 
     pub(super) fn heard(window: Duration) -> HashSet<u64> {
-        btleplug_backend::scan(window)
+        ble_macos::scan(window)
             .map(|v| v.into_iter().map(|(a, _)| a).collect())
             .unwrap_or_default()
     }
@@ -361,6 +373,20 @@ mod tests {
         assert_eq!(a, address_from_id("0F3C6A52-1E55-4F36-9C7E-1A8B3F5D7C20"));
         assert_ne!(a, address_from_id("0F3C6A52-1E55-4F36-9C7E-1A8B3F5D7C21"));
         assert!(a <= 0xFFFF_FFFF_FFFF);
+    }
+
+    #[test]
+    fn a_peripheral_identifier_hashes_the_same_in_either_case() {
+        // NSUUID prints upper case; the earlier code hashed the lower-case text of the same UUID.
+        let upper = "0F3C6A52-1E55-4F36-9C7E-1A8B3F5D7C20";
+        assert_eq!(
+            address_from_peripheral_id(upper),
+            address_from_id("0f3c6a52-1e55-4f36-9c7e-1a8b3f5d7c20")
+        );
+        assert_eq!(
+            address_from_peripheral_id(upper),
+            address_from_peripheral_id(&upper.to_lowercase())
+        );
     }
 
     #[cfg(not(target_os = "macos"))] // CoreBluetooth wants a permission prompt a test cannot answer

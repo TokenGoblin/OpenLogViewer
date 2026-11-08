@@ -19,26 +19,27 @@
 //! choice, how a read waits) is plain logic here, over two small traits: [`BleBackend`] connects
 //! and [`GattLink`] is one connected device's GATT table. The operating system sits behind them:
 //!
-//! * **Windows and macOS**: `btleplug` (WinRT; CoreBluetooth), driven from a private tokio runtime.
-//! * **Linux**: BlueZ over D-Bus with the pure-Rust `zbus` (blocking API). `btleplug`'s own Linux
-//!   backend links `libdbus`, which `deny.toml` bans.
+//! * **Windows**: WinRT through the `windows` crate (`ble_windows`), making the calls the C# made.
+//! * **macOS**: CoreBluetooth through `objc2-core-bluetooth` (`ble_macos`).
+//! * **Linux**: BlueZ over D-Bus with the pure-Rust `zbus` (blocking API), below.
+//!
+//! Each is the operating system's own API; no third-party C library is linked on any of them.
 //!
 //! # Differences the bench must confirm
 //!
 //! * **None of this has run against a real adapter.** The C# was verified on one; the Rust
-//!   shares only its logic.
-//! * The C# asked WinRT for the services *uncached* so a stale pairing could not list
-//!   characteristics that cannot be subscribed to. `btleplug` discovers on connect and offers no
-//!   cache switch; BlueZ resolves services itself. If a reconnect after a crashed session finds
-//!   empty characteristics, that is this, and the 3-attempt retry (1.5 s apart) is the cover.
-//! * The C# disposed every service it was not using so the link would not linger. Here the
-//!   whole connection is dropped on close (and between attempts); nothing is kept per service.
-//! * On Windows `btleplug` creates the peripheral straight from its address, as
-//!   `FromBluetoothAddressAsync` did, so a paired adapter that is not advertising can still be
-//!   reached. On macOS CoreBluetooth has no addresses at all: the "address" is a stable hash of
-//!   the peripheral's identifier (see `ble_devices::address_from_id`), and connecting scans for up
-//!   to ten seconds until a peripheral with that hash is heard, so the adapter must be
-//!   advertising.
+//!   shares only its logic. The Windows backend makes the same WinRT calls in the same order;
+//!   the macOS backend has only been type-checked.
+//! * The Windows backend lists characteristics for the four known serial services up front (as
+//!   part of listing the services), where the C# asked for each service's characteristics only
+//!   when it came to try it. Same calls, same uncached mode, earlier. Services that are not
+//!   candidates are closed straight away; the rest when their subscription is let go of or the
+//!   connection is closed, where the C# closed them all when opening finished.
+//! * On Windows the device is made from its address as `FromBluetoothAddressAsync` did, so a paired
+//!   adapter that is not advertising can still be reached. On macOS CoreBluetooth has no addresses
+//!   at all: the "address" is a stable hash of the peripheral's identifier (see
+//!   `ble_devices::address_from_peripheral_id`), and connecting scans for up to ten seconds until a
+//!   peripheral with that hash is heard, so the adapter must be advertising.
 //! * On Linux the device must already be known to BlueZ (paired, or seen by a scan), because
 //!   BlueZ cannot connect to an address it has never heard of.
 //! * Write-with-response is chosen only when the characteristic does not offer
@@ -96,6 +97,21 @@ pub struct CharProps {
     pub write_without_response: bool,
     pub notify: bool,
     pub indicate: bool,
+}
+
+impl CharProps {
+    /// From the GATT characteristic-properties bit field. WinRT's `GattCharacteristicProperties`
+    /// and CoreBluetooth's `CBCharacteristicProperties` both use the Bluetooth Core
+    /// specification's bits, so one reading serves both.
+    #[cfg(any(windows, target_os = "macos", test))]
+    pub(crate) fn from_bits(bits: u32) -> Self {
+        Self {
+            write_without_response: bits & 0x04 != 0,
+            write: bits & 0x08 != 0,
+            notify: bits & 0x10 != 0,
+            indicate: bits & 0x20 != 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -507,8 +523,11 @@ pub fn default_backend() -> Arc<dyn BleBackend> {
     platform::backend()
 }
 
-#[cfg(any(windows, target_os = "macos"))]
-pub(crate) use btleplug_backend as platform;
+#[cfg(windows)]
+pub(crate) use crate::transport::ble_windows as platform;
+
+#[cfg(target_os = "macos")]
+pub(crate) use crate::transport::ble_macos as platform;
 
 #[cfg(target_os = "linux")]
 pub(crate) use bluez as platform;
@@ -537,275 +556,137 @@ pub(crate) mod unsupported {
     }
 }
 
-/// Windows (WinRT) and macOS (CoreBluetooth), through `btleplug`.
-#[cfg(any(windows, target_os = "macos"))]
-pub(crate) mod btleplug_backend {
-    use super::*;
-    use btleplug::api::{Central, CharPropFlags, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType};
-    use btleplug::platform::{Adapter, Manager, Peripheral};
-    use futures::StreamExt;
-    use tokio::runtime::Runtime;
-    use tokio::task::JoinHandle;
+/// A value behind a lock that can be waited on until it satisfies a condition: how an
+/// asynchronous callback API (CoreBluetooth's delegate) is turned into the blocking calls
+/// [`GattLink`] wants. The callbacks `update` it; the caller `wait_for`s the outcome it asked for.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) struct Mailbox<S> {
+    state: Mutex<S>,
+    changed: Condvar,
+}
 
-    /// How long a scan may run looking for a device on a platform that cannot connect by address.
-    #[cfg(target_os = "macos")]
-    const FIND_WITHIN: Duration = Duration::from_secs(10);
-
-    fn runtime() -> std::result::Result<Arc<Runtime>, io::Error> {
-        // On a thread pool of its own, always: this is called from a click handler, and waiting
-        // on a future from the interface thread deadlocks the window rather than connecting.
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .map(Arc::new)
-    }
-
-    fn status(e: impl std::fmt::Display) -> String {
-        e.to_string()
-    }
-
-    /// The first Bluetooth adapter, or the reason there is none.
-    pub(crate) async fn first_adapter() -> Result<Adapter> {
-        let manager = Manager::new()
-            .await
-            .map_err(|e| Error::Io(io::Error::other(format!("Bluetooth is unavailable ({e})."))))?;
-        manager
-            .adapters()
-            .await
-            .map_err(|e| Error::Io(io::Error::other(format!("Bluetooth is unavailable ({e})."))))?
-            .into_iter()
-            .next()
-            .ok_or_else(|| Error::Io(io::Error::other("This computer has no Bluetooth adapter.")))
-    }
-
-    /// The addresses (and names) heard advertising during `window`: `address_from_id` of the
-    /// peripheral's identifier on macOS, which has no addresses.
-    pub(crate) fn scan(window: Duration) -> Result<Vec<(u64, Option<String>)>> {
-        let rt = runtime()?;
-        let heard = rt.block_on(async {
-            let adapter = first_adapter().await?;
-            adapter
-                .start_scan(ScanFilter::default())
-                .await
-                .map_err(|e| Error::Io(io::Error::other(format!("Could not scan ({e})."))))?;
-            tokio::time::sleep(window).await;
-            let found = adapter.peripherals().await.unwrap_or_default();
-            let _ = adapter.stop_scan().await;
-
-            let mut heard = Vec::new();
-            for p in found {
-                let name = p.properties().await.ok().flatten().and_then(|props| props.local_name);
-                heard.push((peripheral_address(&p), name));
-            }
-            Ok::<_, Error>(heard)
-        });
-        // Dropping a runtime from async context would panic; this is plain blocking code, but
-        // shutting down in the background is the safe habit.
-        if let Ok(rt) = Arc::try_unwrap(rt) {
-            rt.shutdown_background();
-        }
-        heard
-    }
-
-    #[cfg(windows)]
-    fn peripheral_address(p: &Peripheral) -> u64 {
-        u64::from(p.address())
-    }
-
-    #[cfg(target_os = "macos")]
-    fn peripheral_address(p: &Peripheral) -> u64 {
-        crate::transport::ble_devices::address_from_id(&p.id().to_string())
-    }
-
-    struct Backend;
-
-    pub(crate) fn backend() -> Arc<dyn BleBackend> {
-        Arc::new(Backend)
-    }
-
-    impl BleBackend for Backend {
-        fn connect(&self, address: u64, sink: Arc<Incoming>) -> Result<Option<Box<dyn GattLink>>> {
-            let rt = runtime()?;
-            let peripheral = rt.block_on(find_peripheral(address))?;
-            let Some(peripheral) = peripheral else {
-                return Ok(None);
-            };
-
-            // A device that will not connect is a device that could not be reached.
-            if rt.block_on(peripheral.connect()).is_err() {
-                return Ok(None);
-            }
-
-            Ok(Some(Box::new(Link {
-                rt: Some(rt),
-                peripheral,
-                sink,
-                services: Vec::new(),
-                forwarder: None,
-            })))
+#[cfg(any(target_os = "macos", test))]
+impl<S> Mailbox<S> {
+    pub(crate) fn new(state: S) -> Self {
+        Self {
+            state: Mutex::new(state),
+            changed: Condvar::new(),
         }
     }
 
-    #[cfg(windows)]
-    async fn find_peripheral(address: u64) -> Result<Option<Peripheral>> {
-        use btleplug::api::BDAddr;
-        use btleplug::platform::PeripheralId;
+    /// Changes the state and wakes every waiter.
+    pub(crate) fn update<R>(&self, change: impl FnOnce(&mut S) -> R) -> R {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let result = change(&mut state);
+        self.changed.notify_all();
+        result
+    }
 
-        let adapter = first_adapter().await?;
-        let Ok(bd) = BDAddr::try_from(address) else {
-            return Ok(None);
+    /// Reads the state.
+    pub(crate) fn read<R>(&self, look: impl FnOnce(&S) -> R) -> R {
+        look(&self.state.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    /// Waits up to `timeout` for `ready` to return `Some`, checking at once and after every
+    /// update. `None` is a timeout.
+    pub(crate) fn wait_for<T>(&self, timeout: Duration, mut ready: impl FnMut(&mut S) -> Option<T>) -> Option<T> {
+        let deadline = Instant::now() + timeout;
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            if let Some(value) = ready(&mut state) {
+                return Some(value);
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return None;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+    }
+}
+
+/// A CoreBluetooth `CBUUID` string as a `Uuid`: four hex digits (a 16-bit assigned number, as
+/// `FFF0`), eight (32-bit), or the full 36-character form.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn uuid_from_cb_string(text: &str) -> Option<Uuid> {
+    match text.len() {
+        4 => u16::from_str_radix(text, 16).ok().map(uuid16),
+        8 => u32::from_str_radix(text, 16)
+            .ok()
+            .map(|n| Uuid::from_u128(u128::from(n) << 96 | 0x0000_1000_8000_0080_5f9b_34fb)),
+        _ => Uuid::parse_str(text).ok(),
+    }
+}
+
+/// A background thread that forwards one subscription's notifications, with a stop signal of its
+/// own.
+///
+/// Each subscription gets one, so letting go of one service's listener can never switch off, or be
+/// undone by, the listener of the next: a signal shared between subscriptions was reset by the
+/// next `subscribe`, which left the previous listener running.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) struct Listener {
+    stop: Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+#[cfg(any(target_os = "linux", test))]
+impl Listener {
+    /// Starts `work`, which must return soon after the flag it is given is set.
+    pub(crate) fn spawn(work: impl FnOnce(Arc<std::sync::atomic::AtomicBool>) + Send + 'static) -> Self {
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = stop.clone();
+        Self {
+            stop,
+            thread: Some(thread::spawn(move || work(flag))),
+        }
+    }
+
+    /// Sets the stop signal, without waiting.
+    pub(crate) fn request_stop(&self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Sets the stop signal, then waits up to `wait` for the thread to end and joins it. A thread
+    /// still blocked then is left to end by itself: it has seen the signal by the time it wakes,
+    /// and pushes nothing once it has.
+    pub(crate) fn stop(mut self, wait: Duration) {
+        self.request_stop();
+        let Some(thread) = self.thread.take() else {
+            return;
         };
-        // From the address alone, as the C#'s FromBluetoothAddressAsync did: a device the system
-        // already knows can be reached without waiting for an advertisement.
-        Ok(adapter.add_peripheral(&PeripheralId::from(bd)).await.ok())
-    }
-
-    #[cfg(target_os = "macos")]
-    async fn find_peripheral(address: u64) -> Result<Option<Peripheral>> {
-        let adapter = first_adapter().await?;
-        adapter
-            .start_scan(ScanFilter::default())
-            .await
-            .map_err(|e| Error::Io(io::Error::other(format!("Could not scan ({e})."))))?;
-
-        let deadline = tokio::time::Instant::now() + FIND_WITHIN;
-        let mut found = None;
-        while found.is_none() && tokio::time::Instant::now() < deadline {
-            found = adapter
-                .peripherals()
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .find(|p| peripheral_address(p) == address);
-            if found.is_none() {
-                tokio::time::sleep(Duration::from_millis(200)).await;
-            }
+        let deadline = Instant::now() + wait;
+        while !thread.is_finished() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
         }
-        let _ = adapter.stop_scan().await;
-        Ok(found)
-    }
-
-    struct Link {
-        // Declared first so the connection is dropped before the runtime that drives it.
-        peripheral: Peripheral,
-        rt: Option<Arc<Runtime>>,
-        sink: Arc<Incoming>,
-        /// The characteristic objects, parallel to the `GattService`s given out.
-        services: Vec<Vec<Characteristic>>,
-        forwarder: Option<JoinHandle<()>>,
-    }
-
-    impl Link {
-        fn rt(&self) -> &Runtime {
-            self.rt.as_deref().expect("runtime is present until drop")
+        if thread.is_finished() {
+            let _ = thread.join();
         }
     }
+}
 
-    fn props_of(flags: CharPropFlags) -> CharProps {
-        CharProps {
-            write: flags.contains(CharPropFlags::WRITE),
-            write_without_response: flags.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE),
-            notify: flags.contains(CharPropFlags::NOTIFY),
-            indicate: flags.contains(CharPropFlags::INDICATE),
-        }
+#[cfg(any(target_os = "linux", test))]
+impl Drop for Listener {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     }
+}
 
-    impl GattLink for Link {
-        fn services(&mut self) -> std::result::Result<Vec<GattService>, String> {
-            self.rt()
-                .block_on(self.peripheral.discover_services())
-                .map_err(status)?;
-
-            let mut out = Vec::new();
-            self.services.clear();
-            for service in self.peripheral.services() {
-                let chars: Vec<Characteristic> = service.characteristics.iter().cloned().collect();
-                out.push(GattService {
-                    uuid: service.uuid,
-                    characteristics: chars
-                        .iter()
-                        .map(|c| GattCharacteristic {
-                            uuid: c.uuid,
-                            props: props_of(c.properties),
-                        })
-                        .collect(),
-                });
-                self.services.push(chars);
-            }
-            Ok(out)
-        }
-
-        fn subscribe(
-            &mut self,
-            service: usize,
-            characteristic: usize,
-            _indicate: bool,
-        ) -> std::result::Result<(), String> {
-            let c = self.services[service][characteristic].clone();
-            let rt = self.rt.clone().expect("runtime is present until drop");
-
-            // The stream first, so nothing sent in reply to the first write is missed.
-            let mut stream = rt.block_on(self.peripheral.notifications()).map_err(status)?;
-            let sink = self.sink.clone();
-            let (uuid, service_uuid) = (c.uuid, c.service_uuid);
-            self.forwarder = Some(rt.spawn(async move {
-                while let Some(n) = stream.next().await {
-                    if n.uuid == uuid && n.service_uuid == service_uuid {
-                        sink.push(&n.value);
-                    }
-                }
-            }));
-
-            // btleplug writes the client configuration descriptor for notify or indicate as the
-            // characteristic supports.
-            rt.block_on(self.peripheral.subscribe(&c)).map_err(|e| {
-                if let Some(f) = self.forwarder.take() {
-                    f.abort();
-                }
-                status(e)
-            })
-        }
-
-        fn unsubscribe(&mut self, service: usize, characteristic: usize) {
-            if let Some(f) = self.forwarder.take() {
-                f.abort();
-            }
-            let c = self.services[service][characteristic].clone();
-            let _ = self.rt().block_on(self.peripheral.unsubscribe(&c));
-        }
-
-        fn write(
-            &mut self,
-            service: usize,
-            characteristic: usize,
-            data: &[u8],
-            with_response: bool,
-        ) -> std::result::Result<(), String> {
-            let c = &self.services[service][characteristic];
-            let kind = if with_response {
-                WriteType::WithResponse
-            } else {
-                WriteType::WithoutResponse
-            };
-            self.rt().block_on(self.peripheral.write(c, data, kind)).map_err(status)
-        }
-    }
-
-    impl Drop for Link {
-        fn drop(&mut self) {
-            if let Some(f) = self.forwarder.take() {
-                f.abort();
-            }
-            // A device that has gone out of range cannot be closed politely.
-            let _ = self.rt().block_on(self.peripheral.disconnect());
-            if let Some(rt) = self.rt.take()
-                && let Ok(rt) = Arc::try_unwrap(rt)
-            {
-                rt.shutdown_background();
-            }
-        }
-    }
+/// The attribute handle in a BlueZ object path such as `/org/bluez/hci0/dev_X/service000a/char000b`
+/// (the last component's trailing hex digits). BlueZ names its objects by handle, so this is the
+/// order the device's attribute table has them in.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn handle_of_path(path: &str) -> u32 {
+    let last = path.rsplit('/').next().unwrap_or("");
+    let hex = last
+        .strip_prefix("service")
+        .or_else(|| last.strip_prefix("char"))
+        .unwrap_or("");
+    u32::from_str_radix(hex, 16).unwrap_or(u32::MAX)
 }
 
 /// Linux: BlueZ over D-Bus with `zbus`'s blocking API.
@@ -814,7 +695,7 @@ pub(crate) mod bluez {
     use super::*;
     use crate::transport::ble_devices::parse_address;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::Ordering;
     use zbus::blocking::{Connection, MessageIterator, Proxy};
     use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
     use zbus::{MatchRule, message::Type};
@@ -936,7 +817,6 @@ pub(crate) mod bluez {
                 paths: Vec::new(),
                 sink,
                 listener: None,
-                stop: Arc::new(AtomicBool::new(false)),
             })))
         }
     }
@@ -947,8 +827,8 @@ pub(crate) mod bluez {
         /// Object paths, parallel to the services and characteristics given out.
         paths: Vec<(String, Vec<String>)>,
         sink: Arc<Incoming>,
-        listener: Option<thread::JoinHandle<()>>,
-        stop: Arc<AtomicBool>,
+        /// The current subscription's listener and the characteristic it is for.
+        listener: Option<(Listener, String)>,
     }
 
     fn link_proxy<'a>(
@@ -982,7 +862,8 @@ pub(crate) mod bluez {
                     Some((p.to_string(), uuid))
                 })
                 .collect();
-            services.sort();
+            // In attribute-handle order, as WinRT lists them and the C# relied on.
+            services.sort_by_key(|(path, _)| handle_of_path(path));
 
             self.paths.clear();
             let mut out = Vec::new();
@@ -1013,7 +894,7 @@ pub(crate) mod bluez {
                         ))
                     })
                     .collect();
-                chars.sort_by(|a, b| a.0.cmp(&b.0));
+                chars.sort_by_key(|(path, _)| handle_of_path(path));
 
                 self.paths
                     .push((service_path, chars.iter().map(|c| c.0.clone()).collect()));
@@ -1035,7 +916,7 @@ pub(crate) mod bluez {
 
             // Listening before asking, so nothing sent in reply to the first write is missed. The
             // rule covers the whole device subtree so that the device disconnecting wakes the
-            // thread, which then sees the stop flag.
+            // thread, which then sees its stop flag.
             let rule = MatchRule::builder()
                 .msg_type(Type::Signal)
                 .interface("org.freedesktop.DBus.Properties")
@@ -1047,9 +928,12 @@ pub(crate) mod bluez {
                 .build();
             let signals = MessageIterator::for_match_rule(rule, &self.conn, None).map_err(d)?;
 
-            self.stop.store(false, Ordering::SeqCst);
-            let (stop, sink, watched) = (self.stop.clone(), self.sink.clone(), path.clone());
-            self.listener = Some(thread::spawn(move || {
+            // A listener left from an earlier service is stopped, and waited for, before this one
+            // starts: each subscription has a stop signal of its own.
+            self.stop_listener();
+
+            let (sink, watched) = (self.sink.clone(), path.clone());
+            let listener = Listener::spawn(move |stop| {
                 for message in signals {
                     if stop.load(Ordering::SeqCst) {
                         break;
@@ -1068,25 +952,28 @@ pub(crate) mod bluez {
                     if let Some(bytes) = changed
                         .get("Value")
                         .and_then(|v| Vec::<u8>::try_from(v.try_clone().ok()?).ok())
+                        && !stop.load(Ordering::SeqCst)
                     {
                         sink.push(&bytes);
                     }
                 }
-            }));
+            });
+            self.listener = Some((listener, path.clone()));
 
-            link_proxy(&self.conn, &path, CHARACTERISTIC)?
+            // BlueZ writes the client configuration descriptor itself, for notification whenever
+            // the characteristic offers it and for indication only otherwise, which is the C#'s
+            // choice too. `_indicate` therefore needs no argument here.
+            let started = link_proxy(&self.conn, &path, CHARACTERISTIC)?
                 .call::<_, _, ()>("StartNotify", &())
-                .map_err(d)
+                .map_err(d);
+            if started.is_err() {
+                self.stop_listener();
+            }
+            started
         }
 
-        fn unsubscribe(&mut self, service: usize, characteristic: usize) {
-            self.stop.store(true, Ordering::SeqCst);
-            let path = self.paths[service].1[characteristic].clone();
-            // BlueZ answers by announcing Notifying=false, which wakes the listener to exit.
-            if let Ok(p) = link_proxy(&self.conn, &path, CHARACTERISTIC) {
-                let _ = p.call::<_, _, ()>("StopNotify", &());
-            }
-            self.listener = None;
+        fn unsubscribe(&mut self, _service: usize, _characteristic: usize) {
+            self.stop_listener();
         }
 
         fn write(
@@ -1105,9 +992,27 @@ pub(crate) mod bluez {
         }
     }
 
+    impl Link {
+        /// Stops the current subscription's listener: the signal first, so it is set when the
+        /// listener wakes, then `StopNotify`, to which BlueZ answers by announcing `Notifying=false`,
+        /// which is what wakes it. Waits for it for a second at most.
+        fn stop_listener(&mut self) {
+            let Some((listener, path)) = self.listener.take() else {
+                return;
+            };
+            listener.request_stop();
+            if let Ok(p) = link_proxy(&self.conn, &path, CHARACTERISTIC) {
+                let _ = p.call::<_, _, ()>("StopNotify", &());
+            }
+            listener.stop(Duration::from_secs(1));
+        }
+    }
+
     impl Drop for Link {
         fn drop(&mut self) {
-            self.stop.store(true, Ordering::SeqCst);
+            if let Some((listener, _)) = &self.listener {
+                listener.request_stop();
+            }
             // A device that has gone out of range cannot be closed politely.
             if let Ok(p) = link_proxy(&self.conn, &self.device, DEVICE) {
                 let _ = p.call::<_, _, ()>("Disconnect", &());
@@ -1409,6 +1314,91 @@ mod tests {
     }
 
     #[test]
+    fn notification_is_chosen_when_the_characteristic_offers_both() {
+        // The C# subscribed with Notify whenever the characteristic offered it and used Indicate
+        // only otherwise. A clone that advertises both but only ever sends notifications is
+        // silent if indications are asked for, and is then rejected after the 3 s probe.
+        let mut svc = serial_service(SERIAL_SERVICES[0]);
+        svc.characteristics[1].props = CharProps {
+            notify: true,
+            indicate: true,
+            ..Default::default()
+        };
+        let w = world(vec![svc], Some(0));
+        let mut t = transport(&w, 0);
+
+        t.open().unwrap();
+        assert_eq!(w.lock().unwrap().subscribed, vec![(0, 1, false)]);
+    }
+
+    #[test]
+    fn the_first_writable_and_the_first_notifying_characteristic_are_used_in_table_order() {
+        // With several candidates, the C# took the first of each in the order the device lists
+        // them (attribute-handle order), not the first by UUID.
+        let mut svc = serial_service(SERIAL_SERVICES[0]);
+        let write = |uuid| GattCharacteristic {
+            uuid,
+            props: CharProps {
+                write: true,
+                ..Default::default()
+            },
+        };
+        let notify = |uuid| GattCharacteristic {
+            uuid,
+            props: CharProps {
+                notify: true,
+                ..Default::default()
+            },
+        };
+        // Table order: a notifier whose UUID sorts last comes first, then a writer likewise.
+        svc.characteristics = vec![
+            notify(uuid16(0xFFF9)),
+            write(uuid16(0xFFF8)),
+            notify(uuid16(0xFFF1)),
+            write(uuid16(0xFFF2)),
+        ];
+        let w = world(vec![svc], Some(0));
+        let mut t = transport(&w, 0);
+
+        t.open().unwrap();
+        let w = w.lock().unwrap();
+        assert_eq!(w.subscribed, vec![(0, 0, false)]);
+        assert_eq!(w.writes[0].1, 1);
+    }
+
+    #[test]
+    fn characteristic_properties_are_read_from_the_gatt_bits() {
+        assert_eq!(CharProps::from_bits(0), CharProps::default());
+        let p = CharProps::from_bits(0x04 | 0x08 | 0x10 | 0x20);
+        assert!(p.write && p.write_without_response && p.notify && p.indicate);
+        // Broadcast, read, signed writes and the encryption-required variants are not ours.
+        assert_eq!(
+            CharProps::from_bits(0x01 | 0x02 | 0x40 | 0x80 | 0x100 | 0x200),
+            CharProps::default()
+        );
+    }
+
+    #[test]
+    fn a_reply_split_across_notifications_is_reassembled_in_order() {
+        // An ELM327 answer is longer than one 20-byte notification, and arrives in pieces that
+        // do not fall on line boundaries. The read gives the bytes back as one stream.
+        let (mut t, sink) = open_with_sink();
+        t.discard_input();
+        let reply: &'static [u8] = b"41 0C 1A F8\r41 0D 32\r\r>";
+        let feeder = thread::spawn(move || {
+            for piece in reply.chunks(7) {
+                thread::sleep(Duration::from_millis(10));
+                sink.push(piece);
+            }
+        });
+
+        let mut got = vec![0u8; reply.len()];
+        assert_eq!(t.read(&mut got, Duration::from_secs(2)).unwrap(), reply.len());
+        assert_eq!(got, reply);
+        feeder.join().unwrap();
+    }
+
+    #[test]
     fn a_write_goes_out_in_pieces_of_twenty_bytes() {
         let w = world(vec![serial_service(SERIAL_SERVICES[0])], Some(0));
         let mut t = transport(&w, 0);
@@ -1563,6 +1553,111 @@ mod tests {
         let started = Instant::now();
         assert_eq!(t.read(&mut [0u8; 3], Duration::from_millis(60)).unwrap(), 0);
         assert!(started.elapsed() >= Duration::from_millis(50));
+    }
+
+    #[test]
+    fn a_mailbox_wait_returns_what_another_thread_posts_or_times_out() {
+        let mailbox = Arc::new(Mailbox::new(None::<u32>));
+        let poster = mailbox.clone();
+        let t = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            poster.update(|s| *s = Some(7));
+        });
+        assert_eq!(mailbox.wait_for(Duration::from_secs(2), |s| s.take()), Some(7));
+        t.join().unwrap();
+
+        // Taken, so a second wait finds nothing and gives up on time.
+        let started = Instant::now();
+        assert_eq!(mailbox.wait_for(Duration::from_millis(40), |s| s.take()), None);
+        assert!(started.elapsed() >= Duration::from_millis(35));
+        assert_eq!(mailbox.read(|s| *s), None);
+    }
+
+    #[test]
+    fn a_mailbox_outcome_posted_before_the_wait_is_not_missed() {
+        let mailbox = Mailbox::new(Vec::<u8>::new());
+        mailbox.update(|s| s.push(1));
+        assert_eq!(mailbox.wait_for(Duration::ZERO, |s| s.pop()), Some(1));
+    }
+
+    #[test]
+    fn a_corebluetooth_uuid_string_is_expanded_to_128_bits() {
+        assert_eq!(uuid_from_cb_string("FFF0"), Some(SERIAL_SERVICES[0]));
+        assert_eq!(uuid_from_cb_string("ae00"), Some(SERIAL_SERVICES[1]));
+        assert_eq!(uuid_from_cb_string("0000FFE0"), Some(SERIAL_SERVICES[2]));
+        assert_eq!(
+            uuid_from_cb_string("6E400001-B5A3-F393-E0A9-E50E24DCCA9E"),
+            Some(SERIAL_SERVICES[3])
+        );
+        assert_eq!(uuid_from_cb_string("nonsense"), None);
+        assert_eq!(uuid_from_cb_string("ZZZZ"), None);
+    }
+
+    #[test]
+    fn bluez_objects_are_ordered_by_attribute_handle_not_by_name_or_uuid() {
+        let base = "/org/bluez/hci0/dev_B9_69_75_AA_93_F6";
+        assert_eq!(handle_of_path(&format!("{base}/service000a")), 0x0a);
+        assert_eq!(handle_of_path(&format!("{base}/service000a/char000b")), 0x0b);
+        assert_eq!(handle_of_path(&format!("{base}/service000a/char0010")), 0x10);
+        assert_eq!(handle_of_path(&format!("{base}/service000a/desc0011")), u32::MAX);
+
+        let mut paths = [
+            format!("{base}/service000a/char0010"),
+            format!("{base}/service000a/char000b"),
+            format!("{base}/service000a/char000d"),
+        ];
+        paths.sort_by_key(|p| handle_of_path(p));
+        assert!(paths[0].ends_with("char000b") && paths[1].ends_with("char000d") && paths[2].ends_with("char0010"));
+    }
+
+    #[test]
+    fn each_listener_has_a_stop_signal_of_its_own() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let spin = |ticks: Arc<AtomicUsize>| {
+            Listener::spawn(move |stop| {
+                while !stop.load(Ordering::SeqCst) {
+                    ticks.fetch_add(1, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(2));
+                }
+            })
+        };
+        let (a_ticks, b_ticks) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+
+        let a = spin(a_ticks.clone());
+        thread::sleep(Duration::from_millis(20));
+
+        // Stopping one and starting the next: the first must really end, and the second must not
+        // be affected by the first's signal.
+        a.stop(Duration::from_secs(2));
+        let a_after = a_ticks.load(Ordering::SeqCst);
+        let b = spin(b_ticks.clone());
+        thread::sleep(Duration::from_millis(30));
+        assert_eq!(
+            a_ticks.load(Ordering::SeqCst),
+            a_after,
+            "the stopped listener is still running"
+        );
+        assert!(b_ticks.load(Ordering::SeqCst) > 0);
+
+        b.stop(Duration::from_secs(2));
+        let b_after = b_ticks.load(Ordering::SeqCst);
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(b_ticks.load(Ordering::SeqCst), b_after);
+    }
+
+    #[test]
+    fn a_listener_that_will_not_wake_is_left_to_end_by_itself() {
+        // Blocked in a call that does not return: stop() gives up after its wait rather than hang.
+        let release = Arc::new(Mutex::new(()));
+        let held = release.lock().unwrap();
+        let blocker = release.clone();
+        let l = Listener::spawn(move |_| {
+            drop(blocker.lock());
+        });
+        let started = Instant::now();
+        l.stop(Duration::from_millis(50));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        drop(held);
     }
 
     #[test]
