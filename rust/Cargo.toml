@@ -55,6 +55,8 @@ winreg = "0.55"
 libloading = "0.9"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 miniz_oxide = "0.9"
+# SHA-256 for tuning-project tune fingerprints (MIT/Apache-2.0); must match the C# digest.
+sha2 = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
