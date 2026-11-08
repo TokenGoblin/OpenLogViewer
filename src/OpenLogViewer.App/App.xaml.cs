@@ -47,7 +47,7 @@ public partial class App : Application
         // the following argument, so "--insights run.mlg" opened no log at all
         // while "run.mlg --insights" worked — which reads as intermittent.
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
-        "--faults", "--connect-ssm", "--connect-wifi", "--tuning-project",
+        "--faults", "--connect-ssm", "--connect-wifi", "--tuning-project", "--zoom",
         // The serial that "--connect-maxxecu-usb" may be narrowed with. It is a
         // switch of its own rather than a value after that one, because the
         // value is optional — one MaxxECU needs no naming — and a switch listed
@@ -115,6 +115,9 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Before any window exists, so none of them opens in the stock font.
+        ThemeManager.FollowAllWindows();
         _args = e.Args;
 
         // An exception escaping a background thread terminates the process
@@ -136,6 +139,12 @@ public partial class App : Application
         // Before Show, so a themed screenshot never captures the stored theme first.
         int theme = Array.IndexOf(e.Args, "--theme");
         if (theme >= 0 && theme + 1 < e.Args.Length) window.PreviewTheme(e.Args[theme + 1]);
+
+        // "--zoom 1.5" draws the interface half again larger for this run only.
+        int zoom = Array.IndexOf(e.Args, "--zoom");
+        if (zoom >= 0 && zoom + 1 < e.Args.Length
+            && double.TryParse(e.Args[zoom + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double scale))
+            window.PreviewZoom(scale);
 
         window.Show();
 

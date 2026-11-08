@@ -30,6 +30,15 @@ public sealed class SettingsStore
     public string? ThemeId { get; private set; }
 
     /// <summary>
+    /// How much larger than drawn the interface is shown: 1 is as designed, 1.5
+    /// half again. Text and controls scale together, so nothing clips.
+    /// </summary>
+    public double UiScale { get; private set; } = 1;
+
+    /// <summary>The range a stored scale is honoured within; anything else reads as 1.</summary>
+    public const double MinimumUiScale = 1, MaximumUiScale = 3;
+
+    /// <summary>
     /// Where recordings and exports go, or null for the default. Kept as the
     /// folder the user chose rather than the folders beneath it, so moving the
     /// workspace moves everything at once.
@@ -76,6 +85,10 @@ public sealed class SettingsStore
     {
         SettingsFile? file = JsonSettingsFile.Read<SettingsFile>(Path);
         ThemeId = string.IsNullOrWhiteSpace(file?.ThemeId) ? null : file.ThemeId.Trim();
+
+        // A hand-edited 0 or 40 would leave the window unusable on the next
+        // start, with no way back to the menu that fixes it.
+        UiScale = file?.UiScale is { } scale && scale is >= MinimumUiScale and <= MaximumUiScale ? scale : 1;
         DataFolder = string.IsNullOrWhiteSpace(file?.DataFolder) ? null : file.DataFolder.Trim();
 
         // A missing or nonsensical rate takes the default rather than being
@@ -272,6 +285,15 @@ public sealed class SettingsStore
         Persist();
     }
 
+    public void SetUiScale(double scale)
+    {
+        double clamped = double.IsFinite(scale) ? Math.Clamp(scale, MinimumUiScale, MaximumUiScale) : 1;
+        if (clamped == UiScale) return;
+
+        UiScale = clamped;
+        Persist();
+    }
+
     public void SetTheme(string? id)
     {
         string? trimmed = string.IsNullOrWhiteSpace(id) ? null : id.Trim();
@@ -294,6 +316,7 @@ public sealed class SettingsStore
     {
         Version = 1,
         ThemeId = ThemeId,
+        UiScale = UiScale == 1 ? null : UiScale,
         DataFolder = DataFolder,
         LiveRate = LiveRate,
         SingleRequestBlock = SingleRequestBlock,
@@ -313,6 +336,7 @@ public sealed class SettingsStore
     {
         public int Version { get; set; }
         public string? ThemeId { get; set; }
+        public double? UiScale { get; set; }
         public string? DataFolder { get; set; }
         public double? LiveRate { get; set; }
         public bool? SingleRequestBlock { get; set; }

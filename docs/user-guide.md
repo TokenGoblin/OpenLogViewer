@@ -426,6 +426,14 @@ remembered in `%APPDATA%\OpenLogViewer\settings.json`.
 | Light | Daylight, Paper |
 | Editor | Dracula, Nord, Solarized Dark, Solarized Light, Monokai, One Dark, Gruvbox Dark, Tokyo Night |
 | High contrast | High Contrast Dark, High Contrast Light |
+| Retro | Retro DOS |
+
+**Retro DOS** changes more than colour. It is a 1990s DOS tuning screen: a
+bundled pixel font drawn without smoothing, square corners, a text-mode blue
+frame, cyan rules, neon magenta for the selection, and phosphor-green numbers.
+The tune table becomes a ruled grid of green values instead of a heat map. The
+font, OLV Retro 8x16, was drawn for this project and is MIT licensed like the
+rest of it. Characters it lacks fall back to Consolas.
 
 A scheme sets more than the window chrome. It carries its own **trace palette**,
 and switching schemes re-picks the colours of everything plotted, because a
@@ -440,6 +448,16 @@ contrast, and separation of adjacent entries under protanopia and deuteranopia.
 `--theme <id>` starts in a scheme for one run without changing the saved
 preference. Ids are the lower-case hyphenated names, for example
 `solarized-dark`. See [Command line](command-line.md).
+
+### Zoom
+
+**View ▸ Zoom** makes the whole interface larger: 100%, 115%, 125%, 150%, 175%
+or 200%. **Ctrl +** and **Ctrl −** step through those sizes and **Ctrl 0** goes
+back to 100%. The size is remembered with the theme. Text and controls grow
+together, so nothing gets clipped, and text is redrawn at the new size rather
+than stretched, so it stays sharp. When the toolbar no longer fits on one line
+it wraps onto a second instead of hiding controls. `--zoom 1.5` sets a size for
+one run without changing the saved one.
 
 ## Export
 

@@ -39,7 +39,7 @@
         </Style>
 
         <Style x:Key="Answer" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontFamily" Value="{DynamicResource DataFont}"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -70,7 +70,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="row" Background="Transparent" CornerRadius="5"
+                        <Border x:Name="row" Background="Transparent" CornerRadius="{DynamicResource CornerMedium}"
                                 Margin="0,1" Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter VerticalAlignment="Center"/>
@@ -220,10 +220,10 @@
 
                     <TextBlock Style="{StaticResource Heading}" Text="THE RECIPE"/>
 
-                    <Border Padding="12,10" CornerRadius="5"
+                    <Border Padding="12,10" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
-                        <TextBlock x:Name="RecList" FontFamily="Consolas" FontSize="12"
+                        <TextBlock x:Name="RecList" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                    Foreground="{DynamicResource Text}"/>
                     </Border>
 
@@ -234,7 +234,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="0,0,0,6">
-                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="3"
+                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="{DynamicResource CornerSmall}"
                                             Margin="0,1,8,0" VerticalAlignment="Top"
                                             Background="{Binding Tint}">
                                         <TextBlock Text="{Binding Severity}" FontSize="10"
@@ -521,7 +521,7 @@
                         <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}" x:Name="PumpGallonsNote"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             HorizontalAlignment="Left">
@@ -529,14 +529,14 @@
                             <TextBlock x:Name="PumpPicksTitle"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,0,0,6"/>
-                            <TextBlock x:Name="PumpPicks" FontFamily="Consolas" FontSize="12"
+                            <TextBlock x:Name="PumpPicks" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                        Foreground="{DynamicResource Muted}"/>
                         </StackPanel>
                     </Border>
 
                     <TextBlock Style="{StaticResource Note}" x:Name="PumpPicksNote"/>
 
-                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             HorizontalAlignment="Left">
@@ -544,7 +544,7 @@
                             <TextBlock Text="Typical BSFC, lb per hp per hour"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,0,0,6"/>
-                            <TextBlock x:Name="PumpLegend" FontFamily="Consolas" FontSize="12"
+                            <TextBlock x:Name="PumpLegend" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                        Foreground="{DynamicResource Muted}"/>
                         </StackPanel>
                     </Border>
@@ -804,7 +804,7 @@
                                    Text="% of flow spare, over what is needed"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             HorizontalAlignment="Left">
@@ -812,7 +812,7 @@
                             <TextBlock x:Name="TurboPicksTitle"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,0,0,6"/>
-                            <TextBlock x:Name="TurboPicks" FontFamily="Consolas" FontSize="12"
+                            <TextBlock x:Name="TurboPicks" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                        Foreground="{DynamicResource Muted}"/>
                         </StackPanel>
                     </Border>
@@ -1003,7 +1003,7 @@
                         <TextBlock Grid.Row="9" Grid.Column="2" Style="{StaticResource Unit}" x:Name="IcAfterSprayNote"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
                         <TextBlock x:Name="IcSafety" TextWrapping="Wrap" FontSize="11"
@@ -1012,7 +1012,7 @@
                     </Border>
 
                     <TextBlock Style="{StaticResource Heading}" Text="ALL THE FLUIDS, SIDE BY SIDE"/>
-                    <TextBlock x:Name="IcFluidTable" FontFamily="Consolas" FontSize="11"
+                    <TextBlock x:Name="IcFluidTable" FontFamily="{DynamicResource DataFont}" FontSize="11"
                                Foreground="{DynamicResource Text}"/>
 
                     <TextBlock Style="{StaticResource Note}"
@@ -1132,7 +1132,7 @@
                                    HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
                         <StackPanel>
@@ -1319,7 +1319,7 @@
                         <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}" x:Name="GearCruiseNote"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             HorizontalAlignment="Left">
@@ -1327,7 +1327,7 @@
                             <TextBlock x:Name="GearChartTitle"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,0,0,6"/>
-                            <TextBlock x:Name="GearChart" FontFamily="Consolas" FontSize="11"
+                            <TextBlock x:Name="GearChart" FontFamily="{DynamicResource DataFont}" FontSize="11"
                                        Foreground="{DynamicResource Muted}"/>
                         </StackPanel>
                     </Border>
@@ -1402,7 +1402,7 @@
                         <TextBlock Grid.Row="8" Grid.Column="2" Style="{StaticResource Unit}" x:Name="OctCoolingNote"/>
                     </Grid>
 
-                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="5"
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                             Background="{DynamicResource Panel}"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             HorizontalAlignment="Left">
@@ -1410,13 +1410,13 @@
                             <TextBlock x:Name="OctChartTitle"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,0,0,6"/>
-                            <TextBlock x:Name="OctChart" FontFamily="Consolas" FontSize="11"
+                            <TextBlock x:Name="OctChart" FontFamily="{DynamicResource DataFont}" FontSize="11"
                                        Foreground="{DynamicResource Muted}"/>
 
                             <TextBlock x:Name="OctCoolingTitle"
                                        Foreground="{DynamicResource Text}" FontSize="11"
                                        Margin="0,12,0,6"/>
-                            <TextBlock x:Name="OctCoolingChart" FontFamily="Consolas" FontSize="11"
+                            <TextBlock x:Name="OctCoolingChart" FontFamily="{DynamicResource DataFont}" FontSize="11"
                                        Foreground="{DynamicResource Muted}"/>
                         </StackPanel>
                     </Border>
@@ -1704,7 +1704,7 @@
 
                     <Border Background="{DynamicResource Panel}" Padding="10" Margin="0,6,0,6"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
-                        <TextBlock x:Name="ManPlenumTable" FontFamily="Consolas" FontSize="12"
+                        <TextBlock x:Name="ManPlenumTable" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                    Foreground="{DynamicResource Text}"/>
                     </Border>
 
@@ -1712,7 +1712,7 @@
 
                     <Border Background="{DynamicResource Panel}" Padding="10" Margin="0,0,0,6"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
-                        <TextBlock x:Name="ManOrderList" FontFamily="Consolas" FontSize="12"
+                        <TextBlock x:Name="ManOrderList" FontFamily="{DynamicResource DataFont}" FontSize="12"
                                    Foreground="{DynamicResource Text}"/>
                     </Border>
 
@@ -1775,7 +1775,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="0,0,0,6">
-                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="3"
+                                    <Border DockPanel.Dock="Left" Width="52" Height="18" CornerRadius="{DynamicResource CornerSmall}"
                                             Margin="0,1,8,0" VerticalAlignment="Top"
                                             Background="{Binding Tint}">
                                         <TextBlock Text="{Binding Severity}" FontSize="10"

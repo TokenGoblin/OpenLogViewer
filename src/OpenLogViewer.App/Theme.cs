@@ -8,6 +8,55 @@ public enum ThemeGroup
     Light,
     Editor,
     HighContrast,
+    Retro,
+}
+
+/// <summary>How the tune table fills its cells.</summary>
+public enum TableStyle
+{
+    /// <summary>Each cell shaded by its value on the theme's sequential ramp.</summary>
+    Heat,
+
+    /// <summary>Unfilled cells on a ruled grid, values in the readout ink.</summary>
+    Grid,
+}
+
+/// <summary>
+/// The part of a theme that is not colour: type, corners and how text is
+/// rasterised. Kept apart from the colours so a scheme that only recolours
+/// leaves it out and gets <see cref="Modern"/>, and a theme that changes the
+/// application's character — a DOS-era screen, a print-like page — can do so
+/// without the code that paints it knowing which theme is which.
+/// </summary>
+public sealed record ThemeStyle
+{
+    /// <summary>What every theme had before style was something a theme could say.</summary>
+    public static ThemeStyle Modern { get; } = new();
+
+    /// <summary>
+    /// Labels, menus, buttons. A font family string as WPF reads one, so it
+    /// may name a fallback after a comma and a bundled font by its location —
+    /// see <see cref="ThemeFonts"/>.
+    /// </summary>
+    public string UiFont { get; init; } = "Segoe UI";
+
+    /// <summary>Numbers: table cells, readouts, anything that lines up in columns.</summary>
+    public string DataFont { get; init; } = "Consolas";
+
+    /// <summary>
+    /// Multiplies every corner radius. 0 squares the application off; 1 is the
+    /// radii as drawn.
+    /// </summary>
+    public double CornerScale { get; init; } = 1;
+
+    /// <summary>
+    /// Rasterise text to whole pixels with no smoothing. A pixel font drawn the
+    /// usual way is blurred across the pixel grid it was designed on, which
+    /// loses exactly what it was chosen for.
+    /// </summary>
+    public bool PixelText { get; init; }
+
+    public TableStyle Table { get; init; } = TableStyle.Heat;
 }
 
 /// <summary>
@@ -60,6 +109,31 @@ public sealed record Theme
     /// <summary>Hue for the heat table's above-target arm.</summary>
     public required Color RampWarm { get; init; }
 
+    /// <summary>Type, corners and text rendering. Recolouring themes leave it out.</summary>
+    public ThemeStyle Style { get; init; } = ThemeStyle.Modern;
+
+    // ----- optional colours -------------------------------------------------
+    //
+    // Each of these is derived unless a theme states it, so the schemes that
+    // predate them look exactly as they did.
+
+    private readonly Color? _readout;
+    private readonly Color? _chrome;
+    private readonly Color? _grid;
+
+    /// <summary>
+    /// Ink for live values and table cells, where a theme wants numbers to
+    /// read apart from their labels. Body text unless stated.
+    /// </summary>
+    public Color Readout { get => _readout ?? Text; init => _readout = value; }
+
+    /// <summary>
+    /// The window's frame: title bar, menu bar and status strip. The panel
+    /// colour unless stated, which is what keeps the seam under a coloured
+    /// title bar from showing.
+    /// </summary>
+    public Color Chrome { get => _chrome ?? Panel; init => _chrome = value; }
+
     public bool IsDark => ColorMath.Luminance(Background) < 0.35;
 
     // ----- derived surfaces -------------------------------------------------
@@ -94,7 +168,8 @@ public sealed record Theme
     /// <summary>Category headers in the channel list.</summary>
     public Color Header => ColorMath.Blend(Panel, Background, 0.5);
 
-    public Color Grid => ColorMath.Blend(Background, Text, 0.13);
+    /// <summary>Plot and chart rules. A quiet step off the ground unless stated.</summary>
+    public Color Grid { get => _grid ?? ColorMath.Blend(Background, Text, 0.13); init => _grid = value; }
 
     /// <summary>Lane dividers in stacked mode — quieter than the grid.</summary>
     public Color Lane => ColorMath.Blend(Background, Text, 0.08);

@@ -52,6 +52,7 @@ public sealed class GaugeView : FrameworkElement
 
     private Brush _face = null!;
     private Brush _ink = null!;
+    private Brush _readout = null!;
     private Brush _muted = null!;
     private Pen _track = null!;
     private Pen _normalBand = null!;
@@ -117,8 +118,9 @@ public sealed class GaugeView : FrameworkElement
         _warningHold = Pen(theme.Warning, 2);
         _dangerHold = Pen(theme.Danger, 2);
 
-        _typeface = new Typeface(
-            new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        _readout = Fill(theme.Readout);
+
+        _typeface = ThemeFonts.Typeface(theme.Style.UiFont, FontWeights.SemiBold);
 
         InvalidateVisual();
     }
@@ -324,7 +326,7 @@ public sealed class GaugeView : FrameworkElement
         {
             GaugeBand.Danger => _dangerInk,
             GaugeBand.Warning => _warningInk,
-            _ => _ink,
+            _ => _readout,
         };
 
         string reading = double.IsNaN(value)

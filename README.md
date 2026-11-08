@@ -65,7 +65,7 @@ says which cells it does not have the evidence to move.
 | **Live connection** | Serial, Bluetooth LE and Wi-Fi; 5–200 Hz; recording flushed row by row |
 | **Tune editing** | Tables and settings pages built from the firmware's own definition; send and burn separate, as they are on the ECU |
 | **Export** | CSV and PNG from every view; CSV that opens again here and pastes into a tuning app |
-| **Appearance** | Fourteen colour schemes, each with a trace palette checked for contrast and for protanopia and deuteranopia |
+| **Appearance** | Fifteen colour schemes, including a Retro DOS one, and an interface zoom, each with a trace palette checked for contrast and for protanopia and deuteranopia |
 | **AI agent access** | An optional local MCP server, off at every launch, bound to loopback, with every write still gated by a dialog in the window |
 
 ## Supported hardware

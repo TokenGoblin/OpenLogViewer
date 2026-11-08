@@ -132,7 +132,7 @@
                                            ToolTip="{Binding Note}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Value}" Opacity="0.75"
                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding Note}"/>
-                                <Border Grid.Column="2" CornerRadius="3" Padding="5,0" Margin="4,0,0,0"
+                                <Border Grid.Column="2" CornerRadius="{DynamicResource CornerSmall}" Padding="5,0" Margin="4,0,0,0"
                                         Background="{Binding Tint}">
                                     <TextBlock Text="{Binding Source}" FontSize="10.5"/>
                                 </Border>
@@ -173,7 +173,7 @@
             </Border>
 
             <StackPanel Grid.Row="3" Margin="0,8,0,0">
-                <TextBlock x:Name="Readout" FontFamily="Consolas" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                <TextBlock x:Name="Readout" FontFamily="{DynamicResource DataFont}" TextWrapping="Wrap" Margin="0,0,0,4"/>
                 <TextBlock x:Name="Basis" TextWrapping="Wrap" Opacity="0.75" FontSize="11.5"/>
                 <ItemsControl x:Name="Cautions" Margin="0,4,0,0">
                     <ItemsControl.ItemTemplate>

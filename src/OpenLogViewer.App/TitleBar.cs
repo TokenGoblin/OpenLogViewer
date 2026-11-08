@@ -45,10 +45,11 @@ internal static class TitleBar
         int dark = theme.IsDark ? 1 : 0;
         if (Set(handle, ImmersiveDarkMode, dark) != Ok) Set(handle, ImmersiveDarkModeLegacy, dark);
 
-        // The panel rather than the plot ground: the title bar sits directly
-        // above the toolbar, and matching its neighbour is what stops the seam
-        // showing.
-        Set(handle, CaptionColour, ColorRef(theme.Panel));
+        // The chrome rather than the plot ground: the title bar sits directly
+        // above the menu bar, and matching its neighbour is what stops the seam
+        // showing. Chrome is the panel colour unless a theme frames the window
+        // in something else.
+        Set(handle, CaptionColour, ColorRef(theme.Chrome));
         Set(handle, TextColour, ColorRef(theme.Text));
         Set(handle, BorderColour, ColorRef(theme.Line));
     }

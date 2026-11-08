@@ -122,8 +122,11 @@ public sealed class CurveView : FrameworkElement
         view.InvalidateVisual();
     }
 
+    private Typeface UiFace = null!;
+
     private void ApplyTheme(Theme theme)
     {
+        UiFace = ThemeFonts.Typeface(theme.Style.UiFont, FontWeights.Normal);
         Background = Fill(theme.Background);
         AxisInk = Fill(theme.Muted);
         TitleInk = Fill(theme.Text);
@@ -357,7 +360,7 @@ public sealed class CurveView : FrameworkElement
     {
         var run = new FormattedText(
             text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 11, title ? TitleInk : AxisInk,
+            UiFace, 11, title ? TitleInk : AxisInk,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
         dc.DrawText(run, new Point(

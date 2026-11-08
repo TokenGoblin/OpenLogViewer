@@ -52,6 +52,7 @@ public sealed class DynoView : FrameworkElement
     private Brush _background = Brushes.Transparent;
     private Brush _axisInk = Brushes.Gray;
     private Brush _titleInk = Brushes.Black;
+    private Typeface _typeface = new(SystemFonts.MessageFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
     private Brush _panel = Brushes.White;
     private Pen _gridPen = new(Brushes.Gray, 1);
     private Pen _crossPen = new(Brushes.Gray, 1);
@@ -81,6 +82,7 @@ public sealed class DynoView : FrameworkElement
         _background = Fill(theme.Background);
         _axisInk = Fill(theme.Muted);
         _titleInk = Fill(theme.Text);
+        _typeface = ThemeFonts.Typeface(theme.Style.UiFont, FontWeights.Normal);
         _panel = Fill(theme.Panel);
         _series = theme.Series;
 
@@ -307,7 +309,7 @@ public sealed class DynoView : FrameworkElement
     {
         var run = new FormattedText(
             text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 11, title ? _titleInk : _axisInk,
+            _typeface, 11, title ? _titleInk : _axisInk,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
         dc.DrawText(run, new Point(
