@@ -308,6 +308,7 @@ dependencies = [
  "olv-core",
  "olv-oracle",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
