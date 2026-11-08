@@ -1,0 +1,1 @@
+- **Sniper dongle over nusb** (from w1-sniper). `olv_protocol::sniper` already contains the nusb link for the Holley dongle. Don't port it again; reuse it if the transport layer needs a handle to it.
