@@ -950,3 +950,30 @@ fn write32(at: &mut [u8], value: u32, little: bool) {
     };
     at[..4].copy_from_slice(&bytes);
 }
+
+#[cfg(test)]
+mod rounding_tests {
+    use super::*;
+
+    /// The encoder rounds an exact half away from zero, as the C#'s
+    /// `MidpointRounding.AwayFromZero`. Banker's rounding would turn 0.5 into 0 and 2.5
+    /// into 2, writing a different byte to the ECU than the C# did. Nothing else pins
+    /// this: the corpus oracle only notices when a real tune happens to sit on a half.
+    #[test]
+    fn an_exact_half_rounds_away_from_zero() {
+        let mut byte = [0u8; 1];
+        for (value, expected) in [(0.5, 1u8), (1.5, 2), (2.5, 3), (254.5, 255)] {
+            assert!(try_write(&mut byte, RealtimeType::U08, value, false), "{value} refused");
+            assert_eq!(byte[0], expected, "{value}");
+        }
+
+        let mut signed = [0u8; 1];
+        for (value, expected) in [(-0.5, -1i8), (-2.5, -3)] {
+            assert!(
+                try_write(&mut signed, RealtimeType::S08, value, false),
+                "{value} refused"
+            );
+            assert_eq!(signed[0] as i8, expected, "{value}");
+        }
+    }
+}

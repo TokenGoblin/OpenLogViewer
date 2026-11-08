@@ -622,7 +622,7 @@ fn a_reply_of_the_wrong_length_is_not_taken_as_the_answer() {
             None,
         ),
         false,
-    );
+    ).expect("layout accepted");
 
     // The 200-byte straggler is refused, and the 16 that follows is right.
     assert_eq!(connection.read_realtime(16).unwrap().len(), 16);
