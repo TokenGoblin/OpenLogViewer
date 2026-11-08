@@ -254,6 +254,10 @@ pub fn read(
 
         let retry = on_retry.as_mut().map(|r| &mut **r as &mut dyn FnMut());
         let Some(piece) = usb::try_ask(transport, &request, &mut reply, PIECE as i32, TIMEOUT, 3, retry)? else {
+            // `try_ask` leaves the last attempt's late reply in the input; the next request would read
+            // its answer starting in the middle of it.
+            transport.discard_input();
+
             return Err(Error::Protocol(format!(
                 "The MaxxECU stopped answering {PIECE} bytes into its tune at offset {at}. \
                  Nothing has been changed on the ECU \u{2014} this is a read."
@@ -334,6 +338,20 @@ pub fn write(transport: &mut dyn EcuTransport, offset: i32, data: &[u8]) -> Resu
 
     let mut status = [0u8; 1];
 
+    // Start from a quiet line, under the same hold on the cable as the exchange itself.
+    //
+    // The header's acknowledgement and the payload's are the same bare status byte, with no
+    // framing, no length and no checksum, so a reply cannot be told which of them it is. A late
+    // reply left over from an earlier exchange (a telemetry reply whose first byte is 0x80, say)
+    // would be read as the header's acknowledgement; the real one would then be taken as the
+    // payload's, and a payload the ECU refused would be reported as written. The only defence is
+    // that nothing stale is in the input when each acknowledgement is waited for, so it is
+    // cleared before the header goes out and again before the payload does. (The C# did neither;
+    // the shipping app has the defect.) Whatever lands after the payload is sent still cannot be
+    // told apart, which is why a caller confirms a write with `verify` and not with this status
+    // alone.
+    transport.discard_input();
+
     transport.write(&usb::request(usb::WRITE, READ_TUNE, offset, data.len() as i32)?)?;
 
     if transport.read(&mut status, TIMEOUT)? != 1 {
@@ -342,6 +360,8 @@ pub fn write(transport: &mut dyn EcuTransport, offset: i32, data: &[u8]) -> Resu
     if status[0] != usb::OK {
         return Ok(MaxxWriteStatus::from_byte(status[0]));
     }
+
+    transport.discard_input();
 
     // The payload and its own checksum, which the ECU checks before it takes any of it. Sent
     // as one write so the two cannot be separated on the wire by anything that reads from the

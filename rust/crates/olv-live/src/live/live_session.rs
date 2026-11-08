@@ -26,6 +26,16 @@
 //! * Dropping a session never disposes the source on the calling thread: closing a connection
 //!   waits for the request in flight, so the source is handed to a detached thread to drop.
 //!   `stop` itself waits at most two seconds for the poll thread, as the C#'s `Join` did.
+//! * A caller that must reopen the same device straight after letting a session go cannot rely on
+//!   the detached drop having finished (the C# disposed synchronously, so it never had to). It
+//!   waits instead: [`LiveSession::stop`] returns a [`PollHandle`], [`LiveSession::released`] and
+//!   [`LiveSession::dispose`] give a [`ReleaseHandle`], and each has a `wait(timeout)` that is
+//!   bounded. [`LiveSession::start_after`] does the waiting and reports "still closing the
+//!   previous connection" if the release does not come in time.
+//! * A recording that cannot be written (a full disk) does not touch the link's failure count and
+//!   does not skip pacing, which is what the C# did. After a few consecutive failed rows the
+//!   recording is closed, the session carries on, and the status says why
+//!   ([`LiveSessionStatus::recording_error`]).
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -119,7 +129,13 @@ pub struct LiveSessionStatus {
     pub failures: i32,
     pub error: Option<String>,
     pub reconnecting: bool,
+    /// Why the recording stopped by itself (a full disk, say), or `None`. The session is still
+    /// running and is not faulted; only the file is closed.
+    pub recording_error: Option<String>,
 }
+
+/// Consecutive rows a recording may fail to write before it is closed.
+const MAXIMUM_RECORDING_FAILURES: i32 = 3;
 
 impl LiveSessionStatus {
     pub fn faulted(&self) -> bool {
@@ -164,7 +180,7 @@ struct Data {
 
 /// The open recording file, and where on the session's clock it began.
 struct Recorder {
-    file: File,
+    file: Box<dyn Write + Send>,
     from: f64,
 }
 
@@ -215,6 +231,89 @@ struct Finished {
     wake: Condvar,
 }
 
+/// Waits for the poll thread to finish; what [`LiveSession::stop`] hands back.
+///
+/// `stop` itself waits at most two seconds. A poll thread stuck in a request outlives that, and
+/// this is how a caller finds out when it has really gone.
+#[derive(Clone)]
+pub struct PollHandle(Arc<Finished>);
+
+impl PollHandle {
+    fn done() -> Self {
+        Self(Arc::new(Finished {
+            done: Mutex::new(true),
+            wake: Condvar::new(),
+        }))
+    }
+
+    /// Whether the poll thread has finished.
+    pub fn is_done(&self) -> bool {
+        *lock(&self.0.done)
+    }
+
+    /// Waits up to `timeout` for the poll thread to finish. True if it has. Never waits longer.
+    pub fn wait(&self, timeout: Duration) -> bool {
+        let done = lock(&self.0.done);
+        let (done, _) = self
+            .0
+            .wake
+            .wait_timeout_while(done, timeout, |finished| !*finished)
+            .unwrap_or_else(PoisonError::into_inner);
+
+        *done
+    }
+}
+
+/// What is still using the device after a session is let go of: the poll thread, and the thread
+/// the source is dropped on. `.0` counts them; `.1` says the session will not take the source
+/// back.
+struct Releases {
+    state: Mutex<(usize, bool)>,
+    wake: Condvar,
+}
+
+impl Releases {
+    fn hold(&self) {
+        lock(&self.state).0 += 1;
+    }
+
+    fn release(&self) {
+        let mut state = lock(&self.state);
+        state.0 = state.0.saturating_sub(1);
+        self.wake.notify_all();
+    }
+
+    fn dispose(&self) {
+        lock(&self.state).1 = true;
+        self.wake.notify_all();
+    }
+}
+
+/// Signals that a disposed session has let go of its source: the poll thread has finished and
+/// the source has been dropped (the connection closed), so the device can be opened again.
+#[derive(Clone)]
+pub struct ReleaseHandle(Arc<Releases>);
+
+impl ReleaseHandle {
+    /// Whether the session was disposed and nothing of it is still using the device.
+    pub fn is_released(&self) -> bool {
+        let state = lock(&self.0.state);
+        state.1 && state.0 == 0
+    }
+
+    /// Waits up to `timeout` for the release. True if it has happened. Never waits longer.
+    pub fn wait(&self, timeout: Duration) -> bool {
+        let state = lock(&self.0.state);
+        let (state, _) = self
+            .0
+            .wake
+            .wait_timeout_while(state, timeout, |s| !(s.1 && s.0 == 0))
+            .unwrap_or_else(PoisonError::into_inner);
+
+        state.1 && state.0 == 0
+    }
+}
+
 struct Worker {
     handle: JoinHandle<()>,
     finished: Arc<Finished>,
@@ -230,6 +329,7 @@ struct Inner {
     /// The source, when no poll thread has it. Never held across a poll.
     source: Mutex<Option<Box<dyn LiveSource>>>,
     disposed: AtomicBool,
+    releases: Arc<Releases>,
     raw: Option<RawInfo>,
 
     /// The sample store (`_gate`). Held by every repaint's `snapshot`, so nothing slow goes
@@ -247,6 +347,9 @@ struct Inner {
     recorded_rows: AtomicI32,
     recording_from_bits: AtomicU64,
     paths: Mutex<RecordingPaths>,
+    /// Consecutive rows the recording could not write, and why it was closed.
+    recording_failures: AtomicI32,
+    recording_error: Mutex<Option<String>>,
 
     clock: Mutex<Option<Instant>>,
 
@@ -294,6 +397,7 @@ impl Inner {
             failures: self.failures.load(Ordering::Relaxed),
             error: lock(&self.error).clone(),
             reconnecting: self.reconnecting.load(Ordering::Relaxed),
+            recording_error: lock(&self.recording_error).clone(),
         }
     }
 
@@ -388,7 +492,10 @@ impl Inner {
         self.append(at, &values)?;
         self.failures.store(0, Ordering::Relaxed);
 
-        self.record(at, &values, row)?;
+        // A recording that cannot be written is the recording's problem, not the link's: it must
+        // neither reset nor add to the link's failure count, and it must not skip the pacing
+        // (the C# did both, so a full disk polled at link speed forever and never errored).
+        self.record_or_give_up(at, &values, row);
 
         // Handed on at the rate the ECU produces it rather than the rate a window repaints at.
         // The two differ by a lot (the plot is redrawn a few times a second while this loop
@@ -517,13 +624,53 @@ impl Inner {
         recovered
     }
 
-    fn start_recording(&self, path: &str) -> Result<String> {
+    /// Drops a source on a thread of its own, counted so a [`ReleaseHandle`] knows when the
+    /// connection has really closed. Closing can wait on a request in flight.
+    fn drop_on_a_thread(&self, source: Box<dyn LiveSource>) {
+        self.releases.hold();
+
+        let releases = Arc::clone(&self.releases);
+        let spawned = std::thread::Builder::new()
+            .name("ECU close".to_string())
+            .spawn(move || {
+                let _ = catch_unwind(AssertUnwindSafe(move || drop(source)));
+                releases.release();
+            });
+
+        // A thread that could not start leaves the source dropped (and so closed) right here,
+        // which is the C#'s behaviour, and the hold undone.
+        if spawned.is_err() {
+            self.releases.release();
+        }
+    }
+
+    /// Writes a row; after [`MAXIMUM_RECORDING_FAILURES`] consecutive failures closes the
+    /// recording and says why, leaving the session running.
+    fn record_or_give_up(&self, at: f64, values: &[f64], row: &mut [f64]) {
+        match self.record(at, values, row) {
+            Ok(()) => self.recording_failures.store(0, Ordering::Relaxed),
+            Err(e) => {
+                if self.recording_failures.fetch_add(1, Ordering::Relaxed) + 1 >= MAXIMUM_RECORDING_FAILURES {
+                    *lock(&self.recording_error) = Some(format!("Recording stopped: {e}"));
+                    self.stop_recording();
+                }
+            }
+        }
+    }
+
+    fn check_recording_path(path: &str) -> Result<()> {
         if path.trim().is_empty() {
             return Err(Error::Argument(
                 "The value cannot be an empty string or composed entirely of whitespace. (Parameter 'path')"
                     .to_string(),
             ));
         }
+
+        Ok(())
+    }
+
+    fn start_recording(&self, path: &str) -> Result<String> {
+        Self::check_recording_path(path)?;
 
         self.stop_recording();
 
@@ -538,8 +685,13 @@ impl Inner {
         // "Â°C", and a recording nobody can open in the thing they open recordings in is a
         // poor recording. Every reader this application has copes with the mark, and so does
         // anything else that reads UTF-8.
-        let mut file = File::create(path)?;
+        let file = File::create(path)?;
 
+        self.begin_recording(path, Box::new(file))
+    }
+
+    /// Writes the byte-order mark and header to `file` and makes it the recording.
+    fn begin_recording(&self, path: &str, mut file: Box<dyn Write + Send>) -> Result<String> {
         let (names, units) = {
             let data = lock(&self.data);
             (data.names.clone(), data.units.clone())
@@ -566,6 +718,8 @@ impl Inner {
         self.recording_from_bits.store(from.to_bits(), Ordering::Relaxed);
         self.recorded_rows.store(0, Ordering::Relaxed);
         self.recording.store(true, Ordering::Relaxed);
+        self.recording_failures.store(0, Ordering::Relaxed);
+        *lock(&self.recording_error) = None;
 
         let mut paths = lock(&self.paths);
         paths.current = Some(path.to_string());
@@ -675,6 +829,12 @@ impl LiveSession {
             recorded_rows: AtomicI32::new(0),
             recording_from_bits: AtomicU64::new(0),
             paths: Mutex::new(RecordingPaths::default()),
+            recording_failures: AtomicI32::new(0),
+            recording_error: Mutex::new(None),
+            releases: Arc::new(Releases {
+                state: Mutex::new((0, false)),
+                wake: Condvar::new(),
+            }),
             clock: Mutex::new(None),
             failures: AtomicI32::new(0),
             reconnecting: AtomicBool::new(false),
@@ -824,7 +984,7 @@ impl LiveSession {
             // leaving it open here would leak the link (and, on a serial or D2XX source, the
             // underlying handle) for a session that never actually starts. Dropped on its own
             // thread, because closing a connection can wait on a request in flight.
-            std::thread::spawn(move || drop(source));
+            inner.drop_on_a_thread(source);
 
             return Err(Error::InvalidOperation("No channels to record.".to_string()));
         }
@@ -851,6 +1011,10 @@ impl LiveSession {
         let worker_inner = Arc::clone(inner);
         let worker_finished = Arc::clone(&finished);
 
+        // The poll thread is using the device from here until it has handed the source back or
+        // dropped it.
+        inner.releases.hold();
+
         let spawned = std::thread::Builder::new().name("ECU poll".to_string()).spawn(move || {
             let mut source = source;
             worker_inner.poll(&mut *source, &cancel);
@@ -867,7 +1031,8 @@ impl LiveSession {
                     None
                 }
             };
-            drop(leftover);
+            let _ = catch_unwind(AssertUnwindSafe(move || drop(leftover)));
+            worker_inner.releases.release();
 
             *lock(&worker_finished.done) = true;
             worker_finished.wake.notify_all();
@@ -878,8 +1043,51 @@ impl LiveSession {
                 *lock(&inner.worker) = Some(Worker { handle, finished });
                 Ok(())
             }
-            Err(e) => Err(Error::Io(e)),
+            Err(e) => {
+                inner.releases.release();
+                Err(Error::Io(e))
+            }
         }
+    }
+
+    /// Starts once the previous session's connection has been released, for a reconnect to the
+    /// same device straight after a disconnect.
+    ///
+    /// Waits at most `timeout` for `previous` (from [`released`](Self::released) or
+    /// [`dispose`](Self::dispose) on the session being replaced) and refuses with "still closing
+    /// the previous connection" if it has not come, rather than opening a port that is still
+    /// held and failing with "busy". Blocks the caller for at most `timeout`: pass a short one
+    /// from a window thread, or call it from a worker.
+    pub fn start_after(&self, previous: &ReleaseHandle, timeout: Duration) -> Result<()> {
+        if !previous.wait(timeout) {
+            return Err(Error::InvalidOperation(
+                "Still closing the previous connection; try again in a moment.".to_string(),
+            ));
+        }
+
+        self.start()
+    }
+
+    /// A signal for when this session, once dropped or disposed, has let go of its source.
+    pub fn released(&self) -> ReleaseHandle {
+        ReleaseHandle(Arc::clone(&self.inner.releases))
+    }
+
+    /// Lets the session go (the C#'s `Dispose`) and says when the device is free again. The
+    /// source is closed off this thread; the handle's `wait` is how to know it has been.
+    pub fn dispose(self) -> ReleaseHandle {
+        let handle = self.released();
+        drop(self);
+        handle
+    }
+
+    /// Begins writing to `writer` instead of a file, labelled `label`. For a destination that is
+    /// not a path, and for testing a recording that fails; otherwise as
+    /// [`start_recording`](Self::start_recording).
+    pub fn start_recording_to(&self, label: &str, writer: Box<dyn Write + Send>) -> Result<String> {
+        Inner::check_recording_path(label)?;
+        self.inner.stop_recording();
+        self.inner.begin_recording(label, writer)
     }
 
     /// Begins writing to a file, whether or not the session is already running.
@@ -910,25 +1118,28 @@ impl LiveSession {
     ///
     /// Waits up to two seconds for the poll thread, as the C# did; one that is stuck in a
     /// request is left to finish on its own.
-    pub fn stop(&self) {
+    ///
+    /// Returns a [`PollHandle`]: already done when the poll thread stopped in time, and otherwise
+    /// the way to wait for it, with a timeout of the caller's choosing.
+    pub fn stop(&self) -> PollHandle {
         lock(&self.inner.cancel).cancel();
 
         let worker = lock(&self.inner.worker).take();
-        if let Some(worker) = worker {
-            let done = lock(&worker.finished.done);
-            let (done, _) = worker
-                .finished
-                .wake
-                .wait_timeout_while(done, Duration::from_secs(2), |finished| !*finished)
-                .unwrap_or_else(PoisonError::into_inner);
+        let handle = match worker {
+            Some(worker) => {
+                let handle = PollHandle(Arc::clone(&worker.finished));
 
-            if *done {
-                drop(done);
-                let _ = worker.handle.join();
+                if handle.wait(Duration::from_secs(2)) {
+                    let _ = worker.handle.join();
+                }
+
+                handle
             }
-        }
+            None => PollHandle::done(),
+        };
 
         self.inner.stop_recording();
+        handle
     }
 
     /// The newest reading of whichever column plays `role`, or NaN when this session has no
@@ -1020,7 +1231,11 @@ impl Drop for LiveSession {
 
         let source = lock(&self.inner.source).take();
         if let Some(source) = source {
-            std::thread::spawn(move || drop(source));
+            self.inner.drop_on_a_thread(source);
         }
+
+        // Registered after the drop thread is counted, so a handle never reads "released" in
+        // between. A poll thread still holding the source was counted when it started.
+        self.inner.releases.dispose();
     }
 }

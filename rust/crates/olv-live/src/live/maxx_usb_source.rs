@@ -143,7 +143,7 @@ impl Shared {
         let length = usb::reply_length(data_length) as usize;
         let mut retry = || self.count_retry();
 
-        usb::try_ask(
+        let answer = usb::try_ask(
             transport,
             request,
             &mut buffer[..length],
@@ -151,7 +151,16 @@ impl Shared {
             REPLY_TIMEOUT,
             2,
             Some(&mut retry),
-        )
+        )?;
+
+        // `try_ask` leaves the last failed attempt's late reply in the input, and the next request
+        // would read its answer starting in the middle of it (or, for a tune write, take it for an
+        // acknowledgement).
+        if answer.is_none() {
+            transport.discard_input();
+        }
+
+        Ok(answer)
     }
 
     /// One exchange: ask what is waiting, then take it.
@@ -266,6 +275,7 @@ impl MaxxUsbLink {
             {
                 maxx_can::frames(&data)
             } else {
+                transport.discard_input();
                 Vec::new()
             },
         )
@@ -296,6 +306,7 @@ impl MaxxUsbLink {
             {
                 Some(i32::from(data[0]) | (i32::from(data[1]) << 8))
             } else {
+                transport.discard_input();
                 None
             },
         )
