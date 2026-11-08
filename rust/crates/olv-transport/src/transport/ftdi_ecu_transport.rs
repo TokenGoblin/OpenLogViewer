@@ -89,6 +89,9 @@ pub struct FtdiDevice {
     usb_id: Option<nusb::DeviceId>,
 }
 
+/// The USB product id of a MaxxECU (vendor id [`protocol::FTDI_VENDOR_ID`]).
+pub const MAXX_ECU_PRODUCT_ID: u16 = 0x9728;
+
 impl FtdiDevice {
     pub fn new(index: usize, serial: &str, description: &str, is_open: bool) -> Self {
         Self {
@@ -103,9 +106,26 @@ impl FtdiDevice {
     }
 
     /// True when this is a MaxxECU rather than some other FTDI device.
+    ///
+    /// Stricter than the C#, which went by the name alone: the USB product id must be a
+    /// MaxxECU's (`VID_0403&PID_9728`) as well as the description or serial looking right. On
+    /// Linux and macOS a match means detaching a kernel driver from the device, which must never
+    /// happen to a MicroSquirt on an FT232R cable that merely has a serial starting "MX". A
+    /// device whose product id is not known (0) is therefore not a MaxxECU.
     pub fn is_maxx_ecu(&self) -> bool {
-        self.description.to_ascii_lowercase().contains("maxxecu")
-            || self.serial.len() >= 2 && self.serial[..2].eq_ignore_ascii_case("MX")
+        self.product_id == MAXX_ECU_PRODUCT_ID
+            && (self.description.to_ascii_lowercase().contains("maxxecu")
+                || self.serial.len() >= 2 && self.serial[..2].eq_ignore_ascii_case("MX"))
+    }
+
+    /// A MaxxECU that another program has open, as D2XX lists it.
+    ///
+    /// D2XX hides the serial and description of a device that is open elsewhere, so it cannot
+    /// pass [`is_maxx_ecu`](Self::is_maxx_ecu); but it still reports the open flag and the USB
+    /// id, and the MaxxECU's product id is its own. This is what MTune looks like while it is
+    /// connected. It is never opened.
+    pub fn is_maxx_ecu_held_elsewhere(&self) -> bool {
+        self.is_open && self.product_id == MAXX_ECU_PRODUCT_ID && self.serial.is_empty() && self.description.is_empty()
     }
 
     /// What to show in a device list.
@@ -167,18 +187,32 @@ pub fn choose_device<'a>(all: &'a [FtdiDevice], serial: &str) -> std::result::Re
 
     let present = || all.iter().map(FtdiDevice::label).collect::<Vec<_>>().join(", ");
 
+    // A MaxxECU that MTune (or anything else) has open lists with no serial and no description,
+    // so it looks like nothing at all. Say what it is, rather than "no MaxxECU is plugged in".
+    let held_elsewhere = || {
+        all.iter().any(FtdiDevice::is_maxx_ecu_held_elsewhere).then(|| {
+            "A MaxxECU is plugged in, but it is already open in another program. MTune holds the \
+             USB link for as long as it is connected to the ECU, so disconnect it there first."
+                .to_string()
+        })
+    };
+
     if serial.is_empty() {
-        return all.iter().find(|d| d.is_maxx_ecu()).ok_or_else(|| {
+        if let Some(found) = all.iter().find(|d| d.is_maxx_ecu()) {
+            return Ok(found);
+        }
+        return Err(held_elsewhere().unwrap_or_else(|| {
             format!(
                 "No MaxxECU is plugged in. The FTDI devices present are not MaxxECUs and are left \
                  alone: {}.",
                 present()
             )
-        });
+        }));
     }
 
     match all.iter().find(|d| d.serial.eq_ignore_ascii_case(serial)) {
         Some(d) if d.is_maxx_ecu() => Ok(d),
+        None if held_elsewhere().is_some() => Err(held_elsewhere().unwrap_or_default()),
         Some(d) => Err(format!(
             "{} is not a MaxxECU, so it is left alone. Only a device identified as a MaxxECU is \
              ever opened here, because opening an FTDI device takes it from the driver that owns it.",
@@ -1074,6 +1108,15 @@ impl Drop for FtdiEcuTransport {
 mod tests {
     use super::protocol::*;
     use super::*;
+
+    /// A device as the USB list reports it: a MaxxECU has its product id, anything else an FT232R's.
+    fn test_device(index: usize, serial: &str, description: &str, is_open: bool) -> FtdiDevice {
+        let mut d = FtdiDevice::new(index, serial, description, is_open);
+        let maxx =
+            description.to_ascii_lowercase().contains("maxxecu") || serial.to_ascii_uppercase().starts_with("MX");
+        d.product_id = if maxx { MAXX_ECU_PRODUCT_ID } else { 0x6001 };
+        d
+    }
     use std::collections::VecDeque;
     use std::sync::Mutex;
     use std::thread;
@@ -1094,7 +1137,7 @@ mod tests {
         ];
         for (description, serial, expected) in cases {
             assert_eq!(
-                FtdiDevice::new(0, serial, description, false).is_maxx_ecu(),
+                test_device(0, serial, description, false).is_maxx_ecu(),
                 expected,
                 "{description:?} {serial:?}"
             );
@@ -1110,7 +1153,7 @@ mod tests {
             ("", "", "FTDI device 3"),
         ];
         for (description, serial, expected) in cases {
-            assert_eq!(FtdiDevice::new(3, serial, description, false).label(), expected);
+            assert_eq!(test_device(3, serial, description, false).label(), expected);
         }
     }
 
@@ -1203,7 +1246,7 @@ mod tests {
     }
 
     fn maxx() -> FtdiDevice {
-        FtdiDevice::new(0, "MX000000", "MaxxECU", false)
+        test_device(0, "MX000000", "MaxxECU", false)
     }
 
     fn open_transport(wire: &Arc<Mutex<Wire>>) -> FtdiEcuTransport {
@@ -1257,8 +1300,8 @@ mod tests {
     #[test]
     fn the_serial_picks_the_device_case_insensitively() {
         let all = [
-            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
-            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
+            test_device(0, "A50285BI", "FT232R USB UART", false),
+            test_device(1, "MX000001", "MaxxECU", false),
         ];
         assert_eq!(choose_device(&all, "mx000001").unwrap().index, 1);
     }
@@ -1266,8 +1309,8 @@ mod tests {
     #[test]
     fn with_no_serial_the_first_maxx_ecu_wins_over_other_ftdi_devices() {
         let all = [
-            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
-            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
+            test_device(0, "A50285BI", "FT232R USB UART", false),
+            test_device(1, "MX000001", "MaxxECU", false),
         ];
         assert_eq!(choose_device(&all, "").unwrap().index, 1);
     }
@@ -1277,7 +1320,7 @@ mod tests {
         // The C# fell back to the first FTDI device. On Linux that detaches the kernel driver, so
         // a MicroSquirt on an FT232R cable would have its session killed and be sent MaxxECU
         // frames. Only a device identified as a MaxxECU is ever chosen.
-        let none = [FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false)];
+        let none = [test_device(0, "A50285BI", "FT232R USB UART", false)];
         let message = choose_device(&none, "").unwrap_err();
         assert!(message.starts_with("No MaxxECU is plugged in."), "{message}");
         assert!(message.contains("FT232R USB UART (A50285BI)"));
@@ -1287,8 +1330,8 @@ mod tests {
     #[test]
     fn naming_the_serial_of_an_other_ftdi_device_does_not_choose_it_either() {
         let all = [
-            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
-            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
+            test_device(0, "A50285BI", "FT232R USB UART", false),
+            test_device(1, "MX000001", "MaxxECU", false),
         ];
         let message = choose_device(&all, "a50285bi").unwrap_err();
         assert!(message.contains("is not a MaxxECU"), "{message}");
@@ -1298,20 +1341,20 @@ mod tests {
     #[test]
     fn a_device_that_is_not_a_maxx_ecu_is_refused_before_any_driver_is_detached() {
         // The last line of defence: every route to a link goes through this first.
-        let microsquirt = FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false);
+        let microsquirt = test_device(0, "A50285BI", "FT232R USB UART", false);
         let Err(Error::Io(e)) = ensure_maxx_ecu(&microsquirt) else {
             panic!("expected a refusal")
         };
         assert!(e.to_string().contains("is not a MaxxECU, so it is left alone."));
-        assert!(ensure_maxx_ecu(&FtdiDevice::new(0, "MX000000", "", false)).is_ok());
-        assert!(ensure_maxx_ecu(&FtdiDevice::new(0, "", "MaxxECU", false)).is_ok());
+        assert!(ensure_maxx_ecu(&test_device(0, "MX000000", "", false)).is_ok());
+        assert!(ensure_maxx_ecu(&test_device(0, "", "MaxxECU", false)).is_ok());
     }
 
     #[test]
     fn a_transport_given_only_another_ftdi_device_opens_nothing() {
         let wire = Arc::new(Mutex::new(Wire::default()));
         let backend = FakeBackend::new(
-            vec![FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false)],
+            vec![test_device(0, "A50285BI", "FT232R USB UART", false)],
             Some(Box::new(FakeLink(wire))),
         );
         let mut t = FtdiEcuTransport::with_backend("", 115_200, backend).unwrap();
@@ -1326,8 +1369,8 @@ mod tests {
     #[test]
     fn a_serial_that_is_not_present_lists_what_is() {
         let all = [
-            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
-            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
+            test_device(0, "A50285BI", "FT232R USB UART", false),
+            test_device(1, "MX000001", "MaxxECU", false),
         ];
         let message = choose_device(&all, "MX999").unwrap_err();
         assert_eq!(
@@ -1358,6 +1401,61 @@ mod tests {
     }
 
     #[test]
+    fn a_serial_that_looks_like_a_maxx_ecu_on_another_product_id_is_not_one() {
+        // A MicroSquirt on an FT232R cable whose EEPROM serial happens to start "MX": on Linux
+        // and macOS a match detaches its kernel driver, so the product id must agree.
+        let mut cable = FtdiDevice::new(0, "MX123456", "FT232R USB UART", false);
+        cable.product_id = 0x6001;
+        assert!(!cable.is_maxx_ecu());
+        cable.description = "MaxxECU".into();
+        assert!(!cable.is_maxx_ecu());
+
+        // And one whose product id is simply not known is not positively identified either.
+        let unknown = FtdiDevice::new(0, "MX000000", "MaxxECU", false);
+        assert!(!unknown.is_maxx_ecu());
+        assert!(ensure_maxx_ecu(&unknown).is_err());
+
+        let all = [cable];
+        assert!(choose_device(&all, "").is_err());
+        assert!(choose_device(&all, "MX123456").is_err());
+    }
+
+    #[test]
+    fn a_maxx_ecu_that_mtune_holds_is_reported_as_held_and_never_chosen() {
+        // D2XX lists a device open in another process with no serial and no description, but
+        // with the open flag and the USB id.
+        let mut held = FtdiDevice::new(0, "", "", true);
+        held.product_id = MAXX_ECU_PRODUCT_ID;
+        assert!(!held.is_maxx_ecu());
+        assert!(held.is_maxx_ecu_held_elsewhere());
+
+        for serial in ["", "MX000000"] {
+            let message = choose_device(std::slice::from_ref(&held), serial).unwrap_err();
+            assert!(message.contains("already open in another program"), "{message}");
+            assert!(message.contains("MTune holds the USB link"));
+            assert!(!message.contains("No MaxxECU is plugged in"));
+        }
+
+        // An empty FT232R that is open is not a MaxxECU, and is not mistaken for one.
+        let mut other = FtdiDevice::new(0, "", "", true);
+        other.product_id = 0x6001;
+        assert!(!other.is_maxx_ecu_held_elsewhere());
+        assert!(
+            choose_device(&[other], "")
+                .unwrap_err()
+                .starts_with("No MaxxECU is plugged in.")
+        );
+
+        // Not open: a blank device is just a blank device.
+        let mut closed = FtdiDevice::new(0, "", "", false);
+        closed.product_id = MAXX_ECU_PRODUCT_ID;
+        assert!(!closed.is_maxx_ecu_held_elsewhere());
+
+        // And it is never opened.
+        assert!(ensure_maxx_ecu(&held).is_err());
+    }
+
+    #[test]
     fn no_devices_at_all_says_to_check_the_cable() {
         let message = choose_device(&[], "").unwrap_err();
         assert!(message.contains("appears in no list of serial ports"));
@@ -1370,7 +1468,7 @@ mod tests {
     fn opening_asks_the_backend_for_the_chosen_device_at_the_baud_rate() {
         let wire = Arc::new(Mutex::new(Wire::default()));
         let backend = FakeBackend::new(
-            vec![FtdiDevice::new(0, "OTHER", "FT232R", false), maxx()],
+            vec![test_device(0, "OTHER", "FT232R", false), maxx()],
             Some(Box::new(FakeLink(wire))),
         );
         let mut t = FtdiEcuTransport::with_backend("", 57_600, backend.clone()).unwrap();
@@ -1621,7 +1719,7 @@ mod tests {
     }
 
     fn device_with(serial: &str, pid: u16) -> FtdiDevice {
-        let mut d = FtdiDevice::new(0, serial, "MaxxECU", false);
+        let mut d = test_device(0, serial, "MaxxECU", false);
         d.product_id = pid;
         d
     }

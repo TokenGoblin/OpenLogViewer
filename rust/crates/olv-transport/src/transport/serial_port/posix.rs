@@ -23,7 +23,7 @@ use rustix::termios::{
     ControlModes, InputModes, OptionalActions, QueueSelector, SpecialCodeIndex, Termios, tcflush, tcgetattr, tcsetattr,
 };
 
-use super::{DataBits, Line, Parity, Purge, RawIo, SerialSettings, TermiosPlan};
+use super::{DataBits, Line, Parity, Purge, RawIo, SerialSettings, TermiosPlan, drive_write};
 
 // The ioctl request numbers for the modem lines and exclusive access. Linux's are fixed
 // numbers on the architectures below; macOS builds them with the BSD `_IO`/`_IOW` macros.
@@ -122,6 +122,12 @@ fn configure(fd: &OwnedFd, plan: &TermiosPlan) -> io::Result<()> {
 
 fn apply_plan(t: &mut Termios, plan: &TermiosPlan) -> io::Result<()> {
     t.make_raw();
+    // `make_raw` leaves the input flow-control flags a previous program set: with XOFF on the
+    // port would emit 0x11/0x13 into the ECU's stream, and IXANY or IUCLC would rewrite bytes.
+    t.input_modes
+        .remove(InputModes::IXON | InputModes::IXOFF | InputModes::IXANY);
+    #[cfg(target_os = "linux")]
+    t.input_modes.remove(InputModes::IUCLC);
 
     t.control_modes.remove(
         ControlModes::CSIZE
@@ -259,32 +265,23 @@ impl RawIo for Port {
     }
 
     fn write_within(&mut self, data: &[u8], timeout: Duration) -> io::Result<usize> {
-        let deadline = Instant::now() + timeout;
-        let mut done = 0;
-        while done < data.len() {
-            match rustix::io::write(&self.fd, &data[done..]) {
-                Ok(n) => {
-                    done += n;
-                    continue;
+        let fd = &self.fd;
+        drive_write(
+            data,
+            timeout,
+            |rest| loop {
+                match rustix::io::write(fd, rest) {
+                    Ok(n) => return Ok(Some(n)),
+                    Err(Errno::INTR) => {}
+                    Err(Errno::AGAIN) => return Ok(None),
+                    Err(e) => return Err(errno(e)),
                 }
-                Err(Errno::INTR) => continue,
-                Err(Errno::AGAIN) => {}
-                Err(e) => return Err(errno(e)),
-            }
-
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            match wait(self.fd.as_fd(), PollFlags::OUT, remaining)? {
-                None => break,
-                Some(events) if events.intersects(PollFlags::NVAL | PollFlags::ERR | PollFlags::HUP) => {
-                    return Err(gone());
-                }
-                Some(_) => {}
-            }
-            if remaining.is_zero() {
-                break;
-            }
-        }
-        Ok(done)
+            },
+            |remaining| match wait(fd.as_fd(), PollFlags::OUT, remaining)? {
+                Some(events) if events.intersects(PollFlags::NVAL | PollFlags::ERR | PollFlags::HUP) => Err(gone()),
+                _ => Ok(()),
+            },
+        )
     }
 }
 
@@ -323,6 +320,13 @@ mod tests {
         drop(port);
 
         let slave = rfs::open(&name, OFlags::RDWR | OFlags::NOCTTY | OFlags::NONBLOCK, Mode::empty()).unwrap();
+        // A previous program's software flow control must not survive: it would put 0x11/0x13 into
+        // the stream and rewrite bytes.
+        let mut dirty = tcgetattr(&slave).unwrap();
+        dirty
+            .input_modes
+            .insert(InputModes::IXON | InputModes::IXOFF | InputModes::IXANY | InputModes::IUCLC);
+        tcsetattr(&slave, OptionalActions::Now, &dirty).unwrap();
         // Closing reset nothing we care about; re-apply and read back.
         configure(&slave, &TermiosPlan::from_settings(&SerialSettings::new(115_200))).unwrap();
         let t = tcgetattr(&slave).unwrap();
@@ -335,6 +339,10 @@ mod tests {
         assert!(!t.local_modes.intersects(LocalModes::ICANON | LocalModes::ECHO));
         assert_eq!(t.special_codes[SpecialCodeIndex::VMIN], 0);
         assert_eq!(t.special_codes[SpecialCodeIndex::VTIME], 0);
+        assert!(
+            !t.input_modes
+                .intersects(InputModes::IXON | InputModes::IXOFF | InputModes::IXANY | InputModes::IUCLC)
+        );
         assert_eq!(t.output_speed(), 115_200);
     }
 

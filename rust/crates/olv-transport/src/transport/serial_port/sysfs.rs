@@ -48,16 +48,20 @@ pub(crate) fn subsystem_name(link_target: &Path) -> Option<String> {
 /// What a tty is, from its resolved device path and its subsystem name. `None` is a tty that is
 /// not a serial port worth listing.
 ///
-/// A port with a USB device above it is USB whatever its subsystem. Bluetooth is the
-/// `bluetooth` subsystem (an `rfcomm` binding). PCI is the `pci` subsystem. Anything else
+/// Bluetooth is the `bluetooth` subsystem (an `rfcomm` binding), and is decided first: an rfcomm
+/// tty sits under `hci0`, which sits under the USB Bluetooth dongle, so asking "is there a USB
+/// device above it" first would list a paired SPP adapter as USB with the radio chip's ids. Any
+/// other port with a USB device above it is USB whatever its subsystem. PCI is the `pci` subsystem. Anything else
 /// (a motherboard UART on `pnp` or `platform`) is listed only if a driver is bound to it: the
 /// 8250 driver creates `ttyS0` to `ttyS31` whether or not there is hardware behind them.
 pub(crate) fn classify(device_path: &Path, subsystem: Option<&str>, has_driver: bool) -> Option<PortType> {
+    if subsystem == Some("bluetooth") {
+        return Some(PortType::Bluetooth);
+    }
     if let Some(usb) = find_usb_device(device_path) {
         return Some(PortType::Usb(usb));
     }
     match subsystem {
-        Some("bluetooth") => Some(PortType::Bluetooth),
         Some("pci") if has_driver => Some(PortType::Pci),
         _ if has_driver => Some(PortType::Unknown),
         _ => None,
@@ -222,6 +226,21 @@ mod tests {
         assert_eq!(classify(&none, Some("pci"), true), Some(PortType::Pci));
         assert_eq!(classify(&none, Some("pnp"), true), Some(PortType::Unknown));
         assert_eq!(classify(&none, None, true), Some(PortType::Unknown));
+    }
+
+    #[test]
+    fn a_bluetooth_tty_under_a_usb_dongle_is_bluetooth_not_usb() {
+        // rfcomm0 -> hci0 -> the USB radio. The radio's ids must not become the port's.
+        let s = Scratch::new();
+        s.file("usb1/1-7/idVendor", "8087");
+        s.file("usb1/1-7/idProduct", "0a2b");
+        let rfcomm = s.0.join("usb1/1-7/1-7_1.0/bluetooth/hci0");
+        fs::create_dir_all(&rfcomm).unwrap();
+
+        assert_eq!(classify(&rfcomm, Some("bluetooth"), true), Some(PortType::Bluetooth));
+        assert_eq!(classify(&rfcomm, Some("bluetooth"), false), Some(PortType::Bluetooth));
+        // Without the subsystem it would have been the dongle: the order is what matters.
+        assert!(matches!(classify(&rfcomm, Some("usb"), true), Some(PortType::Usb(_))));
     }
 
     #[test]
