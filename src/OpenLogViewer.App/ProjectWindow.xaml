@@ -109,7 +109,7 @@
             <TextBox x:Name="Brief"
                      IsReadOnly="True" BorderThickness="0" Background="Transparent"
                      TextWrapping="Wrap" AcceptsReturn="True"
-                     FontFamily="Consolas" FontSize="12"
+                     FontFamily="{DynamicResource DataFont}" FontSize="12"
                      Foreground="{DynamicResource Text}"/>
         </ScrollViewer>
     </DockPanel>

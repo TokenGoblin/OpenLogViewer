@@ -39,7 +39,7 @@
             <ItemsControl ItemsSource="{Binding Findings}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,10" Padding="12,10" CornerRadius="4"
+                        <Border Margin="0,0,0,10" Padding="12,10" CornerRadius="{DynamicResource Corner}"
                                 Background="{DynamicResource PanelAlt}"
                                 BorderBrush="{Binding Accent}" BorderThickness="3,0,0,0">
                             <StackPanel>
@@ -63,7 +63,7 @@
 
                                 <!-- The arithmetic, so the conclusion can be argued with. -->
                                 <TextBlock Text="{Binding Evidence}" FontSize="10" Margin="0,6,0,0"
-                                           TextWrapping="Wrap" FontFamily="Consolas"
+                                           TextWrapping="Wrap" FontFamily="{DynamicResource DataFont}"
                                            Foreground="{DynamicResource Muted}"
                                            Visibility="{Binding HasEvidence,
                                                         Converter={StaticResource BoolToVis}}"/>

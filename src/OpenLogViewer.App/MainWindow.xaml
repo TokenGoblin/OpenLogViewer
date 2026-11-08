@@ -22,7 +22,7 @@
             to "R…" and "T…". Anything added later goes in a menu; the toolbar
             below is for the few things reached constantly.
         -->
-        <DockPanel DockPanel.Dock="Top" Background="{DynamicResource Panel}">
+        <DockPanel DockPanel.Dock="Top" Background="{DynamicResource Chrome}">
 
             <!--
                 AI connectivity, inline with File/View/Tools/Help rather than a
@@ -157,6 +157,10 @@
                 <MenuItem x:Name="ThemeMenuItem" Header="_Theme" SubmenuOpened="OnThemeMenuOpened">
                     <MenuItem Header="…" IsEnabled="False"/>
                 </MenuItem>
+                <!-- Text and controls together; see InterfaceScale for why not text alone. -->
+                <MenuItem x:Name="ZoomMenuItem" Header="_Zoom" SubmenuOpened="OnZoomMenuOpened">
+                    <MenuItem Header="…" IsEnabled="False"/>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_Tools">
@@ -264,13 +268,13 @@
                     toolbar came to show "R…" and "T…".
 
                     What gives way instead is the status text, which is the last
-                    child and trims itself, and below about a thousand pixels the
-                    trailing view chips — both of which are also in the View menu.
+                    child and trims itself; below that, the controls on the left
+                    wrap onto a second line rather than disappearing.
 
                     It earns the place by the same rule as the rest: reached
                     constantly, and one click rather than two.
                 -->
-                <Button DockPanel.Dock="Right" Content="ƒ  Calculators"
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" MinHeight="{Binding ActualHeight, ElementName=ConnectButton}" Content="ƒ  Calculators"
                         Click="OnCalculatorsClick" Padding="10,3"
                         ToolTip="Plan a build, size a turbo, injectors, fuel pump, octane, gearing — none of it needs a log open"/>
 
@@ -279,7 +283,7 @@
                     work out what an engine should do, this measures what one
                     actually did.
                 -->
-                <Button DockPanel.Dock="Right" Content="◈  Insights"
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" MinHeight="{Binding ActualHeight, ElementName=ConnectButton}" Content="◈  Insights"
                         Click="OnInsightsClick" Padding="10,3" Margin="0,0,8,0"
                         IsEnabled="{Binding HasDocument}"
                         ToolTip="What this log says about the engine: mixture against target, injector headroom, knock, idle steadiness and more — with the arithmetic behind each"/>
@@ -296,143 +300,150 @@
                     with no log at all, to read what the last sitting concluded
                     before deciding what to record next.
                 -->
-                <Button DockPanel.Dock="Right" Content="⌸  Project"
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" MinHeight="{Binding ActualHeight, ElementName=ConnectButton}" Content="⌸  Project"
                         Click="OnProjectClick" Padding="10,3" Margin="0,0,8,0"
                         ToolTip="What is wrong with this tune, what you changed, whether it worked — and which tune each log came from"/>
 
-                <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
-
                 <!--
-                    Beside Open log, so it is obvious that both can be opened.
-
-                    It was moved out of here when the toolbar had thirteen
-                    controls in it and was trimming its own buttons to "R…", and
-                    it went to the histogram sidebar next to Axis breakpoints —
-                    which is where it is wanted once you are already binning a log
-                    against a tune, and invisible from the Log view you actually
-                    land in. Somebody went looking for it and could not find it,
-                    which is the only test of discoverability that counts.
-
-                    Docked left and early so it keeps its width; what gives way at
-                    a narrow window is the status text, which is last.
+                    Everything below wraps to a second line when it does not fit,
+                    rather than being clipped; the status text stays last and
+                    takes what is left. See ToolbarFlowPanel.
                 -->
-                <Button Content="Open tune…" Click="OnOpenTuneClick" Margin="6,0,0,0"
-                        DockPanel.Dock="Left"
-                        ToolTip="Use tables from a .msq file instead of the one stored in the log">
-                    <Button.ContextMenu>
-                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
-                                                  RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
-                                      IsEnabled="{Binding UsingLoadedTune}"/>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-
-                <!--
-                    The ECU you were on last, as one click.
-
-                    Named after the ECU rather than the port: the COM number is
-                    Windows' business and moves with the order things were plugged
-                    in, while what somebody remembers is that they were on the
-                    Speeduino. Hidden entirely when nothing has been connected to
-                    yet, so a new install shows the plain Connect button and no
-                    dead shortcut.
-
-                    Deliberately not automatic. Launching the application must not
-                    take a serial port on its own — a laptop opened in a car with
-                    TunerStudio already talking to the ECU would fight it for the
-                    port, and somebody who only wanted to look at a saved log would
-                    have started a session they never asked for.
-                -->
-                <Button x:Name="ReconnectButton" Content="{Binding ReconnectLabel}"
-                        Click="OnReconnectClick" Margin="6,0,0,0" DockPanel.Dock="Left"
-                        Visibility="{Binding CanReconnect, Converter={StaticResource BoolToVis}}"
-                        ToolTip="Reconnect to the ECU you used last  (Ctrl+K)"/>
-
-                <Button x:Name="ConnectButton" Content="Connect ▾" Click="OnConnectClick"
-                        Margin="6,0,0,0" DockPanel.Dock="Left"
-                        ToolTip="Read live data from an ECU over serial or Bluetooth">
-                    <Button.ContextMenu>
-                        <ContextMenu x:Name="PortsMenu"/>
-                    </Button.ContextMenu>
-                </Button>
-
-                <!--
-                    Only while connected, and next to Connect because that is
-                    what it belongs to. Docked early so it keeps its width — the
-                    label changes between "Record…" and "Stop recording", and a
-                    button that trims to "Stop rec…" mid-session is exactly the
-                    thing worth not doing on the one control that says whether a
-                    file is being written.
-                -->
-                <Button x:Name="RecordButton" Content="{Binding RecordLabel}"
-                        Click="OnRecordClick" Margin="6,0,0,0" DockPanel.Dock="Left"
-                        Visibility="{Binding CanRecord, Converter={StaticResource BoolToVis}}"
-                        ToolTip="Start or stop writing the live session to a file of your choosing">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                            <Style.Triggers>
-                                <!-- Coloured only while it is actually writing, so
-                                     the state is readable without reading. -->
-                                <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                                    <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-
-                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
-                           Fill="{DynamicResource Line}"/>
-
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="Mode"
-                                 IsChecked="{Binding InLogMode}" ToolTip="Recordings: the plot and the heat table"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Gauges" GroupName="Mode"
-                                 IsChecked="{Binding InGaugeMode}"
-                                 ToolTip="Live dials, as the firmware defines them"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
-                                 IsChecked="{Binding InCalibrationMode}"
-                                 ToolTip="Work on the tune itself"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Guide" GroupName="Mode"
-                                 IsChecked="{Binding InGuideMode}"
-                                 ToolTip="How to use this application"/>
-                </StackPanel>
-
-                <Rectangle DockPanel.Dock="Left" Width="1" Margin="12,2" VerticalAlignment="Stretch"
-                           Fill="{DynamicResource Line}"
-                           Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}"/>
-
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
-                    <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="LogView"
-                                 IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
-                                 IsChecked="{Binding ShowHistogram}"
-                                 ToolTip="Bin the log into a table, like a tuning table"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Scatter" GroupName="LogView"
-                                 IsChecked="{Binding ShowScatter}"
-                                 ToolTip="Every sample at its own X and Y, coloured by a third channel"/>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="12,0,0,0"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
-                    <RadioButton Style="{StaticResource Chip}" Content="Overlaid"
-                                 IsChecked="{Binding OverlaidLanes}"
-                                 ToolTip="All traces share the plot — best for comparing timing between channels"/>
-                    <RadioButton Style="{StaticResource Chip}" Content="Stacked"
-                                 IsChecked="{Binding StackedLanes}"
-                                 ToolTip="Each channel gets its own strip — best when several are plotted"/>
-                </StackPanel>
-
-                <!-- The flexible middle, which gives way to everything else. -->
-                <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
-                           Margin="16,0" TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding Status}"
-                           Foreground="{DynamicResource Muted}"/>
+                <local:ToolbarFlowPanel>
+                    <Button Content="Open log…" Click="OnOpenClick"/>
+    
+                    <!--
+                        Beside Open log, so it is obvious that both can be opened.
+    
+                        It was moved out of here when the toolbar had thirteen
+                        controls in it and was trimming its own buttons to "R…", and
+                        it went to the histogram sidebar next to Axis breakpoints —
+                        which is where it is wanted once you are already binning a log
+                        against a tune, and invisible from the Log view you actually
+                        land in. Somebody went looking for it and could not find it,
+                        which is the only test of discoverability that counts.
+    
+                        Docked left and early so it keeps its width; what gives way at
+                        a narrow window is the status text, which is last.
+                    -->
+                    <Button Content="Open tune…" Click="OnOpenTuneClick" Margin="6,0,0,0"
+                           
+                            ToolTip="Use tables from a .msq file instead of the one stored in the log">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                                      RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="Use the tune stored in the log" Click="OnClearTuneClick"
+                                          IsEnabled="{Binding UsingLoadedTune}"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+    
+                    <!--
+                        The ECU you were on last, as one click.
+    
+                        Named after the ECU rather than the port: the COM number is
+                        Windows' business and moves with the order things were plugged
+                        in, while what somebody remembers is that they were on the
+                        Speeduino. Hidden entirely when nothing has been connected to
+                        yet, so a new install shows the plain Connect button and no
+                        dead shortcut.
+    
+                        Deliberately not automatic. Launching the application must not
+                        take a serial port on its own — a laptop opened in a car with
+                        TunerStudio already talking to the ECU would fight it for the
+                        port, and somebody who only wanted to look at a saved log would
+                        have started a session they never asked for.
+                    -->
+                    <Button x:Name="ReconnectButton" Content="{Binding ReconnectLabel}"
+                            Click="OnReconnectClick" Margin="6,0,0,0"
+                            Visibility="{Binding CanReconnect, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Reconnect to the ECU you used last  (Ctrl+K)"/>
+    
+                    <Button x:Name="ConnectButton" Content="Connect ▾" Click="OnConnectClick"
+                            Margin="6,0,0,0"
+                            ToolTip="Read live data from an ECU over serial or Bluetooth">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="PortsMenu"/>
+                        </Button.ContextMenu>
+                    </Button>
+    
+                    <!--
+                        Only while connected, and next to Connect because that is
+                        what it belongs to. Docked early so it keeps its width — the
+                        label changes between "Record…" and "Stop recording", and a
+                        button that trims to "Stop rec…" mid-session is exactly the
+                        thing worth not doing on the one control that says whether a
+                        file is being written.
+                    -->
+                    <Button x:Name="RecordButton" Content="{Binding RecordLabel}"
+                            Click="OnRecordClick" Margin="6,0,0,0"
+                            Visibility="{Binding CanRecord, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Start or stop writing the live session to a file of your choosing">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Style.Triggers>
+                                    <!-- Coloured only while it is actually writing, so
+                                         the state is readable without reading. -->
+                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Marker}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+    
+                    <Rectangle Width="1" Margin="12,2" VerticalAlignment="Stretch"
+                               Fill="{DynamicResource Line}"/>
+    
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="Mode"
+                                     IsChecked="{Binding InLogMode}" ToolTip="Recordings: the plot and the heat table"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Gauges" GroupName="Mode"
+                                     IsChecked="{Binding InGaugeMode}"
+                                     ToolTip="Live dials, as the firmware defines them"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Calibration" GroupName="Mode"
+                                     IsChecked="{Binding InCalibrationMode}"
+                                     ToolTip="Work on the tune itself"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Guide" GroupName="Mode"
+                                     IsChecked="{Binding InGuideMode}"
+                                     ToolTip="How to use this application"/>
+                    </StackPanel>
+    
+                    <Rectangle Width="1" Margin="12,2" VerticalAlignment="Stretch"
+                               Fill="{DynamicResource Line}"
+                               Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}"/>
+    
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding InLogMode, Converter={StaticResource BoolToVis}}">
+                        <RadioButton Style="{StaticResource Chip}" Content="Log" GroupName="LogView"
+                                     IsChecked="{Binding ShowLog}" ToolTip="Time-series view"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Histogram" GroupName="LogView"
+                                     IsChecked="{Binding ShowHistogram}"
+                                     ToolTip="Bin the log into a table, like a tuning table"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Scatter" GroupName="LogView"
+                                     IsChecked="{Binding ShowScatter}"
+                                     ToolTip="Every sample at its own X and Y, coloured by a third channel"/>
+                    </StackPanel>
+    
+                    <StackPanel Orientation="Horizontal" Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding ShowLog, Converter={StaticResource BoolToVis}}">
+                        <RadioButton Style="{StaticResource Chip}" Content="Overlaid"
+                                     IsChecked="{Binding OverlaidLanes}"
+                                     ToolTip="All traces share the plot — best for comparing timing between channels"/>
+                        <RadioButton Style="{StaticResource Chip}" Content="Stacked"
+                                     IsChecked="{Binding StackedLanes}"
+                                     ToolTip="Each channel gets its own strip — best when several are plotted"/>
+                    </StackPanel>
+    
+                    <!-- The flexible middle, which gives way to everything else. -->
+                    <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                               Margin="16,0" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Status}"
+                               Foreground="{DynamicResource Muted}"/>
+                </local:ToolbarFlowPanel>
             </DockPanel>
         </Border>
 
@@ -444,7 +455,7 @@
             toolbar space with the buttons. None of them is a command, and a
             toolbar is for commands.
         -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Chrome}"
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="12,5">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
@@ -488,7 +499,7 @@
                 </TextBlock>
 
                 <TextBlock Text="{Binding CursorTime}" DockPanel.Dock="Right"
-                           VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                           VerticalAlignment="Center" FontFamily="{DynamicResource DataFont}" FontSize="11"
                            Foreground="{DynamicResource Accent}" Margin="14,0,0,0"/>
 
                 <!--
@@ -784,7 +795,7 @@
                             HorizontalAlignment="Left" Click="OnAddFilterClick"/>
 
                     <Border x:Name="FilterEditor" Visibility="Collapsed" Margin="0,7,0,0"
-                            Background="{DynamicResource Bg}" CornerRadius="4" Padding="8"
+                            Background="{DynamicResource Bg}" CornerRadius="{DynamicResource Corner}" Padding="8"
                             BorderBrush="{DynamicResource Line}" BorderThickness="1">
                         <StackPanel>
                             <ComboBox ItemsSource="{Binding AxisChannels}"
@@ -894,7 +905,7 @@
 
                         <!-- Fixed scale for one channel. Inline rather than a dialog,
                              beside the list the channel was picked from. -->
-                        <Border Margin="0,8,0,0" Background="{DynamicResource Bg}" CornerRadius="4"
+                        <Border Margin="0,8,0,0" Background="{DynamicResource Bg}" CornerRadius="{DynamicResource Corner}"
                                 Padding="8" BorderBrush="{DynamicResource Line}" BorderThickness="1"
                                 Visibility="{Binding EditingStyle, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
@@ -974,7 +985,7 @@
                                     ToolTip="Define a channel from the ones the log already has"/>
 
                             <Border x:Name="MathEditor" Visibility="Collapsed" Margin="0,6,0,0"
-                                    Background="{DynamicResource Bg}" CornerRadius="4" Padding="8"
+                                    Background="{DynamicResource Bg}" CornerRadius="{DynamicResource Corner}" Padding="8"
                                     BorderBrush="{DynamicResource Line}" BorderThickness="1">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,5">
@@ -993,7 +1004,7 @@
 
                                     <TextBox Text="{Binding NewMathExpression,
                                              UpdateSourceTrigger=PropertyChanged}"
-                                             FontFamily="Consolas" AcceptsReturn="False"
+                                             FontFamily="{DynamicResource DataFont}" AcceptsReturn="False"
                                              ToolTip="Channel names may contain spaces and need no quoting"/>
 
                                     <TextBlock Text="{Binding MathPreview}" FontSize="10" Margin="0,4,0,0"
@@ -1085,7 +1096,7 @@
 
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border x:Name="Row" CornerRadius="3" Background="Transparent" Padding="0,1">
+                                <Border x:Name="Row" CornerRadius="{DynamicResource CornerSmall}" Background="Transparent" Padding="0,1">
                                 <Border.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="Jump to maximum" Click="OnJumpToMaxClick"/>
@@ -1194,7 +1205,7 @@
                                     <TextBlock Grid.Column="3" Text="{Binding Value}"
                                                VerticalAlignment="Center" Margin="8,0,2,0"
                                                MaxWidth="96" TextTrimming="CharacterEllipsis"
-                                               FontFamily="Consolas" FontSize="11"
+                                               FontFamily="{DynamicResource DataFont}" FontSize="11"
                                                Foreground="{Binding Brush}"/>
 
                                     <StackPanel Grid.Column="4" Orientation="Horizontal"
@@ -1512,7 +1523,7 @@
                 <!-- The tools, so the table can be worked without knowing the
                      keyboard. Every one of them acts on the selection, and none
                      of them sends anything. -->
-                <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="5"
+                <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="{DynamicResource CornerMedium}"
                         Background="{DynamicResource Panel}"
                         BorderBrush="{DynamicResource Line}" BorderThickness="1"
                         Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}">
@@ -1572,7 +1583,7 @@
 
                 <!-- What it would become, which is the question actually being
                      asked before anything is sent. -->
-                <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="5"
+                <Border DockPanel.Dock="Top" Margin="12,0,12,8" Padding="10,7" CornerRadius="{DynamicResource CornerMedium}"
                         Background="{DynamicResource Panel}"
                         BorderBrush="{DynamicResource Line}" BorderThickness="1"
                         Visibility="{Binding ShowEcuTables, Converter={StaticResource BoolToVis}}">
@@ -1582,7 +1593,7 @@
                                    Foreground="{DynamicResource Muted}" Margin="0,0,14,0"/>
 
                         <TextBlock DockPanel.Dock="Left" Text="{Binding TableChangeFrom}"
-                                   VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"
+                                   VerticalAlignment="Center" FontFamily="{DynamicResource DataFont}" FontSize="15"
                                    Foreground="{DynamicResource Muted}"/>
 
                         <TextBlock DockPanel.Dock="Left" Text="→" VerticalAlignment="Center"
@@ -1590,7 +1601,7 @@
                                    Visibility="{Binding HasTableChangePreview, Converter={StaticResource BoolToVis}}"/>
 
                         <TextBlock DockPanel.Dock="Left" Text="{Binding TableChangeTo}"
-                                   VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"
+                                   VerticalAlignment="Center" FontFamily="{DynamicResource DataFont}" FontSize="15"
                                    FontWeight="SemiBold" Foreground="{DynamicResource Accent}"
                                    Visibility="{Binding HasTableChangePreview, Converter={StaticResource BoolToVis}}"/>
 
@@ -1871,14 +1882,14 @@
                                         <TextBlock Text="{Binding Title}" FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource Accent}"/>
-                                        <Border CornerRadius="3" Padding="6,1"
+                                        <Border CornerRadius="{DynamicResource CornerSmall}" Padding="6,1"
                                                 Margin="9,1,0,0" VerticalAlignment="Center"
                                                 Background="{DynamicResource Bg}"
                                                 BorderBrush="{DynamicResource Line}" BorderThickness="1"
                                                 Visibility="{Binding HasKeys,
                                                              Converter={StaticResource BoolToVis}}">
                                             <TextBlock Text="{Binding Keys}" FontSize="10"
-                                                       FontFamily="Consolas, Courier New, monospace"
+                                                       FontFamily="{DynamicResource DataFont}"
                                                        Foreground="{DynamicResource Muted}"/>
                                         </Border>
                                     </WrapPanel>

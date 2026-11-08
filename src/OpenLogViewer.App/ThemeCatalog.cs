@@ -144,6 +144,30 @@ public static class ThemeCatalog
             Series = P("#B88E42,#8900B5,#107234,#717DFF,#E7462F,#0359DB,#AD0067,#21A3AD"),
             RampCool = C("#0032C8"), RampWarm = C("#C20000"),
         },
+
+        // A 1990s DOS tuning screen: black ground, a text-mode blue frame,
+        // cyan rules, neon magenta for what is being acted on and phosphor
+        // green for the numbers. The first theme to set a style as well as
+        // colours — the pixel font, square corners and a ruled tune table are
+        // as much of the look as the palette is.
+        new()
+        {
+            Id = "retro", Name = "Retro DOS", Group = ThemeGroup.Retro,
+            Background = C("#000000"), Panel = C("#000000"), PanelAlt = C("#00005A"),
+            Line = C("#38C8D8"), Text = C("#F0F0F0"), Muted = C("#A8A8A8"),
+            Accent = C("#FF40FF"), Marker = C("#FFFF55"),
+            Readout = C("#55FF55"), Chrome = C("#0000AA"), Grid = C("#1E3CC8"),
+            Series = P("#FF40FF,#40E0FF,#FFFF55,#6A7BFF,#55FF55,#FF8C1A,#20C0A0,#FF4F6E"),
+            RampCool = C("#2050FF"), RampWarm = C("#FF4A3A"),
+            Style = new ThemeStyle
+            {
+                UiFont = ThemeFonts.Retro,
+                DataFont = ThemeFonts.Retro,
+                CornerScale = 0,
+                PixelText = true,
+                Table = TableStyle.Grid,
+            },
+        },
     ];
 
     public static IReadOnlyList<Theme> Themes => All;
