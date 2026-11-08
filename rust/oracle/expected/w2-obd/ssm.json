@@ -1277,6 +1277,81 @@
           "enabled": []
         },
         {
+          "json": "{// c\r\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]} /* never ends",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[,{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{,\u0022parameters\u0022:[]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022},],}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]} // tail\r",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
           "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u00220x10\u0022}]}",
           "read": [
             {
