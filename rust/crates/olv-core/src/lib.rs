@@ -5,6 +5,9 @@
 //! package's agent edits it.
 
 pub mod base;
+pub mod error;
 pub mod fmt;
 pub mod model;
 pub mod units;
+
+pub use error::{Error, Result};

@@ -7,6 +7,11 @@ namespace OpenLogViewer.Oracle;
 /// written by `cargo xtask inventory`), across values chosen for the ways formatters
 /// differ: halfway rounding, binary fractions that print long, floats widened to
 /// double, the edges of the range, and NaN and the infinities.
+///
+/// Every case is written twice: once for the invariant culture, and once for
+/// en-US, which is what the C# gets wherever it formats with the current culture
+/// (no provider argument) on the machines it was proven on. The two differ in the
+/// percent pattern and the infinity symbol, among others.
 /// </summary>
 public sealed class W0Formatting : IEmitter
 {
@@ -28,18 +33,25 @@ public sealed class W0Formatting : IEmitter
         0, 1, -1, 7, 15, 99, 255, 1000, 4095, 12345, -12345, 65535, 1234567, int.MaxValue, int.MinValue,
     ];
 
+    private static readonly (string Name, CultureInfo Culture)[] Cultures =
+    [
+        ("invariant", CultureInfo.InvariantCulture),
+        ("en-US", CultureInfo.GetCultureInfo("en-US")),
+    ];
+
     public IReadOnlyList<object> Emit(EmitContext context)
     {
         string[] formats = File.ReadAllLines(Path.Combine(context.Rust, "oracle", "formats.txt"))
             .Where(l => l.Length > 0).Prepend("").ToArray();
         var cases = new List<object>();
 
+        foreach ((string culture, CultureInfo info) in Cultures)
         foreach (string format in formats)
         {
             foreach (double v in Doubles)
             {
-                if (Try(() => v.ToString(format, CultureInfo.InvariantCulture)) is { } text)
-                    cases.Add(new { kind = "f64", bits = Exact.Bits(v), format, text });
+                if (Try(() => v.ToString(format, info)) is { } text)
+                    cases.Add(new { kind = "f64", culture, bits = Exact.Bits(v), format, text });
             }
 
             foreach (long n in Integers)
@@ -47,9 +59,9 @@ public sealed class W0Formatting : IEmitter
                 // Ints are formatted as the type they are in the C#, which for these
                 // magnitudes is int unless they do not fit.
                 string? text = n is >= int.MinValue and <= int.MaxValue
-                    ? Try(() => ((int)n).ToString(format, CultureInfo.InvariantCulture))
-                    : Try(() => n.ToString(format, CultureInfo.InvariantCulture));
-                if (text is not null) cases.Add(new { kind = "int", value = n, format, text });
+                    ? Try(() => ((int)n).ToString(format, info))
+                    : Try(() => n.ToString(format, info));
+                if (text is not null) cases.Add(new { kind = "int", culture, value = n, format, text });
             }
         }
 
