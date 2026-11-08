@@ -11,6 +11,7 @@ pub mod model;
 pub mod units;
 
 pub use error::{Error, Result};
+pub mod analysis;
 pub mod calc;
 pub mod channels;
 pub mod definitions;

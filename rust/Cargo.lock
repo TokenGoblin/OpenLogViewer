@@ -295,6 +295,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "olv-live"
+version = "0.1.0"
+dependencies = [
+ "olv-core",
+ "olv-oracle",
+ "serde",
+]
+
+[[package]]
 name = "olv-oracle"
 version = "0.1.0"
 dependencies = [
