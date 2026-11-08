@@ -35,7 +35,7 @@
 //!   list the device was picked from may have come from USB, which orders devices differently.
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -290,6 +290,19 @@ impl D2xxLink {
             )
         })?;
 
+        // The C# opened by index (`FT_Open`), so this does too, but verifies that index again
+        // immediately before: it must still hold this MaxxECU, by serial, or nothing is opened.
+        let still_there = api
+            .get_device_info_detail(index as u32)
+            .ok()
+            .map(|info| device_from_info(index as u32, &info));
+        if still_there.is_none_or(|d| resolve_index(&[d], device) != Some(index)) {
+            return Err(io_error(
+                io::ErrorKind::NotFound,
+                format!("{} is no longer plugged in.", device.label()),
+            ));
+        }
+
         let handle = match api.open(index as i32) {
             Ok(handle) => handle,
             Err(FT_DEVICE_NOT_OPENED) => return Err(io_error(io::ErrorKind::ResourceBusy, already_open(device))),
@@ -405,6 +418,18 @@ impl FtdiLink for D2xxLink {
     }
 }
 
+/// Returns the library in `cell` if it was loaded before, else loads it with `load` and keeps it.
+pub(crate) fn cached_load(
+    cell: &OnceLock<Arc<dyn D2xxApi>>,
+    load: &dyn Fn() -> std::result::Result<Arc<dyn D2xxApi>, String>,
+) -> std::result::Result<Arc<dyn D2xxApi>, String> {
+    if let Some(api) = cell.get() {
+        return Ok(api.clone());
+    }
+    let api = load()?;
+    Ok(cell.get_or_init(|| api).clone())
+}
+
 // ----- the Windows route: D2XX, else the virtual COM port, else a clear error ---------------
 
 /// Opens a MaxxECU on Windows.
@@ -449,8 +474,13 @@ impl WindowsBackend {
     /// The real machine: `ftd2xx.dll`, the system's serial ports, and USB listing.
     #[cfg(windows)]
     pub(crate) fn system() -> Self {
+        /// The library, once loaded: a process loads it once, as the C#'s `DllImport` did, not on
+        /// every listing and open. A failure is not remembered, so installing the driver while the
+        /// application runs is noticed.
+        static LOADED: OnceLock<Arc<dyn D2xxApi>> = OnceLock::new();
+
         Self {
-            loader: Arc::new(dll::load),
+            loader: Arc::new(|| cached_load(&LOADED, &dll::load)),
             vcp: Arc::new(|device, baud_rate| {
                 let ports = super::list_system_ports();
                 if super::find_vcp_port(device, &ports).is_none() {
@@ -719,6 +749,19 @@ const LIBRARY: &str = "ftd2xx.dll";
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A device as D2XX lists it: a MaxxECU has its product id, anything else an FT232R's.
+    fn test_device(index: usize, serial: &str, description: &str, is_open: bool) -> FtdiDevice {
+        let mut d = FtdiDevice::new(index, serial, description, is_open);
+        let maxx =
+            description.to_ascii_lowercase().contains("maxxecu") || serial.to_ascii_uppercase().starts_with("MX");
+        d.product_id = if maxx {
+            super::super::MAXX_ECU_PRODUCT_ID
+        } else {
+            0x6001
+        };
+        d
+    }
     use std::collections::VecDeque;
     use std::sync::Mutex;
 
@@ -752,6 +795,10 @@ mod tests {
         written: Vec<u8>,
         accept: Option<u32>,
         queue_status: Status,
+        detail_calls: usize,
+        open_flags: u32,
+        /// After this many detail calls, every device reads back as an FT232R.
+        swap_after: Option<usize>,
     }
 
     #[derive(Default)]
@@ -799,9 +846,18 @@ mod tests {
         fn get_device_info_detail(&self, index: u32) -> std::result::Result<InfoDetail, Status> {
             let mut s = self.0.lock().unwrap();
             s.calls.push(Call::Detail(index));
+            s.detail_calls += 1;
+            if s.swap_after.is_some_and(|n| s.detail_calls > n) {
+                return Ok(InfoDetail {
+                    flags: 0,
+                    id: 0x0403_6001,
+                    serial: ascii("A50285BI"),
+                    description: ascii("FT232R USB UART"),
+                });
+            }
             let (id, serial, description) = s.devices.get(index as usize).copied().ok_or(6u32)?;
             Ok(InfoDetail {
-                flags: 0,
+                flags: s.open_flags,
                 id,
                 serial,
                 description,
@@ -877,7 +933,7 @@ mod tests {
     }
 
     fn maxx() -> FtdiDevice {
-        FtdiDevice::new(5, "MX000000", "MaxxECU", false)
+        test_device(5, "MX000000", "MaxxECU", false)
     }
 
     // ----- pure -------------------------------------------------------------------------
@@ -922,20 +978,20 @@ mod tests {
     #[test]
     fn the_index_is_looked_up_by_serial_among_maxx_ecus_only() {
         let listed = [
-            FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false),
-            FtdiDevice::new(1, "MX000001", "MaxxECU", false),
-            FtdiDevice::new(2, "MX000000", "MaxxECU", false),
+            test_device(0, "A50285BI", "FT232R USB UART", false),
+            test_device(1, "MX000001", "MaxxECU", false),
+            test_device(2, "MX000000", "MaxxECU", false),
         ];
         // The wanted device carries the index of a different list; only its serial matters.
         assert_eq!(resolve_index(&listed, &maxx()), Some(2));
         assert_eq!(
-            resolve_index(&listed, &FtdiDevice::new(9, "mx000001", "MaxxECU", false)),
+            resolve_index(&listed, &test_device(9, "mx000001", "MaxxECU", false)),
             Some(1)
         );
 
         // A serial that names an FTDI device that is not a MaxxECU never resolves.
         assert_eq!(
-            resolve_index(&listed, &FtdiDevice::new(0, "A50285BI", "MaxxECU", false)),
+            resolve_index(&listed, &test_device(0, "A50285BI", "MaxxECU", false)),
             None
         );
         assert_eq!(resolve_index(&[], &maxx()), None);
@@ -943,12 +999,9 @@ mod tests {
 
     #[test]
     fn without_a_serial_the_description_decides() {
-        let listed = [FtdiDevice::new(3, "", "MaxxECU", false)];
-        assert_eq!(
-            resolve_index(&listed, &FtdiDevice::new(0, "", "maxxecu", false)),
-            Some(3)
-        );
-        assert_eq!(resolve_index(&listed, &FtdiDevice::new(0, "", "Other", false)), None);
+        let listed = [test_device(3, "", "MaxxECU", false)];
+        assert_eq!(resolve_index(&listed, &test_device(0, "", "maxxecu", false)), Some(3));
+        assert_eq!(resolve_index(&listed, &test_device(0, "", "Other", false)), None);
     }
 
     #[test]
@@ -1026,6 +1079,7 @@ mod tests {
                 Call::List,
                 Call::Detail(0),
                 Call::Detail(1),
+                Call::Detail(1),
                 Call::Open(1),
                 Call::Baud(921_600),
                 Call::Data(8, 0, 0),
@@ -1082,6 +1136,60 @@ mod tests {
     }
 
     #[test]
+    fn the_index_is_verified_again_right_before_opening_and_nothing_opens_if_it_changed() {
+        // The C# opened by index. Between the list and `FT_Open` the list can renumber; the
+        // index is read back once more, and if it no longer holds this MaxxECU nothing is opened.
+        let fake = Fake::with(&[("MX000000", "MaxxECU")]);
+        fake.0.lock().unwrap().swap_after = Some(1);
+        let Err(Error::Io(e)) = D2xxLink::open(fake.clone(), &maxx(), 115_200, Duration::from_millis(500)) else {
+            panic!("expected an I/O error")
+        };
+        assert!(e.to_string().contains("is no longer plugged in"));
+        assert!(!fake.calls().iter().any(|c| matches!(c, Call::Open(_))));
+    }
+
+    #[test]
+    fn a_maxx_ecu_held_by_mtune_lists_blank_with_the_open_flag_and_is_never_opened() {
+        let fake = Fake::with(&[("", "")]);
+        {
+            let mut s = fake.0.lock().unwrap();
+            s.devices[0].0 = 0x0403_9728;
+            s.open_flags = 1;
+        }
+        let listed = list_devices(fake.as_ref());
+        assert!(listed[0].is_maxx_ecu_held_elsewhere());
+        assert!(!listed[0].is_maxx_ecu());
+        assert!(D2xxLink::open(fake.clone(), &listed[0], 115_200, Duration::from_millis(500)).is_err());
+        assert!(!fake.calls().iter().any(|c| matches!(c, Call::Open(_))));
+    }
+
+    #[test]
+    fn the_library_is_loaded_once_and_a_failed_load_is_tried_again() {
+        let cell = OnceLock::new();
+        let loads = Mutex::new(0);
+        let fake: Arc<dyn D2xxApi> = Fake::with(&[]);
+        let ok = || {
+            *loads.lock().unwrap() += 1;
+            Ok(fake.clone())
+        };
+        for _ in 0..5 {
+            assert!(cached_load(&cell, &ok).is_ok());
+        }
+        assert_eq!(*loads.lock().unwrap(), 1);
+
+        let cell = OnceLock::new();
+        let attempts = Mutex::new(0);
+        let failing = || -> std::result::Result<Arc<dyn D2xxApi>, String> {
+            *attempts.lock().unwrap() += 1;
+            Err("absent".into())
+        };
+        assert!(cached_load(&cell, &failing).is_err());
+        assert!(cached_load(&cell, &failing).is_err());
+        assert_eq!(*attempts.lock().unwrap(), 2, "a failure is not remembered");
+        assert!(cached_load(&cell, &ok).is_ok(), "a driver installed later is picked up");
+    }
+
+    #[test]
     fn a_device_that_d2xx_does_not_list_is_no_longer_plugged_in() {
         let fake = Fake::with(&[("A50285BI", "FT232R USB UART")]);
         let Err(Error::Io(e)) = D2xxLink::open(fake.clone(), &maxx(), 115_200, Duration::from_millis(500)) else {
@@ -1094,7 +1202,7 @@ mod tests {
     #[test]
     fn d2xx_never_opens_a_device_that_is_not_a_maxx_ecu() {
         let fake = Fake::with(&[("A50285BI", "FT232R USB UART")]);
-        let microsquirt = FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false);
+        let microsquirt = test_device(0, "A50285BI", "FT232R USB UART", false);
         assert!(D2xxLink::open(fake.clone(), &microsquirt, 115_200, Duration::from_millis(500)).is_err());
         assert!(fake.calls().is_empty(), "not even listed: {:?}", fake.calls());
     }
@@ -1276,7 +1384,7 @@ mod tests {
 
     #[test]
     fn neither_route_is_tried_for_a_device_that_is_not_a_maxx_ecu() {
-        let microsquirt = FtdiDevice::new(0, "A50285BI", "FT232R USB UART", false);
+        let microsquirt = test_device(0, "A50285BI", "FT232R USB UART", false);
         let (result, probe) = route(&microsquirt, Some(Fake::with(&[("A50285BI", "FT232R USB UART")])), true);
         assert!(result.is_err());
         assert_eq!(*probe.loads.lock().unwrap(), 0, "the library is not even loaded");
@@ -1297,7 +1405,7 @@ mod tests {
     #[test]
     fn devices_come_from_d2xx_when_it_loads_so_the_index_is_d2xxs() {
         let fake = Fake::with(&[("A50285BI", "FT232R USB UART"), ("MX000000", "MaxxECU")]);
-        let usb = vec![FtdiDevice::new(0, "MX000000", "MaxxECU", false)];
+        let usb = vec![test_device(0, "MX000000", "MaxxECU", false)];
         let b = backend(Some(fake), usb);
         let devices = b.devices();
         assert_eq!(devices.len(), 2);
@@ -1307,7 +1415,7 @@ mod tests {
 
     #[test]
     fn devices_come_from_usb_when_the_library_is_absent_and_the_driver_is_reported_missing() {
-        let usb = vec![FtdiDevice::new(0, "MX000000", "MaxxECU", false)];
+        let usb = vec![test_device(0, "MX000000", "MaxxECU", false)];
         let b = backend(None, usb);
         assert_eq!(b.devices().len(), 1);
         assert_eq!(b.unavailable_reason().as_deref(), Some(DRIVER_NOT_INSTALLED));

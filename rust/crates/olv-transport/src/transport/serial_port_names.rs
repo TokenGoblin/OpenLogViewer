@@ -248,12 +248,12 @@ pub(crate) fn description_of(friendly: &str) -> String {
 /// A port's entry from what the port enumeration reports about it.
 ///
 /// The Bluetooth registry rows are consulted only for a port the live enumeration reports as
-/// present and either Bluetooth or of no known kind. The registry keeps every device ever paired,
+/// present and positively identified as Bluetooth. A port SetupAPI could not describe (or whose PortName could not be read) is of no known kind and inherits nothing. The registry keeps every device ever paired,
 /// present or not (the C#'s WMI query saw only present ones), and Windows hands a freed port
 /// number to the next device. A stale MaxxECU pairing left on COM7 must not label a USB Speeduino
 /// that now sits on COM7, or the app would speak the MaxxECU protocol to it.
 pub(crate) fn entry_from(info: &PortInfo, bluetooth: &IgnoreCaseMap<Entry>) -> Entry {
-    if matches!(info.port_type, PortType::Bluetooth | PortType::Unknown)
+    if info.port_type == PortType::Bluetooth
         && let Some(entry) = bluetooth.get(&info.port_name)
     {
         return entry.clone();
@@ -753,17 +753,30 @@ mod tests {
     #[test]
     fn a_port_listed_as_present_bluetooth_still_takes_its_registry_row() {
         let stale = stale_maxx_row();
-        for kind in [PortType::Bluetooth, PortType::Unknown] {
-            let entry = entry_from(
-                &PortInfo {
-                    port_name: "COM7".into(),
-                    port_type: kind,
-                },
-                &stale,
-            );
-            assert_eq!(entry.device_name, "MaxxECU_12345");
-            assert!(entry.bluetooth);
-        }
+        let entry = entry_from(
+            &PortInfo {
+                port_name: "COM7".into(),
+                port_type: PortType::Bluetooth,
+            },
+            &stale,
+        );
+        assert_eq!(entry.device_name, "MaxxECU_12345");
+        assert!(entry.bluetooth);
+    }
+
+    #[test]
+    fn a_port_setupapi_could_not_describe_inherits_no_registry_row() {
+        // SetupAPI failed, or a port's PortName could not be read, so it is only known from
+        // SERIALCOMM: of no known kind. A stale pairing on that number must not label it.
+        let stale = stale_maxx_row();
+        let entry = entry_from(
+            &PortInfo {
+                port_name: "COM7".into(),
+                port_type: PortType::Unknown,
+            },
+            &stale,
+        );
+        assert_eq!(entry, Entry::default());
     }
 
     #[test]

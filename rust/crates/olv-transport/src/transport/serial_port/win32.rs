@@ -386,7 +386,7 @@ fn describe(set: &DeviceSet, device: &SP_DEVINFO_DATA) -> Option<PortInfo> {
         .unwrap_or_default();
     let instance = instance_id(set, device).unwrap_or_default();
     // Only a composite function has no serial of its own, and only then is the parent needed.
-    let parent = (windows_ids::serial_from_instance_id(&instance).is_none())
+    let parent = windows_ids::is_composite_function(&instance)
         .then(|| parent_instance_id(device))
         .flatten();
 

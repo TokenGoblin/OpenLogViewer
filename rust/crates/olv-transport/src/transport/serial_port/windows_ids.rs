@@ -62,6 +62,11 @@ pub(crate) fn serial_from_instance_id(instance_id: &str) -> Option<String> {
     (!serial.is_empty() && !serial.contains('&')).then(|| serial.to_string())
 }
 
+/// Whether an instance id is one function of a composite USB device (`...&MI_01...`).
+pub(crate) fn is_composite_function(instance_id: &str) -> bool {
+    instance_id.to_ascii_uppercase().contains("&MI_")
+}
+
 /// A `REG_MULTI_SZ` (NUL-separated strings, ended by an empty one), as the strings.
 pub(crate) fn parse_multi_sz(units: &[u16]) -> Vec<String> {
     units
@@ -109,8 +114,15 @@ pub(crate) fn classify(
             return PortType::Unknown;
         };
 
-        let serial =
-            serial_from_instance_id(instance_id).or_else(|| parent_instance_id.and_then(serial_from_instance_id));
+        // The parent supplies a serial only to a function of a composite device (`&MI_`), whose
+        // interfaces have none of their own. A serial-less plain device sits behind a hub, and the
+        // hub's serial is not its.
+        let serial = serial_from_instance_id(instance_id).or_else(|| {
+            is_composite_function(instance_id)
+                .then_some(parent_instance_id)
+                .flatten()
+                .and_then(serial_from_instance_id)
+        });
         return PortType::Usb(UsbPortInfo {
             vid,
             pid,
@@ -271,6 +283,22 @@ mod tests {
         assert_eq!((u.vid, u.pid), (0x0483, 0x5740));
         assert_eq!(u.serial_number.as_deref(), Some("8D5B2A1F"));
         assert_eq!(u.manufacturer, None);
+    }
+
+    #[test]
+    fn a_serial_less_device_behind_a_hub_does_not_borrow_the_hubs_serial() {
+        let t = classify(
+            "USB",
+            &s(&[r"USBVID_1A86&PID_7523"]),
+            r"USBVID_1A86&PID_7523&1&0&1",
+            Some(r"USBVID_05E3&PID_0608HUBSERIAL"),
+            Some("USB-SERIAL CH340 (COM3)"),
+            None,
+        );
+        let PortType::Usb(u) = t else { panic!("USB") };
+        assert_eq!(u.serial_number, None);
+        assert!(is_composite_function(r"USBVID_0483&PID_5740&MI_01&9DDFB75&0&0001"));
+        assert!(!is_composite_function(r"USBVID_1A86&PID_7523&1&0&1"));
     }
 
     #[test]

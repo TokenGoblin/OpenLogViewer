@@ -211,6 +211,47 @@ impl<R: RawIo> Timed<R> {
 /// What .NET's `SerialPort` starts with (`ReadTimeout = 500`; the C# also sets 500 for writes).
 const DEFAULT_TIMEOUT: Duration = Duration::from_millis(500);
 
+/// Writes as much of `data` as goes within `timeout`, over two primitives so the loop is testable.
+///
+/// `attempt` tries one write: `Ok(Some(n))` took `n` bytes, `Ok(None)` would block. A write that
+/// takes `Some(0)` made no progress, and is treated like a block: the deadline is checked and the
+/// loop does not spin. `wait` blocks until the device may take more, or `remaining` passes.
+#[cfg_attr(not(unix), allow(dead_code))]
+pub(crate) fn drive_write(
+    data: &[u8],
+    timeout: Duration,
+    mut attempt: impl FnMut(&[u8]) -> io::Result<Option<usize>>,
+    mut wait: impl FnMut(Duration) -> io::Result<()>,
+) -> io::Result<usize> {
+    let deadline = Instant::now() + timeout;
+    let mut done = 0;
+    while done < data.len() {
+        let took = attempt(&data[done..])?;
+        if let Some(n) = took
+            && n > 0
+        {
+            done += n;
+            continue;
+        }
+
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        wait(remaining)?;
+        // A device that says "writable" and then takes nothing (`Some(0)`) would spin on `wait`
+        // returning at once; give it a moment, within the deadline.
+        if took == Some(0) {
+            std::thread::sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(Duration::from_millis(1)),
+            );
+        }
+    }
+    Ok(done)
+}
+
 // ----- the port -----------------------------------------------------------------------------
 
 /// An open serial port.
@@ -638,6 +679,80 @@ mod tests {
 
         assert_eq!(t.write_all(b"Q").unwrap_err().kind(), io::ErrorKind::TimedOut);
         assert!(t.io.write_timeouts.is_empty());
+    }
+
+    #[test]
+    fn a_write_that_takes_nothing_does_not_spin_and_gives_up_at_the_deadline() {
+        // `write` returning Ok(0) with the port reporting writable would loop forever at full
+        // speed. It is no progress: the deadline holds and the loop sleeps between tries.
+        let mut tries = 0u32;
+        let started = Instant::now();
+        let wrote = drive_write(
+            b"burn",
+            Duration::from_millis(40),
+            |_| {
+                tries += 1;
+                Ok(Some(0))
+            },
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(wrote, 0);
+        assert!(started.elapsed() >= Duration::from_millis(35));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(tries < 200, "{tries} tries means it spun");
+
+        // Through the timeout rules above it, that is a TimedOut error.
+        struct Zero;
+        impl RawIo for Zero {
+            fn read_within(&mut self, _: &mut [u8], _: Duration) -> io::Result<usize> {
+                Ok(0)
+            }
+            fn write_within(&mut self, data: &[u8], t: Duration) -> io::Result<usize> {
+                drive_write(data, t, |_| Ok(Some(0)), |_| Ok(()))
+            }
+        }
+        let mut t = Timed::new(Zero);
+        t.write_timeout = Duration::from_millis(20);
+        assert_eq!(t.write_all(b"Q").unwrap_err().kind(), io::ErrorKind::TimedOut);
+    }
+
+    #[test]
+    fn a_write_that_blocks_waits_and_then_goes_through() {
+        let mut room = [None, None, Some(3usize), Some(10)].into_iter();
+        let mut waits = 0;
+        let wrote = drive_write(
+            &[1, 2, 3, 4, 5, 6],
+            Duration::from_secs(1),
+            |rest| Ok(room.next().unwrap().map(|n| n.min(rest.len()))),
+            |_| {
+                waits += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(wrote, 6);
+        assert_eq!(waits, 2);
+    }
+
+    #[test]
+    fn a_failing_write_is_a_dead_port_and_a_failing_wait_too() {
+        let e = drive_write(
+            b"x",
+            Duration::from_secs(1),
+            |_| Err(io::ErrorKind::BrokenPipe.into()),
+            |_| Ok(()),
+        )
+        .unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::BrokenPipe);
+        let e = drive_write(
+            b"x",
+            Duration::from_secs(1),
+            |_| Ok(None),
+            |_| Err(io::ErrorKind::NotConnected.into()),
+        )
+        .unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::NotConnected);
     }
 
     #[test]
