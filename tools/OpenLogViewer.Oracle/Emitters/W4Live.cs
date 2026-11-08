@@ -736,7 +736,11 @@ public sealed class W4LiveDefinitions : IEmitter
 
     public string Set => "maxx_definitions";
 
-    private const string Xml = """
+    // LF whatever the checkout: a raw literal takes its line endings from the source file,
+    // which git gives CRLF on Windows, so the committed reference would drift by platform.
+    private static readonly string Xml = RawXml.ReplaceLineEndings("\n");
+
+    private const string RawXml = """
         <ECUSettingsDefinitions version="1">
           <ECUSetting name="First"  type="uint16" length="1" address="100" scale="0.1" minValue="0" maxValue="100" />
           <ECUSetting name="Second" type="uint16" length="1" address="seq" />
