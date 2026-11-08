@@ -18,3 +18,6 @@ in the agents' reports. Each one names where it is and how it was found.
 | `FilterStore.Reload` | A `null` element in filters.json throws a NullReferenceException and the whole file is lost; the Rust skips the element. Non-finite bounds throw on save only after the in-memory list has changed (ported in the same order). | w2-filters |
 | `ChannelUnits.IsLambda` | The `":1"` case can never match: `ChannelRoles.Simplify` strips colons first, so `":1"` becomes `"1"` and falls through to the value guess. | w2-math-channels |
 | `DefinitionImport` ledger (minor) | Unverified against .NET: a character outside the BMP may encode to one `?` in .NET Latin-1 but two in Rust, and a backtick may be escaped differently in the ledger JSON. Both read back fine; neither has been seen in a real definition. | w2-definitions review |
+| `Obd2Faults.Parse` | Its comment says a zero byte pair is padding and the rest is ignored, but the code only skips that one pair. | w2-obd |
+| `SsmParameterFile` | A `null` entry in `parameters` throws a NullReferenceException; the Rust skips it. | w2-obd |
+| `RealtimeDecoder` | A negative field offset throws; the Rust returns NaN for that field. Tune settings with keys differing only in case throw; the Rust keeps the last. | w2-obd |
