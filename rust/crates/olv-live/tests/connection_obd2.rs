@@ -1059,3 +1059,26 @@ fn a_scripted_adapter_is_reachable_from_this_crate() {
 
     assert!(elm.try_read(0x0C, 2, &mut data, None).unwrap().is_some());
 }
+
+/// The adapter lock is taken for each of the two resets alone, as the C# took its lock per
+/// send, so a fault scan from another thread is not shut out for the whole of a recovery.
+/// (The gap between the resets is microseconds, so this checks that recovery and scans
+/// running together both finish and neither is lost; the lock scope itself is by inspection.)
+#[test]
+fn a_recovery_and_a_fault_scan_on_two_threads_both_finish() {
+    let fake = FakeElm::new();
+    fake.with(|s| {
+        s.answers.insert(0x00, vec![0x18, 0x3B, 0x80, 0x11]);
+        s.answers.insert(0x0C, vec![0x1A, 0xF8]);
+        s.answers.insert(0x05, vec![0x5A]);
+    });
+
+    let mut source = connect(&fake);
+    let faults = source.faults();
+
+    let scanning = std::thread::spawn(move || (0..5).all(|_| faults.scan().is_ok()));
+
+    source.recover().unwrap();
+
+    assert!(scanning.join().unwrap());
+}

@@ -976,10 +976,10 @@ impl LiveSource for Elm327Source {
         // spends the warm-up, the protocol question and a whole poll round on a corpse, the
         // better part of ten seconds of blank gauges, before anything concludes what the
         // first reply already said.
-        let silent = {
-            let mut elm = self.elm();
-            elm.reset(None)?.is_empty() && elm.reset(Some(CONFIRMING_SILENCE))?.is_empty()
-        };
+        // The adapter lock is taken for each reset alone, as the C# took its lock per send, so
+        // a fault scan can slip between them.
+        let first_silent = self.elm().reset(None)?.is_empty();
+        let silent = first_silent && self.elm().reset(Some(CONFIRMING_SILENCE))?.is_empty();
         if silent {
             return Err(Error::Protocol(
                 "The adapter accepted the connection and then said nothing at all, \

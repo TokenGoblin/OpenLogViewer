@@ -134,7 +134,7 @@ fn every_request_the_connection_sends_matches_the_csharp_byte_for_byte() {
                 .map(|said| said.join("|")),
             "realtime" | "realtime_single" => {
                 let layout = msq_ini::read_output_channels(&case.realtime_ini, None);
-                connection.use_layout(&layout, case.op == "realtime_single");
+                connection.use_layout(&layout, case.op == "realtime_single").unwrap();
                 connection.read_realtime(case.realtime_size).map(|d| hex(&d))
             }
             other => panic!("the oracle has an operation this test does not know: {other}"),

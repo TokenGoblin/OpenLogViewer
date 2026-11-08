@@ -25,9 +25,26 @@
 //! every [`EcuConnection::reopen`] discards whatever was written and not yet burned.
 //! [`EcuConnection::read_identity`] reopens on purpose, and so does the recovery path
 //! of a live source: callers must not reopen between a write and its burn.
+//!
+//! **Stricter than the C#:** the C# let a burn follow a reopen, so a Speeduino that had
+//! reset (losing the written change) was told to burn its unchanged tune and reported
+//! success. Here the connection counts reopens, remembers which pages have unburned writes
+//! and the count at the time, and [`EcuConnection::burn_page`] refuses (as a refusal, never
+//! as success) a page whose writes were made before a reopen. See
+//! [`EcuConnection::unburned_pages`] and [`EcuConnection::lost_pages`].
+//!
+//! **Re-entry and `dispose`.** The C#'s lock was re-entrant; this gate is not. A progress
+//! callback that calls back into the same connection from the reading thread gets an error
+//! instead of deadlocking, and a callback that calls [`EcuConnection::dispose`] cancels the
+//! read between chunks and closes the link. [`EcuConnection::dispose`] from any other
+//! thread waits for the request in flight (up to its timeouts: a burn may take its whole
+//! allowance), so a UI must call it off the UI thread.
 
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::ops::{Deref, DerefMut};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::thread::ThreadId;
 use std::time::{Duration, Instant};
 
 use olv_core::Error;
@@ -213,6 +230,43 @@ struct Core {
     command: RealtimeCommand,
     little_endian: bool,
     chunk: i32,
+
+    /// Times the port has been closed and opened again. A Speeduino resets each time.
+    reopens: u64,
+
+    /// Pages written and not yet burned, with the value of `reopens` at their first
+    /// unburned write. An entry older than `reopens` is a write the ECU has lost.
+    unburned: Vec<(i32, u64)>,
+
+    /// Set by a `dispose` called from inside a progress callback on the reading thread.
+    dispose_requested: Arc<AtomicBool>,
+}
+
+/// The gate, held: the lock plus a record of which thread holds it, so a second request
+/// from that same thread is told so instead of waiting for itself for ever.
+struct Gate<'a> {
+    guard: MutexGuard<'a, Core>,
+    owner: &'a Mutex<Option<ThreadId>>,
+}
+
+impl Deref for Gate<'_> {
+    type Target = Core;
+
+    fn deref(&self) -> &Core {
+        &self.guard
+    }
+}
+
+impl DerefMut for Gate<'_> {
+    fn deref_mut(&mut self) -> &mut Core {
+        &mut self.guard
+    }
+}
+
+impl Drop for Gate<'_> {
+    fn drop(&mut self) {
+        *self.owner.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    }
 }
 
 /// A connection to an ECU over a transport (`EcuConnection`).
@@ -230,6 +284,8 @@ struct Core {
 /// `Core` separately from the locked public ones (the C#'s lock is reentrant).
 pub struct EcuConnection {
     core: Mutex<Core>,
+    owner: Mutex<Option<ThreadId>>,
+    dispose_requested: Arc<AtomicBool>,
     settings: EcuConnectionSettings,
     retries: Arc<AtomicI32>,
     trace: Option<Arc<WireTrace>>,
@@ -238,6 +294,7 @@ pub struct EcuConnection {
 impl EcuConnection {
     pub fn new(transport: Box<dyn EcuTransport>, settings: EcuConnectionSettings) -> Self {
         let retries = Arc::new(AtomicI32::new(0));
+        let dispose_requested = Arc::new(AtomicBool::new(false));
 
         Self {
             core: Mutex::new(Core {
@@ -249,7 +306,12 @@ impl EcuConnection {
                 command: RealtimeCommand::default(),
                 little_endian: false,
                 chunk: 0,
+                reopens: 0,
+                unburned: Vec::new(),
+                dispose_requested: Arc::clone(&dispose_requested),
             }),
+            owner: Mutex::new(None),
+            dispose_requested,
             settings,
             retries,
             trace: None,
@@ -287,19 +349,84 @@ impl EcuConnection {
         self.trace.as_ref()
     }
 
-    fn gate(&self) -> MutexGuard<'_, Core> {
+    /// Whether the calling thread is inside a conversation on this connection (for
+    /// instance in a progress callback).
+    fn held_by_this_thread(&self) -> bool {
+        *self.owner.lock().unwrap_or_else(PoisonError::into_inner) == Some(std::thread::current().id())
+    }
+
+    /// Takes the gate. A thread that already holds it is refused with an error: the C#'s
+    /// lock was re-entrant, this one is not, and waiting for oneself never ends.
+    fn gate(&self) -> EcuResult<Gate<'_>> {
+        if self.held_by_this_thread() {
+            return Err(EcuError::Other(Error::InvalidOperation(
+                "The connection is already in use by this thread (a progress callback must not start \
+                 another request)."
+                    .to_string(),
+            )));
+        }
+
         // A panic in another conversation leaves nothing this could half-trust, but
         // refusing every later request for it would end a session over a bug; carry on.
-        self.core.lock().unwrap_or_else(PoisonError::into_inner)
+        let guard = self.core.lock().unwrap_or_else(PoisonError::into_inner);
+        *self.owner.lock().unwrap_or_else(PoisonError::into_inner) = Some(std::thread::current().id());
+
+        Ok(Gate {
+            guard,
+            owner: &self.owner,
+        })
     }
 
     /// `Dispose`: closes the link. Idempotent, and does not need the last owner to go.
+    ///
+    /// **Can block** for as long as the request in flight on another thread takes, up to
+    /// its timeouts (a burn is allowed [`EcuConnectionSettings::burn_timeout`]): it waits
+    /// for the conversation rather than cutting the transport out from under a write. A UI
+    /// must call it off the UI thread. Called from inside a progress callback on the
+    /// reading thread it cannot wait for itself: it asks the read to stop between chunks,
+    /// and the read closes the link and fails.
     pub fn dispose(&self) {
-        self.gate().transport.close();
+        if self.held_by_this_thread() {
+            self.dispose_requested.store(true, Ordering::SeqCst);
+            return;
+        }
+
+        if let Ok(mut core) = self.gate() {
+            core.transport.close();
+        }
+    }
+
+    /// Pages with writes that have reached the ECU's working memory and not been burned:
+    /// a power cycle (or a reopen) would lose them. For the app to warn about.
+    pub fn unburned_pages(&self) -> EcuResult<Vec<i32>> {
+        let core = self.gate()?;
+        Ok(core
+            .unburned
+            .iter()
+            .filter(|(_, at)| *at == core.reopens)
+            .map(|(page, _)| *page)
+            .collect())
+    }
+
+    /// Pages whose unburned writes were lost because the port was reopened after them
+    /// (a Speeduino resets). [`burn_page`](Self::burn_page) refuses these.
+    pub fn lost_pages(&self) -> EcuResult<Vec<i32>> {
+        let core = self.gate()?;
+        Ok(core
+            .unburned
+            .iter()
+            .filter(|(_, at)| *at != core.reopens)
+            .map(|(page, _)| *page)
+            .collect())
+    }
+
+    /// How many times the port has been reopened.
+    pub fn reopens(&self) -> EcuResult<u64> {
+        Ok(self.gate()?.reopens)
     }
 
     pub fn open(&self) -> EcuResult<()> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         if !core.transport.is_open() {
             core.transport.open()?;
         }
@@ -315,21 +442,32 @@ impl EcuConnection {
     /// On a Speeduino this resets the board, and whatever was written but not burned
     /// is lost with it.
     pub fn reopen(&self) -> EcuResult<()> {
-        self.gate().reopen()
+        self.gate()?.reopen()
+    }
+
+    /// [`reopen`](Self::reopen), then the silence a freshly opened port is left in
+    /// ([`EcuConnectionSettings::boot_wait`]), all inside the one gate so nothing else
+    /// speaks to a board that is still in its bootloader. An Arduino bootloader listens for
+    /// an upload, and bytes arriving while it does leave it stuck there for good.
+    pub fn reopen_and_wait_for_boot(&self) -> EcuResult<()> {
+        let mut core = self.gate()?;
+        core.reopen()?;
+        std::thread::sleep(core.settings.boot_wait);
+        Ok(())
     }
 
     /// What the ECU says it is: the string an INI must match before anything is
     /// decoded. Firmware versions move channel offsets, so decoding a block with the
     /// wrong INI does not fail, it silently reads every channel from the wrong place.
     pub fn read_signature(&self) -> EcuResult<String> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         let data = core.request(&[ms_protocol::QUERY_SIGNATURE], &Ask::new("read signature"))?;
         Ok(ms_protocol::read_signature(&data))
     }
 
     /// The longer build string, for display.
     pub fn read_version(&self) -> EcuResult<String> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         let data = core.request(&[ms_protocol::QUERY_VERSION], &Ask::new("read version"))?;
         Ok(ms_protocol::read_signature(&data))
     }
@@ -355,7 +493,7 @@ impl EcuConnection {
     /// straight away. Costs nothing on a board that was already awake, since the first
     /// question is answered.
     pub fn read_identity_within(&self, within: Duration) -> EcuResult<Vec<String>> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         let deadline = Instant::now() + within;
 
         let mut said = core.ask_what_it_is()?;
@@ -403,8 +541,8 @@ impl EcuConnection {
     /// leaves the USB bus until it is replugged. So it is worth a third of the poll
     /// rate on one and unusable on the other, which makes it a choice rather than a
     /// default.
-    pub fn use_layout(&self, layout: &RealtimeLayout, single_request: bool) {
-        let mut core = self.gate();
+    pub fn use_layout(&self, layout: &RealtimeLayout, single_request: bool) -> EcuResult<()> {
+        let mut core = self.gate()?;
 
         core.command = layout.command();
         core.little_endian = layout.little_endian;
@@ -419,6 +557,7 @@ impl EcuConnection {
         };
 
         core.grow_for(largest);
+        Ok(())
     }
 
     /// Asks for a realtime block in one reply regardless of the blocking factor.
@@ -427,7 +566,7 @@ impl EcuConnection {
     /// uses: a rusEFI asked for more than it can send has been seen to leave the USB
     /// bus rather than refuse.
     pub fn read_realtime_unchunked(&self, size: i32) -> EcuResult<Vec<u8>> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         at_least_one("size", size)?;
 
         core.grow_for(size);
@@ -451,7 +590,7 @@ impl EcuConnection {
     /// turnaround. The one real loss is that a split sample is no longer taken at a
     /// single instant.
     pub fn read_realtime(&self, size: i32) -> EcuResult<Vec<u8>> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         at_least_one("size", size)?;
 
         let can = core.settings.can_id;
@@ -489,7 +628,7 @@ impl EcuConnection {
         little_endian: bool,
         progress: Option<&mut dyn FnMut(i32)>,
     ) -> EcuResult<Vec<u8>> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
         at_least_one("page.Size", page.size)?;
 
         if !RealtimeCommand::parse(&page.read_command).takes_range() {
@@ -522,7 +661,7 @@ impl EcuConnection {
         data: &[u8],
         inter_write_delay: i32,
     ) -> EcuResult<()> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
 
         if offset < 0 {
             return Err(EcuError::Other(Error::Argument(format!(
@@ -606,6 +745,14 @@ impl EcuConnection {
             )));
         }
 
+        // Written, and so lost at the next reset until burned. The count of reopens is the
+        // one from the first unburned write: a later write must not make an earlier,
+        // already lost one look fresh.
+        let reopens = core.reopens;
+        if !core.unburned.iter().any(|(index, _)| *index == page.index) {
+            core.unburned.push((page.index, reopens));
+        }
+
         Ok(())
     }
 
@@ -617,13 +764,36 @@ impl EcuConnection {
     /// A status of 0x04 from the ECU is a burn that worked (rusEFI answers it so);
     /// [`ms_protocol::unframe`] treats only the high bit as a failure.
     pub fn burn_page(&self, page: &TunePage, little_endian: bool, after_burn_delay: i32) -> EcuResult<()> {
-        let mut core = self.gate();
+        let mut core = self.gate()?;
 
         if page.burn_command.is_empty() {
             return Err(EcuError::protocol(format!(
                 "Page {} declares no burn command.",
                 page.index
             )));
+        }
+
+        // Writes made before the port was last reopened are gone: a Speeduino resets when
+        // its port opens. Burning now would commit the tune as it was before those writes
+        // and report success. Stricter than the C#, which let that happen. Nothing is sent,
+        // and the loss is reported as the refusal it is; the page is then no longer waiting
+        // for a burn, so a later, deliberate burn is not blocked for ever.
+        let reopens = core.reopens;
+        if core
+            .unburned
+            .iter()
+            .any(|(index, at)| *index == page.index && *at != reopens)
+        {
+            core.unburned.retain(|(index, _)| *index != page.index);
+
+            return Err(EcuError::Protocol(EcuProtocolError {
+                message: format!(
+                    "Nothing was burned: the changes written to page {} are lost. The connection was reopened                      after they were written, which resets some ECUs (a Speeduino reboots when its port opens),                      and burning now would store the tune as it was before them. Write the changes again,                      then burn.",
+                    page.index
+                ),
+                refused: true,
+                failure_kind: WireFailureKind::Refused,
+            }));
         }
 
         let can = core.settings.can_id;
@@ -645,9 +815,17 @@ impl EcuConnection {
 
         core.transport.set_write_timeout(burn_timeout);
 
-        let outcome = core.burn_request(page, can, little_endian, &identifier, burn_timeout);
+        // Restored even if the request panics, as the C#'s `finally` was.
+        let attempt = catch_unwind(AssertUnwindSafe(|| {
+            core.burn_request(page, can, little_endian, &identifier, burn_timeout)
+        }));
 
         core.transport.set_write_timeout(was_allowed);
+
+        let outcome = match attempt {
+            Ok(outcome) => outcome,
+            Err(panic) => resume_unwind(panic),
+        };
 
         match outcome {
             // Only where the ECU never answered. A controller that answered with a
@@ -665,6 +843,8 @@ impl EcuConnection {
             }
             other => other?,
         }
+
+        core.unburned.retain(|(index, _)| *index != page.index);
 
         // The wait the firmware asks for after a burn, which TunerStudio also observes.
         // Writing flash stops the controller answering for as long as it takes, so the
@@ -688,7 +868,7 @@ impl EcuConnection {
         count: i32,
         progress: Option<&mut dyn FnMut(i32)>,
     ) -> EcuResult<Vec<u8>> {
-        self.gate()
+        self.gate()?
             .read_tune_page_range(page, blocking_factor, little_endian, offset, count, progress)
     }
 }
@@ -738,6 +918,7 @@ impl Core {
     fn reopen(&mut self) -> EcuResult<()> {
         // Closing something already gone is not a reason not to try again.
         self.transport.close();
+        self.reopens += 1;
         self.transport.open()?;
         Ok(())
     }
@@ -838,6 +1019,15 @@ impl Core {
 
             if let Some(progress) = progress.as_mut() {
                 progress(at);
+            }
+
+            // A progress callback cannot call `dispose` and wait for the gate it is
+            // standing in; it asks, and the read stops here.
+            if self.dispose_requested.swap(false, Ordering::SeqCst) {
+                self.transport.close();
+                return Err(EcuError::protocol(
+                    "The read was cancelled because the connection was disposed.",
+                ));
             }
         }
 

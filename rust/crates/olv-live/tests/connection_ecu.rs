@@ -696,7 +696,7 @@ fn a_realtime_block_is_asked_for_in_pieces_when_the_firmware_declares_a_blocking
     let memory = Arc::new(Mutex::new((0..40u8).collect::<Vec<u8>>()));
     let transport = FakeTransport::responding(ecu_model(Arc::clone(&memory), false, Misbehaviour::None));
     let connection = connection(&transport);
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).unwrap();
 
     let block = connection.read_realtime(40).unwrap();
 
@@ -718,7 +718,7 @@ fn a_single_request_ignores_the_blocking_factor() {
     let memory = Arc::new(Mutex::new((0..40u8).collect::<Vec<u8>>()));
     let transport = FakeTransport::responding(ecu_model(Arc::clone(&memory), false, Misbehaviour::None));
     let connection = connection(&transport);
-    connection.use_layout(&layout, true);
+    connection.use_layout(&layout, true).unwrap();
 
     assert_eq!(connection.read_realtime(40).unwrap().len(), 40);
 
@@ -735,7 +735,7 @@ fn the_plain_a_command_asks_for_everything_at_once() {
     let transport = FakeTransport::new();
     transport.enqueue([reply(&[7u8; 40])]);
     let connection = connection(&transport);
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).unwrap();
 
     assert_eq!(connection.read_realtime(40).unwrap(), vec![7u8; 40]);
     assert_eq!(transport.written(), [hex("000141D3D99E8B")]);
@@ -1222,7 +1222,7 @@ blockingFactor = 16
     let memory = Arc::new(Mutex::new((0..40u8).collect::<Vec<u8>>()));
     let transport = FakeTransport::responding(ecu_model(Arc::clone(&memory), false, Misbehaviour::None));
     let connection = connection(&transport);
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).unwrap();
 
     // Larger than anything the buffer was sized for: 600 bytes asked of a 40 byte memory
     // would panic the model, so ask for exactly what it holds, and for more than the factor.
@@ -1241,4 +1241,213 @@ fn a_realtime_read_of_nothing_is_refused_before_anything_is_sent() {
     assert!(connection.read_realtime(0).is_err());
     assert!(connection.read_realtime_unchunked(0).is_err());
     assert!(transport.written().is_empty());
+}
+
+// ----- a reopen between a write and its burn ---------------------------------------------
+
+/// Opening a Speeduino port resets the board, so the change just written is gone; a burn
+/// after that would store the tune as it was and report success. The C# let that happen.
+#[test]
+fn a_burn_after_a_reopen_is_refused_because_the_written_change_is_lost() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    assert_eq!(connection.unburned_pages().unwrap(), [0]);
+    assert!(connection.lost_pages().unwrap().is_empty());
+
+    connection.reopen().unwrap();
+    assert!(connection.unburned_pages().unwrap().is_empty());
+    assert_eq!(connection.lost_pages().unwrap(), [0]);
+
+    let sent = transport.written().len();
+    let error = connection.burn_page(&page, true, 0).unwrap_err();
+
+    assert!(error.refused(), "a lost change is a refusal, never a success");
+    assert!(
+        error
+            .to_string()
+            .starts_with("Nothing was burned: the changes written to page 0 are lost.")
+    );
+    assert_eq!(transport.written().len(), sent, "nothing was sent to the ECU");
+    // And the write timeout was never widened for a burn that did not happen.
+    assert!(transport.with(|s| s.write_timeout_history.is_empty()));
+
+    // The loss has been reported; a deliberate burn of the page as it now is, is not blocked
+    // for ever.
+    assert!(connection.lost_pages().unwrap().is_empty());
+    connection.burn_page(&page, true, 0).unwrap();
+}
+
+#[test]
+fn a_write_made_after_a_reopen_does_not_make_an_earlier_lost_one_look_fresh() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.reopen().unwrap();
+    connection.write_tune_page(&page, 0, true, 0x20, &DATA, 0).unwrap();
+
+    // The second write is in memory but the first is not: burning would store half a change.
+    assert!(connection.burn_page(&page, true, 0).unwrap_err().refused());
+}
+
+#[test]
+fn a_burn_with_no_reopen_since_the_write_goes_ahead_and_clears_the_pending_write() {
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = connection(&transport);
+    let page = speeduino_page();
+
+    connection.write_tune_page(&page, 0, true, 0x10, &DATA, 0).unwrap();
+    connection.burn_page(&page, true, 0).unwrap();
+
+    assert!(connection.unburned_pages().unwrap().is_empty());
+    assert!(connection.lost_pages().unwrap().is_empty());
+}
+
+#[test]
+fn a_reopen_for_identification_counts_too() {
+    let transport = FakeTransport::new();
+    let connection = with_settings(
+        &transport,
+        EcuConnectionSettings {
+            boot_wait: Duration::from_millis(1),
+            identify_within: Duration::from_millis(30),
+            timeout: Duration::from_millis(1),
+            ..EcuConnectionSettings::default()
+        },
+    );
+
+    connection.read_identity().unwrap();
+
+    assert!(connection.reopens().unwrap() >= 1);
+}
+
+// ----- a progress callback that calls back in --------------------------------------------
+
+fn within_two_seconds<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(work());
+    });
+
+    rx.recv_timeout(Duration::from_secs(2))
+        .expect("the thread deadlocked on its own gate")
+}
+
+#[test]
+fn a_progress_callback_that_starts_another_request_is_told_so_rather_than_deadlocking() {
+    let outcome = within_two_seconds(|| {
+        let (transport, _) = model(true, Misbehaviour::None);
+        let connection = Arc::new(connection(&transport));
+        let inner = Arc::clone(&connection);
+
+        let mut inner_result = None;
+        let mut progress = |_: i32| {
+            inner_result = Some(inner.read_signature());
+        };
+
+        connection
+            .read_tune_page(&rusefi_page(), 64, true, Some(&mut progress))
+            .unwrap();
+
+        inner_result.unwrap().unwrap_err().to_string()
+    });
+
+    assert!(outcome.contains("already in use by this thread"));
+}
+
+#[test]
+fn a_progress_callback_that_disposes_the_connection_cancels_the_read_and_closes_the_link() {
+    let (error, open, sent) = within_two_seconds(|| {
+        let (transport, _) = model(true, Misbehaviour::None);
+        let connection = Arc::new(connection(&transport));
+        connection.open().unwrap();
+        let inner = Arc::clone(&connection);
+
+        let mut progress = |_: i32| inner.dispose();
+
+        let error = connection
+            .read_tune_page(&rusefi_page(), 64, true, Some(&mut progress))
+            .unwrap_err()
+            .to_string();
+
+        (error, transport.with(|s| s.open), transport.written().len())
+    });
+
+    assert_eq!(error, "The read was cancelled because the connection was disposed.");
+    assert!(!open, "the link was closed");
+    assert_eq!(sent, 1, "only the first chunk was asked for");
+}
+
+#[test]
+fn dispose_from_another_thread_waits_for_the_conversation_in_flight() {
+    // Documented: it can block for the request timeouts, so a UI calls it off its thread.
+    let (transport, _) = model(true, Misbehaviour::None);
+    let connection = Arc::new(connection(&transport));
+    connection.open().unwrap();
+
+    let other = Arc::clone(&connection);
+    let mut blocked = None;
+    let mut progress = |_: i32| {
+        let other = Arc::clone(&other);
+        let t = std::thread::spawn(move || other.dispose());
+        std::thread::sleep(Duration::from_millis(100));
+        // Still waiting behind the read that is calling this.
+        blocked = Some(!t.is_finished());
+        // The thread ends when the read does.
+        std::mem::drop(t);
+    };
+
+    connection
+        .read_tune_page(&rusefi_page(), 0, true, Some(&mut progress))
+        .unwrap();
+
+    assert_eq!(blocked, Some(true));
+}
+
+// ----- the burn write timeout survives a panic -------------------------------------------
+
+#[test]
+fn the_widened_write_timeout_is_put_back_even_if_the_burn_panics() {
+    use olv_core::Result;
+    use olv_protocol::ms::ms_protocol::EcuTransport;
+
+    struct Panics(Arc<Mutex<Duration>>);
+
+    impl EcuTransport for Panics {
+        fn is_open(&self) -> bool {
+            true
+        }
+        fn open(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn close(&mut self) {}
+        fn write(&mut self, _data: &[u8]) -> Result<()> {
+            panic!("the port blew up");
+        }
+        fn write_timeout(&self) -> Duration {
+            *self.0.lock().unwrap()
+        }
+        fn set_write_timeout(&mut self, timeout: Duration) {
+            *self.0.lock().unwrap() = timeout;
+        }
+        fn read(&mut self, _buffer: &mut [u8], _timeout: Duration) -> Result<usize> {
+            Ok(0)
+        }
+        fn discard_input(&mut self) {}
+    }
+
+    let timeout = Arc::new(Mutex::new(Duration::from_millis(500)));
+    let connection = EcuConnection::with_defaults(Box::new(Panics(Arc::clone(&timeout))));
+
+    let page = rusefi_page();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| connection.burn_page(&page, true, 0)));
+
+    assert!(outcome.is_err(), "the panic goes on up");
+    assert_eq!(*timeout.lock().unwrap(), Duration::from_millis(500));
+    // And the connection is still usable: neither its gate nor its owner record was left held.
+    assert!(connection.unburned_pages().unwrap().is_empty());
 }

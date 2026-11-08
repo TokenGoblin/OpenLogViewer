@@ -121,7 +121,11 @@ impl LiveSource for TunerStudioSource {
     /// Reopening a Speeduino's port resets the board; anything written and not burned
     /// is lost.
     fn recover(&mut self) -> Result<()> {
-        self.connection.reopen()?;
+        // Then the silence a freshly opened port is left in: a Speeduino has reset and is in
+        // its bootloader, and a request now leaves it stuck there. The wait is inside the
+        // connection's gate, as `read_identity`'s is. Anything written and not burned is lost
+        // with the reset, and `burn_page` knows it.
+        self.connection.reopen_and_wait_for_boot()?;
         self.connection.read_realtime(self.decoder.layout().block_size)?;
         Ok(())
     }

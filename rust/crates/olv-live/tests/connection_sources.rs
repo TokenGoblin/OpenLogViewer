@@ -253,7 +253,7 @@ fn tuner_source(memory: Arc<Mutex<Vec<u8>>>) -> (TunerStudioSource, FakeTranspor
 
     let transport = FakeTransport::responding(ecu_model(memory, false, Misbehaviour::None));
     let connection = Arc::new(EcuConnection::with_defaults(Box::new(transport.clone())));
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).unwrap();
 
     let source = TunerStudioSource::new(Arc::clone(&connection), RealtimeDecoder::new(layout, None), &datalog);
 
@@ -767,4 +767,82 @@ fn without_mtune_every_gauge_is_a_bare_readout_and_the_problem_is_said() {
         olv_core::logs::maxx_gauges::problem(),
         "MTune is not installed, so there are no ranges to draw dials over."
     );
+}
+
+// ===== recovery and the Speeduino ============================================================
+
+#[test]
+fn recovery_leaves_the_freshly_opened_port_alone_for_the_boot_wait_before_speaking() {
+    // A Speeduino resets when its port opens and sits in its bootloader for about two
+    // seconds; a request arriving then leaves it stuck there. Read-identity waits; so must
+    // the recovery.
+    let layout = msq_ini::read_output_channels(INI, None);
+    let datalog = msq_ini::read_datalog(INI, None);
+
+    let first_request = Arc::new(Mutex::new(None::<Instant>));
+    let seen = Arc::clone(&first_request);
+    let memory = Arc::new(Mutex::new(block()));
+    let mut model = ecu_model(Arc::clone(&memory), false, Misbehaviour::None);
+    let transport = FakeTransport::responding(move |framed: &[u8]| {
+        seen.lock().unwrap().get_or_insert_with(Instant::now);
+        model(framed)
+    });
+
+    let connection = Arc::new(EcuConnection::new(
+        Box::new(transport),
+        olv_live::connection::ecu_connection::EcuConnectionSettings {
+            boot_wait: Duration::from_millis(200),
+            ..Default::default()
+        },
+    ));
+    connection.use_layout(&layout, false).unwrap();
+    let mut source = TunerStudioSource::new(Arc::clone(&connection), RealtimeDecoder::new(layout, None), &datalog);
+
+    let started = Instant::now();
+    source.recover().unwrap();
+
+    let spoke_after = first_request.lock().unwrap().unwrap().duration_since(started);
+    assert!(
+        spoke_after >= Duration::from_millis(200),
+        "spoke after only {spoke_after:?}"
+    );
+}
+
+#[test]
+fn a_recovery_between_a_write_and_its_burn_makes_the_burn_refuse() {
+    // The poll thread recovery reopens the port, which resets a Speeduino and loses the
+    // change just written; the burn must not then report success.
+    use olv_core::ini::tune_layout::TunePage;
+
+    let layout = msq_ini::read_output_channels(INI, None);
+    let datalog = msq_ini::read_datalog(INI, None);
+    let memory = Arc::new(Mutex::new(vec![0u8; 0x100]));
+    let transport = FakeTransport::responding(ecu_model(Arc::clone(&memory), false, Misbehaviour::None));
+    let connection = Arc::new(EcuConnection::new(
+        Box::new(transport.clone()),
+        olv_live::connection::ecu_connection::EcuConnectionSettings {
+            boot_wait: Duration::from_millis(1),
+            ..Default::default()
+        },
+    ));
+    connection.use_layout(&layout, false).unwrap();
+    let mut source = TunerStudioSource::new(Arc::clone(&connection), RealtimeDecoder::new(layout, None), &datalog);
+
+    let page = TunePage {
+        index: 0,
+        size: 0x100,
+        identifier: r"\$tsCanId\x04".to_string(),
+        read_command: r"r\$tsCanId\x04%2o%2c".to_string(),
+        chunk_write_command: r"w\$tsCanId\x04%2o%2c%v".to_string(),
+        burn_command: r"b\$tsCanId\x04".to_string(),
+    };
+
+    connection
+        .write_tune_page(&page, 0, false, 0x10, &[1, 2, 3, 4], 0)
+        .unwrap();
+    source.recover().unwrap();
+
+    let error = connection.burn_page(&page, false, 0).unwrap_err();
+    assert!(error.refused());
+    assert!(transport.written().iter().all(|w| w[2] != b'b'), "no burn was sent");
 }
