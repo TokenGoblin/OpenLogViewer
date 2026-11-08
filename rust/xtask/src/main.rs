@@ -501,6 +501,32 @@ fn test_owner(t: &TestFile, file_pkg: &BTreeMap<String, String>) -> Option<Strin
     })
 }
 
+fn rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            rust_sources(&p, out);
+        } else if p.extension().is_some_and(|x| x == "rs") {
+            out.push(p);
+        }
+    }
+}
+
+/// A package counts as ported once none of its scaffolded stubs is still a stub (a
+/// stub is the one-line `//! Ported from ...` that `xtask scaffold` writes).
+fn package_is_ported(p: &Package) -> bool {
+    let dir = rust_dir().join("crates").join(&p.krate).join("src").join(&p.module);
+    let stubs: Vec<PathBuf> = p
+        .files
+        .iter()
+        .filter(|f| !f.contains('/'))
+        .map(|f| dir.join(format!("{}.rs", snake(f))))
+        .filter(|f| f.exists())
+        .collect();
+    !stubs.is_empty() && stubs.iter().all(|f| count_rust_lines(f) > 1)
+}
+
 /// The wave a package id names: `w2-logs` is wave 2. `check` holds every id to this.
 fn wave_of(id: &str) -> u32 {
     id.strip_prefix('w')
@@ -617,6 +643,26 @@ fn check() -> Res {
     }
     for ((a, b), why) in parallel {
         warnings.push(format!("{a} needs {b} in the same wave: {}", why.join(", ")));
+    }
+
+    // A test skipped as `needs <package>` once that package is ported is a test nobody
+    // will remember to switch back on. Two such tests were found with empty bodies.
+    let needs = Regex::new(r#"ignore\s*=\s*"needs (w\d+-[a-z0-9-]+)"#).unwrap();
+    let mut rust_files = Vec::new();
+    rust_sources(&rust_dir().join("crates"), &mut rust_files);
+    for f in &rust_files {
+        let text = fs::read_to_string(f).unwrap_or_default();
+        for c in needs.captures_iter(&text) {
+            if let Some(p) = pkgs.iter().find(|p| p.id == c[1])
+                && package_is_ported(p)
+            {
+                warnings.push(format!(
+                    "{} skips a test as needing {}, which is ported now",
+                    rel(f),
+                    p.id
+                ));
+            }
+        }
     }
 
     let file_pkg = file_to_package(&pkgs);
