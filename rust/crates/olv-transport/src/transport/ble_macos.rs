@@ -88,7 +88,7 @@ use olv_core::{Error, Result};
 use crate::transport::ble_devices::address_from_peripheral_id;
 use crate::transport::ble_ecu_transport::{
     BleBackend, CharProps, GattCharacteristic as CharInfo, GattLink, GattService as ServiceInfo, Incoming, Mailbox,
-    SERIAL_SERVICES, uuid_from_cb_string,
+    Outcomes, SERIAL_SERVICES, uuid_from_cb_string,
 };
 
 /// How long the manager may take to report whether Bluetooth is usable.
@@ -139,8 +139,10 @@ struct State {
     services: Option<std::result::Result<(), String>>,
     /// The outcome of `discoverCharacteristics:forService:`, by the service's address.
     characteristics: HashMap<usize, std::result::Result<(), String>>,
-    notify: Option<std::result::Result<(), String>>,
-    written: Option<std::result::Result<(), String>>,
+    /// Outcomes of `setNotifyValue:` and of writes with response, by characteristic address, so
+    /// a late reply for one characteristic is never taken for another's.
+    notify: Outcomes,
+    written: Outcomes,
     can_write_without_response: bool,
     /// The characteristic whose values go to the sink (by address), and the sink.
     forward: Option<(usize, Arc<Incoming>)>,
@@ -298,22 +300,24 @@ define_class!(
         fn peripheral_didWriteValueForCharacteristic_error(
             &self,
             _peripheral: &CBPeripheral,
-            _characteristic: &CBCharacteristic,
+            characteristic: &CBCharacteristic,
             error: Option<&NSError>,
         ) {
             let result = outcome(error);
-            self.ivars().update(|s| s.written = Some(result));
+            let key = std::ptr::from_ref(characteristic) as usize;
+            self.ivars().update(|s| s.written.post(key, result));
         }
 
         #[unsafe(method(peripheral:didUpdateNotificationStateForCharacteristic:error:))]
         fn peripheral_didUpdateNotificationStateForCharacteristic_error(
             &self,
             _peripheral: &CBPeripheral,
-            _characteristic: &CBCharacteristic,
+            characteristic: &CBCharacteristic,
             error: Option<&NSError>,
         ) {
             let result = outcome(error);
-            self.ivars().update(|s| s.notify = Some(result));
+            let key = std::ptr::from_ref(characteristic) as usize;
+            self.ivars().update(|s| s.notify.post(key, result));
         }
 
         #[unsafe(method(peripheralIsReadyToSendWriteWithoutResponse:))]
@@ -614,13 +618,13 @@ impl GattLink for Link {
         let sink = self.sink.clone();
         shared.update(|s| {
             s.forward = Some((key, sink));
-            s.notify = None;
+            s.notify.expect(key);
         });
 
         // SAFETY: the characteristic came from this peripheral.
         unsafe { self.peripheral.setNotifyValue_forCharacteristic(true, &target) };
 
-        let result = match shared.wait_for(NOTIFY_WITHIN, |s| s.notify.take()) {
+        let result = match shared.wait_for(NOTIFY_WITHIN, |s| s.notify.take(key)) {
             None => Err("timed out enabling notifications".to_string()),
             Some(result) => result,
         };
@@ -632,11 +636,19 @@ impl GattLink for Link {
 
     #[allow(unsafe_code)]
     fn unsubscribe(&mut self, service: usize, characteristic: usize) {
-        self.central.shared.update(|s| s.forward = None);
+        let shared = self.central.shared.clone();
+        shared.update(|s| s.forward = None);
         if let Some(target) = self.services.get(service).and_then(|s| s.1.get(characteristic)) {
+            let key = Retained::as_ptr(target) as usize;
+            shared.update(|s| s.notify.expect(key));
             // SAFETY: the characteristic came from this peripheral. Best effort: a device that is
             // gone cannot be told.
             unsafe { self.peripheral.setNotifyValue_forCharacteristic(false, target) };
+            // Its callback is awaited, so it is over before the next service is subscribed to; and
+            // it is keyed anyway, so even a late one could not be taken for that subscription's.
+            if self.connected().is_ok() {
+                let _ = shared.wait_for(NOTIFY_WITHIN, |s| s.notify.take(key));
+            }
         }
     }
 
@@ -654,7 +666,8 @@ impl GattLink for Link {
         let payload = NSData::with_bytes(data);
 
         if with_response {
-            shared.update(|s| s.written = None);
+            let key = Retained::as_ptr(&target) as usize;
+            shared.update(|s| s.written.expect(key));
             // SAFETY: the characteristic came from this peripheral.
             unsafe {
                 self.peripheral.writeValue_forCharacteristic_type(
@@ -663,7 +676,7 @@ impl GattLink for Link {
                     CBCharacteristicWriteType::WithResponse,
                 );
             }
-            return match shared.wait_for(WRITE_WITHIN, |s| s.written.take()) {
+            return match shared.wait_for(WRITE_WITHIN, |s| s.written.take(key)) {
                 None => Err("timed out waiting for the device to accept the write".to_string()),
                 Some(result) => result,
             };

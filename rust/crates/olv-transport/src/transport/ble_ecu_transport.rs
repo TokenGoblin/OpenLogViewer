@@ -609,6 +609,37 @@ impl<S> Mailbox<S> {
     }
 }
 
+/// Outcomes of asynchronous requests, each kept under the key of the attribute it was asked of
+/// (a characteristic's address).
+///
+/// One shared slot per kind of request is wrong: the late "notifications are now off" for service
+/// A would be taken as the answer to the "notifications are now on" asked of service B, which
+/// then returns before its descriptor is written and loses the first reply. Keyed, A's outcome
+/// can only ever be A's.
+#[cfg(any(target_os = "macos", test))]
+#[derive(Default)]
+pub(crate) struct Outcomes {
+    by_key: std::collections::HashMap<usize, std::result::Result<(), String>>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl Outcomes {
+    /// Forgets any outcome for `key`, before a request is made.
+    pub(crate) fn expect(&mut self, key: usize) {
+        self.by_key.remove(&key);
+    }
+
+    /// Records the answer to a request, from a callback.
+    pub(crate) fn post(&mut self, key: usize, outcome: std::result::Result<(), String>) {
+        self.by_key.insert(key, outcome);
+    }
+
+    /// Takes the answer for `key`, if it has come.
+    pub(crate) fn take(&mut self, key: usize) -> Option<std::result::Result<(), String>> {
+        self.by_key.remove(&key)
+    }
+}
+
 /// A CoreBluetooth `CBUUID` string as a `Uuid`: four hex digits (a 16-bit assigned number, as
 /// `FFF0`), eight (32-bit), or the full 36-character form.
 #[cfg(any(target_os = "macos", test))]
@@ -673,6 +704,44 @@ impl Listener {
 impl Drop for Listener {
     fn drop(&mut self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Whether a D-Bus signal is a characteristic's notification: sent by BlueZ itself (its unique bus
+/// name, resolved when the subscription started) and for the characteristic being watched.
+///
+/// Any local process can broadcast `PropertiesChanged` on the system bus. Without the sender check
+/// it could put bytes in front of the ELM327 parser as though the ECU had sent them.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn is_notification_from(sender: Option<&str>, bluez_owner: &str, path: Option<&str>, watched: &str) -> bool {
+    sender == Some(bluez_owner) && path == Some(watched)
+}
+
+/// The listener of the current subscription, and the characteristic it is for.
+#[cfg(any(target_os = "linux", test))]
+#[derive(Default)]
+pub(crate) struct ListenerSlot {
+    current: Option<(Listener, String)>,
+}
+
+#[cfg(any(target_os = "linux", test))]
+impl ListenerSlot {
+    pub(crate) fn set(&mut self, listener: Listener, path: String) {
+        self.current = Some((listener, path));
+    }
+
+    /// Stops the listener, if there is one: the signal first, so it is set whenever the listener
+    /// wakes; then `wake`, which must make something happen on the listener's source (BlueZ's
+    /// reply to `StopNotify` or `Disconnect`); then a wait of up to `wait` for it to end.
+    /// Returns whether there was a listener.
+    pub(crate) fn stop(&mut self, wake: impl FnOnce(&str), wait: Duration) -> bool {
+        let Some((listener, path)) = self.current.take() else {
+            return false;
+        };
+        listener.request_stop();
+        wake(&path);
+        listener.stop(wait);
+        true
     }
 }
 
@@ -816,7 +885,7 @@ pub(crate) mod bluez {
                 device: device.path,
                 paths: Vec::new(),
                 sink,
-                listener: None,
+                listener: ListenerSlot::default(),
             })))
         }
     }
@@ -828,7 +897,7 @@ pub(crate) mod bluez {
         paths: Vec<(String, Vec<String>)>,
         sink: Arc<Incoming>,
         /// The current subscription's listener and the characteristic it is for.
-        listener: Option<(Listener, String)>,
+        listener: ListenerSlot,
     }
 
     fn link_proxy<'a>(
@@ -917,8 +986,15 @@ pub(crate) mod bluez {
             // Listening before asking, so nothing sent in reply to the first write is missed. The
             // rule covers the whole device subtree so that the device disconnecting wakes the
             // thread, which then sees its stop flag.
+            //
+            // Only BlueZ's signals are listened to: the rule names the sender, and the thread
+            // checks each message came from BlueZ's unique name (a name owner can change, and a
+            // rule alone is not a guarantee).
+            let owner = bluez_owner(&self.conn)?;
             let rule = MatchRule::builder()
                 .msg_type(Type::Signal)
+                .sender(BLUEZ)
+                .map_err(d)?
                 .interface("org.freedesktop.DBus.Properties")
                 .map_err(d)?
                 .member("PropertiesChanged")
@@ -939,7 +1015,13 @@ pub(crate) mod bluez {
                         break;
                     }
                     let Ok(message) = message else { continue };
-                    if message.header().path().map(|p| p.as_str()) != Some(watched.as_str()) {
+                    let header = message.header();
+                    if !is_notification_from(
+                        header.sender().map(|n| n.as_str()),
+                        &owner,
+                        header.path().map(|p| p.as_str()),
+                        &watched,
+                    ) {
                         continue;
                     }
                     let Ok((interface, changed, _)) = message.body().deserialize::<(String, Properties, Vec<String>)>()
@@ -958,7 +1040,7 @@ pub(crate) mod bluez {
                     }
                 }
             });
-            self.listener = Some((listener, path.clone()));
+            self.listener.set(listener, path.clone());
 
             // BlueZ writes the client configuration descriptor itself, for notification whenever
             // the characteristic offers it and for indication only otherwise, which is the C#'s
@@ -992,30 +1074,55 @@ pub(crate) mod bluez {
         }
     }
 
+    /// BlueZ's unique bus name, which is what the sender of its signals reads.
+    fn bluez_owner(conn: &Connection) -> std::result::Result<String, String> {
+        let name = zbus::names::BusName::try_from(BLUEZ).map_err(d)?;
+        let proxy = zbus::blocking::fdo::DBusProxy::new(conn).map_err(d)?;
+        proxy.get_name_owner(name).map(|owner| owner.to_string()).map_err(d)
+    }
+
+    /// `StopNotify`, best effort: BlueZ answers by announcing `Notifying=false`, which wakes the
+    /// listener.
+    fn stop_notify(conn: &Connection, path: &str) {
+        if let Ok(p) = link_proxy(conn, path, CHARACTERISTIC) {
+            let _ = p.call::<_, _, ()>("StopNotify", &());
+        }
+    }
+
+    /// `Disconnect`, best effort: a device that has gone out of range cannot be closed politely.
+    /// BlueZ announces the change on the device, which wakes a listener whose characteristic
+    /// would never say anything again.
+    fn disconnect(conn: &Connection, device: &str) {
+        if let Ok(p) = link_proxy(conn, device, DEVICE) {
+            let _ = p.call::<_, _, ()>("Disconnect", &());
+        }
+    }
+
     impl Link {
-        /// Stops the current subscription's listener: the signal first, so it is set when the
-        /// listener wakes, then `StopNotify`, to which BlueZ answers by announcing `Notifying=false`,
-        /// which is what wakes it. Waits for it for a second at most.
+        /// Stops the current subscription's listener and waits for it, a second at most.
         fn stop_listener(&mut self) {
-            let Some((listener, path)) = self.listener.take() else {
-                return;
-            };
-            listener.request_stop();
-            if let Ok(p) = link_proxy(&self.conn, &path, CHARACTERISTIC) {
-                let _ = p.call::<_, _, ()>("StopNotify", &());
-            }
-            listener.stop(Duration::from_secs(1));
+            let conn = &self.conn;
+            self.listener
+                .stop(|path| stop_notify(conn, path), Duration::from_secs(1));
         }
     }
 
     impl Drop for Link {
         fn drop(&mut self) {
-            if let Some((listener, _)) = &self.listener {
-                listener.request_stop();
-            }
-            // A device that has gone out of range cannot be closed politely.
-            if let Ok(p) = link_proxy(&self.conn, &self.device, DEVICE) {
-                let _ = p.call::<_, _, ()>("Disconnect", &());
+            // The listener is stopped and joined, not abandoned: left running, its thread and its
+            // bus connection outlive the session whenever the device has already gone and
+            // nothing more is ever signalled. `StopNotify`, then `Disconnect`, so that either
+            // one's announcement wakes it.
+            let (conn, device) = (&self.conn, &self.device);
+            let had = self.listener.stop(
+                |path| {
+                    stop_notify(conn, path);
+                    disconnect(conn, device);
+                },
+                Duration::from_secs(1),
+            );
+            if !had {
+                disconnect(conn, device);
             }
         }
     }
@@ -1591,6 +1698,124 @@ mod tests {
         );
         assert_eq!(uuid_from_cb_string("nonsense"), None);
         assert_eq!(uuid_from_cb_string("ZZZZ"), None);
+    }
+
+    #[test]
+    fn a_late_unsubscribe_outcome_is_not_taken_for_the_next_subscribes() {
+        // try_use lets go of service A (setNotifyValue(false), whose callback comes later) and
+        // then subscribes B. The callback for A, arriving while B waits, must not satisfy B.
+        let (a, b) = (0xA000usize, 0xB000usize);
+        let mailbox = Arc::new(Mailbox::new(Outcomes::default()));
+
+        mailbox.update(|o| o.expect(a)); // unsubscribe A requested
+        mailbox.update(|o| o.expect(b)); // subscribe B requested
+
+        let callbacks = mailbox.clone();
+        let device = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            callbacks.update(|o| o.post(a, Ok(()))); // A's late reply...
+            thread::sleep(Duration::from_millis(60));
+            callbacks.update(|o| o.post(b, Err("denied".into()))); // ...then B's own
+        });
+
+        let started = Instant::now();
+        let got = mailbox.wait_for(Duration::from_secs(2), |o| o.take(b));
+        assert_eq!(got, Some(Err("denied".to_string())));
+        assert!(
+            started.elapsed() >= Duration::from_millis(70),
+            "B returned on A's outcome"
+        );
+        device.join().unwrap();
+        // A's outcome is still A's.
+        assert_eq!(mailbox.wait_for(Duration::ZERO, |o| o.take(a)), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_write_outcome_after_a_timeout_is_not_the_next_writes() {
+        let (first, second) = (1usize, 2usize);
+        let mailbox = Mailbox::new(Outcomes::default());
+        mailbox.update(|o| o.expect(first));
+        assert_eq!(mailbox.wait_for(Duration::from_millis(10), |o| o.take(first)), None);
+        mailbox.update(|o| o.expect(second));
+        mailbox.update(|o| o.post(first, Ok(()))); // the timed-out write's reply, late
+        assert_eq!(mailbox.wait_for(Duration::from_millis(10), |o| o.take(second)), None);
+    }
+
+    #[test]
+    fn a_signal_from_anyone_but_bluez_is_not_a_notification() {
+        let owner = ":1.42";
+        let watched = "/org/bluez/hci0/dev_X/service000a/char000b";
+        assert!(is_notification_from(Some(owner), owner, Some(watched), watched));
+        // Another process on the system bus claiming to be the characteristic.
+        assert!(!is_notification_from(Some(":1.666"), owner, Some(watched), watched));
+        assert!(!is_notification_from(None, owner, Some(watched), watched));
+        // BlueZ, but another characteristic.
+        assert!(!is_notification_from(
+            Some(owner),
+            owner,
+            Some("/org/bluez/hci0/dev_X/service000a/char000d"),
+            watched
+        ));
+        assert!(!is_notification_from(Some(owner), owner, None, watched));
+    }
+
+    #[test]
+    fn dropping_the_slot_that_holds_a_listener_stops_it() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let ended = Arc::new(AtomicBool::new(false));
+        let flag = ended.clone();
+        let mut slot = ListenerSlot::default();
+        slot.set(
+            Listener::spawn(move |stop| {
+                while !stop.load(Ordering::SeqCst) {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                flag.store(true, Ordering::SeqCst);
+            }),
+            "/p".into(),
+        );
+        drop(slot);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !ended.load(Ordering::SeqCst) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(ended.load(Ordering::SeqCst), "the listener was left running");
+    }
+
+    #[test]
+    fn stopping_sets_the_signal_before_waking_and_joins_the_listener() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        // The listener is blocked until woken, as a D-Bus iterator is until BlueZ says something.
+        let (wake_tx, wake_rx) = std::sync::mpsc::channel::<()>();
+        let saw_stop_when_woken = Arc::new(AtomicBool::new(false));
+        let seen = saw_stop_when_woken.clone();
+        let mut slot = ListenerSlot::default();
+        slot.set(
+            Listener::spawn(move |stop| {
+                let _ = wake_rx.recv();
+                seen.store(stop.load(Ordering::SeqCst), Ordering::SeqCst);
+            }),
+            "/org/bluez/char".into(),
+        );
+
+        let woken_for = std::cell::RefCell::new(String::new());
+        let started = Instant::now();
+        let had = slot.stop(
+            |path| {
+                *woken_for.borrow_mut() = path.to_string();
+                wake_tx.send(()).unwrap();
+            },
+            Duration::from_secs(2),
+        );
+
+        assert!(had);
+        assert_eq!(*woken_for.borrow(), "/org/bluez/char");
+        // It had ended by the time stop() returned, well before the wait ran out, and had seen
+        // the signal already set when it woke.
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(saw_stop_when_woken.load(Ordering::SeqCst));
+        // Nothing left to stop.
+        assert!(!slot.stop(|_| panic!("nothing to wake"), Duration::from_millis(1)));
     }
 
     #[test]
