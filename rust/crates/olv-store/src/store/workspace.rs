@@ -80,11 +80,12 @@ impl Workspace {
     ///
     /// Ahead of TunerStudio's own folders deliberately: a file the user went to the trouble of
     /// putting here is a more deliberate answer than one a tool cached in the past. The
-    /// TunerStudio folders come from the INI catalog, passed in by the caller.
-    pub fn definition_search_paths(&self, catalog_defaults: &[PathBuf]) -> Vec<PathBuf> {
-        let mut paths = Vec::with_capacity(catalog_defaults.len() + 1);
+    /// TunerStudio folders after it come from the INI catalog, as in the C#.
+    pub fn definition_search_paths(&self) -> Vec<PathBuf> {
+        let defaults = olv_core::ini::ini_catalog::default_search_paths();
+        let mut paths = Vec::with_capacity(defaults.len() + 1);
         paths.push(self.definitions());
-        paths.extend(catalog_defaults.iter().cloned());
+        paths.extend(defaults.into_iter().map(PathBuf::from));
         paths
     }
 
@@ -336,14 +337,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs w1-ini (IniCatalog.DefaultSearchPaths is not ported yet)"]
     fn it_is_searched_before_tunerstudios_own_folders() {
         // A file someone went to the trouble of putting there is a more deliberate answer than
         // one a tool cached at some point in the past.
         let scratch = Scratch::new();
         let workspace = Workspace::new(Some(&scratch.join("ws")));
 
-        let paths = workspace.definition_search_paths(&[]);
+        let paths = workspace.definition_search_paths();
 
         assert_eq!(paths[0], workspace.definitions());
         assert!(paths.len() > 1);
@@ -408,14 +408,43 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs w1-ini (IniCatalog.Scan is not ported yet)"]
     fn an_ini_dropped_in_is_found() {
         // The whole point: a definition this machine did not already have.
+        let scratch = Scratch::new();
+        let workspace = Workspace::new(Some(&scratch.join("ws")));
+        let folder = workspace.ensure_definitions(None).unwrap();
+
+        fs::write(
+            folder.join("speeduino.ini"),
+            "[MegaTune]
+signature = \"speeduino 202402\"
+",
+        )
+        .unwrap();
+
+        let found = olv_core::ini::ini_catalog::scan(Some(&[folder.to_string_lossy().into_owned()]));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].signature, "speeduino 202402");
     }
 
     #[test]
-    #[ignore = "needs w1-ini (IniCatalog.Scan is not ported yet)"]
     fn a_sub_folder_is_searched_too() {
         // So a whole firmware folder can be dropped in unopened.
+        let scratch = Scratch::new();
+        let workspace = Workspace::new(Some(&scratch.join("ws")));
+        let folder = workspace.ensure_definitions(None).unwrap();
+        let inner = folder.join("speeduino-202402");
+        fs::create_dir_all(&inner).unwrap();
+
+        fs::write(
+            inner.join("speeduino.ini"),
+            "[MegaTune]
+signature = \"speeduino 202402\"
+",
+        )
+        .unwrap();
+
+        let found = olv_core::ini::ini_catalog::scan(Some(&[folder.to_string_lossy().into_owned()]));
+        assert_eq!(found.len(), 1);
     }
 }

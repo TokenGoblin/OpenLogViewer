@@ -162,16 +162,38 @@ mod tests {
         assert!((median(&values, 4)[1] - 2.5).abs() < 5e-7);
     }
 
-    /// The one that matters: nothing that judges an engine may see a smoothed channel.
-    /// Needs `LogDocument` (w0-model) for the second half of the C# test; the median half
-    /// is checked here.
+    /// The one that matters. A smoothed AFR hides exactly the single-sample lean
+    /// excursion that damages a piston, so nothing that judges an engine may ever see
+    /// one. Smoothing produces a new series; this pins that the log itself is never
+    /// rewritten.
     #[test]
-    #[ignore = "needs w0-model (LogDocument/LogChannel)"]
     fn the_insights_read_the_channel_as_logged_whatever_is_smoothed() {
-        let afr: Vec<f64> = (0..200).map(|i| if i == 100 { 17.5 } else { 13.5 }).collect();
+        use crate::model::{LogChannel, LogDocument};
+        use std::sync::Arc;
+
+        let n = 200;
+        let afr: Vec<f64> = (0..n).map(|i| if i == 100 { 17.5 } else { 13.5 }).collect();
+        let time: Vec<f64> = (0..n).map(|i| f64::from(i) * 0.1).collect();
+        let flat = |v: f64| vec![v; n as usize];
+
+        let log = LogDocument::new(
+            "spike.mlg",
+            "test",
+            vec![
+                Arc::new(LogChannel::new("RPM", "RPM", 2, &flat(3000.0), false)),
+                Arc::new(LogChannel::new("MAP", "kPa", 2, &flat(150.0), false)),
+                Arc::new(LogChannel::new("AFR", "AFR", 2, &afr, false)),
+                Arc::new(LogChannel::new("AFR Target 1", "AFR", 2, &flat(13.5), false)),
+                Arc::new(LogChannel::new("CLT", "°F", 2, &flat(190.0), false)),
+            ],
+            Arc::new(LogChannel::new("Time", "s", 2, &time, false)),
+        );
+
         // The spike is one sample in two hundred: a median of five erases it.
         assert_eq!(median(&afr, 5)[100], 13.5);
-        // The C# then asserts the LogDocument still holds 17.5 at sample 100.
+
+        // And the log still holds it, so anything measuring finds it.
+        assert_eq!(log.find_channel("AFR").unwrap().at(100), 17.5);
     }
 
     /// The scratch buffer was sized to the window, but the span scanned is window + 1
