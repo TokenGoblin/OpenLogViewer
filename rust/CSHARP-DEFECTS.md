@@ -6,6 +6,7 @@ in the agents' reports. Each one names where it is and how it was found.
 
 | Where | Defect | Found by |
 |---|---|---|
+| **`TunerStudioSource.Recover` + `EcuConnection` (HIGH, shipping app)** | A port reopen between `WriteTunePage` and `BurnPage` (a poll-thread recovery) resets a Speeduino, so the written change is lost, and the burn then commits the unchanged tune **and reports success**. The read-back ran before the reset, so it can't catch it. Recovery also reads straight after the reset with no boot wait, into the bootloader. **Fix in the C# too.** | w3-connection review |
 | `ChannelClassifier` (units check) | `Simplify` removes `/` and `°`, so the `"g/s"`, `"kg/h"`, `"lb/min"`, `"km/h"` and `"m/s"` arms can never match; only the slash-free spellings work. `"°"` simplifies to empty and is accepted for every role. | w1-channels |
 | `SafeFolder` | A safe folder at a filesystem root rejects every file: `Folder + separator` already ends in a separator. | w0-base |
 | `MathExpression` | Long runs of unary `-`, `!` or `^` are not depth-limited (only parenthesised nesting is capped at 64), so a hostile expression can overflow the stack. | w0-base |
@@ -23,3 +24,7 @@ in the agents' reports. Each one names where it is and how it was found.
 | `RealtimeDecoder` | A negative field offset throws; the Rust returns NaN for that field. Tune settings with keys differing only in case throw; the Rust keeps the last. | w2-obd |
 | `FtdiEcuTransport.Find` | With no MaxxECU present it falls back to the first FTDI device of any kind, so picking MaxxECU USB with a MicroSquirt on an FTDI cable would open the MicroSquirt and send it MaxxECU frames. The Rust only ever opens a device positively identified as a MaxxECU. | w2-transports review |
 | `SerialPortNames` (by comparison) | The C# WMI query saw only present devices; a port number reused by a new device was labelled correctly. Keep it that way: the Rust registry rows apply only to ports the live list reports as Bluetooth or unknown. | w2-transports review |
+| `Elm327Source.Recover` | The comment says the "died batching" suspicion must survive a failed proving read, but `Watching` overwrites it with the post-reset value, so the evidence is lost. | w3-connection |
+| `SsmSource.Read` | Once every address has been dropped it returns NaN rows with no error, so a dead link looks healthy. | w3-connection |
+| `EcuConnectionSettings.RetryPause` | Never read. | w3-connection |
+| `EcuConnection.Dispose` | Can close the port mid-write or mid-burn, and `ReadIdentity` could reopen the port after Dispose. The Rust waits for the conversation in flight instead. | w3-connection review |
