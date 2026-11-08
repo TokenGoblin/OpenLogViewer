@@ -1,0 +1,4717 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "ve_only",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "VE Table 1 X",
+          "page": 0,
+          "offset": 17870,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 16,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1 Y",
+          "page": 0,
+          "offset": 17902,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 11,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1",
+          "page": 0,
+          "offset": 17933,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "0000000000000000",
+          "high": "40a3880000000000",
+          "columns": 16,
+          "rows": 11
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [
+        {
+          "id": "VE Table 1",
+          "title": "VE Table 1",
+          "map": "",
+          "values": "VE Table 1",
+          "x_bins": "VE Table 1 X",
+          "y_bins": "VE Table 1 Y",
+          "x_channel": "",
+          "y_channel": ""
+        }
+      ],
+      "maps": [
+        {
+          "name": "VE Table 1",
+          "columns": 16,
+          "rows": 11,
+          "x_channel": 61,
+          "y_channel": 20,
+          "x_axis_at": 17870,
+          "y_axis_at": 17902,
+          "cells_at": 17933
+        }
+      ],
+      "dialogs": [],
+      "menus": []
+    },
+    {
+      "name": "ve_with_channels",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "VE Table 1 X",
+          "page": 0,
+          "offset": 17870,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "rpm",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 16,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1 Y",
+          "page": 0,
+          "offset": 17902,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "kPa",
+          "digits": 1,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 11,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1",
+          "page": 0,
+          "offset": 17933,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "0000000000000000",
+          "high": "40a3880000000000",
+          "columns": 16,
+          "rows": 11
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [
+        {
+          "id": "VE Table 1",
+          "title": "VE Table 1",
+          "map": "",
+          "values": "VE Table 1",
+          "x_bins": "VE Table 1 X",
+          "y_bins": "VE Table 1 Y",
+          "x_channel": "RPM",
+          "y_channel": "MAP"
+        }
+      ],
+      "maps": [
+        {
+          "name": "VE Table 1",
+          "columns": 16,
+          "rows": 11,
+          "x_channel": 61,
+          "y_channel": 20,
+          "x_axis_at": 17870,
+          "y_axis_at": 17902,
+          "cells_at": 17933
+        }
+      ],
+      "dialogs": [],
+      "menus": []
+    },
+    {
+      "name": "settings_and_a_table",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "IATSensor Input Voltage",
+          "page": 0,
+          "offset": 100,
+          "type": "U16",
+          "scale": "3f50624dd2f1a9fc",
+          "units": "",
+          "digits": 3,
+          "low": "0000000000000000",
+          "high": "4014000000000000",
+          "columns": 18,
+          "rows": 1
+        },
+        {
+          "name": "IATSensor Predef",
+          "page": 0,
+          "offset": 200,
+          "type": "U16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "4059000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Fuel Injmethod",
+          "page": 0,
+          "offset": 300,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "4008000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Fuel Trim",
+          "page": 0,
+          "offset": 310,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "c049000000000000",
+          "high": "4049000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Fuel Trim (2)",
+          "page": 0,
+          "offset": 312,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "c049000000000000",
+          "high": "4049000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1 X",
+          "page": 0,
+          "offset": 17870,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "rpm",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 16,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1 Y",
+          "page": 0,
+          "offset": 17902,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "kPa",
+          "digits": 1,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 11,
+          "rows": 1
+        },
+        {
+          "name": "VE Table 1",
+          "page": 0,
+          "offset": 17933,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "0000000000000000",
+          "high": "40a3880000000000",
+          "columns": 16,
+          "rows": 11
+        },
+        {
+          "name": "VE Table 1 X (2)",
+          "page": 0,
+          "offset": 9000,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "c0dd4c0000000000",
+          "high": "40dd4c0000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Wide Word",
+          "page": 0,
+          "offset": 5000,
+          "type": "U32",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "40f86a0000000000",
+          "columns": 2,
+          "rows": 1
+        },
+        {
+          "name": "Signed Byte",
+          "page": 0,
+          "offset": 5100,
+          "type": "S08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "c059000000000000",
+          "high": "4059000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Curve",
+          "page": 0,
+          "offset": 5200,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "c044000000000000",
+          "high": "4059000000000000",
+          "columns": 4,
+          "rows": 1
+        },
+        {
+          "name": "1stSensor Thing",
+          "page": 0,
+          "offset": 6000,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "3ff0000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "zeta lower",
+          "page": 0,
+          "offset": 6001,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "3ff0000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "Alpha one",
+          "page": 0,
+          "offset": 6002,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "3ff0000000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "alpha Two",
+          "page": 0,
+          "offset": 6003,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "3ff0000000000000",
+          "columns": 1,
+          "rows": 1
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [
+        {
+          "id": "VE Table 1",
+          "title": "VE Table 1",
+          "map": "",
+          "values": "VE Table 1",
+          "x_bins": "VE Table 1 X",
+          "y_bins": "VE Table 1 Y",
+          "x_channel": "RPM",
+          "y_channel": "MAP"
+        }
+      ],
+      "maps": [
+        {
+          "name": "VE Table 1",
+          "columns": 16,
+          "rows": 11,
+          "x_channel": 61,
+          "y_channel": 20,
+          "x_axis_at": 17870,
+          "y_axis_at": 17902,
+          "cells_at": 17933
+        }
+      ],
+      "dialogs": [
+        {
+          "key": "maxx:IATSensor",
+          "name": "maxx:IATSensor",
+          "title": "IATSensor",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [0]",
+              "target": "IATSensor Input Voltage[0]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [1]",
+              "target": "IATSensor Input Voltage[1]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [2]",
+              "target": "IATSensor Input Voltage[2]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [3]",
+              "target": "IATSensor Input Voltage[3]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [4]",
+              "target": "IATSensor Input Voltage[4]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [5]",
+              "target": "IATSensor Input Voltage[5]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [6]",
+              "target": "IATSensor Input Voltage[6]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [7]",
+              "target": "IATSensor Input Voltage[7]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [8]",
+              "target": "IATSensor Input Voltage[8]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [9]",
+              "target": "IATSensor Input Voltage[9]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [10]",
+              "target": "IATSensor Input Voltage[10]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [11]",
+              "target": "IATSensor Input Voltage[11]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [12]",
+              "target": "IATSensor Input Voltage[12]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [13]",
+              "target": "IATSensor Input Voltage[13]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [14]",
+              "target": "IATSensor Input Voltage[14]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [15]",
+              "target": "IATSensor Input Voltage[15]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [16]",
+              "target": "IATSensor Input Voltage[16]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Input Voltage [17]",
+              "target": "IATSensor Input Voltage[17]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "IATSensor Predef",
+              "target": "IATSensor Predef",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Fuel",
+          "name": "maxx:Fuel",
+          "title": "Fuel",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Fuel Injmethod",
+              "target": "Fuel Injmethod",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Fuel Trim",
+              "target": "Fuel Trim",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Fuel Trim (2)",
+              "target": "Fuel Trim (2)",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:VE",
+          "name": "maxx:VE",
+          "title": "VE",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "VE Table 1 X (2)",
+              "target": "VE Table 1 X (2)",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Wide",
+          "name": "maxx:Wide",
+          "title": "Wide",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Wide Word [0]",
+              "target": "Wide Word[0]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Wide Word [1]",
+              "target": "Wide Word[1]",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Signed",
+          "name": "maxx:Signed",
+          "title": "Signed",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Signed Byte",
+              "target": "Signed Byte",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Curve",
+          "name": "maxx:Curve",
+          "title": "Curve",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Curve [0]",
+              "target": "Curve[0]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Curve [1]",
+              "target": "Curve[1]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Curve [2]",
+              "target": "Curve[2]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Curve [3]",
+              "target": "Curve[3]",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:1stSensor",
+          "name": "maxx:1stSensor",
+          "title": "1stSensor",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "1stSensor Thing",
+              "target": "1stSensor Thing",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:zeta",
+          "name": "maxx:zeta",
+          "title": "zeta",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "zeta lower",
+              "target": "zeta lower",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Alpha",
+          "name": "maxx:Alpha",
+          "title": "Alpha",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Alpha one",
+              "target": "Alpha one",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "alpha Two",
+              "target": "alpha Two",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        }
+      ],
+      "menus": [
+        {
+          "title": "#",
+          "entries": [
+            {
+              "dialog": "maxx:1stSensor",
+              "title": "1stSensor",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "A",
+          "entries": [
+            {
+              "dialog": "maxx:Alpha",
+              "title": "Alpha",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "C",
+          "entries": [
+            {
+              "dialog": "maxx:Curve",
+              "title": "Curve",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "F",
+          "entries": [
+            {
+              "dialog": "maxx:Fuel",
+              "title": "Fuel",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "I",
+          "entries": [
+            {
+              "dialog": "maxx:IATSensor",
+              "title": "IATSensor",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "S",
+          "entries": [
+            {
+              "dialog": "maxx:Signed",
+              "title": "Signed",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "V",
+          "entries": [
+            {
+              "dialog": "maxx:VE",
+              "title": "VE",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "W",
+          "entries": [
+            {
+              "dialog": "maxx:Wide",
+              "title": "Wide",
+              "condition": ""
+            }
+          ]
+        },
+        {
+          "title": "Z",
+          "entries": [
+            {
+              "dialog": "maxx:zeta",
+              "title": "zeta",
+              "condition": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tables_sharing_a_name",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "Boost Table X",
+          "page": 0,
+          "offset": 17474,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 2,
+          "rows": 1
+        },
+        {
+          "name": "Boost Table Y",
+          "page": 0,
+          "offset": 17478,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 2,
+          "rows": 1
+        },
+        {
+          "name": "Boost Table",
+          "page": 0,
+          "offset": 17491,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "0000000000000000",
+          "high": "4072c00000000000",
+          "columns": 2,
+          "rows": 2
+        },
+        {
+          "name": "Boost Table (2) X",
+          "page": 0,
+          "offset": 17674,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 2,
+          "rows": 1
+        },
+        {
+          "name": "Boost Table (2) Y",
+          "page": 0,
+          "offset": 17678,
+          "type": "S16",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "fff8000000000000",
+          "high": "fff8000000000000",
+          "columns": 2,
+          "rows": 1
+        },
+        {
+          "name": "Boost Table (2)",
+          "page": 0,
+          "offset": 17691,
+          "type": "S16",
+          "scale": "3fb999999999999a",
+          "units": "",
+          "digits": 1,
+          "low": "0000000000000000",
+          "high": "4072c00000000000",
+          "columns": 2,
+          "rows": 2
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [
+        {
+          "id": "Boost Table",
+          "title": "Boost Table",
+          "map": "",
+          "values": "Boost Table",
+          "x_bins": "Boost Table X",
+          "y_bins": "Boost Table Y",
+          "x_channel": "",
+          "y_channel": ""
+        },
+        {
+          "id": "Boost Table (2)",
+          "title": "Boost Table (2)",
+          "map": "",
+          "values": "Boost Table (2)",
+          "x_bins": "Boost Table (2) X",
+          "y_bins": "Boost Table (2) Y",
+          "x_channel": "",
+          "y_channel": ""
+        }
+      ],
+      "maps": [
+        {
+          "name": "Boost Table",
+          "columns": 2,
+          "rows": 2,
+          "x_channel": 61,
+          "y_channel": 20,
+          "x_axis_at": 17474,
+          "y_axis_at": 17478,
+          "cells_at": 17491
+        },
+        {
+          "name": "Boost Table (2)",
+          "columns": 2,
+          "rows": 2,
+          "x_channel": 61,
+          "y_channel": 20,
+          "x_axis_at": 17674,
+          "y_axis_at": 17678,
+          "cells_at": 17691
+        }
+      ],
+      "dialogs": [],
+      "menus": []
+    },
+    {
+      "name": "a_long_subsystem",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "GPO Thing 0",
+          "page": 0,
+          "offset": 1000,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 1",
+          "page": 0,
+          "offset": 1001,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 2",
+          "page": 0,
+          "offset": 1002,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 3",
+          "page": 0,
+          "offset": 1003,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 4",
+          "page": 0,
+          "offset": 1004,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 5",
+          "page": 0,
+          "offset": 1005,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 6",
+          "page": 0,
+          "offset": 1006,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 7",
+          "page": 0,
+          "offset": 1007,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 8",
+          "page": 0,
+          "offset": 1008,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 9",
+          "page": 0,
+          "offset": 1009,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 10",
+          "page": 0,
+          "offset": 1010,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 11",
+          "page": 0,
+          "offset": 1011,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 12",
+          "page": 0,
+          "offset": 1012,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 13",
+          "page": 0,
+          "offset": 1013,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 14",
+          "page": 0,
+          "offset": 1014,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 15",
+          "page": 0,
+          "offset": 1015,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 16",
+          "page": 0,
+          "offset": 1016,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 17",
+          "page": 0,
+          "offset": 1017,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 18",
+          "page": 0,
+          "offset": 1018,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 19",
+          "page": 0,
+          "offset": 1019,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 20",
+          "page": 0,
+          "offset": 1020,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 21",
+          "page": 0,
+          "offset": 1021,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 22",
+          "page": 0,
+          "offset": 1022,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 23",
+          "page": 0,
+          "offset": 1023,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 24",
+          "page": 0,
+          "offset": 1024,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 25",
+          "page": 0,
+          "offset": 1025,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 26",
+          "page": 0,
+          "offset": 1026,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 27",
+          "page": 0,
+          "offset": 1027,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 28",
+          "page": 0,
+          "offset": 1028,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 29",
+          "page": 0,
+          "offset": 1029,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 30",
+          "page": 0,
+          "offset": 1030,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 31",
+          "page": 0,
+          "offset": 1031,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 32",
+          "page": 0,
+          "offset": 1032,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 33",
+          "page": 0,
+          "offset": 1033,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 34",
+          "page": 0,
+          "offset": 1034,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 35",
+          "page": 0,
+          "offset": 1035,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 36",
+          "page": 0,
+          "offset": 1036,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 37",
+          "page": 0,
+          "offset": 1037,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 38",
+          "page": 0,
+          "offset": 1038,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 39",
+          "page": 0,
+          "offset": 1039,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 40",
+          "page": 0,
+          "offset": 1040,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 41",
+          "page": 0,
+          "offset": 1041,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 42",
+          "page": 0,
+          "offset": 1042,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 43",
+          "page": 0,
+          "offset": 1043,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 44",
+          "page": 0,
+          "offset": 1044,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 45",
+          "page": 0,
+          "offset": 1045,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 46",
+          "page": 0,
+          "offset": 1046,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 47",
+          "page": 0,
+          "offset": 1047,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 48",
+          "page": 0,
+          "offset": 1048,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 49",
+          "page": 0,
+          "offset": 1049,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 50",
+          "page": 0,
+          "offset": 1050,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 51",
+          "page": 0,
+          "offset": 1051,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 52",
+          "page": 0,
+          "offset": 1052,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 53",
+          "page": 0,
+          "offset": 1053,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 54",
+          "page": 0,
+          "offset": 1054,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 55",
+          "page": 0,
+          "offset": 1055,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 56",
+          "page": 0,
+          "offset": 1056,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 57",
+          "page": 0,
+          "offset": 1057,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 58",
+          "page": 0,
+          "offset": 1058,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 59",
+          "page": 0,
+          "offset": 1059,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 60",
+          "page": 0,
+          "offset": 1060,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 61",
+          "page": 0,
+          "offset": 1061,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 62",
+          "page": 0,
+          "offset": 1062,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 63",
+          "page": 0,
+          "offset": 1063,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 64",
+          "page": 0,
+          "offset": 1064,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 65",
+          "page": 0,
+          "offset": 1065,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 66",
+          "page": 0,
+          "offset": 1066,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 67",
+          "page": 0,
+          "offset": 1067,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 68",
+          "page": 0,
+          "offset": 1068,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 69",
+          "page": 0,
+          "offset": 1069,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 70",
+          "page": 0,
+          "offset": 1070,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 71",
+          "page": 0,
+          "offset": 1071,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 72",
+          "page": 0,
+          "offset": 1072,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 73",
+          "page": 0,
+          "offset": 1073,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 74",
+          "page": 0,
+          "offset": 1074,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 75",
+          "page": 0,
+          "offset": 1075,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 76",
+          "page": 0,
+          "offset": 1076,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 77",
+          "page": 0,
+          "offset": 1077,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 78",
+          "page": 0,
+          "offset": 1078,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 79",
+          "page": 0,
+          "offset": 1079,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 80",
+          "page": 0,
+          "offset": 1080,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 81",
+          "page": 0,
+          "offset": 1081,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 82",
+          "page": 0,
+          "offset": 1082,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 83",
+          "page": 0,
+          "offset": 1083,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 84",
+          "page": 0,
+          "offset": 1084,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 85",
+          "page": 0,
+          "offset": 1085,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 86",
+          "page": 0,
+          "offset": 1086,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 87",
+          "page": 0,
+          "offset": 1087,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 88",
+          "page": 0,
+          "offset": 1088,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 89",
+          "page": 0,
+          "offset": 1089,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 90",
+          "page": 0,
+          "offset": 1090,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 91",
+          "page": 0,
+          "offset": 1091,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 92",
+          "page": 0,
+          "offset": 1092,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 93",
+          "page": 0,
+          "offset": 1093,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 94",
+          "page": 0,
+          "offset": 1094,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 95",
+          "page": 0,
+          "offset": 1095,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 96",
+          "page": 0,
+          "offset": 1096,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 97",
+          "page": 0,
+          "offset": 1097,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 98",
+          "page": 0,
+          "offset": 1098,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 99",
+          "page": 0,
+          "offset": 1099,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 100",
+          "page": 0,
+          "offset": 1100,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 101",
+          "page": 0,
+          "offset": 1101,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 102",
+          "page": 0,
+          "offset": 1102,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 103",
+          "page": 0,
+          "offset": 1103,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 104",
+          "page": 0,
+          "offset": 1104,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 105",
+          "page": 0,
+          "offset": 1105,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 106",
+          "page": 0,
+          "offset": 1106,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 107",
+          "page": 0,
+          "offset": 1107,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 108",
+          "page": 0,
+          "offset": 1108,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 109",
+          "page": 0,
+          "offset": 1109,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 110",
+          "page": 0,
+          "offset": 1110,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 111",
+          "page": 0,
+          "offset": 1111,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 112",
+          "page": 0,
+          "offset": 1112,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 113",
+          "page": 0,
+          "offset": 1113,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 114",
+          "page": 0,
+          "offset": 1114,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 115",
+          "page": 0,
+          "offset": 1115,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 116",
+          "page": 0,
+          "offset": 1116,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 117",
+          "page": 0,
+          "offset": 1117,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 118",
+          "page": 0,
+          "offset": 1118,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 119",
+          "page": 0,
+          "offset": 1119,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 120",
+          "page": 0,
+          "offset": 1120,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 121",
+          "page": 0,
+          "offset": 1121,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 122",
+          "page": 0,
+          "offset": 1122,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 123",
+          "page": 0,
+          "offset": 1123,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 124",
+          "page": 0,
+          "offset": 1124,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 125",
+          "page": 0,
+          "offset": 1125,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 126",
+          "page": 0,
+          "offset": 1126,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 127",
+          "page": 0,
+          "offset": 1127,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 128",
+          "page": 0,
+          "offset": 1128,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        },
+        {
+          "name": "GPO Thing 129",
+          "page": 0,
+          "offset": 1129,
+          "type": "U08",
+          "scale": "3ff0000000000000",
+          "units": "",
+          "digits": 0,
+          "low": "0000000000000000",
+          "high": "406fe00000000000",
+          "columns": 1,
+          "rows": 1
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [],
+      "maps": [],
+      "dialogs": [
+        {
+          "key": "maxx:GPO",
+          "name": "maxx:GPO",
+          "title": "GPO",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "GPO Thing 0",
+              "target": "GPO Thing 0",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 1",
+              "target": "GPO Thing 1",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 2",
+              "target": "GPO Thing 2",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 3",
+              "target": "GPO Thing 3",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 4",
+              "target": "GPO Thing 4",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 5",
+              "target": "GPO Thing 5",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 6",
+              "target": "GPO Thing 6",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 7",
+              "target": "GPO Thing 7",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 8",
+              "target": "GPO Thing 8",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 9",
+              "target": "GPO Thing 9",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 10",
+              "target": "GPO Thing 10",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 11",
+              "target": "GPO Thing 11",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 12",
+              "target": "GPO Thing 12",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 13",
+              "target": "GPO Thing 13",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 14",
+              "target": "GPO Thing 14",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 15",
+              "target": "GPO Thing 15",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 16",
+              "target": "GPO Thing 16",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 17",
+              "target": "GPO Thing 17",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 18",
+              "target": "GPO Thing 18",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 19",
+              "target": "GPO Thing 19",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 20",
+              "target": "GPO Thing 20",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 21",
+              "target": "GPO Thing 21",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 22",
+              "target": "GPO Thing 22",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 23",
+              "target": "GPO Thing 23",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 24",
+              "target": "GPO Thing 24",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 25",
+              "target": "GPO Thing 25",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 26",
+              "target": "GPO Thing 26",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 27",
+              "target": "GPO Thing 27",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 28",
+              "target": "GPO Thing 28",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 29",
+              "target": "GPO Thing 29",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 30",
+              "target": "GPO Thing 30",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 31",
+              "target": "GPO Thing 31",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 32",
+              "target": "GPO Thing 32",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 33",
+              "target": "GPO Thing 33",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 34",
+              "target": "GPO Thing 34",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 35",
+              "target": "GPO Thing 35",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 36",
+              "target": "GPO Thing 36",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 37",
+              "target": "GPO Thing 37",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 38",
+              "target": "GPO Thing 38",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 39",
+              "target": "GPO Thing 39",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 40",
+              "target": "GPO Thing 40",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 41",
+              "target": "GPO Thing 41",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 42",
+              "target": "GPO Thing 42",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 43",
+              "target": "GPO Thing 43",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 44",
+              "target": "GPO Thing 44",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 45",
+              "target": "GPO Thing 45",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 46",
+              "target": "GPO Thing 46",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 47",
+              "target": "GPO Thing 47",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 48",
+              "target": "GPO Thing 48",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 49",
+              "target": "GPO Thing 49",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 50",
+              "target": "GPO Thing 50",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 51",
+              "target": "GPO Thing 51",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 52",
+              "target": "GPO Thing 52",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 53",
+              "target": "GPO Thing 53",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 54",
+              "target": "GPO Thing 54",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 55",
+              "target": "GPO Thing 55",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 56",
+              "target": "GPO Thing 56",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 57",
+              "target": "GPO Thing 57",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 58",
+              "target": "GPO Thing 58",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 59",
+              "target": "GPO Thing 59",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:GPO 2",
+          "name": "maxx:GPO 2",
+          "title": "GPO 2",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "GPO Thing 60",
+              "target": "GPO Thing 60",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 61",
+              "target": "GPO Thing 61",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 62",
+              "target": "GPO Thing 62",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 63",
+              "target": "GPO Thing 63",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 64",
+              "target": "GPO Thing 64",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 65",
+              "target": "GPO Thing 65",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 66",
+              "target": "GPO Thing 66",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 67",
+              "target": "GPO Thing 67",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 68",
+              "target": "GPO Thing 68",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 69",
+              "target": "GPO Thing 69",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 70",
+              "target": "GPO Thing 70",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 71",
+              "target": "GPO Thing 71",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 72",
+              "target": "GPO Thing 72",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 73",
+              "target": "GPO Thing 73",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 74",
+              "target": "GPO Thing 74",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 75",
+              "target": "GPO Thing 75",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 76",
+              "target": "GPO Thing 76",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 77",
+              "target": "GPO Thing 77",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 78",
+              "target": "GPO Thing 78",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 79",
+              "target": "GPO Thing 79",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 80",
+              "target": "GPO Thing 80",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 81",
+              "target": "GPO Thing 81",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 82",
+              "target": "GPO Thing 82",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 83",
+              "target": "GPO Thing 83",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 84",
+              "target": "GPO Thing 84",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 85",
+              "target": "GPO Thing 85",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 86",
+              "target": "GPO Thing 86",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 87",
+              "target": "GPO Thing 87",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 88",
+              "target": "GPO Thing 88",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 89",
+              "target": "GPO Thing 89",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 90",
+              "target": "GPO Thing 90",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 91",
+              "target": "GPO Thing 91",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 92",
+              "target": "GPO Thing 92",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 93",
+              "target": "GPO Thing 93",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 94",
+              "target": "GPO Thing 94",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 95",
+              "target": "GPO Thing 95",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 96",
+              "target": "GPO Thing 96",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 97",
+              "target": "GPO Thing 97",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 98",
+              "target": "GPO Thing 98",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 99",
+              "target": "GPO Thing 99",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 100",
+              "target": "GPO Thing 100",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 101",
+              "target": "GPO Thing 101",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 102",
+              "target": "GPO Thing 102",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 103",
+              "target": "GPO Thing 103",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 104",
+              "target": "GPO Thing 104",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 105",
+              "target": "GPO Thing 105",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 106",
+              "target": "GPO Thing 106",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 107",
+              "target": "GPO Thing 107",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 108",
+              "target": "GPO Thing 108",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 109",
+              "target": "GPO Thing 109",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 110",
+              "target": "GPO Thing 110",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 111",
+              "target": "GPO Thing 111",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 112",
+              "target": "GPO Thing 112",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 113",
+              "target": "GPO Thing 113",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 114",
+              "target": "GPO Thing 114",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 115",
+              "target": "GPO Thing 115",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 116",
+              "target": "GPO Thing 116",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 117",
+              "target": "GPO Thing 117",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 118",
+              "target": "GPO Thing 118",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 119",
+              "target": "GPO Thing 119",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:GPO 3",
+          "name": "maxx:GPO 3",
+          "title": "GPO 3",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "GPO Thing 120",
+              "target": "GPO Thing 120",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 121",
+              "target": "GPO Thing 121",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 122",
+              "target": "GPO Thing 122",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 123",
+              "target": "GPO Thing 123",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 124",
+              "target": "GPO Thing 124",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 125",
+              "target": "GPO Thing 125",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 126",
+              "target": "GPO Thing 126",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 127",
+              "target": "GPO Thing 127",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 128",
+              "target": "GPO Thing 128",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "GPO Thing 129",
+              "target": "GPO Thing 129",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        }
+      ],
+      "menus": [
+        {
+          "title": "G",
+          "entries": [
+            {
+              "dialog": "maxx:GPO",
+              "title": "GPO",
+              "condition": ""
+            },
+            {
+              "dialog": "maxx:GPO 2",
+              "title": "GPO 2",
+              "condition": ""
+            },
+            {
+              "dialog": "maxx:GPO 3",
+              "title": "GPO 3",
+              "condition": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a_long_list",
+      "kind": "build",
+      "constants": [
+        {
+          "name": "Long List",
+          "page": 0,
+          "offset": 1000,
+          "type": "U16",
+          "scale": "3f847ae147ae147b",
+          "units": "",
+          "digits": 2,
+          "low": "0000000000000000",
+          "high": "4014000000000000",
+          "columns": 64,
+          "rows": 1
+        },
+        {
+          "name": "Long List Two",
+          "page": 0,
+          "offset": 1200,
+          "type": "U16",
+          "scale": "3f847ae147ae147b",
+          "units": "",
+          "digits": 2,
+          "low": "0000000000000000",
+          "high": "4014000000000000",
+          "columns": 64,
+          "rows": 1
+        }
+      ],
+      "pages": [
+        {
+          "index": 0,
+          "size": 65536,
+          "identifier": "",
+          "read_command": "",
+          "chunk_write_command": "",
+          "burn_command": ""
+        }
+      ],
+      "little_endian": true,
+      "blocking_factor": 512,
+      "tables": [],
+      "maps": [],
+      "dialogs": [
+        {
+          "key": "maxx:Long",
+          "name": "maxx:Long",
+          "title": "Long",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Long List [0]",
+              "target": "Long List[0]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [1]",
+              "target": "Long List[1]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [2]",
+              "target": "Long List[2]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [3]",
+              "target": "Long List[3]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [4]",
+              "target": "Long List[4]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [5]",
+              "target": "Long List[5]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [6]",
+              "target": "Long List[6]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [7]",
+              "target": "Long List[7]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [8]",
+              "target": "Long List[8]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [9]",
+              "target": "Long List[9]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [10]",
+              "target": "Long List[10]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [11]",
+              "target": "Long List[11]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [12]",
+              "target": "Long List[12]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [13]",
+              "target": "Long List[13]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [14]",
+              "target": "Long List[14]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [15]",
+              "target": "Long List[15]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [16]",
+              "target": "Long List[16]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [17]",
+              "target": "Long List[17]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [18]",
+              "target": "Long List[18]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [19]",
+              "target": "Long List[19]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [20]",
+              "target": "Long List[20]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [21]",
+              "target": "Long List[21]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [22]",
+              "target": "Long List[22]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [23]",
+              "target": "Long List[23]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [24]",
+              "target": "Long List[24]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [25]",
+              "target": "Long List[25]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [26]",
+              "target": "Long List[26]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [27]",
+              "target": "Long List[27]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [28]",
+              "target": "Long List[28]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [29]",
+              "target": "Long List[29]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [30]",
+              "target": "Long List[30]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [31]",
+              "target": "Long List[31]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [32]",
+              "target": "Long List[32]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [33]",
+              "target": "Long List[33]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [34]",
+              "target": "Long List[34]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [35]",
+              "target": "Long List[35]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [36]",
+              "target": "Long List[36]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [37]",
+              "target": "Long List[37]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [38]",
+              "target": "Long List[38]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [39]",
+              "target": "Long List[39]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [40]",
+              "target": "Long List[40]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [41]",
+              "target": "Long List[41]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [42]",
+              "target": "Long List[42]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [43]",
+              "target": "Long List[43]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [44]",
+              "target": "Long List[44]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [45]",
+              "target": "Long List[45]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [46]",
+              "target": "Long List[46]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [47]",
+              "target": "Long List[47]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [48]",
+              "target": "Long List[48]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [49]",
+              "target": "Long List[49]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [50]",
+              "target": "Long List[50]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [51]",
+              "target": "Long List[51]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [52]",
+              "target": "Long List[52]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [53]",
+              "target": "Long List[53]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [54]",
+              "target": "Long List[54]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [55]",
+              "target": "Long List[55]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [56]",
+              "target": "Long List[56]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [57]",
+              "target": "Long List[57]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [58]",
+              "target": "Long List[58]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [59]",
+              "target": "Long List[59]",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Long 2",
+          "name": "maxx:Long 2",
+          "title": "Long 2",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Long List [60]",
+              "target": "Long List[60]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [61]",
+              "target": "Long List[61]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [62]",
+              "target": "Long List[62]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List [63]",
+              "target": "Long List[63]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [0]",
+              "target": "Long List Two[0]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [1]",
+              "target": "Long List Two[1]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [2]",
+              "target": "Long List Two[2]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [3]",
+              "target": "Long List Two[3]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [4]",
+              "target": "Long List Two[4]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [5]",
+              "target": "Long List Two[5]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [6]",
+              "target": "Long List Two[6]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [7]",
+              "target": "Long List Two[7]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [8]",
+              "target": "Long List Two[8]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [9]",
+              "target": "Long List Two[9]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [10]",
+              "target": "Long List Two[10]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [11]",
+              "target": "Long List Two[11]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [12]",
+              "target": "Long List Two[12]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [13]",
+              "target": "Long List Two[13]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [14]",
+              "target": "Long List Two[14]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [15]",
+              "target": "Long List Two[15]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [16]",
+              "target": "Long List Two[16]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [17]",
+              "target": "Long List Two[17]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [18]",
+              "target": "Long List Two[18]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [19]",
+              "target": "Long List Two[19]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [20]",
+              "target": "Long List Two[20]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [21]",
+              "target": "Long List Two[21]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [22]",
+              "target": "Long List Two[22]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [23]",
+              "target": "Long List Two[23]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [24]",
+              "target": "Long List Two[24]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [25]",
+              "target": "Long List Two[25]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [26]",
+              "target": "Long List Two[26]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [27]",
+              "target": "Long List Two[27]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [28]",
+              "target": "Long List Two[28]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [29]",
+              "target": "Long List Two[29]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [30]",
+              "target": "Long List Two[30]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [31]",
+              "target": "Long List Two[31]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [32]",
+              "target": "Long List Two[32]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [33]",
+              "target": "Long List Two[33]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [34]",
+              "target": "Long List Two[34]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [35]",
+              "target": "Long List Two[35]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [36]",
+              "target": "Long List Two[36]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [37]",
+              "target": "Long List Two[37]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [38]",
+              "target": "Long List Two[38]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [39]",
+              "target": "Long List Two[39]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [40]",
+              "target": "Long List Two[40]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [41]",
+              "target": "Long List Two[41]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [42]",
+              "target": "Long List Two[42]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [43]",
+              "target": "Long List Two[43]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [44]",
+              "target": "Long List Two[44]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [45]",
+              "target": "Long List Two[45]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [46]",
+              "target": "Long List Two[46]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [47]",
+              "target": "Long List Two[47]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [48]",
+              "target": "Long List Two[48]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [49]",
+              "target": "Long List Two[49]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [50]",
+              "target": "Long List Two[50]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [51]",
+              "target": "Long List Two[51]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [52]",
+              "target": "Long List Two[52]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [53]",
+              "target": "Long List Two[53]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [54]",
+              "target": "Long List Two[54]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [55]",
+              "target": "Long List Two[55]",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        },
+        {
+          "key": "maxx:Long 3",
+          "name": "maxx:Long 3",
+          "title": "Long 3",
+          "layout": "yAxis",
+          "items": [
+            {
+              "kind": "Field",
+              "label": "Long List Two [56]",
+              "target": "Long List Two[56]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [57]",
+              "target": "Long List Two[57]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [58]",
+              "target": "Long List Two[58]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [59]",
+              "target": "Long List Two[59]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [60]",
+              "target": "Long List Two[60]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [61]",
+              "target": "Long List Two[61]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [62]",
+              "target": "Long List Two[62]",
+              "condition": "",
+              "position": ""
+            },
+            {
+              "kind": "Field",
+              "label": "Long List Two [63]",
+              "target": "Long List Two[63]",
+              "condition": "",
+              "position": ""
+            }
+          ]
+        }
+      ],
+      "menus": [
+        {
+          "title": "L",
+          "entries": [
+            {
+              "dialog": "maxx:Long",
+              "title": "Long",
+              "condition": ""
+            },
+            {
+              "dialog": "maxx:Long 2",
+              "title": "Long 2",
+              "condition": ""
+            },
+            {
+              "dialog": "maxx:Long 3",
+              "title": "Long 3",
+              "condition": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "overlap",
+      "kind": "overlap",
+      "overlap": [
+        {
+          "offset": 100,
+          "length": 3,
+          "hits": [
+            "IATSensor Input Voltage"
+          ]
+        },
+        {
+          "offset": 98,
+          "length": 2,
+          "hits": []
+        },
+        {
+          "offset": 99,
+          "length": 2,
+          "hits": [
+            "IATSensor Input Voltage"
+          ]
+        },
+        {
+          "offset": 5000,
+          "length": 4,
+          "hits": [
+            "Wide Word"
+          ]
+        },
+        {
+          "offset": 5004,
+          "length": 1,
+          "hits": [
+            "Wide Word"
+          ]
+        },
+        {
+          "offset": 21831,
+          "length": 50,
+          "hits": []
+        },
+        {
+          "offset": 0,
+          "length": 65536,
+          "hits": [
+            "IATSensor Input Voltage",
+            "IATSensor Predef",
+            "Fuel Injmethod",
+            "Fuel Trim",
+            "Fuel Trim",
+            "VE Table 1 data",
+            "VE Table 1 X",
+            "Wide Word",
+            "Signed Byte",
+            "Curve",
+            "Off The End",
+            "1stSensor Thing",
+            "zeta lower",
+            "Alpha one",
+            "alpha Two"
+          ]
+        },
+        {
+          "offset": 310,
+          "length": 1,
+          "hits": [
+            "Fuel Trim"
+          ]
+        },
+        {
+          "offset": 311,
+          "length": 2,
+          "hits": [
+            "Fuel Trim",
+            "Fuel Trim"
+          ]
+        },
+        {
+          "offset": 1578,
+          "length": 21,
+          "hits": [
+            "VE Table 1 data"
+          ]
+        },
+        {
+          "offset": 1599,
+          "length": 4,
+          "hits": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "ve_16x11",
+      "found": true,
+      "table_name": "VE Table 1",
+      "columns": 16,
+      "rows": 11,
+      "x_channel": 61,
+      "y_channel": 20,
+      "x_axis_at": 17870,
+      "y_axis_at": 17902,
+      "cells_at": 17933,
+      "fits": false,
+      "record": "70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F03A403C903EE03130438045D048204A704CC04F10416053B0560058505AA05CF05F40519063E0663068806AD06D206F7061C07410766078B07B007D507FA071F08440869088E08B308D808FD08220947096C099109B609DB09000A250A4A0A6F0A940AB90ADE0A030B280B4D0B720B970BBC0BE10B060C2B0C500C750C9A0CBF0CE40C090D2E0D530D780D9D0DC20DE70D0C0E310E560E7B0EA00EC50EEA0E0F0F340F590F7E0FA30FC80FED0F121037105C108110A610CB10F01015113A115F118411A911CE11F31118123D1262128712AC12D112F6121B13401365138A13AF13D413F9131E14431468148D14B214D714FC14211546156B159015B515DA15FF15241649166E169316B816DD16021727174C1771179617BB17EB41AB23",
+      "record_crc": "23AB41EB",
+      "pieces": [
+        "17933:70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F03A403C903EE03130438045D048204A704CC04F10416053B0560058505AA05CF05F40519063E0663068806AD06D206F7061C07410766078B07B007D507FA071F08440869088E08B308D808FD08220947096C099109B609DB09000A250A4A0A6F0A940AB90ADE0A030B280B4D0B720B970BBC0BE10B060C2B0C500C750C9A0CBF0CE40C090D2E0D530D780D9D0DC20DE70D0C0E310E560E7B0EA00EC50EEA0E0F0F340F590F7E0FA30FC80FED0F121037105C108110A610CB10",
+        "18189:F01015113A115F118411A911CE11F31118123D1262128712AC12D112F6121B13401365138A13AF13D413F9131E14431468148D14B214D714FC14211546156B159015B515DA15FF15241649166E169316B816DD16021727174C1771179617BB17EB41AB23"
+      ],
+      "wrong_size": "ArgumentException"
+    },
+    {
+      "name": "small_6x6",
+      "found": true,
+      "table_name": "Fuel ASE Table",
+      "columns": 6,
+      "rows": 6,
+      "x_channel": 61,
+      "y_channel": 20,
+      "x_axis_at": 17474,
+      "y_axis_at": 17486,
+      "cells_at": 17507,
+      "fits": true,
+      "record": "70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D",
+      "record_crc": "5D444739",
+      "pieces": [
+        "17507:70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D"
+      ],
+      "wrong_size": "ArgumentException"
+    },
+    {
+      "name": "ve_other_place",
+      "found": true,
+      "table_name": "Boost Target",
+      "columns": 16,
+      "rows": 11,
+      "x_channel": 61,
+      "y_channel": 20,
+      "x_axis_at": 18874,
+      "y_axis_at": 18906,
+      "cells_at": 18937,
+      "fits": false,
+      "record": "70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F03A403C903EE03130438045D048204A704CC04F10416053B0560058505AA05CF05F40519063E0663068806AD06D206F7061C07410766078B07B007D507FA071F08440869088E08B308D808FD08220947096C099109B609DB09000A250A4A0A6F0A940AB90ADE0A030B280B4D0B720B970BBC0BE10B060C2B0C500C750C9A0CBF0CE40C090D2E0D530D780D9D0DC20DE70D0C0E310E560E7B0EA00EC50EEA0E0F0F340F590F7E0FA30FC80FED0F121037105C108110A610CB10F01015113A115F118411A911CE11F31118123D1262128712AC12D112F6121B13401365138A13AF13D413F9131E14431468148D14B214D714FC14211546156B159015B515DA15FF15241649166E169316B816DD16021727174C1771179617BB17EB41AB23",
+      "record_crc": "23AB41EB",
+      "pieces": [
+        "18937:70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F03A403C903EE03130438045D048204A704CC04F10416053B0560058505AA05CF05F40519063E0663068806AD06D206F7061C07410766078B07B007D507FA071F08440869088E08B308D808FD08220947096C099109B609DB09000A250A4A0A6F0A940AB90ADE0A030B280B4D0B720B970BBC0BE10B060C2B0C500C750C9A0CBF0CE40C090D2E0D530D780D9D0DC20DE70D0C0E310E560E7B0EA00EC50EEA0E0F0F340F590F7E0FA30FC80FED0F121037105C108110A610CB10",
+        "19193:F01015113A115F118411A911CE11F31118123D1262128712AC12D112F6121B13401365138A13AF13D413F9131E14431468148D14B214D714FC14211546156B159015B515DA15FF15241649166E169316B816DD16021727174C1771179617BB17EB41AB23"
+      ],
+      "wrong_size": "ArgumentException"
+    },
+    {
+      "name": "not_a_table",
+      "found": false
+    },
+    {
+      "name": "no_suffix",
+      "found": true,
+      "table_name": "Spark Map",
+      "columns": 6,
+      "rows": 6,
+      "x_channel": 61,
+      "y_channel": 20,
+      "x_axis_at": 17474,
+      "y_axis_at": 17486,
+      "cells_at": 17507,
+      "fits": true,
+      "record": "70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D",
+      "record_crc": "5D444739",
+      "pieces": [
+        "17507:70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D"
+      ],
+      "wrong_size": "ArgumentException"
+    },
+    {
+      "name": "upper_suffix",
+      "found": true,
+      "table_name": "Spark MAP",
+      "columns": 6,
+      "rows": 6,
+      "x_channel": 61,
+      "y_channel": 20,
+      "x_axis_at": 17474,
+      "y_axis_at": 17486,
+      "cells_at": 17507,
+      "fits": true,
+      "record": "70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D",
+      "record_crc": "5D444739",
+      "pieces": [
+        "17507:70FE95FEBAFEDFFE04FF29FF4EFF73FF98FFBDFFE2FF07002C00510076009B00C000E5000A012F01540179019E01C301E8010D02320257027C02A102C602EB02100335035A037F033947445D"
+      ],
+      "wrong_size": "ArgumentException"
+    },
+    {
+      "name": "axis_does_not_climb",
+      "found": false
+    },
+    {
+      "name": "no_columns",
+      "found": false
+    },
+    {
+      "name": "too_many_rows",
+      "found": false
+    },
+    {
+      "name": "two_layers",
+      "found": false
+    },
+    {
+      "name": "past_the_blob",
+      "found": false
+    },
+    {
+      "name": "negative_config",
+      "found": false
+    },
+    {
+      "name": "config_at_the_end",
+      "found": false
+    },
+    {
+      "name": "checksums_of_62183",
+      "found": false,
+      "covers": 62183,
+      "sums": [
+        "2F2A2B1B",
+        "2F734CE9",
+        "6986E1F7",
+        "9B1B1764",
+        "F32A60BC",
+        "1049C5C7",
+        "6661A328",
+        "676A53D3",
+        "C30D88A4",
+        "C354EF56",
+        "85A14248",
+        "773CB4DB",
+        "1F0DC303",
+        "FC6E6678",
+        "8A460097",
+        "2E836BC8"
+      ]
+    },
+    {
+      "name": "checksums_of_62180",
+      "found": false,
+      "covers": 62180,
+      "sums": [
+        "2F2A2B1B",
+        "2F734CE9",
+        "6986E1F7",
+        "9B1B1764",
+        "F32A60BC",
+        "1049C5C7",
+        "6661A328",
+        "676A53D3",
+        "C30D88A4",
+        "C354EF56",
+        "85A14248",
+        "773CB4DB",
+        "1F0DC303",
+        "FC6E6678",
+        "8A460097",
+        "DE8808A9"
+      ]
+    },
+    {
+      "name": "checksums_of_65536",
+      "found": false,
+      "covers": 65536,
+      "sums": [
+        "2F2A2B1B",
+        "2F734CE9",
+        "6986E1F7",
+        "9B1B1764",
+        "F32A60BC",
+        "1049C5C7",
+        "6661A328",
+        "676A53D3",
+        "C30D88A4",
+        "C354EF56",
+        "85A14248",
+        "773CB4DB",
+        "1F0DC303",
+        "FC6E6678",
+        "8A460097",
+        "8B4DF06C"
+      ]
+    },
+    {
+      "name": "checksums_of_70000",
+      "found": false,
+      "covers": 70000,
+      "sums": [
+        "2F2A2B1B",
+        "2F734CE9",
+        "6986E1F7",
+        "9B1B1764",
+        "F32A60BC",
+        "1049C5C7",
+        "6661A328",
+        "676A53D3",
+        "C30D88A4",
+        "C354EF56",
+        "85A14248",
+        "773CB4DB",
+        "1F0DC303",
+        "FC6E6678",
+        "8A460097",
+        "8B4DF06C"
+      ]
+    },
+    {
+      "name": "checksums_of_4096",
+      "found": false,
+      "covers": 4096,
+      "sums": [
+        "2F2A2B1B"
+      ]
+    },
+    {
+      "name": "checksums_of_4097",
+      "found": false,
+      "covers": 4097,
+      "sums": [
+        "2F2A2B1B",
+        "8B15060B"
+      ]
+    },
+    {
+      "name": "checksums_of_8192",
+      "found": false,
+      "covers": 8192,
+      "sums": [
+        "2F2A2B1B",
+        "2F734CE9"
+      ]
+    },
+    {
+      "name": "checksums_of_1",
+      "found": false,
+      "covers": 1,
+      "sums": [
+        "C704DD7B"
+      ]
+    },
+    {
+      "name": "checksums_of_743",
+      "found": false,
+      "covers": 743,
+      "sums": [
+        "FA2DE3AA"
+      ]
+    },
+    {
+      "name": "checksums_of_zero",
+      "found": false,
+      "covers": 0,
+      "error_kind": "ArgumentOutOfRangeException"
+    },
+    {
+      "name": "pad_byte_00",
+      "found": false,
+      "record_crc": "667AE3F8"
+    },
+    {
+      "name": "pad_byte_5A",
+      "found": false,
+      "record_crc": "C09C6CF5"
+    },
+    {
+      "name": "pad_byte_FF",
+      "found": false,
+      "record_crc": "F49AAA79"
+    }
+  ]
+}
