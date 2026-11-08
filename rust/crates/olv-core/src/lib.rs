@@ -17,5 +17,7 @@ pub mod channels;
 pub mod definitions;
 pub mod filters;
 pub mod ini;
+pub mod insights;
 pub mod logs;
 pub mod math;
+pub mod tune;
