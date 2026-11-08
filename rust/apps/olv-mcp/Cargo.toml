@@ -1,0 +1,27 @@
+[package]
+name = "olv-mcp"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "olv-mcp"
+path = "src/main.rs"
+
+[dependencies]
+olv-agent = { path = "../../crates/olv-agent" }
+olv-core = { path = "../../crates/olv-core" }
+olv-store = { path = "../../crates/olv-store" }
+
+[dev-dependencies]
+olv-agent = { path = "../../crates/olv-agent", features = ["testing"] }
+olv-oracle = { path = "../../crates/olv-oracle" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

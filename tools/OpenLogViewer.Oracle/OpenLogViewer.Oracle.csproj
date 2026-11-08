@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenLogViewer.Core\OpenLogViewer.Core.csproj" />
+    <!-- The MCP server is an Exe with no public surface; W5Mcp calls its Answer by reflection. -->
+    <ProjectReference Include="..\OpenLogViewer.Mcp\OpenLogViewer.Mcp.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

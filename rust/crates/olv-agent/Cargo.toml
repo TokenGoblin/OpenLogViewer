@@ -7,10 +7,23 @@ publish.workspace = true
 
 [dependencies]
 olv-core = { path = "../olv-core" }
+olv-live = { path = "../olv-live" }
+olv-protocol = { path = "../olv-protocol" }
+olv-store = { path = "../olv-store" }
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+httparse.workspace = true
+tungstenite.workspace = true
+getrandom.workspace = true
+
+[features]
+# A canned bridge for tests (see `agent::testing`). Off in the application.
+testing = []
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
-serde.workspace = true
+olv-agent = { path = ".", features = ["testing"] }
 
 [lints]
 workspace = true

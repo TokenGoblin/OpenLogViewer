@@ -1,0 +1,868 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "initialize",
+      "method": "initialize",
+      "output": "{\u0022result\u0022:{\u0022protocolVersion\u0022:\u00222024-11-05\u0022,\u0022capabilities\u0022:{\u0022tools\u0022:{}},\u0022serverInfo\u0022:{\u0022name\u0022:\u0022openlogviewer\u0022,\u0022version\u0022:\u00221\u0022}},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "ping",
+      "method": "ping",
+      "output": "{\u0022result\u0022:{},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "tools/list",
+      "method": "tools/list",
+      "output": "{\u0022result\u0022:{\u0022tools\u0022:[{\u0022name\u0022:\u0022olv_state\u0022,\u0022description\u0022:\u0022What OpenLogViewer has open: whether it is watching a live ECU or a saved log, the firmware, how many samples and channels, and whether writing is armed. Ask this first; everything else depends on what is loaded.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_channels\u0022,\u0022description\u0022:\u0022Every channel available, with its units and the job it does. The role \u2014 EngineSpeed, Mixture, ManifoldPressure and so on \u2014 is the reliable way to find a channel, because each firmware spells them differently: a rusEFI calls engine speed RPMValue and a MegaSquirt calls it rpm.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022raw\u0022:{\u0022type\u0022:\u0022boolean\u0022,\u0022description\u0022:\u0022True to get every channel the connected ECU\u0027s firmware decodes, not just the ones its own datalog definition names \u2014 for finding something nobody thought to log. Only live connections have anything extra to offer here.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_wire_health\u0022,\u0022description\u0022:\u0022How the link to the ECU is actually doing: recent success rate, what kinds of failures happened, how long since the last one, and how long ago the last successful exchange was. Ask this before concluding a read or write failed for a reason in the tune rather than the link.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_wire_events\u0022,\u0022description\u0022:\u0022The most recent requests actually sent to the ECU, newest first: what each one was for, which attempt it was, how long it took, and how it ended. This is the wire trace \u2014 the thing to pull when a read or write behaved unexpectedly and olv_state or a refusal message alone does not say why.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022count\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022How many events to return, newest first. Defaults to 100, capped at 500.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_values\u0022,\u0022description\u0022:\u0022The samples of one channel, oldest first, with the matching times. On a live session give a number of seconds to get only the newest; leave it out for the lot.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022channel\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The channel name, exactly as olv_channels gives it.\u0022},\u0022seconds\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022How many seconds back from the newest sample. Omit for all of them.\u0022}},\u0022required\u0022:[\u0022channel\u0022]}},{\u0022name\u0022:\u0022olv_insights\u0022,\u0022description\u0022:\u0022What the log says about the engine: fuelling against target, lean excursions under load, closed-loop behaviour, sensor faults, and what looks healthy. Each finding carries the arithmetic behind it so it can be argued with.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_tune\u0022,\u0022description\u0022:\u0022Every setting in the tune read off the controller, by name. Empty unless an ECU is connected and its tune has been read.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_tables\u0022,\u0022description\u0022:\u0022The names of the tables this firmware declares \u2014 the VE table, the ignition table and the rest.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_table\u0022,\u0022description\u0022:\u0022One table: its cells as rows, and the axes they are looked up on.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name, as olv_tables gives it.\u0022}},\u0022required\u0022:[\u0022name\u0022]}},{\u0022name\u0022:\u0022olv_project\u0022,\u0022description\u0022:\u0022The tuning project for this vehicle: what is wrong with the tune, what has already been tried, and what happened. READ THIS FIRST on any tuning question \u2014 it is the part no log can tell you, and without it you will re-diagnose problems that were diagnosed weeks ago and re-suggest changes that were already tried and did not work.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_record_sitting\u0022,\u0022description\u0022:\u0022Records the log in hand against the project: keeps every finding, raises a fix for anything newly warned about, and notes a repeat against the fix already tracking it. Do this once per log you analyse, so the project shows whether things are getting better.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022note\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022What this sitting was, in your words. What was changed before it, what you were testing.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_keep_tune\u0022,\u0022description\u0022:\u0022Records the tune now in hand as a version of the project, so later logs can be attributed to it. Do this before suggesting a change and after one is burned. Recording an unchanged tune is harmless \u2014 it returns the version it already is.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022note\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Why this tune is worth keeping. What it was for.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_compare_versions\u0022,\u0022description\u0022:\u0022What changed between two tune versions, setting by setting, in the firmware\u0027s own units. Version ids look like v1, v2 and come from olv_project. This is how to check what a change actually did rather than what it was meant to do.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022from\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The earlier version, e.g. v3.\u0022},\u0022to\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The later one, e.g. v4.\u0022}},\u0022required\u0022:[\u0022from\u0022,\u0022to\u0022]}},{\u0022name\u0022:\u0022olv_note_fix\u0022,\u0022description\u0022:\u0022Adds a fix to the project or moves one along. Give an id to change an existing one, or leave it out to raise a new one. This changes the record of what is being worked on and touches no engine, so it needs no arming. Move a fix to applied when a change has been made and to verified only when a later log shows it worked.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022id\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The fix to change, as olv_project gives it. Omit to raise a new one.\u0022},\u0022title\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022What is wrong, in one line. Required for a new fix.\u0022},\u0022detail\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The reasoning: what was seen and what you think it means.\u0022},\u0022state\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022open, applied, verified or abandoned.\u0022},\u0022change\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022What was actually changed in the tune.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_set_setting\u0022,\u0022description\u0022:\u0022Changes one setting in the ECU\u0027s WORKING MEMORY. Refused unless the person at the machine has ticked \\\u0022Allow agent writes\\\u0022, unless the engine is running above idle, unless too many writes have landed in the last few seconds, and unless the change is disproportionately large for one call. It is never burned, so turning the key off undoes it. Read the value first and say what you are changing and why: rationale is required and is echoed back with the write. A rev limiter, launch RPM, boost limit, or fuel/ignition cut additionally needs confirmDangerous:true.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The setting\u0027s name, as olv_tune gives it.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value, in the units the firmware declares.\u0022},\u0022rationale\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Why this change is being made, in one line. Required.\u0022},\u0022confirmDangerous\u0022:{\u0022type\u0022:\u0022boolean\u0022,\u0022description\u0022:\u0022Set true to confirm a write to a rev limiter, launch RPM, boost limit, or fuel/ignition cut. Refused without it only for those settings.\u0022}},\u0022required\u0022:[\u0022name\u0022,\u0022value\u0022,\u0022rationale\u0022]}},{\u0022name\u0022:\u0022olv_set_table_cell\u0022,\u0022description\u0022:\u0022Changes one cell of one table in the ECU\u0027s WORKING MEMORY. Refused unless writing is armed, unless the engine is running above idle, unless too many writes have landed in the last few seconds, and unless the change is disproportionately large for one call. Never burned. Columns and rows are counted from zero. Rationale is required and is echoed back with the write.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022table\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name.\u0022},\u0022column\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Column index, from zero.\u0022},\u0022row\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Row index, from zero.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value.\u0022},\u0022rationale\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Why this change is being made, in one line. Required.\u0022},\u0022confirmDangerous\u0022:{\u0022type\u0022:\u0022boolean\u0022,\u0022description\u0022:\u0022Set true to confirm a write to a constant one of the safety guards recognises.\u0022}},\u0022required\u0022:[\u0022table\u0022,\u0022column\u0022,\u0022row\u0022,\u0022value\u0022,\u0022rationale\u0022]}},{\u0022name\u0022:\u0022olv_tune_full\u0022,\u0022description\u0022:\u0022The whole tune in one call: every setting with its units/options/range, and every table with its cells and axes. Use this instead of olv_tune plus olv_tables plus an olv_table call per table when you want to reason about the tune as a whole.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_log_full\u0022,\u0022description\u0022:\u0022Every channel\u0027s samples from the log in hand, in one call, sharing one time column. A full, undecimated log can be tens of megabytes of JSON, so give a decimate stride (e.g. 5 keeps one sample in five) on anything but a short log.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022seconds\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022How many seconds back from the newest sample. Omit for all of them.\u0022},\u0022decimate\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Keep one sample in every this many. Omit or 1 for all of them.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_context\u0022,\u0022description\u0022:\u0022The one call to make at the start of a session: the project\u0027s own prose, what is connected, how big the tune in hand is, the latest findings and the link\u0027s health. Deliberately not the full tune or the full log \u2014 ask olv_tune_full or olv_log_full next if this says they are worth reading.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_propose_tune\u0022,\u0022description\u0022:\u0022Works out what a batch of settings and table cells would change, WITHOUT sending anything. Answerable even when writes are not armed, because nothing here reaches the ECU \u2014 it lays the changes over a private copy of the tune and reports the difference. Use this before olv_apply_tune so the person can see the diff first.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022settings\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Settings to change, each by name and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The setting\u0027s name, as olv_tune gives it.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value, in the units the firmware declares.\u0022}}}},\u0022cells\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Table cells to change, each by table name, column, row and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022table\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name.\u0022},\u0022column\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Column index, from zero.\u0022},\u0022row\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Row index, from zero.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value.\u0022}}}}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_apply_tune\u0022,\u0022description\u0022:\u0022Applies a batch of settings and table cells to the ECU\u0027s WORKING MEMORY for real, through the same per-setting and per-cell writes olv_set_setting and olv_set_table_cell use \u2014 the same guards apply: writing must be armed, the engine must not be running above idle, and too large or too frequent a batch is refused. Never burned. \\\u0022note\\\u0022 doubles as the rationale each underlying write requires and is what the version gets kept under, so it is required, not optional.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022settings\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Settings to change, each by name and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The setting\u0027s name, as olv_tune gives it.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value, in the units the firmware declares.\u0022}}}},\u0022cells\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Table cells to change, each by table name, column, row and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022table\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name.\u0022},\u0022column\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Column index, from zero.\u0022},\u0022row\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Row index, from zero.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value.\u0022}}}},\u0022note\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Why this batch is being applied, in one line. Required \u2014 kept as the version note.\u0022},\u0022confirmDangerous\u0022:{\u0022type\u0022:\u0022boolean\u0022,\u0022description\u0022:\u0022Set true if the batch touches a rev limiter, launch RPM, boost limit, or fuel/ignition cut. Refused without it only when one of those is touched.\u0022}},\u0022required\u0022:[\u0022note\u0022]}},{\u0022name\u0022:\u0022olv_stage_tune\u0022,\u0022description\u0022:\u0022Writes a tune out as a real .msq file in OpenLogViewer\u0027s staging folder, for a person to open in TunerStudio themselves \u2014 nothing here reaches the ECU, so it needs no arming. With no settings or cells, stages the tune exactly as it stands; given some, stages what they would make it, the same working copy olv_propose_tune uses.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022settings\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Settings to change, each by name and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The setting\u0027s name, as olv_tune gives it.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value, in the units the firmware declares.\u0022}}}},\u0022cells\u0022:{\u0022type\u0022:\u0022array\u0022,\u0022description\u0022:\u0022Table cells to change, each by table name, column, row and new value.\u0022,\u0022items\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022table\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name.\u0022},\u0022column\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Column index, from zero.\u0022},\u0022row\u0022:{\u0022type\u0022:\u0022integer\u0022,\u0022description\u0022:\u0022Row index, from zero.\u0022},\u0022value\u0022:{\u0022type\u0022:\u0022number\u0022,\u0022description\u0022:\u0022The new value.\u0022}}}},\u0022filename\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The file name to stage it under. Defaults to a timestamped name.\u0022}},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_stage_table\u0022,\u0022description\u0022:\u0022Writes one named table out as an import-ready CSV in the staging folder \u2014 breakpoints across the top and down the left, values in the grid. Never reaches the ECU, so it needs no arming.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The table name, as olv_tables gives it.\u0022},\u0022filename\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The file name to stage it under. Defaults to a timestamped name.\u0022}},\u0022required\u0022:[\u0022name\u0022]}},{\u0022name\u0022:\u0022olv_list_staged\u0022,\u0022description\u0022:\u0022What is sitting in the staging folder right now: every file olv_stage_tune or olv_stage_table has written, with its size and when it was written.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_definition_needed\u0022,\u0022description\u0022:\u0022Whether OpenLogViewer is missing the firmware definition (.ini) for the ECU somebody just tried to connect to, and what it needs. ASK THIS whenever a connection fails \u2014 a definition is how raw ECU bytes become named channels and settings, and without the right one the application will not connect at all. The answer says what the ECU called itself, what is already on this machine, and \u2014 only where the firmware\u0027s licence permits it \u2014 addresses to fetch the file from. Read the guidance field: when it gives you no addresses that is a decision about that firmware, not an oversight, and you should follow what it says instead rather than searching for a way around it.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{},\u0022required\u0022:[]}},{\u0022name\u0022:\u0022olv_import_definition\u0022,\u0022description\u0022:\u0022Hands a firmware definition to OpenLogViewer, which checks it really is one and really declares the signature the ECU reported before keeping it. Prefer \\\u0022path\\\u0022: save the file yourself and give the path, because these run to half a megabyte and pasting one through \\\u0022content\\\u0022 wastes an enormous amount of context for no gain. A definition decides which byte of an engine is the rev limiter, so a mismatch is refused rather than guessed at.\u0022,\u0022inputSchema\u0022:{\u0022type\u0022:\u0022object\u0022,\u0022properties\u0022:{\u0022path\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Where you saved the file. The ordinary way.\u0022},\u0022content\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022The definition itself, only if you have nowhere to save it.\u0022},\u0022source\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022Where it came from \u2014 the URL you fetched, so it is on the record.\u0022},\u0022name\u0022:{\u0022type\u0022:\u0022string\u0022,\u0022description\u0022:\u0022What to call it. Omit to name it after its signature.\u0022}},\u0022required\u0022:[]}}]},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "nope/never",
+      "method": "nope/never",
+      "output": "{\u0022error\u0022:{\u0022code\u0022:-32601,\u0022message\u0022:\u0022no such method: nope/never\u0022},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "resources/list",
+      "method": "resources/list",
+      "output": "{\u0022error\u0022:{\u0022code\u0022:-32601,\u0022message\u0022:\u0022no such method: resources/list\u0022},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "no application",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_state",
+        "arguments": "{}"
+      },
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022No agent API is running: /nowhere/agent-api.json is not there. Start OpenLogViewer and turn on Tools \u2192 Agent API.\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "state",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_state",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022mode\\\u0022:\\\u0022live\\\u0022,\\\u0022signature\\\u0022:\\\u0022TEST Format 0001.00\\\u0022,\\\u0022file\\\u0022:\\\u0022\\\u0022,\\\u0022samples\\\u0022:3,\\\u0022seconds\\\u0022:0.2,\\\u0022rate\\\u0022:25,\\\u0022channels\\\u0022:2,\\\u0022hasTune\\\u0022:true,\\\u0022writesArmed\\\u0022:false,\\\u0022error\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "channels",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_channels",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022EngineSpeed\\\u0022},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022digits\\\u0022:2,\\\u0022role\\\u0022:\\\u0022Mixture\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "channels raw",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_channels",
+        "arguments": "{\u0022raw\u0022:true}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022digits\\\u0022:2,\\\u0022role\\\u0022:\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022internal_padding_1\\\u0022,\\\u0022units\\\u0022:\\\u0022\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "channels raw string",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_channels",
+        "arguments": "{\u0022raw\u0022:\u0022true\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022digits\\\u0022:2,\\\u0022role\\\u0022:\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022internal_padding_1\\\u0022,\\\u0022units\\\u0022:\\\u0022\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "channels raw junk",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_channels",
+        "arguments": "{\u0022raw\u0022:\u0022maybe\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022digits\\\u0022:0,\\\u0022role\\\u0022:\\\u0022EngineSpeed\\\u0022},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022digits\\\u0022:2,\\\u0022role\\\u0022:\\\u0022Mixture\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "wire health",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_wire_health",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022sampled\\\u0022:10,\\\u0022failures\\\u0022:1,\\\u0022successRate\\\u0022:0.9,\\\u0022failuresByKind\\\u0022:{\\\u0022Timeout\\\u0022:1},\\\u0022sinceLastSuccessSeconds\\\u0022:0.4,\\\u0022longestRecentMs\\\u0022:12}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "wire events",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_wire_events",
+        "arguments": "{}"
+      },
+      "setup": [
+        "events2"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022sequence\\\u0022:2,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022write page 3\\\u0022,\\\u0022origin\\\u0022:\\\u0022Agent\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:5.5,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022},{\\\u0022sequence\\\u0022:1,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022read realtime\\\u0022,\\\u0022origin\\\u0022:\\\u0022Human\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:3.1,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "events 100"
+      ]
+    },
+    {
+      "name": "wire events 1",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_wire_events",
+        "arguments": "{\u0022count\u0022:1}"
+      },
+      "setup": [
+        "events2"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022sequence\\\u0022:2,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022write page 3\\\u0022,\\\u0022origin\\\u0022:\\\u0022Agent\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:5.5,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "events 1"
+      ]
+    },
+    {
+      "name": "wire events fraction",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_wire_events",
+        "arguments": "{\u0022count\u0022:1.9}"
+      },
+      "setup": [
+        "events2"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022sequence\\\u0022:2,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022write page 3\\\u0022,\\\u0022origin\\\u0022:\\\u0022Agent\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:5.5,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "events 1"
+      ]
+    },
+    {
+      "name": "wire events string",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_wire_events",
+        "arguments": "{\u0022count\u0022:\u00222\u0022}"
+      },
+      "setup": [
+        "events2"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022sequence\\\u0022:2,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022write page 3\\\u0022,\\\u0022origin\\\u0022:\\\u0022Agent\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:5.5,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022},{\\\u0022sequence\\\u0022:1,\\\u0022at\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022,\\\u0022context\\\u0022:\\\u0022read realtime\\\u0022,\\\u0022origin\\\u0022:\\\u0022Human\\\u0022,\\\u0022attempt\\\u0022:0,\\\u0022elapsedMs\\\u0022:3.1,\\\u0022outcome\\\u0022:\\\u0022Ok\\\u0022,\\\u0022failureKind\\\u0022:\\\u0022None\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "events 2"
+      ]
+    },
+    {
+      "name": "values",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022seconds\u0022:5}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022channel\\\u0022:\\\u0022RPM\\\u0022,\\\u0022count\\\u0022:3,\\\u0022times\\\u0022:[0,0.1,0.2],\\\u0022values\\\u0022:[800,3000,5000]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "values RPM 5"
+      ]
+    },
+    {
+      "name": "values all",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:\u0022AFR\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022channel\\\u0022:\\\u0022AFR\\\u0022,\\\u0022count\\\u0022:3,\\\u0022times\\\u0022:[0,0.1,0.2],\\\u0022values\\\u0022:[14.7,13.2,12.6]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "values AFR 0"
+      ]
+    },
+    {
+      "name": "values fraction",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022seconds\u0022:2.5}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022channel\\\u0022:\\\u0022RPM\\\u0022,\\\u0022count\\\u0022:3,\\\u0022times\\\u0022:[0,0.1,0.2],\\\u0022values\\\u0022:[800,3000,5000]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "values RPM 2.5"
+      ]
+    },
+    {
+      "name": "values spaced",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:\u0022a b\u0026c=d/\u00E9\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022channel\\\u0022:\\\u0022a b\\\\u0026c=d/\\\\u00E9\\\u0022,\\\u0022count\\\u0022:3,\\\u0022times\\\u0022:[0,0.1,0.2],\\\u0022values\\\u0022:[14.7,13.2,12.6]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "values a b\u0026c=d/\u00E9 0"
+      ]
+    },
+    {
+      "name": "values non finite",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:\u0022Lua: torque\u0022}"
+      },
+      "setup": [
+        "rich"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022channel\\\u0022:\\\u0022Lua: torque\\\u0022,\\\u0022count\\\u0022:7,\\\u0022times\\\u0022:[0,0.1,0.2],\\\u0022values\\\u0022:[\\\u0022NaN\\\u0022,\\\u0022Infinity\\\u0022,\\\u0022-Infinity\\\u0022,1E-07,1E\u002B21,123456789.125,-0]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "values Lua: torque 0"
+      ]
+    },
+    {
+      "name": "values none",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no channel named\\\u0022,\\\u0022detail\\\u0022:\\\u0022pass ?channel=\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "values number channel",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_values",
+        "arguments": "{\u0022channel\u0022:5}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022An element of type \u0027Number\u0027 cannot be converted to a \u0027System.String\u0027.\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "insights",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_insights",
+        "arguments": "{}"
+      },
+      "setup": [
+        "rich"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[{\\\u0022level\\\u0022:\\\u0022Good\\\u0022,\\\u0022topic\\\u0022:\\\u0022Fuelling\\\u0022,\\\u0022title\\\u0022:\\\u0022Mixture tracks target\\\u0022,\\\u0022detail\\\u0022:\\\u0022Within 2 %.\\\u0022,\\\u0022evidence\\\u0022:\\\u0022n = 3; mean 14.2 \\\\u00B1 0.3 \\\\u2014 it\\\\u0027s \\\\u003Cfine\\\\u003E \\\\u0026 \\\\u0022good\\\\u0022 \\\\u002B more \\\\u0060x\\\\u0060\\\u0022},{\\\u0022level\\\u0022:\\\u0022Warning\\\u0022,\\\u0022topic\\\u0022:\\\u0022Knock\\\u0022,\\\u0022title\\\u0022:\\\u0022No evidence\\\u0022,\\\u0022detail\\\u0022:\\\u0022none\\\u0022,\\\u0022evidence\\\u0022:\\\u0022\\\u0022}]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "tune",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_tune",
+        "arguments": "{}"
+      },
+      "setup": [
+        "rich"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022crankingRPM\\\u0022:300,\\\u0022revLimit\\\u0022:6500,\\\u0022ratio\\\u0022:0.30000000000000004,\\\u0022big\\\u0022:1000000000000000,\\\u0022bad\\\u0022:\\\u0022NaN\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "tables",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_tables",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022[\\\u0022VE Table\\\u0022]\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "table",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_table",
+        "arguments": "{\u0022name\u0022:\u0022VE Table\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022name\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022units\\\u0022:\\\u0022%\\\u0022,\\\u0022columns\\\u0022:2,\\\u0022rows\\\u0022:2,\\\u0022xBins\\\u0022:[800,3000],\\\u0022yBins\\\u0022:[30,100],\\\u0022xUnits\\\u0022:\\\u0022rpm\\\u0022,\\\u0022yUnits\\\u0022:\\\u0022kPa\\\u0022,\\\u0022xConstant\\\u0022:\\\u0022rpmBins\\\u0022,\\\u0022yConstant\\\u0022:\\\u0022mapBins\\\u0022,\\\u0022values\\\u0022:[[40,50],[60,80]]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "table unknown",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_table",
+        "arguments": "{\u0022name\u0022:\u0022Nope\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no such table\\\u0022,\\\u0022detail\\\u0022:\\\u0022Nope\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "project",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_project",
+        "arguments": "{}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022open\\\u0022:true,\\\u0022vehicles\\\u0022:[\\\u0022The E28\\\u0022],\\\u0022brief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "record",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_record_sitting",
+        "arguments": "{\u0022note\u0022:\u0022after the VE change\u0022}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022recorded\\\u0022:true,\\\u0022brief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "record [after the VE change]"
+      ]
+    },
+    {
+      "name": "record no project",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_record_sitting",
+        "arguments": "{\u0022note\u0022:\u0022n\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no project is open\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "record [n]"
+      ]
+    },
+    {
+      "name": "keep",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_keep_tune",
+        "arguments": "{\u0022note\u0022:\u0022before the change\u0022}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022kept\\\u0022:true,\\\u0022brief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "keep [before the change]"
+      ]
+    },
+    {
+      "name": "keep none",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_keep_tune",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no project is open\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "keep []"
+      ]
+    },
+    {
+      "name": "compare",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_compare_versions",
+        "arguments": "{\u0022from\u0022:\u0022v1\u0022,\u0022to\u0022:\u0022v2\u0022}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022from\\\u0022:\\\u0022v1\\\u0022,\\\u0022to\\\u0022:\\\u0022v2\\\u0022,\\\u0022changed\\\u0022:\\\u0022v1 to v2: 2 settings differ.\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "compare [v1] [v2]"
+      ]
+    },
+    {
+      "name": "note fix",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_note_fix",
+        "arguments": "{\u0022id\u0022:\u0022f1\u0022,\u0022title\u0022:\u0022Lean\u0022,\u0022detail\u0022:\u002246% short\u0022,\u0022state\u0022:\u0022open\u0022,\u0022change\u0022:\u0022VE \u002B4\u0022}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022noted\\\u0022:true,\\\u0022brief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "fix [f1] [Lean] [46% short] [open] [VE \u002B4]"
+      ]
+    },
+    {
+      "name": "note fix partial",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_note_fix",
+        "arguments": "{\u0022title\u0022:\u0022Lean\u0022}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022noted\\\u0022:true,\\\u0022brief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "fix [] [Lean] [] [] []"
+      ]
+    },
+    {
+      "name": "set refused",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_setting",
+        "arguments": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000,\u0022rationale\u0022:\u0022dyno\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022writes are not armed\\\u0022,\\\u0022detail\\\u0022:\\\u0022Tick it in the application.\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "set revLimit 7000 [dyno] False"
+      ]
+    },
+    {
+      "name": "set",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_setting",
+        "arguments": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000,\u0022rationale\u0022:\u0022dyno\u0022,\u0022confirmDangerous\u0022:true}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022value\\\u0022:7000,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022dyno\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "set revLimit 7000 [dyno] True"
+      ]
+    },
+    {
+      "name": "set string value",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_setting",
+        "arguments": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:\u00227000.5\u0022,\u0022rationale\u0022:\u0022dyno\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022value\\\u0022:7000.5,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022dyno\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "set revLimit 7000.5 [dyno] False"
+      ]
+    },
+    {
+      "name": "set junk value",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_setting",
+        "arguments": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:\u0022abc\u0022,\u0022rationale\u0022:\u0022dyno\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022value\\\u0022:0,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022dyno\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "set revLimit 0 [dyno] False"
+      ]
+    },
+    {
+      "name": "set string flag",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_setting",
+        "arguments": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:1,\u0022rationale\u0022:\u0022x\u0022,\u0022confirmDangerous\u0022:\u0022True\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022value\\\u0022:1,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022x\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "set revLimit 1 [x] True"
+      ]
+    },
+    {
+      "name": "cell",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_table_cell",
+        "arguments": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:55,\u0022rationale\u0022:\u0022smoothing\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022column\\\u0022:1,\\\u0022row\\\u0022:1,\\\u0022value\\\u0022:55,\\\u0022requested\\\u0022:55,\\\u0022clamped\\\u0022:false,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022smoothing\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "cell VE Table 1 1 55 [smoothing] False"
+      ]
+    },
+    {
+      "name": "cell clamped",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_table_cell",
+        "arguments": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:999,\u0022rationale\u0022:\u0022x\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022column\\\u0022:1,\\\u0022row\\\u0022:1,\\\u0022value\\\u0022:100,\\\u0022requested\\\u0022:999,\\\u0022clamped\\\u0022:true,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022x\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "cell VE Table 1 1 999 [x] False"
+      ]
+    },
+    {
+      "name": "cell fractional index",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_table_cell",
+        "arguments": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1.7,\u0022row\u0022:0.2,\u0022value\u0022:5,\u0022rationale\u0022:\u0022x\u0022}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022written\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022column\\\u0022:1,\\\u0022row\\\u0022:0,\\\u0022value\\\u0022:5,\\\u0022requested\\\u0022:5,\\\u0022clamped\\\u0022:false,\\\u0022burned\\\u0022:false,\\\u0022rationale\\\u0022:\\\u0022x\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "cell VE Table 1 0 5 [x] False"
+      ]
+    },
+    {
+      "name": "cell refused",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_set_table_cell",
+        "arguments": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:0,\u0022row\u0022:0,\u0022value\u0022:55,\u0022rationale\u0022:\u0022x\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022writes are not armed\\\u0022,\\\u0022detail\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "cell VE Table 0 0 55 [x] False"
+      ]
+    },
+    {
+      "name": "tune full",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_tune_full",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022settings\\\u0022:[{\\\u0022name\\\u0022:\\\u0022crankingRPM\\\u0022,\\\u0022value\\\u0022:300,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022options\\\u0022:[],\\\u0022low\\\u0022:0,\\\u0022high\\\u0022:1000},{\\\u0022name\\\u0022:\\\u0022egoType\\\u0022,\\\u0022value\\\u0022:1,\\\u0022units\\\u0022:\\\u0022\\\u0022,\\\u0022options\\\u0022:[\\\u0022Off\\\u0022,\\\u0022Narrow Band\\\u0022,\\\u0022Wide Band\\\u0022]}],\\\u0022tables\\\u0022:[{\\\u0022name\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022units\\\u0022:\\\u0022%\\\u0022,\\\u0022columns\\\u0022:2,\\\u0022rows\\\u0022:2,\\\u0022xBins\\\u0022:[800,3000],\\\u0022yBins\\\u0022:[30,100],\\\u0022xUnits\\\u0022:\\\u0022rpm\\\u0022,\\\u0022yUnits\\\u0022:\\\u0022kPa\\\u0022,\\\u0022xConstant\\\u0022:\\\u0022rpmBins\\\u0022,\\\u0022yConstant\\\u0022:\\\u0022mapBins\\\u0022,\\\u0022values\\\u0022:[[40,60],[50,80]]}]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "log full",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_log_full",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022times\\\u0022:[0,0.1,0.2,0.3,0.4],\\\u0022channels\\\u0022:[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022values\\\u0022:[800,1500,3000,4200,5000]},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022values\\\u0022:[14.7,14.5,13.2,12.9,12.6]}]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "logfull 0 1"
+      ]
+    },
+    {
+      "name": "log full window",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_log_full",
+        "arguments": "{\u0022seconds\u0022:0.2,\u0022decimate\u0022:2}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022times\\\u0022:[0.2,0.4],\\\u0022channels\\\u0022:[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022values\\\u0022:[3000,5000]},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022values\\\u0022:[13.2,12.6]}]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "logfull 0.2 2"
+      ]
+    },
+    {
+      "name": "log full decimate only",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_log_full",
+        "arguments": "{\u0022decimate\u0022:3}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022times\\\u0022:[0,0.3],\\\u0022channels\\\u0022:[{\\\u0022name\\\u0022:\\\u0022RPM\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022values\\\u0022:[800,4200]},{\\\u0022name\\\u0022:\\\u0022AFR\\\u0022,\\\u0022units\\\u0022:\\\u0022AFR\\\u0022,\\\u0022values\\\u0022:[14.7,12.9]}]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "logfull 0 3"
+      ]
+    },
+    {
+      "name": "context",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_context",
+        "arguments": "{}"
+      },
+      "setup": [
+        "brief"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022projectBrief\\\u0022:\\\u0022# The E28\\\\n\\\\n## Still open\\\\n\\\u0022,\\\u0022state\\\u0022:{\\\u0022mode\\\u0022:\\\u0022live\\\u0022,\\\u0022signature\\\u0022:\\\u0022TEST Format 0001.00\\\u0022,\\\u0022file\\\u0022:\\\u0022\\\u0022,\\\u0022samples\\\u0022:3,\\\u0022seconds\\\u0022:0.2,\\\u0022rate\\\u0022:25,\\\u0022channels\\\u0022:2,\\\u0022hasTune\\\u0022:true,\\\u0022writesArmed\\\u0022:false,\\\u0022error\\\u0022:\\\u0022\\\u0022},\\\u0022tune\\\u0022:{\\\u0022settingCount\\\u0022:2,\\\u0022tables\\\u0022:[\\\u0022VE Table\\\u0022]},\\\u0022insights\\\u0022:[{\\\u0022level\\\u0022:\\\u0022Good\\\u0022,\\\u0022topic\\\u0022:\\\u0022Fuelling\\\u0022,\\\u0022title\\\u0022:\\\u0022Mixture tracks target\\\u0022,\\\u0022detail\\\u0022:\\\u0022Within 2 %.\\\u0022,\\\u0022evidence\\\u0022:\\\u0022\\\u0022}],\\\u0022wireHealth\\\u0022:{\\\u0022sampled\\\u0022:10,\\\u0022failures\\\u0022:1,\\\u0022successRate\\\u0022:0.9,\\\u0022failuresByKind\\\u0022:{\\\u0022Timeout\\\u0022:1},\\\u0022sinceLastSuccessSeconds\\\u0022:0.4,\\\u0022longestRecentMs\\\u0022:12}}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "propose",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_propose_tune",
+        "arguments": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}],\u0022cells\u0022:[{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:0,\u0022value\u0022:3.5}]}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022changes\\\u0022:[{\\\u0022name\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:6500,\\\u0022after\\\u0022:7000,\\\u0022summary\\\u0022:\\\u0022revLimit: 7000 rpm against 6500 rpm\\\u0022},{\\\u0022name\\\u0022:\\\u0022name\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:\\\u0022old\\\u0022,\\\u0022after\\\u0022:\\\u0022new \\\\u0022name\\\\u0022\\\u0022,\\\u0022summary\\\u0022:\\\u0022name: \\\\u0022new \\\\u0022name\\\\u0022\\\\u0022 against \\\\u0022old\\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:4,\\\u0022after\\\u0022:61.5,\\\u0022summary\\\u0022:\\\u0022VE Table: 61.5 rpm against \\\\u2014\\\u0022}],\\\u0022rejected\\\u0022:[\\\u0022foo: no such setting\\\u0022],\\\u0022summary\\\u0022:\\\u00223 settings would change.\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "propose revLimit=7000 | VE Table[1,0]=3.5"
+      ]
+    },
+    {
+      "name": "propose none",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_propose_tune",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022changes\\\u0022:[{\\\u0022name\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:6500,\\\u0022after\\\u0022:7000,\\\u0022summary\\\u0022:\\\u0022revLimit: 7000 rpm against 6500 rpm\\\u0022},{\\\u0022name\\\u0022:\\\u0022name\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:\\\u0022old\\\u0022,\\\u0022after\\\u0022:\\\u0022new \\\\u0022name\\\\u0022\\\u0022,\\\u0022summary\\\u0022:\\\u0022name: \\\\u0022new \\\\u0022name\\\\u0022\\\\u0022 against \\\\u0022old\\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:4,\\\u0022after\\\u0022:61.5,\\\u0022summary\\\u0022:\\\u0022VE Table: 61.5 rpm against \\\\u2014\\\u0022}],\\\u0022rejected\\\u0022:[\\\u0022foo: no such setting\\\u0022],\\\u0022summary\\\u0022:\\\u00223 settings would change.\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "propose  | "
+      ]
+    },
+    {
+      "name": "propose passthrough",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_propose_tune",
+        "arguments": "{\u0022settings\u0022:[{\u0022value\u0022:1,\u0022name\u0022:\u0022a\u0022,\u0022extra\u0022:[true,null,{\u0022k\u0022:\u0022v\u0022}]}],\u0022cells\u0022:\u0022not a list\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022changes\\\u0022:[{\\\u0022name\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:6500,\\\u0022after\\\u0022:7000,\\\u0022summary\\\u0022:\\\u0022revLimit: 7000 rpm against 6500 rpm\\\u0022},{\\\u0022name\\\u0022:\\\u0022name\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:\\\u0022old\\\u0022,\\\u0022after\\\u0022:\\\u0022new \\\\u0022name\\\\u0022\\\u0022,\\\u0022summary\\\u0022:\\\u0022name: \\\\u0022new \\\\u0022name\\\\u0022\\\\u0022 against \\\\u0022old\\\\u0022\\\u0022},{\\\u0022name\\\u0022:\\\u0022VE Table\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:4,\\\u0022after\\\u0022:61.5,\\\u0022summary\\\u0022:\\\u0022VE Table: 61.5 rpm against \\\\u2014\\\u0022}],\\\u0022rejected\\\u0022:[\\\u0022foo: no such setting\\\u0022],\\\u0022summary\\\u0022:\\\u00223 settings would change.\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "propose a=1 | "
+      ]
+    },
+    {
+      "name": "apply",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_apply_tune",
+        "arguments": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}],\u0022note\u0022:\u0022dyno\u0022,\u0022confirmDangerous\u0022:true}"
+      },
+      "setup": [
+        "armed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022applied\\\u0022:[{\\\u0022name\\\u0022:\\\u0022revLimit\\\u0022,\\\u0022units\\\u0022:\\\u0022rpm\\\u0022,\\\u0022cells\\\u0022:1,\\\u0022before\\\u0022:6500,\\\u0022after\\\u0022:7000,\\\u0022summary\\\u0022:\\\u0022revLimit: 7000 rpm against 6500 rpm\\\u0022}],\\\u0022rejected\\\u0022:[\\\u0022x: too large\\\u0022],\\\u0022summary\\\u0022:\\\u0022Applied 1 change.\\\u0022,\\\u0022burned\\\u0022:false}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "apply 1 0 [dyno] True"
+      ]
+    },
+    {
+      "name": "apply refused",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_apply_tune",
+        "arguments": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}],\u0022note\u0022:\u0022dyno\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022writes are not armed\\\u0022,\\\u0022detail\\\u0022:\\\u0022Tick it.\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "apply 1 0 [dyno] False"
+      ]
+    },
+    {
+      "name": "stage tune",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_tune",
+        "arguments": "{\u0022filename\u0022:\u0022mine.msq\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022name\\\u0022:\\\u0022tune-test.msq\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\staged\\\\\\\\tune-test.msq\\\u0022,\\\u0022bytes\\\u0022:42,\\\u0022writtenAt\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetune [mine.msq]"
+      ]
+    },
+    {
+      "name": "stage tune default",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_tune",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022name\\\u0022:\\\u0022tune-test.msq\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\staged\\\\\\\\tune-test.msq\\\u0022,\\\u0022bytes\\\u0022:42,\\\u0022writtenAt\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetune []"
+      ]
+    },
+    {
+      "name": "stage tune refused",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_tune",
+        "arguments": "{\u0022filename\u0022:\u0022bad\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022could not stage that file\\\u0022,\\\u0022detail\\\u0022:\\\u0022no\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetune [bad]"
+      ]
+    },
+    {
+      "name": "stage table",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_table",
+        "arguments": "{\u0022name\u0022:\u0022VE Table\u0022,\u0022filename\u0022:\u0022x.csv\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022name\\\u0022:\\\u0022VE-Table-test.csv\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\staged\\\\\\\\VE-Table-test.csv\\\u0022,\\\u0022bytes\\\u0022:24,\\\u0022writtenAt\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetable [VE Table] [x.csv]"
+      ]
+    },
+    {
+      "name": "stage table unknown",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_table",
+        "arguments": "{\u0022name\u0022:\u0022Nope\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no such table\\\u0022,\\\u0022detail\\\u0022:\\\u0022Nope\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetable [Nope] []"
+      ]
+    },
+    {
+      "name": "stage table spaced",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_stage_table",
+        "arguments": "{\u0022name\u0022:\u0022a b\u0026c\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022no such table\\\u0022,\\\u0022detail\\\u0022:\\\u0022a b\\\\u0026c\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "stagetable [a b\u0026c] []"
+      ]
+    },
+    {
+      "name": "list staged",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_list_staged",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022files\\\u0022:[{\\\u0022name\\\u0022:\\\u0022tune-1.msq\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\staged\\\\\\\\tune-1.msq\\\u0022,\\\u0022bytes\\\u0022:100,\\\u0022writtenAt\\\u0022:\\\u00222026-01-02T03:04:05.678Z\\\u0022}]}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "definition none",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_definition_needed",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022needed\\\u0022:false}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "definition needed",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_definition_needed",
+        "arguments": "{}"
+      },
+      "setup": [
+        "needed"
+      ],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022needed\\\u0022:true,\\\u0022need\\\u0022:{\\\u0022identity\\\u0022:[\\\u0022Speeduino 2025.01.7\\\u0022],\\\u0022family\\\u0022:\\\u0022Speeduino\\\u0022,\\\u0022signature\\\u0022:\\\u0022speeduino 202501\\\u0022,\\\u0022version\\\u0022:\\\u0022Speeduino 2025.01.7\\\u0022,\\\u0022filename\\\u0022:\\\u0022speeduino202501.ini\\\u0022,\\\u0022nearby\\\u0022:[],\\\u0022folder\\\u0022:\\\u0022C:\\\\\\\\defs\\\u0022,\\\u0022where\\\u0022:\\\u0022somewhere\\\u0022,\\\u0022sources\\\u0022:[\\\u0022https://example.invalid/x.ini\\\u0022],\\\u0022guidance\\\u0022:\\\u0022fetch it\\\u0022}}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "import",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_import_definition",
+        "arguments": "{\u0022path\u0022:\u0022C:\\\\downloads\\\\x.ini\u0022,\u0022source\u0022:\u0022https://example.invalid/x.ini\u0022,\u0022name\u0022:\u0022x\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022kept\\\u0022:true,\\\u0022name\\\u0022:\\\u0022speeduino202501.ini\\\u0022,\\\u0022signature\\\u0022:\\\u0022speeduino 202501\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\defs\\\\\\\\speeduino202501.ini\\\u0022,\\\u0022source\\\u0022:\\\u0022https://example.invalid/x.ini\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "import [C:\\downloads\\x.ini] [] [https://example.invalid/x.ini] [x]"
+      ]
+    },
+    {
+      "name": "import refused",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_import_definition",
+        "arguments": "{\u0022path\u0022:\u0022wrong\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022error\\\u0022:\\\u0022that definition was not kept\\\u0022,\\\u0022detail\\\u0022:\\\u0022it declares \\\\u0022speeduino 202402\\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "import [wrong] [] [] []"
+      ]
+    },
+    {
+      "name": "import content",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_import_definition",
+        "arguments": "{\u0022content\u0022:\u0022[MegaTune]\\n\u0022}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022kept\\\u0022:true,\\\u0022name\\\u0022:\\\u0022speeduino202501.ini\\\u0022,\\\u0022signature\\\u0022:\\\u0022speeduino 202501\\\u0022,\\\u0022path\\\u0022:\\\u0022C:\\\\\\\\defs\\\\\\\\speeduino202501.ini\\\u0022,\\\u0022source\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": [
+        "import [] [[MegaTune]\n] [] []"
+      ]
+    },
+    {
+      "name": "no such tool",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_nope",
+        "arguments": "{}"
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022no such tool: olv_nope\u0022}],\u0022isError\u0022:true},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    },
+    {
+      "name": "no arguments at all",
+      "method": "tools/call",
+      "parameters": {
+        "name": "olv_state",
+        "arguments": ""
+      },
+      "setup": [],
+      "output": "{\u0022result\u0022:{\u0022content\u0022:[{\u0022type\u0022:\u0022text\u0022,\u0022text\u0022:\u0022{\\\u0022mode\\\u0022:\\\u0022live\\\u0022,\\\u0022signature\\\u0022:\\\u0022TEST Format 0001.00\\\u0022,\\\u0022file\\\u0022:\\\u0022\\\u0022,\\\u0022samples\\\u0022:3,\\\u0022seconds\\\u0022:0.2,\\\u0022rate\\\u0022:25,\\\u0022channels\\\u0022:2,\\\u0022hasTune\\\u0022:true,\\\u0022writesArmed\\\u0022:false,\\\u0022error\\\u0022:\\\u0022\\\u0022}\u0022}],\u0022isError\u0022:false},\u0022jsonrpc\u0022:\u00222.0\u0022,\u0022id\u0022:7}",
+      "calls": []
+    }
+  ]
+}

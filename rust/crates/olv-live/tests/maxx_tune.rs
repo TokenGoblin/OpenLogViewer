@@ -20,8 +20,9 @@ use std::time::Duration;
 use olv_core::Error;
 use olv_core::Result;
 use olv_core::ini::table_editor_reader::TableDefinition;
-use olv_core::ini::tune_layout::{TuneConstant, TuneLayout};
+use olv_core::ini::tune_layout::TuneLayout;
 use olv_core::logs::maxx_channel_definitions::MaxxChannelDefinition;
+use olv_core::tune::ecu_tune::EcuTune;
 use olv_live::live::maxx_tune::{self, MaxxTable, MaxxWriteStatus};
 use olv_live::live::maxx_tune_definitions::{self, MaxxSettingDefinition};
 use olv_protocol::ms::maxx_protocol;
@@ -123,6 +124,8 @@ fn ve_definition() -> Vec<MaxxSettingDefinition> {
 
 // ----- reading a table back through the layout (EcuTune's job) -------------------
 
+/// A table as the tests ask about it, read the way the editor reads it: through
+/// `EcuTune::from_pages(layout, blob).tables(definitions)`, as the C# tests do.
 struct Decoded {
     columns: usize,
     rows: usize,
@@ -134,46 +137,24 @@ struct Decoded {
     y_units: String,
 }
 
-fn constant<'a>(layout: &'a TuneLayout, name: &str) -> &'a TuneConstant {
-    layout
-        .constants
-        .iter()
-        .find(|c| c.name == name)
-        .unwrap_or_else(|| panic!("no constant {name}"))
-}
-
-fn read_constant(blob: &[u8], c: &TuneConstant, index: usize) -> f64 {
-    let at = c.offset as usize + index * 2;
-    let raw = i16::from_le_bytes([blob[at], blob[at + 1]]);
-
-    (f64::from(raw) + c.transform) * c.scale
-}
-
 fn decode(layout: &TuneLayout, tables: &[TableDefinition], blob: &[u8]) -> Decoded {
-    assert_eq!(tables.len(), 1, "expected a single table");
-    let table = &tables[0];
+    let tune = EcuTune::from_pages(layout.clone(), vec![blob.to_vec()]);
+    let read = tune.tables(tables);
+    assert_eq!(read.len(), 1, "expected a single table");
+    let table = &read[0];
 
-    let cells = constant(layout, &table.values);
-    let x = constant(layout, &table.x_bins);
-    let y = constant(layout, &table.y_bins);
-
-    let columns = cells.columns as usize;
-    let rows = cells.rows as usize;
+    let (columns, rows) = (table.columns(), table.rows());
 
     Decoded {
         columns,
         rows,
         values: (0..columns)
-            .map(|column| {
-                (0..rows)
-                    .map(|row| read_constant(blob, cells, row * columns + column))
-                    .collect()
-            })
+            .map(|column| (0..rows).map(|row| table.values[(column, row)]).collect())
             .collect(),
-        x: (0..x.columns as usize).map(|i| read_constant(blob, x, i)).collect(),
-        y: (0..y.columns as usize).map(|i| read_constant(blob, y, i)).collect(),
-        x_units: x.units.clone(),
-        y_units: y.units.clone(),
+        x: table.x.breakpoints.clone(),
+        y: table.y.breakpoints.clone(),
+        x_units: table.x.units.clone(),
+        y_units: table.y.units.clone(),
     }
 }
 

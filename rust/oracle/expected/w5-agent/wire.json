@@ -1,0 +1,3017 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "root",
+      "setup": [],
+      "method": "GET",
+      "target": "/",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022application\u0022:\u0022OpenLogViewer\u0022,\u0022api\u0022:1,\u0022endpoints\u0022:[\u0022GET /state\u0022,\u0022GET /limits\u0022,\u0022GET /channels?raw=\u0022,\u0022GET /values?channel=\\u0026seconds=\u0022,\u0022GET /insights\u0022,\u0022GET /tune\u0022,\u0022GET /tables\u0022,\u0022GET /table?name=\u0022,\u0022POST /tune/set\u0022,\u0022POST /table/set\u0022,\u0022WS /live/stream\u0022,\u0022GET /wire/health\u0022,\u0022GET /wire/events?count=\u0022,\u0022GET /project\u0022,\u0022POST /project/record\u0022,\u0022POST /project/fix\u0022,\u0022POST /project/keep\u0022,\u0022POST /project/versions/compare\u0022,\u0022GET /tune/full\u0022,\u0022GET /log/full?seconds=\\u0026decimate=\u0022,\u0022GET /context\u0022,\u0022POST /tune/propose\u0022,\u0022POST /tune/apply\u0022,\u0022POST /stage/tune\u0022,\u0022POST /stage/table?name=\u0022,\u0022GET /stage\u0022,\u0022GET /definitions/needed\u0022,\u0022POST /definitions/import\u0022],\u0022limits\u0022:{\u0022writeRateCount\u0022:10,\u0022writeRateWindowSeconds\u0022:5,\u0022maxChangeFractionOfRange\u0022:0.5,\u0022burns\u0022:false,\u0022writesArmedClearsOnDisconnect\u0022:true,\u0022dangerousSettingsNeedConfirmation\u0022:true}}",
+      "calls": []
+    },
+    {
+      "name": "state",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "state armed",
+      "setup": [
+        "armed"
+      ],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:true,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "state trailing slash",
+      "setup": [],
+      "method": "GET",
+      "target": "/state/",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "limits",
+      "setup": [],
+      "method": "GET",
+      "target": "/limits",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022writeRateCount\u0022:10,\u0022writeRateWindowSeconds\u0022:5,\u0022maxChangeFractionOfRange\u0022:0.5,\u0022burns\u0022:false,\u0022writesArmedClearsOnDisconnect\u0022:true,\u0022dangerousSettingsNeedConfirmation\u0022:true}",
+      "calls": []
+    },
+    {
+      "name": "channels",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022EngineSpeed\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022Mixture\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw true",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw=true",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022internal_padding_1\u0022,\u0022units\u0022:\u0022\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw bare",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022EngineSpeed\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022Mixture\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw empty",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw=",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022internal_padding_1\u0022,\u0022units\u0022:\u0022\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw 1",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw=1",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022internal_padding_1\u0022,\u0022units\u0022:\u0022\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw YES",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw=YES",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022\u0022},{\u0022name\u0022:\u0022internal_padding_1\u0022,\u0022units\u0022:\u0022\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "channels raw no",
+      "setup": [],
+      "method": "GET",
+      "target": "/channels?raw=no",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022digits\u0022:0,\u0022role\u0022:\u0022EngineSpeed\u0022},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022digits\u0022:2,\u0022role\u0022:\u0022Mixture\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "wire health",
+      "setup": [],
+      "method": "GET",
+      "target": "/wire/health",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022sampled\u0022:10,\u0022failures\u0022:1,\u0022successRate\u0022:0.9,\u0022failuresByKind\u0022:{\u0022Timeout\u0022:1},\u0022sinceLastSuccessSeconds\u0022:0.4,\u0022longestRecentMs\u0022:12}",
+      "calls": []
+    },
+    {
+      "name": "wire events",
+      "setup": [
+        "rich",
+        "events2"
+      ],
+      "method": "GET",
+      "target": "/wire/events",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022sequence\u0022:2,\u0022at\u0022:\u00222026-01-02T03:04:05.678Z\u0022,\u0022context\u0022:\u0022write page 3\u0022,\u0022origin\u0022:\u0022Agent\u0022,\u0022attempt\u0022:0,\u0022elapsedMs\u0022:5.5,\u0022outcome\u0022:\u0022Ok\u0022,\u0022failureKind\u0022:\u0022None\u0022,\u0022detail\u0022:\u0022\u0022},{\u0022sequence\u0022:1,\u0022at\u0022:\u00222026-01-02T03:04:04.678Z\u0022,\u0022context\u0022:\u0022read realtime\u0022,\u0022origin\u0022:\u0022Human\u0022,\u0022attempt\u0022:1,\u0022elapsedMs\u0022:3.1,\u0022outcome\u0022:\u0022Failed\u0022,\u0022failureKind\u0022:\u0022Timeout\u0022,\u0022detail\u0022:\u0022no \\u0022reply\\u0022 \\u003Cin\\u003E time \\u0026 more\u0022}]",
+      "calls": [
+        "events 100"
+      ]
+    },
+    {
+      "name": "wire events 1",
+      "setup": [
+        "rich",
+        "events2"
+      ],
+      "method": "GET",
+      "target": "/wire/events?count=1",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022sequence\u0022:2,\u0022at\u0022:\u00222026-01-02T03:04:05.678Z\u0022,\u0022context\u0022:\u0022write page 3\u0022,\u0022origin\u0022:\u0022Agent\u0022,\u0022attempt\u0022:0,\u0022elapsedMs\u0022:5.5,\u0022outcome\u0022:\u0022Ok\u0022,\u0022failureKind\u0022:\u0022None\u0022,\u0022detail\u0022:\u0022\u0022}]",
+      "calls": [
+        "events 1"
+      ]
+    },
+    {
+      "name": "wire events negative",
+      "setup": [
+        "events2"
+      ],
+      "method": "GET",
+      "target": "/wire/events?count=-5",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[]",
+      "calls": [
+        "events 0"
+      ]
+    },
+    {
+      "name": "wire events huge",
+      "setup": [
+        "rich",
+        "events2"
+      ],
+      "method": "GET",
+      "target": "/wire/events?count=9999",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022sequence\u0022:2,\u0022at\u0022:\u00222026-01-02T03:04:05.678Z\u0022,\u0022context\u0022:\u0022write page 3\u0022,\u0022origin\u0022:\u0022Agent\u0022,\u0022attempt\u0022:0,\u0022elapsedMs\u0022:5.5,\u0022outcome\u0022:\u0022Ok\u0022,\u0022failureKind\u0022:\u0022None\u0022,\u0022detail\u0022:\u0022\u0022},{\u0022sequence\u0022:1,\u0022at\u0022:\u00222026-01-02T03:04:04.678Z\u0022,\u0022context\u0022:\u0022read realtime\u0022,\u0022origin\u0022:\u0022Human\u0022,\u0022attempt\u0022:1,\u0022elapsedMs\u0022:3.1,\u0022outcome\u0022:\u0022Failed\u0022,\u0022failureKind\u0022:\u0022Timeout\u0022,\u0022detail\u0022:\u0022no \\u0022reply\\u0022 \\u003Cin\\u003E time \\u0026 more\u0022}]",
+      "calls": [
+        "events 500"
+      ]
+    },
+    {
+      "name": "wire events junk",
+      "setup": [
+        "events2"
+      ],
+      "method": "GET",
+      "target": "/wire/events?count=abc",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022sequence\u0022:2,\u0022at\u0022:\u00222026-01-02T03:04:05.678Z\u0022,\u0022context\u0022:\u0022write page 3\u0022,\u0022origin\u0022:\u0022Agent\u0022,\u0022attempt\u0022:0,\u0022elapsedMs\u0022:5.5,\u0022outcome\u0022:\u0022Ok\u0022,\u0022failureKind\u0022:\u0022None\u0022,\u0022detail\u0022:\u0022\u0022},{\u0022sequence\u0022:1,\u0022at\u0022:\u00222026-01-02T03:04:05.678Z\u0022,\u0022context\u0022:\u0022read realtime\u0022,\u0022origin\u0022:\u0022Human\u0022,\u0022attempt\u0022:0,\u0022elapsedMs\u0022:3.1,\u0022outcome\u0022:\u0022Ok\u0022,\u0022failureKind\u0022:\u0022None\u0022,\u0022detail\u0022:\u0022\u0022}]",
+      "calls": [
+        "events 100"
+      ]
+    },
+    {
+      "name": "values",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/values?channel=RPM\u0026seconds=5",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[800,3000,5000.5]}",
+      "calls": [
+        "values RPM 5"
+      ]
+    },
+    {
+      "name": "values no seconds",
+      "setup": [],
+      "method": "GET",
+      "target": "/values?channel=AFR",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022AFR\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[14.7,13.2,12.6]}",
+      "calls": [
+        "values AFR 0"
+      ]
+    },
+    {
+      "name": "values missing",
+      "setup": [],
+      "method": "GET",
+      "target": "/values",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no channel named\u0022,\u0022detail\u0022:\u0022pass ?channel=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "values blank",
+      "setup": [],
+      "method": "GET",
+      "target": "/values?channel=%20",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no channel named\u0022,\u0022detail\u0022:\u0022pass ?channel=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "values negative seconds",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/values?channel=RPM\u0026seconds=-3",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[800,3000,5000.5]}",
+      "calls": [
+        "values RPM 0"
+      ]
+    },
+    {
+      "name": "values exponent seconds",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/values?channel=RPM\u0026seconds=1e1",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[800,3000,5000.5]}",
+      "calls": [
+        "values RPM 10"
+      ]
+    },
+    {
+      "name": "values junk seconds",
+      "setup": [],
+      "method": "GET",
+      "target": "/values?channel=RPM\u0026seconds=abc",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022RPM\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[800,3000,5000]}",
+      "calls": [
+        "values RPM 0"
+      ]
+    },
+    {
+      "name": "values non finite",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/values?channel=Lua%3A%20torque",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022Lua: torque\u0022,\u0022count\u0022:7,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[\u0022NaN\u0022,\u0022Infinity\u0022,\u0022-Infinity\u0022,1E-07,1E\u002B21,123456789.125,-0]}",
+      "calls": [
+        "values Lua: torque 0"
+      ]
+    },
+    {
+      "name": "values plus is space",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/values?channel=Lua:\u002Btorque",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022Lua: torque\u0022,\u0022count\u0022:7,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[\u0022NaN\u0022,\u0022Infinity\u0022,\u0022-Infinity\u0022,1E-07,1E\u002B21,123456789.125,-0]}",
+      "calls": [
+        "values Lua: torque 0"
+      ]
+    },
+    {
+      "name": "values repeated key",
+      "setup": [],
+      "method": "GET",
+      "target": "/values?channel=RPM\u0026channel=AFR",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022channel\u0022:\u0022RPM,AFR\u0022,\u0022count\u0022:3,\u0022times\u0022:[0,0.1,0.2],\u0022values\u0022:[14.7,13.2,12.6]}",
+      "calls": [
+        "values RPM,AFR 0"
+      ]
+    },
+    {
+      "name": "insights",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/insights",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[{\u0022level\u0022:\u0022Good\u0022,\u0022topic\u0022:\u0022Fuelling\u0022,\u0022title\u0022:\u0022Mixture tracks target\u0022,\u0022detail\u0022:\u0022Within 2 %.\u0022,\u0022evidence\u0022:\u0022n = 3; mean 14.2 \\u00B1 0.3 \\u2014 it\\u0027s \\u003Cfine\\u003E \\u0026 \\u0022good\\u0022 \\u002B more \\u0060x\\u0060\u0022},{\u0022level\u0022:\u0022Warning\u0022,\u0022topic\u0022:\u0022Knock\u0022,\u0022title\u0022:\u0022No evidence\u0022,\u0022detail\u0022:\u0022none\u0022,\u0022evidence\u0022:\u0022\u0022}]",
+      "calls": []
+    },
+    {
+      "name": "tune",
+      "setup": [
+        "rich"
+      ],
+      "method": "GET",
+      "target": "/tune",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022crankingRPM\u0022:300,\u0022revLimit\u0022:6500,\u0022ratio\u0022:0.30000000000000004,\u0022big\u0022:1000000000000000,\u0022bad\u0022:\u0022NaN\u0022}",
+      "calls": []
+    },
+    {
+      "name": "tables",
+      "setup": [],
+      "method": "GET",
+      "target": "/tables",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "[\u0022VE Table\u0022]",
+      "calls": []
+    },
+    {
+      "name": "table",
+      "setup": [],
+      "method": "GET",
+      "target": "/table?name=VE%20Table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022%\u0022,\u0022columns\u0022:2,\u0022rows\u0022:2,\u0022xBins\u0022:[800,3000],\u0022yBins\u0022:[30,100],\u0022xUnits\u0022:\u0022rpm\u0022,\u0022yUnits\u0022:\u0022kPa\u0022,\u0022xConstant\u0022:\u0022rpmBins\u0022,\u0022yConstant\u0022:\u0022mapBins\u0022,\u0022values\u0022:[[40,50],[60,80]]}",
+      "calls": []
+    },
+    {
+      "name": "table missing",
+      "setup": [],
+      "method": "GET",
+      "target": "/table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no table named\u0022,\u0022detail\u0022:\u0022pass ?name=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "table unknown",
+      "setup": [],
+      "method": "GET",
+      "target": "/table?name=Nope",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such table\u0022,\u0022detail\u0022:\u0022Nope\u0022}",
+      "calls": []
+    },
+    {
+      "name": "project closed",
+      "setup": [],
+      "method": "GET",
+      "target": "/project",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022open\u0022:false,\u0022vehicles\u0022:[\u0022The E28\u0022],\u0022brief\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "project open",
+      "setup": [
+        "brief"
+      ],
+      "method": "GET",
+      "target": "/project",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022open\u0022:true,\u0022vehicles\u0022:[\u0022The E28\u0022],\u0022brief\u0022:\u0022# The E28\\n\\n## Still open\\n\\n### lean-under-load \\u2014 Lean above 150 kPa\\n\u0022}",
+      "calls": []
+    },
+    {
+      "name": "tune full",
+      "setup": [],
+      "method": "GET",
+      "target": "/tune/full",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022crankingRPM\u0022,\u0022value\u0022:300,\u0022units\u0022:\u0022rpm\u0022,\u0022options\u0022:[],\u0022low\u0022:0,\u0022high\u0022:1000},{\u0022name\u0022:\u0022egoType\u0022,\u0022value\u0022:1,\u0022units\u0022:\u0022\u0022,\u0022options\u0022:[\u0022Off\u0022,\u0022Narrow Band\u0022,\u0022Wide Band\u0022]}],\u0022tables\u0022:[{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022%\u0022,\u0022columns\u0022:2,\u0022rows\u0022:2,\u0022xBins\u0022:[800,3000],\u0022yBins\u0022:[30,100],\u0022xUnits\u0022:\u0022rpm\u0022,\u0022yUnits\u0022:\u0022kPa\u0022,\u0022xConstant\u0022:\u0022rpmBins\u0022,\u0022yConstant\u0022:\u0022mapBins\u0022,\u0022values\u0022:[[40,60],[50,80]]}]}",
+      "calls": []
+    },
+    {
+      "name": "log full",
+      "setup": [],
+      "method": "GET",
+      "target": "/log/full",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022times\u0022:[0,0.1,0.2,0.3,0.4],\u0022channels\u0022:[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022values\u0022:[800,1500,3000,4200,5000]},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022values\u0022:[14.7,14.5,13.2,12.9,12.6]}]}",
+      "calls": [
+        "logfull 0 1"
+      ]
+    },
+    {
+      "name": "log full window",
+      "setup": [],
+      "method": "GET",
+      "target": "/log/full?seconds=0.2\u0026decimate=2",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022times\u0022:[0.2,0.4],\u0022channels\u0022:[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022values\u0022:[3000,5000]},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022values\u0022:[13.2,12.6]}]}",
+      "calls": [
+        "logfull 0.2 2"
+      ]
+    },
+    {
+      "name": "log full bad decimate",
+      "setup": [],
+      "method": "GET",
+      "target": "/log/full?decimate=0",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022times\u0022:[0,0.1,0.2,0.3,0.4],\u0022channels\u0022:[{\u0022name\u0022:\u0022RPM\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022values\u0022:[800,1500,3000,4200,5000]},{\u0022name\u0022:\u0022AFR\u0022,\u0022units\u0022:\u0022AFR\u0022,\u0022values\u0022:[14.7,14.5,13.2,12.9,12.6]}]}",
+      "calls": [
+        "logfull 0 1"
+      ]
+    },
+    {
+      "name": "context",
+      "setup": [
+        "brief"
+      ],
+      "method": "GET",
+      "target": "/context",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022projectBrief\u0022:\u0022# The E28\\n\\n## Still open\\n\\n### lean-under-load \\u2014 Lean above 150 kPa\\n\u0022,\u0022state\u0022:{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022},\u0022tune\u0022:{\u0022settingCount\u0022:2,\u0022tables\u0022:[\u0022VE Table\u0022]},\u0022insights\u0022:[{\u0022level\u0022:\u0022Good\u0022,\u0022topic\u0022:\u0022Fuelling\u0022,\u0022title\u0022:\u0022Mixture tracks target\u0022,\u0022detail\u0022:\u0022Within 2 %.\u0022,\u0022evidence\u0022:\u0022\u0022}],\u0022wireHealth\u0022:{\u0022sampled\u0022:10,\u0022failures\u0022:1,\u0022successRate\u0022:0.9,\u0022failuresByKind\u0022:{\u0022Timeout\u0022:1},\u0022sinceLastSuccessSeconds\u0022:0.4,\u0022longestRecentMs\u0022:12}}",
+      "calls": []
+    },
+    {
+      "name": "stage list",
+      "setup": [],
+      "method": "GET",
+      "target": "/stage",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022files\u0022:[{\u0022name\u0022:\u0022tune-1.msq\u0022,\u0022path\u0022:\u0022C:\\\\staged\\\\tune-1.msq\u0022,\u0022bytes\u0022:100,\u0022writtenAt\u0022:\u00222026-01-02T03:04:05.678Z\u0022}]}",
+      "calls": []
+    },
+    {
+      "name": "definitions none",
+      "setup": [],
+      "method": "GET",
+      "target": "/definitions/needed",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022needed\u0022:false}",
+      "calls": []
+    },
+    {
+      "name": "definitions needed",
+      "setup": [
+        "needed"
+      ],
+      "method": "GET",
+      "target": "/definitions/needed",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022needed\u0022:true,\u0022need\u0022:{\u0022identity\u0022:[\u0022Speeduino 2025.01.7\u0022,\u0022speeduino 202501\u0022],\u0022family\u0022:\u0022Speeduino\u0022,\u0022signature\u0022:\u0022speeduino 202501\u0022,\u0022version\u0022:\u0022Speeduino 2025.01.7\u0022,\u0022filename\u0022:\u0022speeduino202501.ini\u0022,\u0022nearby\u0022:[{\u0022name\u0022:\u0022speeduino202402.ini\u0022,\u0022signature\u0022:\u0022speeduino 202402\u0022,\u0022path\u0022:\u0022C:\\\\defs\\\\speeduino202402.ini\u0022}],\u0022folder\u0022:\u0022C:\\\\defs\u0022,\u0022where\u0022:\u0022somewhere\u0022,\u0022sources\u0022:[\u0022https://raw.githubusercontent.com/speeduino/speeduino/202501.7/reference/speeduino.ini\u0022],\u0022guidance\u0022:\u0022fetch it\u0022}}",
+      "calls": []
+    },
+    {
+      "name": "no such endpoint",
+      "setup": [],
+      "method": "GET",
+      "target": "/nope",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such endpoint\u0022,\u0022detail\u0022:\u0022/nope\u0022}",
+      "calls": []
+    },
+    {
+      "name": "no such endpoint nested",
+      "setup": [],
+      "method": "GET",
+      "target": "/tune/burn",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such endpoint\u0022,\u0022detail\u0022:\u0022/tune/burn\u0022}",
+      "calls": []
+    },
+    {
+      "name": "burn is not an endpoint",
+      "setup": [],
+      "method": "GET",
+      "target": "/burn",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such endpoint\u0022,\u0022detail\u0022:\u0022/burn\u0022}",
+      "calls": []
+    },
+    {
+      "name": "case matters",
+      "setup": [],
+      "method": "GET",
+      "target": "/State",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such endpoint\u0022,\u0022detail\u0022:\u0022/State\u0022}",
+      "calls": []
+    },
+    {
+      "name": "get on a post endpoint",
+      "setup": [],
+      "method": "GET",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 405,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022that endpoint wants a POST\u0022,\u0022detail\u0022:\u0022GET\u0022}",
+      "calls": []
+    },
+    {
+      "name": "stage table get",
+      "setup": [],
+      "method": "GET",
+      "target": "/stage/table?name=VE%20Table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 405,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022that endpoint wants a POST\u0022,\u0022detail\u0022:\u0022GET\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set refused",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022writes are not armed\u0022,\u0022detail\u0022:\u0022Tick it in the application.\u0022}",
+      "calls": [
+        "set revLimit 7000 [] False"
+      ]
+    },
+    {
+      "name": "set armed",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000,\u0022rationale\u0022:\u0022for \\\u0022dyno\\\u0022 \u003Cpull\u003E\u0022,\u0022confirmDangerous\u0022:true}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022for \\u0022dyno\\u0022 \\u003Cpull\\u003E\u0022}",
+      "calls": [
+        "set revLimit 7000 [for \u0022dyno\u0022 \u003Cpull\u003E] True"
+      ]
+    },
+    {
+      "name": "set armed minimal",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000.5}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000.5,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set revLimit 7000.5 [] False"
+      ]
+    },
+    {
+      "name": "set no name",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022value\u0022:1}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022value\u0022:1,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set  1 [] False"
+      ]
+    },
+    {
+      "name": "set string value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:\u00227\u0022}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 23.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set nan value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:\u0022NaN\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:\u0022NaN\u0022,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x NaN [] False"
+      ]
+    },
+    {
+      "name": "set null value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:null}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 24.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set number name",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:5,\u0022value\u0022:1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.name | LineNumber: 0 | BytePositionInLine: 9.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set unknown props",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022extra\u0022:[1,2,{\u0022a\u0022:null}]}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x 1 [] False"
+      ]
+    },
+    {
+      "name": "set pascal case props",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022Name\u0022:\u0022x\u0022,\u0022Value\u0022:1}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022value\u0022:0,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set  0 [] False"
+      ]
+    },
+    {
+      "name": "set duplicate props",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022a\u0022,\u0022name\u0022:\u0022b\u0022,\u0022value\u0022:1,\u0022value\u0022:2}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022b\u0022,\u0022value\u0022:2,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set b 2 [] False"
+      ]
+    },
+    {
+      "name": "set empty body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The input does not contain any JSON tokens. Expected the input to start with a valid JSON token, when isFinalBlock is true. Path: $ | LineNumber: 0 | BytePositionInLine: 0.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set null body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "null",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was empty\u0022,\u0022detail\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set array body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "[]",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set number body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "5",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set malformed",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. Path: $.name | LineNumber: 0 | BytePositionInLine: 8.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set trailing comma",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1,}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON object contains a trailing comma at the end which is not supported in this mode. Change the reader options. Path: $ | LineNumber: 0 | BytePositionInLine: 22.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set comment",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022, /* c */ \u0022value\u0022:1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027/\\u0027 is an invalid start of a property name. Expected a \\u0027\\u0022\\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 13.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "set big integer value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:123456789012345678901234567890}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:1.2345678901234568E\u002B29,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x 1.2345678901234568E\u002B29 [] False"
+      ]
+    },
+    {
+      "name": "set confirm as string",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022confirmDangerous\u0022:\u0022true\u0022}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.confirmDangerous | LineNumber: 0 | BytePositionInLine: 47.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json open brace",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json key only",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected a value, but instead reached end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 7.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json after colon",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. Path: $.name | LineNumber: 0 | BytePositionInLine: 8.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json open string value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. Path: $ | LineNumber: 0 | BytePositionInLine: 11.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json open string",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected end of string, but instead reached end of data. Path: $.name | LineNumber: 0 | BytePositionInLine: 10.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json invalid value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:x}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027x\\u0027 is an invalid start of a value. Path: $.name | LineNumber: 0 | BytePositionInLine: 8.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json single quotes",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0027name\u0027:1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027\\u0027\\u0027 is an invalid start of a property name. Expected a \\u0027\\u0022\\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json trailing garbage",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{} x",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027x\\u0027 is invalid after a single JSON value. Expected end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 3.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json extra close",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022}}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027}\\u0027 is invalid after a single JSON value. Expected end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 12.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json open array value",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:[1,2",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.name | LineNumber: 0 | BytePositionInLine: 9.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json truncated literal",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:nul",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027nul\\u0027 is an invalid JSON literal. Expected the literal \\u0027null\\u0027. Path: $.name | LineNumber: 0 | BytePositionInLine: 11.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json bad literal",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:nulx}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027nulx}\\u0027 is an invalid JSON literal. Expected the literal \\u0027null\\u0027. Path: $.name | LineNumber: 0 | BytePositionInLine: 11.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json bad escape",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022q\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022q\u0022,\u0022value\u0022:0,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set q 0 [] False"
+      ]
+    },
+    {
+      "name": "json short unicode escape",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022a\\u00\u0022}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027\\u0022\\u0027 is not a hex digit following \\u0027\\\\u\\u0027 within a JSON string. The string should be correctly escaped. Path: $.name | LineNumber: 0 | BytePositionInLine: 14.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json leading zero",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:01}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Invalid leading zero before \\u00271\\u0027. Path: $.value | LineNumber: 0 | BytePositionInLine: 21.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json trailing dot",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1.}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027}\\u0027 is invalid within a number, immediately after a decimal point (\\u0027.\\u0027). Expected a digit (\\u00270\\u0027-\\u00279\\u0027). Path: $.value | LineNumber: 0 | BytePositionInLine: 22.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json lone minus",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:-}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027}\\u0027 is invalid within a number, immediately after a sign character (\\u0027\\u002B\\u0027 or \\u0027-\\u0027). Expected a digit (\\u00270\\u0027-\\u00279\\u0027). Path: $.value | LineNumber: 0 | BytePositionInLine: 21.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json plus number",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:\u002B1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027\\u002B\\u0027 is an invalid start of a value. Path: $.value | LineNumber: 0 | BytePositionInLine: 20.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json bom",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "\uFEFF{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x 1 [] False"
+      ]
+    },
+    {
+      "name": "json multiline type error",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\n  \u0022name\u0022: 5,\n  \u0022value\u0022: 1\n}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.name | LineNumber: 1 | BytePositionInLine: 11.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json multiline syntax error",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\n  \u0022name\u0022: \u0022x\u0022,\n  \u0022value\u0022: ?\n}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027?\\u0027 is an invalid start of a value. Path: $.value | LineNumber: 2 | BytePositionInLine: 11.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json missing comma",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022 \u0022value\u0022:1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027\\u0022\\u0027 is invalid after a value. Expected either \\u0027,\\u0027, \\u0027}\\u0027, or \\u0027]\\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 12.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json unquoted key",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{name:1}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027n\\u0027 is an invalid start of a property name. Expected a \\u0027\\u0022\\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json nested type error",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022rationale\u0022:{\u0022a\u0022:1}}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.rationale | LineNumber: 0 | BytePositionInLine: 35.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json value overflow",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1e999}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:\u0022Infinity\u0022,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x Infinity [] False"
+      ]
+    },
+    {
+      "name": "json value is object",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:{}}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 21.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json value is array",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:[1]}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 21.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json value true",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:true}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 24.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json control char in string",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022a\tb\u0022}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u00270x09\\u0027 is invalid within a JSON string. The string should be correctly escaped. Path: $.name | LineNumber: 0 | BytePositionInLine: 10.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json infinity literal",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:\u0022-Infinity\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:\u0022-Infinity\u0022,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x -Infinity [] False"
+      ]
+    },
+    {
+      "name": "json infinity lowercase",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:\u0022infinity\u0022}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $.value | LineNumber: 0 | BytePositionInLine: 30.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json nan bare",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:NaN}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022\\u0027N\\u0027 is an invalid start of a value. Path: $.value | LineNumber: 0 | BytePositionInLine: 20.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json deep",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetSetting. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "json deep ok object",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022name\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022z\u0022:[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022x\u0022,\u0022value\u0022:1,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022\u0022}",
+      "calls": [
+        "set x 1 [] False"
+      ]
+    },
+    {
+      "name": "cell refused",
+      "setup": [],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:0,\u0022row\u0022:0,\u0022value\u0022:55}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022writes are not armed\u0022,\u0022detail\u0022:\u0022\u0022}",
+      "calls": [
+        "cell VE Table 0 0 55 [] False"
+      ]
+    },
+    {
+      "name": "cell armed",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:0,\u0022row\u0022:0,\u0022value\u0022:55,\u0022rationale\u0022:\u0022smoothing a flat spot\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022VE Table\u0022,\u0022column\u0022:0,\u0022row\u0022:0,\u0022value\u0022:55,\u0022requested\u0022:55,\u0022clamped\u0022:false,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022smoothing a flat spot\u0022}",
+      "calls": [
+        "cell VE Table 0 0 55 [smoothing a flat spot] False"
+      ]
+    },
+    {
+      "name": "cell clamped",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:999,\u0022rationale\u0022:\u0022clamp\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:100,\u0022requested\u0022:999,\u0022clamped\u0022:true,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022clamp\u0022}",
+      "calls": [
+        "cell VE Table 1 1 999 [clamp] False"
+      ]
+    },
+    {
+      "name": "cell warning",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022warn\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:5,\u0022rationale\u0022:\u0022w\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022written\u0022:\u0022warn\u0022,\u0022column\u0022:1,\u0022row\u0022:1,\u0022value\u0022:5,\u0022requested\u0022:5,\u0022clamped\u0022:false,\u0022burned\u0022:false,\u0022rationale\u0022:\u0022w\u0022,\u0022warning\u0022:\u0022Warning: shares bytes\u0022}",
+      "calls": [
+        "cell warn 1 1 5 [w] False"
+      ]
+    },
+    {
+      "name": "cell fractional column",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1.5,\u0022row\u0022:1,\u0022value\u0022:5}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetCell. Path: $.column | LineNumber: 0 | BytePositionInLine: 32.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "cell exponent column",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1e0,\u0022row\u0022:1,\u0022value\u0022:5}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetCell. Path: $.column | LineNumber: 0 | BytePositionInLine: 32.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "cell huge column",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/table/set",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:99999999999,\u0022row\u0022:1,\u0022value\u0022:5}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to OpenLogViewer.Core.AgentServer\\u002BSetCell. Path: $.column | LineNumber: 0 | BytePositionInLine: 40.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "burn paths",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/burn",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022page\u0022:0}",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such endpoint\u0022,\u0022detail\u0022:\u0022/tune/burn\u0022}",
+      "calls": []
+    },
+    {
+      "name": "keep without project",
+      "setup": [],
+      "method": "POST",
+      "target": "/project/keep",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022note\u0022:\u0022n\u0022}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no project is open\u0022,\u0022detail\u0022:\u0022\u0022}",
+      "calls": [
+        "keep [n]"
+      ]
+    },
+    {
+      "name": "keep",
+      "setup": [
+        "brief"
+      ],
+      "method": "POST",
+      "target": "/project/keep",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022note\u0022:\u0022n\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022kept\u0022:true,\u0022brief\u0022:\u0022# The E28\\n\\n## Still open\\n\\n### lean-under-load \\u2014 Lean above 150 kPa\\n\u0022}",
+      "calls": [
+        "keep [n]"
+      ]
+    },
+    {
+      "name": "record without project",
+      "setup": [],
+      "method": "POST",
+      "target": "/project/record",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022note\u0022:\u0022n\u0022}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no project is open\u0022,\u0022detail\u0022:\u0022\u0022}",
+      "calls": [
+        "record [n]"
+      ]
+    },
+    {
+      "name": "record",
+      "setup": [
+        "brief"
+      ],
+      "method": "POST",
+      "target": "/project/record",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022note\u0022:\u0022after the VE change\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022recorded\u0022:true,\u0022brief\u0022:\u0022# The E28\\n\\n## Still open\\n\\n### lean-under-load \\u2014 Lean above 150 kPa\\n\u0022}",
+      "calls": [
+        "record [after the VE change]"
+      ]
+    },
+    {
+      "name": "fix",
+      "setup": [
+        "brief"
+      ],
+      "method": "POST",
+      "target": "/project/fix",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022title\u0022:\u0022Lean above 150 kPa\u0022,\u0022detail\u0022:\u002246% short\u0022,\u0022state\u0022:\u0022open\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022noted\u0022:true,\u0022brief\u0022:\u0022# The E28\\n\\n## Still open\\n\\n### lean-under-load \\u2014 Lean above 150 kPa\\n\u0022}",
+      "calls": [
+        "fix [] [Lean above 150 kPa] [46% short] [open] []"
+      ]
+    },
+    {
+      "name": "fix without project",
+      "setup": [],
+      "method": "POST",
+      "target": "/project/fix",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022title\u0022:\u0022x\u0022}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no project is open\u0022,\u0022detail\u0022:\u0022\u0022}",
+      "calls": [
+        "fix [] [x] [] [] []"
+      ]
+    },
+    {
+      "name": "compare",
+      "setup": [
+        "brief"
+      ],
+      "method": "POST",
+      "target": "/project/versions/compare",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022from\u0022:\u0022v1\u0022,\u0022to\u0022:\u0022v2\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022from\u0022:\u0022v1\u0022,\u0022to\u0022:\u0022v2\u0022,\u0022changed\u0022:\u0022v1 to v2: 2 settings differ.\u0022}",
+      "calls": [
+        "compare [v1] [v2]"
+      ]
+    },
+    {
+      "name": "compare no project",
+      "setup": [],
+      "method": "POST",
+      "target": "/project/versions/compare",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022from\u0022:\u0022v1\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022from\u0022:\u0022v1\u0022,\u0022changed\u0022:\u0022No project is open.\u0022}",
+      "calls": [
+        "compare [v1] []"
+      ]
+    },
+    {
+      "name": "compare get",
+      "setup": [
+        "brief"
+      ],
+      "method": "POST",
+      "target": "/project/versions/compare",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The input does not contain any JSON tokens. Expected the input to start with a valid JSON token, when isFinalBlock is true. Path: $ | LineNumber: 0 | BytePositionInLine: 0.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "propose",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}],\u0022cells\u0022:[{\u0022table\u0022:\u0022VE Table\u0022,\u0022column\u0022:1,\u0022row\u0022:0,\u0022value\u0022:3}]}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022changes\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022},{\u0022name\u0022:\u0022name\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:\u0022old\u0022,\u0022after\u0022:\u0022new \\u0022name\\u0022\u0022,\u0022summary\u0022:\u0022name: \\u0022new \\u0022name\\u0022\\u0022 against \\u0022old\\u0022\u0022},{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:4,\u0022after\u0022:61.5,\u0022summary\u0022:\u0022VE Table: 61.5 rpm against \\u2014\u0022}],\u0022rejected\u0022:[\u0022foo: no such setting\u0022],\u0022summary\u0022:\u00223 settings would change.\u0022}",
+      "calls": [
+        "propose revLimit=7000 | VE Table[1,0]=3"
+      ]
+    },
+    {
+      "name": "propose empty body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022changes\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022},{\u0022name\u0022:\u0022name\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:\u0022old\u0022,\u0022after\u0022:\u0022new \\u0022name\\u0022\u0022,\u0022summary\u0022:\u0022name: \\u0022new \\u0022name\\u0022\\u0022 against \\u0022old\\u0022\u0022},{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:4,\u0022after\u0022:61.5,\u0022summary\u0022:\u0022VE Table: 61.5 rpm against \\u2014\u0022}],\u0022rejected\u0022:[\u0022foo: no such setting\u0022],\u0022summary\u0022:\u00223 settings would change.\u0022}",
+      "calls": [
+        "propose  | "
+      ]
+    },
+    {
+      "name": "propose null body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "null",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022changes\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022},{\u0022name\u0022:\u0022name\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:\u0022old\u0022,\u0022after\u0022:\u0022new \\u0022name\\u0022\u0022,\u0022summary\u0022:\u0022name: \\u0022new \\u0022name\\u0022\\u0022 against \\u0022old\\u0022\u0022},{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:4,\u0022after\u0022:61.5,\u0022summary\u0022:\u0022VE Table: 61.5 rpm against \\u2014\u0022}],\u0022rejected\u0022:[\u0022foo: no such setting\u0022],\u0022summary\u0022:\u00223 settings would change.\u0022}",
+      "calls": [
+        "propose  | "
+      ]
+    },
+    {
+      "name": "propose whitespace body",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "  \r\n ",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022changes\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022},{\u0022name\u0022:\u0022name\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:\u0022old\u0022,\u0022after\u0022:\u0022new \\u0022name\\u0022\u0022,\u0022summary\u0022:\u0022name: \\u0022new \\u0022name\\u0022\\u0022 against \\u0022old\\u0022\u0022},{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:4,\u0022after\u0022:61.5,\u0022summary\u0022:\u0022VE Table: 61.5 rpm against \\u2014\u0022}],\u0022rejected\u0022:[\u0022foo: no such setting\u0022],\u0022summary\u0022:\u00223 settings would change.\u0022}",
+      "calls": [
+        "propose  | "
+      ]
+    },
+    {
+      "name": "propose empty object",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022changes\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022},{\u0022name\u0022:\u0022name\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:\u0022old\u0022,\u0022after\u0022:\u0022new \\u0022name\\u0022\u0022,\u0022summary\u0022:\u0022name: \\u0022new \\u0022name\\u0022\\u0022 against \\u0022old\\u0022\u0022},{\u0022name\u0022:\u0022VE Table\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:4,\u0022after\u0022:61.5,\u0022summary\u0022:\u0022VE Table: 61.5 rpm against \\u2014\u0022}],\u0022rejected\u0022:[\u0022foo: no such setting\u0022],\u0022summary\u0022:\u00223 settings would change.\u0022}",
+      "calls": [
+        "propose  | "
+      ]
+    },
+    {
+      "name": "propose settings wrong type",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022settings\u0022:5}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The JSON value could not be converted to System.Collections.Generic.List\\u00601[OpenLogViewer.Core.AgentServer\\u002BTuneChangeSetting]. Path: $.settings | LineNumber: 0 | BytePositionInLine: 13.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "propose setting null entry",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022settings\u0022:[null]}",
+      "status": 500,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the application failed to answer\u0022,\u0022detail\u0022:\u0022Object reference not set to an instance of an object.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "propose malformed",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/propose",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022Expected depth to be zero at the end of the JSON payload. There is an open JSON object or array that should be closed. Path: $ | LineNumber: 0 | BytePositionInLine: 1.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "apply refused",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/apply",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}]}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022writes are not armed\u0022,\u0022detail\u0022:\u0022Tick it.\u0022}",
+      "calls": [
+        "apply 1 0 [] False"
+      ]
+    },
+    {
+      "name": "apply",
+      "setup": [
+        "armed"
+      ],
+      "method": "POST",
+      "target": "/tune/apply",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022settings\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022value\u0022:7000}],\u0022note\u0022:\u0022dyno\u0022,\u0022confirmDangerous\u0022:true}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022applied\u0022:[{\u0022name\u0022:\u0022revLimit\u0022,\u0022units\u0022:\u0022rpm\u0022,\u0022cells\u0022:1,\u0022before\u0022:6500,\u0022after\u0022:7000,\u0022summary\u0022:\u0022revLimit: 7000 rpm against 6500 rpm\u0022}],\u0022rejected\u0022:[\u0022x: too large\u0022],\u0022summary\u0022:\u0022Applied 1 change.\u0022,\u0022burned\u0022:false}",
+      "calls": [
+        "apply 1 0 [dyno] True"
+      ]
+    },
+    {
+      "name": "stage tune",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/tune",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022name\u0022:\u0022tune-test.msq\u0022,\u0022path\u0022:\u0022C:\\\\staged\\\\tune-test.msq\u0022,\u0022bytes\u0022:42,\u0022writtenAt\u0022:\u00222026-01-02T03:04:05.678Z\u0022}",
+      "calls": [
+        "stagetune []"
+      ]
+    },
+    {
+      "name": "stage tune named",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/tune",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022filename\u0022:\u0022mine.msq\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022name\u0022:\u0022tune-test.msq\u0022,\u0022path\u0022:\u0022C:\\\\staged\\\\tune-test.msq\u0022,\u0022bytes\u0022:42,\u0022writtenAt\u0022:\u00222026-01-02T03:04:05.678Z\u0022}",
+      "calls": [
+        "stagetune [mine.msq]"
+      ]
+    },
+    {
+      "name": "stage tune refused",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/tune",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022filename\u0022:\u0022bad\u0022}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022could not stage that file\u0022,\u0022detail\u0022:\u0022no\u0022}",
+      "calls": [
+        "stagetune [bad]"
+      ]
+    },
+    {
+      "name": "stage table",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table?name=VE%20Table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022filename\u0022:\u0022x.csv\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022name\u0022:\u0022VE-Table-test.csv\u0022,\u0022path\u0022:\u0022C:\\\\staged\\\\VE-Table-test.csv\u0022,\u0022bytes\u0022:24,\u0022writtenAt\u0022:\u00222026-01-02T03:04:05.678Z\u0022}",
+      "calls": [
+        "stagetable [VE Table] [x.csv]"
+      ]
+    },
+    {
+      "name": "stage table no body",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table?name=VE%20Table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022name\u0022:\u0022VE-Table-test.csv\u0022,\u0022path\u0022:\u0022C:\\\\staged\\\\VE-Table-test.csv\u0022,\u0022bytes\u0022:24,\u0022writtenAt\u0022:\u00222026-01-02T03:04:05.678Z\u0022}",
+      "calls": [
+        "stagetable [VE Table] []"
+      ]
+    },
+    {
+      "name": "stage table unknown",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table?name=Nope",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 404,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no such table\u0022,\u0022detail\u0022:\u0022Nope\u0022}",
+      "calls": [
+        "stagetable [Nope] []"
+      ]
+    },
+    {
+      "name": "stage table failing",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table?name=locked",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022could not write the staged file\u0022,\u0022detail\u0022:\u0022denied\u0022}",
+      "calls": [
+        "stagetable [locked] []"
+      ]
+    },
+    {
+      "name": "stage table no name",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no table named\u0022,\u0022detail\u0022:\u0022pass ?name=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "stage table blank name",
+      "setup": [],
+      "method": "POST",
+      "target": "/stage/table?name=%20",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022no table named\u0022,\u0022detail\u0022:\u0022pass ?name=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "import",
+      "setup": [],
+      "method": "POST",
+      "target": "/definitions/import",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022path\u0022:\u0022C:\\\\downloads\\\\speeduino.ini\u0022,\u0022source\u0022:\u0022https://example.invalid/x.ini\u0022}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022kept\u0022:true,\u0022name\u0022:\u0022speeduino202501.ini\u0022,\u0022signature\u0022:\u0022speeduino 202501\u0022,\u0022path\u0022:\u0022C:\\\\defs\\\\speeduino202501.ini\u0022,\u0022source\u0022:\u0022https://example.invalid/x.ini\u0022}",
+      "calls": [
+        "import [C:\\downloads\\speeduino.ini] [] [https://example.invalid/x.ini] []"
+      ]
+    },
+    {
+      "name": "import refused",
+      "setup": [],
+      "method": "POST",
+      "target": "/definitions/import",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{\u0022path\u0022:\u0022wrong\u0022}",
+      "status": 409,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022that definition was not kept\u0022,\u0022detail\u0022:\u0022it declares \\u0022speeduino 202402\\u0022\u0022}",
+      "calls": [
+        "import [wrong] [] [] []"
+      ]
+    },
+    {
+      "name": "import empty body",
+      "setup": [],
+      "method": "POST",
+      "target": "/definitions/import",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 400,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022the body was not the JSON this expects\u0022,\u0022detail\u0022:\u0022The input does not contain any JSON tokens. Expected the input to start with a valid JSON token, when isFinalBlock is true. Path: $ | LineNumber: 0 | BytePositionInLine: 0.\u0022}",
+      "calls": []
+    },
+    {
+      "name": "post to a get endpoint",
+      "setup": [],
+      "method": "POST",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "{}",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "no token",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "no token unknown path",
+      "setup": [],
+      "method": "GET",
+      "target": "/nope",
+      "headers": [],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "wrong token",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer wrong-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "shorter token",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer x"
+        ]
+      ],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "basic scheme",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Basic test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "lowercase bearer",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "bearer with spaces",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer   test-token-0123456789  "
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "bare token header",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Authorization",
+          "test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "token in query",
+      "setup": [],
+      "method": "GET",
+      "target": "/state?token=test-token-0123456789",
+      "headers": [],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "wrong token in query",
+      "setup": [],
+      "method": "GET",
+      "target": "/state?token=nope",
+      "headers": [],
+      "body": "",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "bad header good query",
+      "setup": [],
+      "method": "GET",
+      "target": "/state?token=test-token-0123456789",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer nope"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "good header bad query",
+      "setup": [],
+      "method": "GET",
+      "target": "/state?token=nope",
+      "headers": [
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "unauthorised post",
+      "setup": [],
+      "method": "POST",
+      "target": "/tune/set",
+      "headers": [],
+      "body": "{\u0022name\u0022:\u0022a\u0022,\u0022value\u0022:1}",
+      "status": 401,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022error\u0022:\u0022unauthorised\u0022,\u0022detail\u0022:\u0022Pass the token as an Authorization: Bearer header, or ?token=\u0022}",
+      "calls": []
+    },
+    {
+      "name": "host localhost",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Host",
+          "localhost:{port}"
+        ],
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "host other",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Host",
+          "evil.example:{port}"
+        ],
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "host loopback other port",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Host",
+          "127.0.0.1:1"
+        ],
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "origin foreign",
+      "setup": [],
+      "method": "GET",
+      "target": "/state",
+      "headers": [
+        [
+          "Origin",
+          "http://evil.example"
+        ],
+        [
+          "Authorization",
+          "Bearer test-token-0123456789"
+        ]
+      ],
+      "body": "",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "response": "{\u0022mode\u0022:\u0022live\u0022,\u0022signature\u0022:\u0022TEST Format 0001.00\u0022,\u0022file\u0022:\u0022\u0022,\u0022samples\u0022:3,\u0022seconds\u0022:0.2,\u0022rate\u0022:25,\u0022channels\u0022:2,\u0022hasTune\u0022:true,\u0022writesArmed\u0022:false,\u0022error\u0022:\u0022\u0022}",
+      "calls": []
+    },
+    {
+      "name": "stream",
+      "setup": [],
+      "method": "WS",
+      "target": "/live/stream",
+      "messages": [
+        "{\u0022type\u0022:\u0022schema\u0022,\u0022channels\u0022:[\u0022RPM\u0022,\u0022Lua: torque\u0022,\u0022Neg\u0022,\u0022Tiny\u0022,\u0022Big\u0022]}",
+        "{\u0022type\u0022:\u0022frame\u0022,\u0022t\u0022:1.5,\u0022v\u0022:[3000,\u0022NaN\u0022,\u0022-Infinity\u0022,1E-07,\u0022Infinity\u0022],\u0022skipped\u0022:0}",
+        "{\u0022type\u0022:\u0022error\u0022,\u0022detail\u0022:\u0022expected {\\u0022channels\\u0022:[\\u2026],\\u0022raw\\u0022:false}\u0022}"
+      ]
+    }
+  ]
+}
