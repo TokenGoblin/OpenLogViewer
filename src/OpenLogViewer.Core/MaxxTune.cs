@@ -281,6 +281,14 @@ public static class MaxxTune
         var status = new byte[1];
         var timeout = TimeSpan.FromMilliseconds(600);
 
+        // The header ack and the payload ack are the same bare 0x80, so nothing
+        // in a byte tells a stale one from a real one. Discarding what is pending
+        // before each send is the only defence: a late telemetry reply's leading
+        // 0x80 would otherwise be read as the header ack, the real header ack as
+        // the payload ack, and a refused payload would report success. Writes are
+        // live and permanent, so Verify remains the real confirmation.
+        transport.DiscardInput();
+
         transport.Write(MaxxUsbProtocol.Request(MaxxUsbProtocol.Write, ReadTune, offset, data.Length));
 
         if (transport.Read(status, timeout) != 1) return MaxxWriteStatus.NoAnswer;
@@ -293,6 +301,9 @@ public static class MaxxTune
         data.CopyTo(payload);
         BinaryPrimitives.WriteUInt32LittleEndian(
             payload.AsSpan(data.Length), MaxxProtocol.Crc32(data));
+
+        // Anything that arrived since the header ack is not the payload's ack.
+        transport.DiscardInput();
 
         transport.Write(payload);
 

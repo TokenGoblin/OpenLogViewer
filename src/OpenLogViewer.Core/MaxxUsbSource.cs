@@ -332,10 +332,13 @@ public sealed class MaxxUsbSource : ILiveSource
         {
             _transport.Write(request);
 
-            return _transport.Read(reply, ReplyTimeout) == reply.Length
-                   && MaxxUsbProtocol.TryReadReply(reply, wanted, out byte[] data)
-                ? MaxxCan.Frames(data)
-                : [];
+            if (_transport.Read(reply, ReplyTimeout) == reply.Length
+                && MaxxUsbProtocol.TryReadReply(reply, wanted, out byte[] data))
+                return MaxxCan.Frames(data);
+
+            _transport.DiscardInput();
+
+            return [];
         }
     }
 
@@ -356,10 +359,13 @@ public sealed class MaxxUsbSource : ILiveSource
             _transport.Write(MaxxUsbProtocol.Request(
                 MaxxUsbProtocol.Read, MaxxCan.Snapshot, MaxxCan.DropCountAt, 2));
 
-            return _transport.Read(reply, ReplyTimeout) == reply.Length
-                   && MaxxUsbProtocol.TryReadReply(reply, 2, out byte[] data)
-                ? data[0] | (data[1] << 8)
-                : null;
+            if (_transport.Read(reply, ReplyTimeout) == reply.Length
+                && MaxxUsbProtocol.TryReadReply(reply, 2, out byte[] data))
+                return data[0] | (data[1] << 8);
+
+            _transport.DiscardInput();
+
+            return null;
         }
     }
 

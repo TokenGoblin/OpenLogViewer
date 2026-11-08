@@ -175,6 +175,9 @@ public static class MaxxUsbProtocol
                 return true;
         }
 
+        // Giving up: a late reply must not be taken as the next request's.
+        transport.DiscardInput();
+
         data = [];
         return false;
     }

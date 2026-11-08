@@ -508,6 +508,9 @@ public class MaxxTuneTests
         /// <summary>Whether it acknowledges the payload once it has taken it.</summary>
         public bool AnswerThePayload { get; init; } = true;
 
+        /// <summary>Whether it takes the header and then refuses the payload.</summary>
+        public bool RefusePayload { get; init; }
+
         /// <summary>What it is holding, so a write can be checked against it.</summary>
         public byte[] Tune { get; } = new byte[MaxxTune.BlobSize];
 
@@ -529,7 +532,9 @@ public class MaxxTuneTests
                 // The payload, and the checksum the ECU verifies before taking it.
                 uint sent = BitConverter.ToUInt32(data[pending.Length..]);
 
-                if (sent == MaxxProtocol.Crc32(data[..pending.Length]))
+                // Appended, not replaced: a header ack nobody read is still on the line.
+                if (RefusePayload) _reply = [.. _reply, (byte)MaxxWriteStatus.OutOfRange];
+                else if (sent == MaxxProtocol.Crc32(data[..pending.Length]))
                 {
                     data[..pending.Length].CopyTo(Tune.AsSpan(pending.Offset));
                     Writes++;
@@ -849,6 +854,115 @@ public class MaxxTuneTests
         TuneConstant axis = model.Layout.Constants.Single(c => c.Name == "VE Table 1 X");
         Assert.Equal(16, axis.Columns);
         Assert.DoesNotContain("VE Table 1 X", targets);
+    }
+
+    /// <summary>
+    /// Wraps a transport with bytes already waiting in its input, as a late
+    /// telemetry reply would be, and records what is written to it.
+    /// </summary>
+    private sealed class StaleInput(IEcuTransport inner, params byte[] stale) : IEcuTransport
+    {
+        private byte[] _pending = stale;
+
+        public List<byte[]> Sent { get; } = [];
+
+        public bool IsOpen => inner.IsOpen;
+
+        public void Open() => inner.Open();
+
+        public void Close() => inner.Close();
+
+        public void Write(ReadOnlySpan<byte> data)
+        {
+            Sent.Add(data.ToArray());
+            inner.Write(data);
+        }
+
+        public int Read(Span<byte> buffer, TimeSpan timeout)
+        {
+            if (_pending.Length == 0) return inner.Read(buffer, timeout);
+
+            int taken = Math.Min(buffer.Length, _pending.Length);
+            _pending.AsSpan(0, taken).CopyTo(buffer);
+            _pending = _pending[taken..];
+
+            return taken;
+        }
+
+        public void DiscardInput()
+        {
+            _pending = [];
+            inner.DiscardInput();
+        }
+
+        public void Dispose() => inner.Dispose();
+    }
+
+    /// <summary>Answers every request with a short reply that is never read.</summary>
+    private sealed class ShortReplies : IEcuTransport
+    {
+        private byte[] _reply = [];
+
+        public bool IsOpen => true;
+
+        public int Pending => _reply.Length;
+
+        public void Open() { }
+
+        public void Close() { }
+
+        public void Write(ReadOnlySpan<byte> data) => _reply = [MaxxUsbProtocol.Ok, 1, 2];
+
+        public int Read(Span<byte> buffer, TimeSpan timeout) => 0;
+
+        public void DiscardInput() => _reply = [];
+
+        public void Dispose() { }
+    }
+
+    /// <summary>
+    /// Both acknowledgements are the same bare 0x80, so a stale one in the input
+    /// would be taken for the header's, the real header ack for the payload's,
+    /// and a refused payload would report success. Writes are permanent.
+    /// </summary>
+    [Fact]
+    public void AStaleAcknowledgementDoesNotHideARefusedPayload()
+    {
+        var ecu = new FakeEcu { RefusePayload = true };
+        var line = new StaleInput(ecu, MaxxUsbProtocol.Ok);
+
+        Assert.Equal(MaxxWriteStatus.OutOfRange, MaxxTune.Write(line, 1000, [1, 2, 3, 4]));
+        Assert.Equal(0, ecu.Writes);
+    }
+
+    [Fact]
+    public void AWriteSendsTheSameBytesWithTheDiscardsInPlace()
+    {
+        var ecu = new FakeEcu();
+        var line = new StaleInput(ecu);
+        byte[] data = [1, 2, 3, 4];
+
+        Assert.Equal(MaxxWriteStatus.Ok, MaxxTune.Write(line, 1000, data));
+        Assert.Equal(2, line.Sent.Count);
+        Assert.Equal(
+            MaxxUsbProtocol.Request(MaxxUsbProtocol.Write, MaxxTune.ReadTune, 1000, 4),
+            line.Sent[0]);
+        Assert.Equal(
+            [.. data, .. BitConverter.GetBytes(MaxxProtocol.Crc32(data))],
+            line.Sent[1]);
+        Assert.Equal(data, ecu.Tune.AsSpan(1000, 4).ToArray());
+    }
+
+    [Fact]
+    public void ARequestThatGivesUpLeavesNoStaleInput()
+    {
+        var line = new ShortReplies();
+        var reply = new byte[MaxxUsbProtocol.ReplyLength(2)];
+
+        Assert.False(MaxxUsbProtocol.TryAsk(
+            line, MaxxUsbProtocol.AreYouThere(), reply, 2, TimeSpan.FromMilliseconds(1),
+            attempts: 2, out _));
+        Assert.Equal(0, line.Pending);
     }
 
     [Fact]
