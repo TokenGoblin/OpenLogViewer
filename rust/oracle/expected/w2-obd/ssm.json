@@ -1,0 +1,1693 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "kind": "requests",
+      "requests": [
+        {
+          "addresses": [
+            14
+          ],
+          "ok": true,
+          "text": "A80000000E"
+        },
+        {
+          "addresses": [
+            8
+          ],
+          "ok": true,
+          "text": "A800000008"
+        },
+        {
+          "addresses": [
+            0
+          ],
+          "ok": true,
+          "text": "A800000000"
+        },
+        {
+          "addresses": [
+            16777215
+          ],
+          "ok": true,
+          "text": "A800FFFFFF"
+        },
+        {
+          "addresses": [
+            14,
+            8
+          ],
+          "ok": true,
+          "text": "A80000000E000008"
+        },
+        {
+          "addresses": [
+            16777216
+          ],
+          "ok": false,
+          "text": ""
+        },
+        {
+          "addresses": [
+            -1
+          ],
+          "ok": false,
+          "text": ""
+        },
+        {
+          "addresses": [
+            -2147483648
+          ],
+          "ok": false,
+          "text": ""
+        },
+        {
+          "addresses": [
+            2147483647
+          ],
+          "ok": false,
+          "text": ""
+        },
+        {
+          "addresses": [],
+          "ok": false,
+          "text": ""
+        }
+      ],
+      "setup": [
+        "ATSH7E0",
+        "ATCRA7E8",
+        "ATFCSH7E0",
+        "ATFCSD300000",
+        "ATFCSM1"
+      ],
+      "restore": [
+        "ATCRA",
+        "ATFCSM0",
+        "ATSH7DF"
+      ],
+      "engine_header": "7E0",
+      "engine_replies": "7E8",
+      "addresses_per_request": 1
+    },
+    {
+      "kind": "replies",
+      "replies": [
+        {
+          "reply": "",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": " ",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": " ",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": " ",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": " ",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E80E",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E886",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E886",
+          "expected": 1,
+          "data": "86",
+          "refused": false
+        },
+        {
+          "reply": "E886",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E886",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36",
+          "expected": 2,
+          "data": "0E36",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E36",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E36",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E80E36",
+          "expected": 2,
+          "data": "0E36",
+          "refused": false
+        },
+        {
+          "reply": "E80E36",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7FA813",
+          "expected": 0,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA813",
+          "expected": 1,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA813",
+          "expected": 2,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA813",
+          "expected": 3,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA812",
+          "expected": 0,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA812",
+          "expected": 1,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA812",
+          "expected": 2,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA812",
+          "expected": 3,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7f a8 13",
+          "expected": 0,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7f a8 13",
+          "expected": 1,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7f a8 13",
+          "expected": 2,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7f a8 13",
+          "expected": 3,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7F 22 11",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F 22 11",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F 22 11",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F 22 11",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "NO DATA",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "NO DATA",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "NO DATA",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "NO DATA",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "?",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "?",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "?",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "?",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "410C0E2B",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "410C0E2B",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "410C0E2B",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "410C0E2B",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "SEARCHING...\rE80E",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "SEARCHING...\rE80E",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "SEARCHING...\rE80E",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "SEARCHING...\rE80E",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8\rE80E",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8\rE80E",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E8\rE80E",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8\rE80E",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7F",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "A8",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "A8",
+          "expected": 1,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "A8",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "A8",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "7FA8",
+          "expected": 0,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA8",
+          "expected": 1,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA8",
+          "expected": 2,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "7FA8",
+          "expected": 3,
+          "data": "",
+          "refused": true
+        },
+        {
+          "reply": "E80E\rE90F",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E\rE90F",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E80E\rE90F",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E80E\rE90F",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "xxE80Exx",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "xxE80Exx",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "xxE80Exx",
+          "expected": 2,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "xxE80Exx",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36\r",
+          "expected": 0,
+          "data": "",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36\r",
+          "expected": 1,
+          "data": "0E",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36\r",
+          "expected": 2,
+          "data": "0E36",
+          "refused": false
+        },
+        {
+          "reply": "E8 0E 36\r",
+          "expected": 3,
+          "data": "",
+          "refused": false
+        },
+        {
+          "expected": 1,
+          "data": "",
+          "refused": false
+        }
+      ]
+    },
+    {
+      "kind": "parameters",
+      "parameters": [
+        {
+          "name": "Engine Speed",
+          "address": 14,
+          "bytes": 2,
+          "units": "",
+          "usable": true,
+          "addresses": [
+            14,
+            15
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4040c00000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "404fe00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "408c6c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40ab070000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40cfffe000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41cfffffffe00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41c0000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41d0203040500000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "bfd0000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43aa2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "Coolant",
+          "address": 8,
+          "bytes": 1,
+          "units": "\u00B0C",
+          "usable": true,
+          "addresses": [
+            8
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "c044000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4057800000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "406ae00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "40ac1c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40caf30000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40effae000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41effffffae00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41dffffff6000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41f020303dd00000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "c044800000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43ca2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "Wide",
+          "address": 16,
+          "bytes": 4,
+          "units": "",
+          "usable": true,
+          "addresses": [
+            16,
+            17,
+            18,
+            19
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "400c000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "400d126e978d4fdf"
+            },
+            {
+              "raw": "FF",
+              "value": "400e0a3d70a3d70a"
+            },
+            {
+              "raw": "0E36",
+              "value": "401c8d4fdf3b645a"
+            },
+            {
+              "raw": "360E",
+              "value": "403156872b020c4a"
+            },
+            {
+              "raw": "FFFF",
+              "value": "4051423d70a3d70a"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "4150624eb2e147ae"
+            },
+            {
+              "raw": "80000000",
+              "value": "4140624f92f1a9fc"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41508344b75c28f6"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "400bfdf3b645a1cb"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "432acc0467cd3ef9"
+            }
+          ]
+        },
+        {
+          "name": "Zero",
+          "address": 16,
+          "bytes": 0,
+          "units": "",
+          "usable": false,
+          "addresses": [
+            16
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4060c00000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "406fe00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "40ac6c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40cb070000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40efffe000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41efffffffe00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41e0000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41f0203040500000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "bff0000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43ca2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "Five",
+          "address": 16,
+          "bytes": 5,
+          "units": "",
+          "usable": false,
+          "addresses": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4060c00000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "406fe00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "40ac6c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40cb070000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40efffe000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41efffffffe00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41e0000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41f0203040500000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "bff0000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43ca2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "",
+          "address": 16,
+          "bytes": 1,
+          "units": "",
+          "usable": false,
+          "addresses": [
+            16
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4060c00000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "406fe00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "40ac6c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40cb070000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40efffe000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41efffffffe00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41e0000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41f0203040500000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "bff0000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43ca2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "Neg",
+          "address": -1,
+          "bytes": 1,
+          "units": "",
+          "usable": false,
+          "addresses": [
+            -1
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "4060c00000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "406fe00000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "40ac6c0000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "40cb070000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "40efffe000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "41efffffffe00000"
+            },
+            {
+              "raw": "80000000",
+              "value": "41e0000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "41f0203040500000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "bff0000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "43ca2b3c4d5e6f78"
+            }
+          ]
+        },
+        {
+          "name": "NoScale",
+          "address": 16,
+          "bytes": 1,
+          "units": "",
+          "usable": false,
+          "addresses": [
+            16
+          ],
+          "reads": [
+            {
+              "raw": "",
+              "value": "fff8000000000000"
+            },
+            {
+              "raw": "00",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "86",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "FF",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "0E36",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "360E",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "FFFF",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "FFFFFFFF",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "80000000",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "0102030405",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "FFFFFFFFFFFFFFFF",
+              "value": "0000000000000000"
+            },
+            {
+              "raw": "123456789ABCDEF011",
+              "value": "0000000000000000"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "addresses",
+      "addresses": [
+        {},
+        {
+          "text": ""
+        },
+        {
+          "text": " "
+        },
+        {
+          "text": "0",
+          "value": 0
+        },
+        {
+          "text": "0x0",
+          "value": 0
+        },
+        {
+          "text": "0x"
+        },
+        {
+          "text": "0X1f",
+          "value": 31
+        },
+        {
+          "text": "1f",
+          "value": 31
+        },
+        {
+          "text": "  1f  ",
+          "value": 31
+        },
+        {
+          "text": "0x 1F",
+          "value": 31
+        },
+        {
+          "text": "1 F"
+        },
+        {
+          "text": "FFFFFF",
+          "value": 16777215
+        },
+        {
+          "text": "0xFFFFFF",
+          "value": 16777215
+        },
+        {
+          "text": "1000000"
+        },
+        {
+          "text": "FFFFFFFF"
+        },
+        {
+          "text": "100000000"
+        },
+        {
+          "text": "123456789"
+        },
+        {
+          "text": "-1"
+        },
+        {
+          "text": "\u002B1"
+        },
+        {
+          "text": "0x-1"
+        },
+        {
+          "text": "g"
+        },
+        {
+          "text": "00000000000000000000000001",
+          "value": 1
+        },
+        {
+          "text": "0x00000E",
+          "value": 14
+        },
+        {
+          "text": "8",
+          "value": 8
+        },
+        {
+          "text": "\u00A01F",
+          "value": 31
+        },
+        {
+          "text": "1F\u00A0",
+          "value": 31
+        },
+        {
+          "text": "\t1F\n",
+          "value": 31
+        },
+        {
+          "text": "1_0"
+        }
+      ]
+    },
+    {
+      "kind": "files",
+      "name": "ssm-parameters.json",
+      "template": "{\n  \u0022version\u0022: 1,\n\n  \u0022_notes\u0022: [\n    \u0022Addresses this application reads over SSM, which is Subaru\u0027s own\u0022,\n    \u0022protocol and reaches what the ECU has learnt rather than what it is\u0022,\n    \u0022measuring \u2014 knock correction, fine knock learning, IAM, fuelling\u0022,\n    \u0022trims. None of that is in OBD2 at any speed.\u0022,\n    \u0022\u0022,\n    \u0022The two below were confirmed on a running 2014 Crosstrek by reading\u0022,\n    \u0022them against the same values over OBD2. They are here as worked\u0022,\n    \u0022examples of the format, not because they are the interesting ones.\u0022,\n    \u0022\u0022,\n    \u0022The interesting addresses are not shipped. What lives where is not\u0022,\n    \u0022something this can work out \u2014 the confirmation method only works for\u0022,\n    \u0022values OBD2 already has, and the published maps belong to projects\u0022,\n    \u0022under licences this cannot take from. Fill them in yourself, from a\u0022,\n    \u0022source you judge right for your own car.\u0022,\n    \u0022\u0022,\n    \u0022address : hex, with or without 0x\u0022,\n    \u0022bytes   : how many consecutive bytes, most significant first\u0022,\n    \u0022scale   : multiplied by the raw value\u0022,\n    \u0022offset  : added afterwards, so a temperature is raw minus 40\u0022,\n    \u0022\u0022,\n    \u0022Reading is one address per request, about 146 ms each, so keep the\u0022,\n    \u0022list to what you actually want to watch. Eight is roughly 0.85 Hz.\u0022\n  ],\n\n  \u0022parameters\u0022: [\n    {\n      \u0022name\u0022: \u0022Engine Speed\u0022,\n      \u0022address\u0022: \u00220x00000E\u0022,\n      \u0022bytes\u0022: 2,\n      \u0022units\u0022: \u0022rpm\u0022,\n      \u0022scale\u0022: 0.25,\n      \u0022digits\u0022: 0,\n      \u0022low\u0022: 0,\n      \u0022high\u0022: 8000\n    },\n    {\n      \u0022name\u0022: \u0022Coolant\u0022,\n      \u0022address\u0022: \u00220x000008\u0022,\n      \u0022bytes\u0022: 1,\n      \u0022units\u0022: \u0022\u00B0C\u0022,\n      \u0022scale\u0022: 1,\n      \u0022offset\u0022: -40,\n      \u0022digits\u0022: 0,\n      \u0022low\u0022: -40,\n      \u0022high\u0022: 215\n    }\n  ]\n}\n",
+      "files": [
+        {
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "  ",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "not json",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "[]",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "null",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:null}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:{}}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u00220x10\u0022}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022Parameters\u0022:[{\u0022NAME\u0022:\u0022A\u0022,\u0022Address\u0022:\u00220X10\u0022,\u0022BYTES\u0022:2,\u0022Units\u0022:\u0022 u \u0022,\u0022Scale\u0022:0.5,\u0022Offset\u0022:-1,\u0022Digits\u0022:2,\u0022Low\u0022:-5,\u0022High\u0022:9.5,\u0022Enabled\u0022:false}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 2,
+              "units": "u",
+              "scale": "3fe0000000000000",
+              "offset": "bff0000000000000",
+              "digits": 2,
+              "low": "c014000000000000",
+              "high": "4023000000000000",
+              "enabled": false
+            }
+          ],
+          "enabled": []
+        },
+        {
+          "json": "// c\n{ /* c */ \u0022parameters\u0022: [ { \u0022name\u0022: \u0022A\u0022, \u0022address\u0022: \u002210\u0022, }, ], }",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022version\u0022:\u0022x\u0022,\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022version\u0022:null,\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022version\u0022:1.5,\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022version\u0022:2,\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:10}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:\u00222\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:2.0}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:1e0}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:2.5}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:99999999999}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022scale\u0022:\u00221\u0022}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022scale\u0022:0}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022scale\u0022:-2}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "c000000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022enabled\u0022:1}]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022enabled\u0022:null,\u0022bytes\u0022:null,\u0022units\u0022:null,\u0022scale\u0022:null}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022},{\u0022name\u0022:\u0022a\u0022,\u0022address\u0022:\u002211\u0022},{\u0022name\u0022:\u0022B\u0022,\u0022address\u0022:\u002212\u0022}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            },
+            {
+              "name": "B",
+              "address": 18,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022  \u0022,\u0022address\u0022:\u002210\u0022},{\u0022name\u0022:\u0022\u0022,\u0022address\u0022:\u002210\u0022},{\u0022name\u0022:\u0022 C \u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [
+            {
+              "name": "C",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "C"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u0022zz\u0022},{\u0022name\u0022:\u0022B\u0022,\u0022address\u0022:\u00220x1000000\u0022},{\u0022name\u0022:\u0022C\u0022,\u0022address\u0022:\u0022FFFFFF\u0022},{\u0022name\u0022:\u0022D\u0022,\u0022address\u0022:\u0022 0x 1F \u0022}]}",
+          "read": [
+            {
+              "name": "C",
+              "address": 16777215,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            },
+            {
+              "name": "D",
+              "address": 31,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "C",
+            "D"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022name\u0022:\u0022B\u0022}]}",
+          "read": [
+            {
+              "name": "B",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "B"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022Name\u0022:\u0022B\u0022}]}",
+          "read": [
+            {
+              "name": "B",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "B"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022extra\u0022:{\u0022deep\u0022:[1,2,{\u0022x\u0022:null}]}}],\u0022_notes\u0022:[\u0022a\u0022,\u0022b\u0022]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[[]]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[\u0022x\u0022]}",
+          "read": [],
+          "enabled": []
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022bytes\u0022:4},{\u0022name\u0022:\u0022B\u0022,\u0022address\u0022:\u002211\u0022,\u0022bytes\u0022:5},{\u0022name\u0022:\u0022C\u0022,\u0022address\u0022:\u002212\u0022,\u0022bytes\u0022:0},{\u0022name\u0022:\u0022D\u0022,\u0022address\u0022:\u002213\u0022,\u0022bytes\u0022:-1}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 4,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022high\u0022:1e5,\u0022low\u0022:-1E-2,\u0022offset\u0022:0.1,\u0022scale\u0022:3}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "4008000000000000",
+              "offset": "3fb999999999999a",
+              "digits": 0,
+              "low": "bf847ae147ae147b",
+              "high": "40f86a0000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "A"
+          ]
+        },
+        {
+          "json": "{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022,\u0022enabled\u0022:false},{\u0022name\u0022:\u0022B\u0022,\u0022address\u0022:\u002211\u0022,\u0022enabled\u0022:true}]}",
+          "read": [
+            {
+              "name": "A",
+              "address": 16,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": false
+            },
+            {
+              "name": "B",
+              "address": 17,
+              "bytes": 1,
+              "units": "",
+              "scale": "3ff0000000000000",
+              "offset": "0000000000000000",
+              "digits": 0,
+              "low": "0000000000000000",
+              "high": "406fe00000000000",
+              "enabled": true
+            }
+          ],
+          "enabled": [
+            "B"
+          ]
+        },
+        {
+          "json": "\uFEFF{\u0022parameters\u0022:[{\u0022name\u0022:\u0022A\u0022,\u0022address\u0022:\u002210\u0022}]}",
+          "read": [],
+          "enabled": []
+        }
+      ]
+    }
+  ]
+}

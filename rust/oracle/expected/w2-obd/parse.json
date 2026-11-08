@@ -1,0 +1,5664 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "reply": "",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 0,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 0,
+          "data": "0000"
+        },
+        {
+          "size": 4,
+          "got": 0,
+          "data": "00000000"
+        },
+        {
+          "size": 64,
+          "got": 0,
+          "data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "\r",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 0,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 0,
+          "data": "0000"
+        },
+        {
+          "size": 4,
+          "got": 0,
+          "data": "00000000"
+        },
+        {
+          "size": 64,
+          "got": 0,
+          "data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "\u003E",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 0,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 0,
+          "data": "0000"
+        },
+        {
+          "size": 4,
+          "got": 0,
+          "data": "00000000"
+        },
+        {
+          "size": 64,
+          "got": 0,
+          "data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41 0C 1A F8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41 0C 1A F8\r\r\u003E",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410c1af8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "SEARCHING...\r410C1AF8\r",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "EA"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "EAC4"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "EAC410C1"
+        },
+        {
+          "size": 64,
+          "got": 5,
+          "data": "EAC410C1AF0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "SEARCHING...\rNO DATA\r",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "EA"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "EACD"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "EACDAA00"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "EACDAA00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "NO DATA",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "DA"
+        },
+        {
+          "size": 2,
+          "got": 1,
+          "data": "DA00"
+        },
+        {
+          "size": 4,
+          "got": 1,
+          "data": "DA000000"
+        },
+        {
+          "size": 64,
+          "got": 1,
+          "data": "DA000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410D1A",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410D"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "410D1A00"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "410D1A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 13,
+              "data": "1A"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 13,
+              "data": "1A"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 13,
+              "data": "1A"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1A",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "410C1A00"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "410C1A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 2,
+          "data": "410C0000"
+        },
+        {
+          "size": 64,
+          "got": 2,
+          "data": "410C0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 1,
+          "data": "4100"
+        },
+        {
+          "size": 4,
+          "got": 1,
+          "data": "41000000"
+        },
+        {
+          "size": 64,
+          "got": 1,
+          "data": "41000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "4",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 0,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 0,
+          "data": "0000"
+        },
+        {
+          "size": 4,
+          "got": 0,
+          "data": "00000000"
+        },
+        {
+          "size": 64,
+          "got": 0,
+          "data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF8\r410C0000\r",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8",
+            "0000"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 8,
+          "data": "410C1AF8410C00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C0000\r410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "0000",
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C0000"
+        },
+        {
+          "size": 64,
+          "got": 8,
+          "data": "410C0000410C1AF80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "0000"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "0000"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "0000"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "0000"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "0000"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "4100BE3FA813",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": true,
+          "count": 4,
+          "data": "BE3FA813",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "BE3FA813"
+          ]
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "4100"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "4100BE3F"
+        },
+        {
+          "size": 64,
+          "got": 6,
+          "data": "4100BE3FA81300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "4100BE3FA813\r410080000001\r",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": true,
+          "count": 4,
+          "data": "BE3FA813",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "BE3FA813",
+            "80000001"
+          ]
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "4100"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "4100BE3F"
+        },
+        {
+          "size": 64,
+          "got": 12,
+          "data": "4100BE3FA81341008000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41051E",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": true,
+          "count": 1,
+          "data": "1E",
+          "ok_small": true,
+          "count_small": 1,
+          "all": [
+            "1E"
+          ]
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "4105"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "41051E00"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "41051E00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41 05",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "4105"
+        },
+        {
+          "size": 4,
+          "got": 2,
+          "data": "41050000"
+        },
+        {
+          "size": 64,
+          "got": 2,
+          "data": "41050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410B64",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": true,
+          "count": 1,
+          "data": "64",
+          "ok_small": true,
+          "count_small": 1,
+          "all": [
+            "64"
+          ]
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410B"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "410B6400"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "410B6400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "0:410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "04"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "0410"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "0410C1AF"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "0410C1AF000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF80B640D40",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 8,
+          "data": "410C1AF80B640D400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "00D\r0:410C1AF80B64\r1:0D4011330441\r\r\u003E",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "00D0"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "00D0410C"
+        },
+        {
+          "size": 64,
+          "got": 14,
+          "data": "00D0410C1AF80B6410D4011330440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            },
+            {
+              "pid": 17,
+              "data": "33"
+            },
+            {
+              "pid": 4,
+              "data": "41"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410100040000\r008\r0:415C600C1AF8\r1:0D40\r\r\u003E",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "4101"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "41010004"
+        },
+        {
+          "size": 64,
+          "got": 16,
+          "data": "4101000400000080415C600C1AF810D4000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 92,
+              "data": "60"
+            },
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "00D0:410C1AF80B641:0D4011330441",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "00D0"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "00D0410C"
+        },
+        {
+          "size": 64,
+          "got": 14,
+          "data": "00D0410C1AF80B6410D4011330440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            },
+            {
+              "pid": 13,
+              "data": "40"
+            },
+            {
+              "pid": 17,
+              "data": "33"
+            },
+            {
+              "pid": 4,
+              "data": "41"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF80B6455AAAA",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 9,
+          "data": "410C1AF80B6455AAAA00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF80C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 7,
+          "data": "410C1AF80C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF80B640D",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 7,
+          "data": "410C1AF80B640D000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            },
+            {
+              "pid": 11,
+              "data": "64"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "GG410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41-0C-1A-F8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41\t0C\t1A\tF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "4 1 0 C 1 A F 8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF8ZZ",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41 0C 1A F",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "410C1A00"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "410C1A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "41 0C 1A F8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 32,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF8 410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 8,
+          "data": "410C1AF8410C1AF80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "\n410C1AF8\n",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "ATZ\rELM327 v1.5",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "AE"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "AE32"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "AE327100"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "AE327100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "7F 01 12",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "7F"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "7F01"
+        },
+        {
+          "size": 4,
+          "got": 3,
+          "data": "7F011200"
+        },
+        {
+          "size": 64,
+          "got": 3,
+          "data": "7F011200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410C1AF8:",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": ":410C1AF8",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": true,
+          "count": 2,
+          "data": "1AF8",
+          "ok_small": false,
+          "count_small": 0,
+          "all": [
+            "1AF8"
+          ]
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410C"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410C1AF8"
+        },
+        {
+          "size": 64,
+          "got": 4,
+          "data": "410C1AF8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C0B",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "0C",
+          "answers": [
+            {
+              "pid": 12,
+              "data": "1AF8"
+            }
+          ]
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "::",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 0,
+          "data": "00"
+        },
+        {
+          "size": 2,
+          "got": 0,
+          "data": "0000"
+        },
+        {
+          "size": 4,
+          "got": 0,
+          "data": "00000000"
+        },
+        {
+          "size": 64,
+          "got": 0,
+          "data": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    },
+    {
+      "reply": "410F46\r410F50",
+      "tries": [
+        {
+          "pid": 12,
+          "bytes": 2,
+          "ok": false,
+          "count": 0,
+          "data": "0000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 5,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 0,
+          "bytes": 4,
+          "ok": false,
+          "count": 0,
+          "data": "00000000",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 11,
+          "bytes": 1,
+          "ok": false,
+          "count": 0,
+          "data": "00",
+          "ok_small": false,
+          "count_small": 0,
+          "all": []
+        },
+        {
+          "pid": 15,
+          "bytes": 1,
+          "ok": true,
+          "count": 1,
+          "data": "46",
+          "ok_small": true,
+          "count_small": 1,
+          "all": [
+            "46",
+            "50"
+          ]
+        }
+      ],
+      "unhex": [
+        {
+          "size": 0,
+          "got": 0,
+          "data": ""
+        },
+        {
+          "size": 1,
+          "got": 1,
+          "data": "41"
+        },
+        {
+          "size": 2,
+          "got": 2,
+          "data": "410F"
+        },
+        {
+          "size": 4,
+          "got": 4,
+          "data": "410F4641"
+        },
+        {
+          "size": 64,
+          "got": 6,
+          "data": "410F46410F5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "batches": [
+        {
+          "asked": "0C0B0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B0D1104",
+          "answers": []
+        },
+        {
+          "asked": "015C0C0D",
+          "answers": []
+        },
+        {
+          "asked": "0C0B",
+          "answers": []
+        },
+        {
+          "asked": "0C",
+          "answers": []
+        },
+        {
+          "asked": "",
+          "answers": []
+        }
+      ]
+    }
+  ]
+}

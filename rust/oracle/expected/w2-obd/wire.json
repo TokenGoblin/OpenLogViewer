@@ -1,0 +1,1448 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "name": "can_clone",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        }
+      ],
+      "actions": [
+        "reset",
+        "identify",
+        "protocol_name",
+        "protocol_number",
+        "is_can",
+        "warm_up",
+        "read:0C:2",
+        "read:05:1",
+        "read:0B:1",
+        "read:99:1",
+        "read_all:00:4",
+        "many:0C,05,0B",
+        "many:0C,99,0B",
+        "many:0C",
+        "send:0101",
+        "scan",
+        "clear"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATI",
+        "STDI",
+        "STI",
+        "ATDP",
+        "ATDPN",
+        "0100",
+        "010C",
+        "0105",
+        "010B",
+        "0199",
+        "0100",
+        "010C050B",
+        "010C0B",
+        "0101",
+        "ATDP",
+        "03",
+        "07",
+        "0A",
+        "0101",
+        "04",
+        "0A"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "ELM327 v1.5",
+        "ISO 15765-4 (CAN 11/500)",
+        "6",
+        "1",
+        "",
+        "1AF8",
+        "5A",
+        "56",
+        "none",
+        "BE3FA813;80000001",
+        "0C=1AF8;05=5A;0B=56",
+        "0C=1AF8;0B=56",
+        "",
+        "41018407E500\r\r",
+        "P0133/Stored;P0171/Stored;P0420/Pending|mil=1|count=4|proto=ISO 15765-4 (CAN 11/500)|trouble=|summary=2 stored, 1 pending \u2014 lamp on.",
+        "1|Erased. The stored and pending codes, the freeze frame and the readiness monitors are all gone \u2014 the car will need a full drive cycle before it can pass an emissions test.|"
+      ]
+    },
+    {
+      "name": "stn",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        },
+        {
+          "command": "STDI",
+          "reply": "OBDLink r2.6"
+        },
+        {
+          "command": "STI",
+          "reply": "STN1100 v2.2.2"
+        }
+      ],
+      "actions": [
+        "reset",
+        "identify",
+        "protocol_name"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATI",
+        "STDI",
+        "STI",
+        "ATDP"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "OBDLink r2.6 (STN1100 v2.2.2)",
+        "ISO 15765-4 (CAN 11/500)"
+      ]
+    },
+    {
+      "name": "stn_firmware_only",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        },
+        {
+          "command": "STI",
+          "reply": "STN1100 v2.2.2"
+        }
+      ],
+      "actions": [
+        "reset",
+        "identify"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATI",
+        "STDI",
+        "STI"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "ELM327 v1.5 (STN1100 v2.2.2)"
+      ]
+    },
+    {
+      "name": "sticky_echo",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ATI\rELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "ATDPN\rA6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        },
+        {
+          "command": "STDI",
+          "reply": "STDI\r?"
+        }
+      ],
+      "actions": [
+        "reset",
+        "identify",
+        "protocol_number",
+        "protocol_name",
+        "read:0C:2",
+        "read_all:0C:2"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATI",
+        "STDI",
+        "STI",
+        "ATDPN",
+        "ATDP",
+        "010C",
+        "010C"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "ELM327 v1.5",
+        "6",
+        "ISO 15765-4 (CAN 11/500)",
+        "1AF8",
+        "1AF8"
+      ]
+    },
+    {
+      "name": "serial",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 9141-2"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A3"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "410100070000"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 01 33 01 71 01 96\r43 02 20 00 00 00"
+        },
+        {
+          "command": "07",
+          "reply": "NO DATA"
+        },
+        {
+          "command": "0A",
+          "reply": "NO DATA"
+        }
+      ],
+      "actions": [
+        "reset",
+        "protocol_number",
+        "is_can",
+        "scan",
+        "clear",
+        "read:01:4"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATDPN",
+        "ATDP",
+        "03",
+        "07",
+        "0A",
+        "0101",
+        "04",
+        "0A",
+        "0101"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "3",
+        "0",
+        "P0133/Stored;P0171/Stored;P0196/Stored;P0220/Stored|mil=0|count=0|proto=ISO 9141-2|trouble=|summary=4 stored \u2014 lamp off.",
+        "1|Erased. The stored and pending codes, the freeze frame and the readiness monitors are all gone \u2014 the car will need a full drive cycle before it can pass an emissions test.|",
+        "00070000"
+      ]
+    },
+    {
+      "name": "searching",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, SAE J1850 PWM"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A0"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        }
+      ],
+      "actions": [
+        "reset",
+        "protocol_number",
+        "is_can",
+        "protocol_number",
+        "is_can"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATDPN",
+        "ATDPN",
+        "ATDPN",
+        "ATDPN"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "-1",
+        "1",
+        "-1",
+        "1"
+      ]
+    },
+    {
+      "name": "fragmented",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "00A\r0:43040133\r1:01340173019600"
+        },
+        {
+          "command": "07",
+          "reply": "SEARCHING...\r47 00"
+        },
+        {
+          "command": "0A",
+          "reply": "7F 0A 11"
+        }
+      ],
+      "actions": [
+        "reset",
+        "scan"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATDP",
+        "ATDPN",
+        "03",
+        "07",
+        "0A",
+        "0101"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "P0133/Stored;P0134/Stored;P0173/Stored;P0196/Stored|mil=1|count=4|proto=ISO 15765-4 (CAN 11/500)|trouble=|summary=4 stored \u2014 lamp on."
+      ]
+    },
+    {
+      "name": "silent",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "UNABLE TO CONNECT"
+        },
+        {
+          "command": "07",
+          "reply": "7F 07 11"
+        },
+        {
+          "command": "0A",
+          "reply": "NO DATA"
+        }
+      ],
+      "actions": [
+        "reset",
+        "scan"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATDP",
+        "ATDPN",
+        "03",
+        "07",
+        "0A",
+        "0101"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "|mil=1|count=4|proto=ISO 15765-4 (CAN 11/500)|trouble=The vehicle did not answer the request for stored or pending codes. What is listed may not be all of it.|summary=The vehicle did not answer the request for stored or pending codes. What is listed may not be all of it."
+      ]
+    },
+    {
+      "name": "refusing",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "7F 04 22"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        }
+      ],
+      "actions": [
+        "reset",
+        "clear"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "04"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "0|The vehicle refused to erase its faults. Most will not do this with the engine running \u2014 try again with the ignition on and the engine off.|"
+      ]
+    },
+    {
+      "name": "clearing",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "ATZ\rELM327 v1.5"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "4300"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 01 04 20"
+        }
+      ],
+      "actions": [
+        "reset",
+        "clear"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "04",
+        "0A",
+        "ATDPN"
+      ],
+      "results": [
+        "ELM327 v1.5",
+        "1|Erased, but 1 permanent code is still set. Only the controller can clear those, and it will not do so until it has watched the monitor pass.|P0420/Permanent"
+      ]
+    },
+    {
+      "name": "noisy",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": "\u00FE\u00C3ADF3\u00B0\u00C0"
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        }
+      ],
+      "actions": [
+        "reset",
+        "identify"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0",
+        "ATI",
+        "STDI",
+        "STI"
+      ],
+      "results": [
+        "",
+        "ELM327 v1.5"
+      ]
+    },
+    {
+      "name": "quiet",
+      "replies": [
+        {
+          "command": "ATZ",
+          "reply": ""
+        },
+        {
+          "command": "ATE0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATL0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATS0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATH0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATSP0",
+          "reply": "OK"
+        },
+        {
+          "command": "ATI",
+          "reply": "ELM327 v1.5"
+        },
+        {
+          "command": "ATDP",
+          "reply": "AUTO, ISO 15765-4 (CAN 11/500)"
+        },
+        {
+          "command": "ATDPN",
+          "reply": "A6"
+        },
+        {
+          "command": "0100",
+          "reply": "SEARCHING...\r4100BE3FA813\r410080000001"
+        },
+        {
+          "command": "0101",
+          "reply": "41018407E500"
+        },
+        {
+          "command": "010C",
+          "reply": "410C1AF8"
+        },
+        {
+          "command": "0105",
+          "reply": "41055A"
+        },
+        {
+          "command": "010B",
+          "reply": "410B56"
+        },
+        {
+          "command": "0124",
+          "reply": "412480001234"
+        },
+        {
+          "command": "010C050B",
+          "reply": "008\r0:410C1AF8055A\r1:0B56"
+        },
+        {
+          "command": "010C0B",
+          "reply": "410C1AF80B56"
+        },
+        {
+          "command": "01050B",
+          "reply": "41055A0B56"
+        },
+        {
+          "command": "04",
+          "reply": "44"
+        },
+        {
+          "command": "03",
+          "reply": "43 02 01 33 01 71"
+        },
+        {
+          "command": "07",
+          "reply": "47 01 04 20"
+        },
+        {
+          "command": "0A",
+          "reply": "4A 00"
+        }
+      ],
+      "actions": [
+        "reset"
+      ],
+      "sent": [
+        "ATZ",
+        "ATE0",
+        "ATL0",
+        "ATS0",
+        "ATH0",
+        "ATSP0"
+      ],
+      "results": [
+        ""
+      ]
+    }
+  ]
+}
