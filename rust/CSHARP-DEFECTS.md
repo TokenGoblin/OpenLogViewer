@@ -14,3 +14,4 @@ in the agents' reports. Each one names where it is and how it was found.
 | `SniperCanTransport` | `PIPE_TRANSFER_TIMEOUT` never set, so a read on a quiet bus blocks forever. Confirmed on hardware. | hardware |
 | `SettingsStore` setters | Each setter changes the field before persisting, outside the lock, so a concurrent save (the poll thread writes batching notes) can write a half-updated state. The Rust holds the lock across change and write. | w1-stores |
 | `MaxxUsbProtocol.Request` | Builds any command, including 0x2F, which erases the ECU flash; it was safe only because no caller passed it. The Rust refuses 0x2F outright. | w1-ms-maxx review |
+| `DialogCondition` | A parenthesised ternary `(a ? b : c)` evaluates the group with `Or()` and comes out Unknown, while the same ternary without parentheses works, so some INI dialog fields may show or hide wrongly. | w1-ini |
