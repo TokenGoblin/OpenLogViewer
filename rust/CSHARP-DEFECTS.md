@@ -28,3 +28,6 @@ in the agents' reports. Each one names where it is and how it was found.
 | `SsmSource.Read` | Once every address has been dropped it returns NaN rows with no error, so a dead link looks healthy. | w3-connection |
 | `EcuConnectionSettings.RetryPause` | Never read. | w3-connection |
 | `EcuConnection.Dispose` | Can close the port mid-write or mid-burn, and `ReadIdentity` could reopen the port after Dispose. The Rust waits for the conversation in flight instead. | w3-connection review |
+| `MsqWriter` round-trip check | Its round-trip check rounds ties to even while the page encoder rounds half away from zero, so the two can disagree on an exact .5 and the check can pass or fail on the wrong value. | w4-tune |
+| `TuneCompare` | Counts NaN cells as differing, even between identical tunes. | w4-tune |
+| `EcuTune.Scalars()` | Reads through the declared scale, not the resolved one `Scalar()` uses, so an expression-scaled constant (e.g. `{fuelLoadRes}`) can show differently in the two. | w4-tune |
