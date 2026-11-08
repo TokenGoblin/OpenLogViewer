@@ -238,7 +238,7 @@ wave = 6
 crate = "olv"
 module = "ui"
 model = "sonnet"
-files = ["Theme", "ThemeCatalog", "ThemeManager", "ColorMath", "TitleBar", "Mvvm", "WorkspaceMode", "ImageExport"]
+files = ["Theme", "ThemeCatalog", "ThemeManager", "ThemeFonts", "InterfaceScale", "ColorMath", "TitleBar", "Mvvm", "WorkspaceMode", "ImageExport"]
 
 # ----- Wave 7: interface screens
 
@@ -301,4 +301,4 @@ wave = 9
 crate = "olv"
 module = "shell"
 model = "sonnet"
-files = ["App", "MainWindow", "InsightsWindow", "AssemblyInfo"]
+files = ["App", "MainWindow", "InsightsWindow", "ToolbarFlowPanel", "AssemblyInfo"]
