@@ -7,9 +7,30 @@ publish.workspace = true
 
 [dependencies]
 olv-core = { path = "../olv-core" }
+olv-protocol = { path = "../olv-protocol" }
+nusb.workspace = true
+serialport.workspace = true
+tokio.workspace = true
+futures.workspace = true
+uuid.workspace = true
+time.workspace = true
+
+# Bluetooth LE. btleplug's Linux backend links libdbus (banned in deny.toml), so it is
+# used only where its backend is the OS's own API: WinRT on Windows, CoreBluetooth on macOS.
+# On Linux BlueZ is spoken to directly over D-Bus with the pure-Rust zbus.
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+btleplug.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus.workspace = true
+
+# Windows lists the paired Bluetooth devices and serial ports from the registry (the C# used WMI).
+[target.'cfg(windows)'.dependencies]
+winreg.workspace = true
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
+olv-store = { path = "../olv-store" }
 serde.workspace = true
 
 [lints]
