@@ -271,3 +271,348 @@ pub fn summarise(difference: &HistogramTable, minimum_samples: usize) -> Compari
         at_row: at.map_or(f64::NAN, |(_, r)| difference.row_centers[r]),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Reading one log against another. The loop this exists for: change something, drive it
+    //! again, find out what moved. The logs line up neither in time nor in content, and the
+    //! failures from both are quiet.
+
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::analysis::histogram_table::HistogramStatistic;
+    use crate::model::LogChannel;
+
+    fn log(name: &str, channels: &[(&str, &[f32])]) -> LogDocument {
+        let n = channels[0].1.len();
+        let time: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        LogDocument::new(
+            name,
+            "test",
+            channels
+                .iter()
+                .map(|(c, v)| Arc::new(LogChannel::adopt(c, "", 1, v.to_vec())))
+                .collect(),
+            Arc::new(LogChannel::new("Time", "s", 3, &time, true)),
+        )
+    }
+
+    fn adopt(name: &str, units: &str, digits: i32, v: &[f32]) -> Arc<LogChannel> {
+        Arc::new(LogChannel::adopt(name, units, digits, v.to_vec()))
+    }
+
+    fn close(expected: f64, actual: f64) {
+        assert!((expected - actual).abs() <= 5e-6, "{expected} vs {actual}");
+    }
+
+    fn strings(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    // ----- which channels line up ------------------------------------------------
+
+    #[test]
+    fn channels_are_matched_by_name_and_the_odd_ones_out_are_named() {
+        let before = log(
+            "a",
+            &[
+                ("RPM", &[1000.0, 2000.0]),
+                ("MAP", &[50.0, 90.0]),
+                ("Knock", &[0.0, 0.0]),
+            ],
+        );
+        let after = log(
+            "b",
+            &[
+                ("RPM", &[1000.0, 2000.0]),
+                ("MAP", &[50.0, 90.0]),
+                ("AFR", &[14.0, 12.0]),
+            ],
+        );
+
+        let overlap = compare(&before, &after);
+
+        assert_eq!(strings(&["MAP", "RPM"]), overlap.shared);
+        assert_eq!(strings(&["Knock"]), overlap.only_in_first);
+        assert_eq!(strings(&["AFR"]), overlap.only_in_second);
+        assert!(overlap.anything_shared());
+    }
+
+    /// By name, not by position. A firmware update that inserts one channel shifts every column
+    /// after it, and matching by index would then compare coolant against oil pressure without a
+    /// word.
+    #[test]
+    fn an_inserted_channel_does_not_shift_the_matching() {
+        let before = log("a", &[("RPM", &[1000.0]), ("CLT", &[180.0])]);
+        let after = log("b", &[("RPM", &[1000.0]), ("Oil Pressure", &[45.0]), ("CLT", &[190.0])]);
+
+        let overlap = compare(&before, &after);
+
+        assert_eq!(strings(&["CLT", "RPM"]), overlap.shared);
+        assert_eq!(strings(&["Oil Pressure"]), overlap.only_in_second);
+    }
+
+    #[test]
+    fn case_does_not_stop_two_channels_matching() {
+        let before = log("a", &[("rpm", &[1000.0])]);
+        let after = log("b", &[("RPM", &[1000.0])]);
+
+        assert_eq!(1, compare(&before, &after).shared.len());
+    }
+
+    /// Two logs with nothing in common is reported rather than left to be discovered by finding
+    /// an empty plot.
+    #[test]
+    fn two_unrelated_logs_say_so_rather_than_comparing_nothing_quietly() {
+        let before = log("a", &[("RPM", &[1000.0])]);
+        let after = log("b", &[("EngineSpeed", &[1000.0])]);
+
+        let overlap = compare(&before, &after);
+
+        assert!(overlap.shared.is_empty());
+        assert!(!overlap.anything_shared());
+        assert!(overlap.summary().to_lowercase().contains("no channel names"));
+    }
+
+    #[test]
+    fn two_identical_logs_say_so_the_short_way() {
+        let l = log("a", &[("RPM", &[1000.0]), ("MAP", &[50.0])]);
+
+        assert!(compare(&l, &l).summary().contains("same 2 channels"));
+    }
+
+    // ----- the difference table ---------------------------------------------------
+
+    /// Two runs binned onto the same axes and subtracted. The second uniformly `offset` units
+    /// richer, so every shared cell reads -offset.
+    fn two_runs(offset: f32, skip_from: usize) -> (HistogramTable, HistogramTable) {
+        let rpm = [1000.0f32, 1000.0, 3000.0, 3000.0];
+        let map = [50.0f32, 150.0, 50.0, 150.0];
+        let afr = [14.0f32, 13.0, 12.0, 11.0];
+
+        let x = adopt("RPM", "rpm", 0, &rpm);
+        let y = adopt("MAP", "kPa", 0, &map);
+
+        let a = HistogramTable::build(
+            HistogramInputs::new(&x, &y, &adopt("AFR", "", 1, &afr)),
+            2,
+            2,
+            0,
+            rpm.len() as isize - 1,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        // The second run, shifted, and optionally missing its last cells so the "one side has
+        // no data" case can be exercised.
+        let shifted: Vec<f32> = afr
+            .iter()
+            .enumerate()
+            .map(|(i, v)| if i >= skip_from { f32::NAN } else { v + offset })
+            .collect();
+
+        let b = HistogramTable::build(
+            HistogramInputs::new(&x, &y, &adopt("AFR", "", 1, &shifted)),
+            2,
+            2,
+            0,
+            rpm.len() as isize - 1,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        (a, b)
+    }
+
+    #[test]
+    fn subtracting_two_tables_gives_the_change_cell_by_cell() {
+        let (before, after) = two_runs(1.0, usize::MAX);
+
+        let change = difference(&after, &before).unwrap();
+
+        for c in 0..change.columns {
+            for r in 0..change.rows {
+                close(1.0, change.values[(c, r)].unwrap());
+            }
+        }
+    }
+
+    /// The subtraction is the right way round: first minus second, so "after minus before" reads
+    /// as the change that was made. Backwards it would report every improvement as a regression.
+    #[test]
+    fn the_difference_is_first_minus_second() {
+        let (before, after) = two_runs(2.0, usize::MAX);
+
+        close(2.0, difference(&after, &before).unwrap().values[(0, 0)].unwrap());
+        close(-2.0, difference(&before, &after).unwrap().values[(0, 0)].unwrap());
+    }
+
+    /// A cell only one run visited is left empty. Treating the other side as zero would invent a
+    /// difference the size of the whole reading everywhere the second drive did not go.
+    #[test]
+    fn a_cell_only_one_run_visited_is_left_empty_rather_than_treated_as_zero() {
+        let (before, after) = two_runs(1.0, 2);
+
+        let change = difference(&before, &after).unwrap();
+
+        let mut filled = 0;
+        for c in 0..change.columns {
+            for r in 0..change.rows {
+                if change.values[(c, r)].is_some() {
+                    filled += 1;
+                }
+            }
+        }
+
+        assert!(filled > 0, "the cells both runs visited should still be compared");
+        assert!(
+            filled < change.columns * change.rows,
+            "the unvisited ones should be empty"
+        );
+    }
+
+    /// A difference rests on the thinner of its two sides, so that is the count carried.
+    #[test]
+    fn the_count_is_the_weaker_of_the_two_sides() {
+        let (before, after) = two_runs(1.0, usize::MAX);
+
+        let change = difference(&before, &after).unwrap();
+
+        for c in 0..change.columns {
+            for r in 0..change.rows {
+                assert_eq!(before.counts[(c, r)].min(after.counts[(c, r)]), change.counts[(c, r)]);
+            }
+        }
+    }
+
+    #[test]
+    fn tables_on_different_axes_cannot_be_subtracted() {
+        let (before, _) = two_runs(1.0, usize::MAX);
+
+        let (x, y, z) = (
+            adopt("RPM", "rpm", 0, &[1000.0, 2000.0, 3000.0]),
+            adopt("MAP", "kPa", 0, &[50.0, 100.0, 150.0]),
+            adopt("AFR", "", 1, &[14.0, 13.0, 12.0]),
+        );
+        let wider =
+            HistogramTable::build(HistogramInputs::new(&x, &y, &z), 3, 3, 0, 2, HistogramStatistic::Mean).unwrap();
+
+        let Err(Error::Argument(message)) = difference(&before, &wider) else {
+            panic!("expected an argument error");
+        };
+
+        assert!(message.to_lowercase().contains("identical axes"));
+    }
+
+    /// A difference is an ordinary table, so everything downstream works on it.
+    #[test]
+    fn a_difference_is_an_ordinary_table() {
+        let (before, after) = two_runs(1.0, usize::MAX);
+
+        let change = difference(&after, &before).unwrap();
+
+        assert_eq!(before.columns, change.columns);
+        assert_eq!(before.column_centers, change.column_centers);
+        assert_eq!(before.row_centers, change.row_centers);
+        assert!(
+            change
+                .display_name
+                .as_deref()
+                .unwrap()
+                .to_lowercase()
+                .contains("change")
+        );
+    }
+
+    // ----- how much of it can actually be compared ---------------------------------
+
+    /// Two drives overlapping in a tenth of the table have not really been compared, and the
+    /// sparse result deserves an explanation rather than being left to look like a bug.
+    #[test]
+    fn coverage_says_how_much_the_two_runs_actually_share() {
+        let (before, after) = two_runs(1.0, 2);
+
+        let (both, only_first, only_second) = coverage(&before, &after);
+
+        assert!(both > 0);
+        assert!(only_first > 0, "the first run went somewhere the second did not");
+        assert_eq!(0, only_second);
+    }
+
+    // ----- what changed, in one line -------------------------------------------------
+
+    #[test]
+    fn the_summary_gives_the_average_move_and_the_biggest_one() {
+        let (before, after) = two_runs(1.0, usize::MAX);
+
+        let s = summarise(&difference(&after, &before).unwrap(), 1);
+
+        assert!(s.any());
+        assert_eq!(4, s.cells);
+        close(1.0, s.mean);
+        close(1.0, s.largest);
+    }
+
+    /// The average and the largest are different findings. A table that moved a little everywhere
+    /// and one that moved a lot in one corner are not the same result.
+    #[test]
+    fn one_big_move_is_reported_separately_from_the_average() {
+        let rpm = [1000.0f32, 1000.0, 3000.0, 3000.0];
+        let map = [50.0f32, 150.0, 50.0, 150.0];
+
+        let x = adopt("RPM", "rpm", 0, &rpm);
+        let y = adopt("MAP", "kPa", 0, &map);
+
+        let before = HistogramTable::build(
+            HistogramInputs::new(&x, &y, &adopt("AFR", "", 1, &[14.0, 14.0, 14.0, 14.0])),
+            2,
+            2,
+            0,
+            3,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        // Three cells unchanged, one moved a long way.
+        let after = HistogramTable::build(
+            HistogramInputs::new(&x, &y, &adopt("AFR", "", 1, &[14.0, 14.0, 14.0, 10.0])),
+            2,
+            2,
+            0,
+            3,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        let change = difference(&after, &before).unwrap();
+        let s = summarise(&change, 1);
+
+        close(-1.0, s.mean);
+        close(-4.0, s.largest);
+
+        // Reported at the bin's centre, not at the sample that landed in it. Asserted against
+        // the table's own axes so this says "the top-right cell" rather than restating a number.
+        close(*change.column_centers.last().unwrap(), s.at_column);
+        close(*change.row_centers.last().unwrap(), s.at_row);
+    }
+
+    /// A cell resting on one sample is not evidence of a change, and the threshold is what stops
+    /// the biggest reported move being the noisiest one.
+    #[test]
+    fn thin_cells_can_be_held_out_of_the_summary() {
+        let (before, after) = two_runs(1.0, usize::MAX);
+
+        assert!(!summarise(&difference(&after, &before).unwrap(), 99).any());
+    }
+
+    #[test]
+    fn nothing_in_common_summarises_to_nothing_rather_than_zero() {
+        let (before, after) = two_runs(1.0, 0);
+
+        let s = summarise(&difference(&before, &after).unwrap(), 1);
+
+        assert!(!s.any());
+        assert!(s.mean.is_nan());
+    }
+}

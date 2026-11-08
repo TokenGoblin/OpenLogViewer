@@ -624,3 +624,704 @@ pub(crate) fn nearest(centers: &[f64], value: f64) -> usize {
 
     best
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::filters::log_filter::{FilterComparison, LogFilter, SampleFilter};
+    use crate::model::LogDocument;
+
+    fn ch(name: &str, units: &str, digits: i32, values: &[f64]) -> Arc<LogChannel> {
+        Arc::new(LogChannel::new(name, units, digits, values, false))
+    }
+
+    fn repeat(v: f64, n: usize) -> Vec<f64> {
+        vec![v; n]
+    }
+
+    fn doc(channels: Vec<Arc<LogChannel>>) -> LogDocument {
+        let n = channels[0].len();
+        let time: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        LogDocument::new(
+            "x",
+            "test",
+            channels,
+            Arc::new(LogChannel::new("Time", "s", 2, &time, true)),
+        )
+    }
+
+    fn warm_filter() -> LogFilter {
+        LogFilter::new("warm", "CLT", FilterComparison::AboveOrEqual).with_low(160.0)
+    }
+
+    fn assert_close(expected: f64, actual: f64, places: i32) {
+        let tolerance = 0.5 * 10f64.powi(-places);
+        assert!((expected - actual).abs() <= tolerance, "{expected} vs {actual}");
+    }
+
+    // ---- HistogramDeltaTests -------------------------------------------------
+
+    fn afr_channel(name: &str, values: &[f64]) -> Arc<LogChannel> {
+        ch(name, "AFR", 2, values)
+    }
+
+    fn delta(
+        z: &Arc<LogChannel>,
+        target: &Arc<LogChannel>,
+        statistic: HistogramStatistic,
+        columns: usize,
+        rows: usize,
+    ) -> HistogramTable {
+        let n = z.len();
+        let x = ch("RPM", "RPM", 0, &repeat(1000.0, n));
+        let y = ch("MAP", "kPa", 0, &repeat(50.0, n));
+        HistogramTable::build(
+            HistogramInputs::new(&x, &y, z).with_z_compare(Some(target)),
+            columns,
+            rows,
+            0,
+            n as isize - 1,
+            statistic,
+        )
+        .unwrap()
+    }
+
+    fn delta_mean(z: &Arc<LogChannel>, target: &Arc<LogChannel>) -> HistogramTable {
+        delta(z, target, HistogramStatistic::Mean, 1, 1)
+    }
+
+    #[test]
+    fn cells_hold_the_difference_from_the_target() {
+        let afr = afr_channel("AFR", &[13.0, 15.0]);
+        let target = afr_channel("AFR Target", &[14.0, 14.0]);
+
+        let table = delta_mean(&afr, &target);
+
+        assert!(table.is_delta());
+        assert_eq!("AFR Target", table.z_compare.as_ref().unwrap().name());
+        assert_close(0.0, table.values[(0, 0)].unwrap(), 6); // mean of -1 and +1
+    }
+
+    #[test]
+    fn the_deviation_is_taken_per_sample_not_between_the_means() {
+        // Mean AFR 14 and mean target 14 would give zero error, hiding that the
+        // engine was never actually on target.
+        let afr = afr_channel("AFR", &[12.0, 16.0]);
+        let target = afr_channel("AFR Target", &[14.0, 14.0]);
+
+        let worst = delta(&afr, &target, HistogramStatistic::Max, 1, 1);
+        let best = delta(&afr, &target, HistogramStatistic::Min, 1, 1);
+
+        assert_close(2.0, worst.values[(0, 0)].unwrap(), 6);
+        assert_close(-2.0, best.values[(0, 0)].unwrap(), 6);
+    }
+
+    #[test]
+    fn a_sample_with_no_target_reading_is_skipped() {
+        let afr = afr_channel("AFR", &[13.0, 15.0, 17.0]);
+        let target = afr_channel("AFR Target", &[14.0, f64::NAN, 14.0]);
+
+        let table = delta_mean(&afr, &target);
+
+        assert_eq!(2, table.sample_count);
+        assert_close(1.0, table.values[(0, 0)].unwrap(), 6); // mean of -1 and +3
+    }
+
+    #[test]
+    fn the_scale_reaches_equally_either_side_of_zero() {
+        // Two cells, one -0.5 and one +2.0. The scale must reach 2.0 both ways,
+        // or an equal error each side of target would shade unequally.
+        let x = ch("RPM", "RPM", 0, &[1000.0, 5000.0]);
+        let y = ch("MAP", "kPa", 0, &[50.0, 50.0]);
+        let afr = afr_channel("AFR", &[13.5, 16.0]);
+        let target = afr_channel("AFR Target", &[14.0, 14.0]);
+
+        let table = HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&x, &y, &afr).with_z_compare(Some(&target)),
+            &[1000.0, 5000.0],
+            &[50.0],
+            0,
+            1,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        assert_close(-0.5, table.min_value, 6);
+        assert_close(2.0, table.max_value, 6);
+        assert_close(2.0, table.max_deviation(), 6);
+    }
+
+    #[test]
+    fn deltas_carry_an_explicit_sign() {
+        let target = afr_channel("AFR Target", &[14.0]);
+
+        let lean = delta_mean(&afr_channel("AFR", &[16.0]), &target);
+        assert_eq!("+2.00", lean.format_cell(0, 0));
+
+        let rich = delta_mean(&afr_channel("AFR", &[12.0]), &target);
+        assert!(rich.format_cell(0, 0).starts_with('-'));
+    }
+
+    #[test]
+    fn count_ignores_the_comparison_entirely() {
+        let afr = afr_channel("AFR", &[13.0, 15.0, 16.0]);
+        let target = afr_channel("AFR Target", &[14.0, 14.0, 14.0]);
+
+        let table = delta(&afr, &target, HistogramStatistic::Count, 1, 1);
+
+        assert_eq!("3", table.format_cell(0, 0));
+    }
+
+    #[test]
+    fn without_a_comparison_nothing_changes() {
+        let afr = afr_channel("AFR", &[13.0, 15.0]);
+        let x = ch("RPM", "RPM", 0, &[1000.0, 1000.0]);
+        let y = ch("MAP", "kPa", 0, &[50.0, 50.0]);
+
+        let table =
+            HistogramTable::build(HistogramInputs::new(&x, &y, &afr), 1, 1, 0, 1, HistogramStatistic::Mean).unwrap();
+
+        assert!(!table.is_delta());
+        assert_close(14.0, table.values[(0, 0)].unwrap(), 6);
+        assert_eq!("14.00", table.format_cell(0, 0));
+    }
+
+    #[test]
+    fn delta_works_on_tune_breakpoints_and_with_filters() {
+        let x = ch("RPM", "RPM", 0, &[1000.0, 1000.0, 3000.0, 3000.0]);
+        let y = ch("MAP", "kPa", 0, &[50.0, 50.0, 50.0, 50.0]);
+        let afr = afr_channel("AFR", &[13.0, 15.0, 12.0, 16.0]);
+        let target = afr_channel("AFR Target", &[14.0, 14.0, 14.0, 14.0]);
+        let clt = ch("CLT", "F", 0, &[100.0, 180.0, 100.0, 180.0]);
+
+        let d = doc(vec![x.clone(), y.clone(), afr.clone(), target.clone(), clt]);
+        let warm = SampleFilter::build(&d, &[warm_filter()]);
+
+        let table = HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&x, &y, &afr)
+                .with_z_compare(Some(&target))
+                .with_mask(Some(&warm)),
+            &[1000.0, 3000.0],
+            &[50.0],
+            0,
+            3,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        assert!(table.is_delta());
+        assert_eq!(2, table.sample_count);
+        assert_close(1.0, table.values[(0, 0)].unwrap(), 6); // 15 - 14, warm only
+        assert_close(2.0, table.values[(1, 0)].unwrap(), 6); // 16 - 14, warm only
+    }
+
+    // ---- HistogramTableTests -------------------------------------------------
+
+    fn plain(name: &str, values: &[f64]) -> Arc<LogChannel> {
+        ch(name, "", 2, values)
+    }
+
+    fn build(
+        x: &Arc<LogChannel>,
+        y: &Arc<LogChannel>,
+        z: &Arc<LogChannel>,
+        columns: usize,
+        rows: usize,
+        statistic: HistogramStatistic,
+    ) -> HistogramTable {
+        HistogramTable::build(
+            HistogramInputs::new(x, y, z),
+            columns,
+            rows,
+            0,
+            x.len() as isize - 1,
+            statistic,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn samples_land_in_the_expected_cells() {
+        // Two clusters: low/low and high/high.
+        let x = plain("RPM", &[1000.0, 1000.0, 6000.0, 6000.0]);
+        let y = plain("MAP", &[20.0, 20.0, 200.0, 200.0]);
+        let z = plain("AFR", &[14.0, 15.0, 11.0, 12.0]);
+
+        let table = build(&x, &y, &z, 2, 2, HistogramStatistic::Mean);
+
+        assert_eq!(Some(14.5), table.values[(0, 0)]);
+        assert_eq!(Some(11.5), table.values[(1, 1)]);
+        // The off-diagonal cells were never visited.
+        assert_eq!(None, table.values[(0, 1)]);
+        assert_eq!(None, table.values[(1, 0)]);
+        assert_eq!(2, table.populated_cells);
+        assert_eq!(4, table.sample_count);
+    }
+
+    #[test]
+    fn each_statistic_reduces_a_cell_correctly() {
+        for (statistic, expected) in [
+            (HistogramStatistic::Mean, 15.0),
+            (HistogramStatistic::Min, 10.0),
+            (HistogramStatistic::Max, 20.0),
+            (HistogramStatistic::Count, 3.0),
+        ] {
+            let x = plain("RPM", &[1000.0, 1000.0, 1000.0]);
+            let y = plain("MAP", &[50.0, 50.0, 50.0]);
+            let z = plain("AFR", &[10.0, 15.0, 20.0]);
+
+            let table = build(&x, &y, &z, 1, 1, statistic);
+
+            assert_eq!(Some(expected), table.values[(0, 0)], "{statistic:?}");
+        }
+    }
+
+    #[test]
+    fn counts_are_tracked_independently_of_the_statistic() {
+        let x = plain("RPM", &[1000.0, 1000.0, 6000.0]);
+        let y = plain("MAP", &[50.0, 50.0, 50.0]);
+        let z = plain("AFR", &[12.0, 13.0, 14.0]);
+
+        let table = build(&x, &y, &z, 2, 1, HistogramStatistic::Mean);
+
+        assert_eq!(2, table.counts[(0, 0)]);
+        assert_eq!(1, table.counts[(1, 0)]);
+        assert_eq!(2, table.max_count);
+    }
+
+    #[test]
+    fn the_maximum_sample_lands_in_the_last_bin_rather_than_overflowing() {
+        // (max - min) / step lands exactly on `bins` for the top sample.
+        let x = plain("RPM", &[0.0, 10.0]);
+        let y = plain("MAP", &[0.0, 10.0]);
+        let z = plain("AFR", &[1.0, 2.0]);
+
+        let table = build(&x, &y, &z, 4, 4, HistogramStatistic::Mean);
+
+        assert_eq!(Some(1.0), table.values[(0, 0)]);
+        assert_eq!(Some(2.0), table.values[(3, 3)]);
+        assert_eq!(2, table.sample_count);
+    }
+
+    #[test]
+    fn rows_and_columns_are_centred_on_their_bins() {
+        let x = plain("RPM", &[0.0, 100.0]);
+        let y = plain("MAP", &[0.0, 100.0]);
+        let z = plain("AFR", &[1.0, 1.0]);
+
+        let table = build(&x, &y, &z, 2, 2, HistogramStatistic::Mean);
+
+        assert_eq!(vec![25.0, 75.0], table.column_centers);
+        assert_eq!(vec![25.0, 75.0], table.row_centers);
+    }
+
+    #[test]
+    fn samples_with_a_missing_reading_are_skipped() {
+        let x = plain("RPM", &[1000.0, f64::NAN, 1000.0]);
+        let y = plain("MAP", &[50.0, 50.0, f64::NAN]);
+        let z = plain("AFR", &[12.0, 13.0, 14.0]);
+
+        let table = build(&x, &y, &z, 1, 1, HistogramStatistic::Mean);
+
+        assert_eq!(1, table.sample_count);
+        assert_eq!(Some(12.0), table.values[(0, 0)]);
+    }
+
+    #[test]
+    fn a_constant_axis_still_places_its_samples() {
+        // A zero-width axis would otherwise divide by zero.
+        let x = plain("RPM", &[800.0, 800.0, 800.0]);
+        let y = plain("MAP", &[40.0, 40.0, 40.0]);
+        let z = plain("AFR", &[14.0, 14.5, 15.0]);
+
+        let table = build(&x, &y, &z, 4, 4, HistogramStatistic::Mean);
+
+        assert_eq!(3, table.sample_count);
+        assert_eq!(1, table.populated_cells);
+    }
+
+    #[test]
+    fn only_the_requested_sample_window_is_binned() {
+        let x = plain("RPM", &[1000.0, 2000.0, 3000.0, 4000.0]);
+        let y = plain("MAP", &[50.0, 50.0, 50.0, 50.0]);
+        let z = plain("AFR", &[10.0, 11.0, 12.0, 13.0]);
+
+        let table =
+            HistogramTable::build(HistogramInputs::new(&x, &y, &z), 1, 1, 1, 2, HistogramStatistic::Mean).unwrap();
+
+        assert_eq!(2, table.sample_count);
+        assert_eq!(Some(11.5), table.values[(0, 0)]);
+    }
+
+    #[test]
+    fn an_empty_window_produces_an_empty_table() {
+        let x = plain("RPM", &[1000.0]);
+        let y = plain("MAP", &[50.0]);
+        let z = plain("AFR", &[12.0]);
+
+        let table =
+            HistogramTable::build(HistogramInputs::new(&x, &y, &z), 4, 4, 5, 9, HistogramStatistic::Mean).unwrap();
+
+        assert!(table.is_empty());
+        assert_eq!(0, table.sample_count);
+    }
+
+    #[test]
+    fn value_range_covers_only_populated_cells() {
+        let x = plain("RPM", &[1000.0, 6000.0]);
+        let y = plain("MAP", &[50.0, 50.0]);
+        let z = plain("AFR", &[11.0, 17.0]);
+
+        let table = build(&x, &y, &z, 4, 1, HistogramStatistic::Mean);
+
+        assert_eq!(11.0, table.min_value);
+        assert_eq!(17.0, table.max_value);
+    }
+
+    #[test]
+    fn format_uses_the_z_channel_precision() {
+        let z = ch("AFR", "AFR", 2, &[14.7, 14.7]);
+        let x = plain("RPM", &[1000.0, 1000.0]);
+        let y = plain("MAP", &[50.0, 50.0]);
+        let table =
+            HistogramTable::build(HistogramInputs::new(&x, &y, &z), 1, 1, 0, 1, HistogramStatistic::Mean).unwrap();
+
+        assert_eq!("14.70", table.format_cell(0, 0));
+    }
+
+    #[test]
+    fn a_table_needs_at_least_one_bin_per_axis() {
+        // The C# theory also tries -3, which a usize cannot hold; zero stands for both.
+        let x = plain("RPM", &[1000.0]);
+        let y = plain("MAP", &[50.0]);
+        let z = plain("AFR", &[12.0]);
+        let inputs = HistogramInputs::new(&x, &y, &z);
+
+        assert!(matches!(
+            HistogramTable::build(inputs, 0, 4, 0, 0, HistogramStatistic::Mean),
+            Err(Error::Argument(_))
+        ));
+        assert!(matches!(
+            HistogramTable::build(inputs, 4, 0, 0, 0, HistogramStatistic::Mean),
+            Err(Error::Argument(_))
+        ));
+    }
+
+    // ---- HistogramTraceBackTests ---------------------------------------------
+
+    fn trace(name: &str, values: &[f64]) -> Arc<LogChannel> {
+        ch(name, "", 1, values)
+    }
+
+    /// Two RPM columns at 1000 and 3000, one load row.
+    fn table(rpm: &[f64], mask: Option<&SampleMask>) -> HistogramTable {
+        let n = rpm.len();
+        let (x, y, z) = (
+            trace("RPM", rpm),
+            trace("MAP", &repeat(50.0, n)),
+            trace("AFR", &repeat(14.0, n)),
+        );
+        HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&x, &y, &z).with_mask(mask),
+            &[1000.0, 3000.0],
+            &[50.0],
+            0,
+            n as isize - 1,
+            HistogramStatistic::Mean,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_cell_reports_the_samples_that_landed_in_it() {
+        let t = table(&[1000.0, 3000.0, 1000.0, 3000.0, 3000.0], None);
+
+        assert_eq!(vec![0, 2], t.samples_in(0, 0));
+        assert_eq!(vec![1, 3, 4], t.samples_in(1, 0));
+    }
+
+    #[test]
+    fn samples_are_grouped_into_separate_visits() {
+        // The engine passes through the same cell three times.
+        let t = table(
+            &[3000.0, 3000.0, 1000.0, 1000.0, 1000.0, 1000.0, 3000.0, 3000.0, 3000.0],
+            None,
+        );
+
+        let visits = t.visits_to(1, 0, 2);
+
+        assert_eq!(2, visits.len());
+        assert_eq!((0, 1), visits[0]);
+        assert_eq!((6, 8), visits[1]);
+    }
+
+    #[test]
+    fn a_sample_or_two_of_noise_does_not_split_a_visit() {
+        // Index 2 briefly leaves the cell; that is one visit, not two.
+        let t = table(&[3000.0, 3000.0, 1000.0, 3000.0, 3000.0], None);
+
+        let visits = t.visits_to(1, 0, 2);
+
+        assert_eq!(vec![(0, 4)], visits);
+    }
+
+    #[test]
+    fn a_wide_gap_does_split_a_visit() {
+        let t = table(&[3000.0, 1000.0, 1000.0, 1000.0, 1000.0, 3000.0], None);
+
+        assert_eq!(2, t.visits_to(1, 0, 2).len());
+    }
+
+    #[test]
+    fn the_longest_visit_is_the_one_offered() {
+        let t = table(
+            &[3000.0, 1000.0, 1000.0, 1000.0, 1000.0, 3000.0, 3000.0, 3000.0, 3000.0],
+            None,
+        );
+
+        assert_eq!(Some((5, 8)), t.longest_visit_to(1, 0));
+    }
+
+    #[test]
+    fn an_empty_cell_has_no_visits() {
+        let t = table(&[1000.0, 1000.0], None);
+
+        assert!(t.visits_to(1, 0, 2).is_empty());
+        assert_eq!(None, t.longest_visit_to(1, 0));
+    }
+
+    #[test]
+    fn cells_outside_the_table_are_rejected() {
+        // The C# also probes -1; a usize index cannot be negative, so only the
+        // too-large ones remain.
+        let t = table(&[1000.0, 3000.0], None);
+
+        assert!(t.samples_in(0, 9).is_empty());
+        assert!(t.samples_in(9, 0).is_empty());
+    }
+
+    #[test]
+    fn filtered_out_samples_are_not_traced_back() {
+        let rpm = trace("RPM", &[3000.0, 3000.0, 3000.0]);
+        let map = trace("MAP", &[50.0, 50.0, 50.0]);
+        let afr = trace("AFR", &[14.0, 14.0, 14.0]);
+        let clt = trace("CLT", &[100.0, 180.0, 180.0]);
+
+        let d = doc(vec![rpm.clone(), map.clone(), afr.clone(), clt]);
+        let warm = SampleFilter::build(&d, &[warm_filter()]);
+
+        let t = HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&rpm, &map, &afr).with_mask(Some(&warm)),
+            &[1000.0, 3000.0],
+            &[50.0],
+            0,
+            2,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        // Sample 0 is cold, so the cell must not point back to it.
+        assert_eq!(vec![1, 2], t.samples_in(1, 0));
+    }
+
+    #[test]
+    fn a_sample_reports_the_cell_it_falls_in() {
+        let t = table(&[1000.0, 3000.0], None);
+
+        assert_eq!(Some((0, 0)), t.cell_of(0));
+        assert_eq!(Some((1, 0)), t.cell_of(1));
+        assert_eq!(None, t.cell_of(99));
+    }
+
+    #[test]
+    fn trace_back_survives_the_sample_window() {
+        // Built over samples 2..4 only; earlier matches must not be reported.
+        let (x, y, z) = (
+            trace("RPM", &repeat(3000.0, 5)),
+            trace("MAP", &repeat(50.0, 5)),
+            trace("AFR", &repeat(14.0, 5)),
+        );
+        let t = HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&x, &y, &z),
+            &[1000.0, 3000.0],
+            &[50.0],
+            2,
+            4,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        assert_eq!(vec![2, 3, 4], t.samples_in(1, 0));
+    }
+
+    // ----- the other direction: a marked span to the cells it reached --------
+
+    #[test]
+    fn a_marked_span_reports_the_cells_it_passed_through() {
+        let t = table(&[1000.0, 1000.0, 3000.0, 3000.0, 1000.0], None);
+
+        let visits = t.visited_by(0, 4);
+
+        assert_eq!(2, visits.cells);
+        assert_eq!(5, visits.samples);
+        assert_eq!(3, visits.counts[(0, 0)]);
+        assert_eq!(2, visits.counts[(1, 0)]);
+        assert!(visits.visited(0, 0));
+        assert!(visits.visited(1, 0));
+    }
+
+    #[test]
+    fn a_span_over_one_cell_reaches_only_that_cell() {
+        let t = table(&[1000.0, 1000.0, 3000.0, 3000.0, 1000.0], None);
+
+        let visits = t.visited_by(2, 3);
+
+        assert_eq!(1, visits.cells);
+        assert!(!visits.visited(0, 0));
+        assert!(visits.visited(1, 0));
+    }
+
+    #[test]
+    fn the_span_is_read_the_same_way_round_whichever_end_is_given_first() {
+        let t = table(&[1000.0, 1000.0, 3000.0, 3000.0, 1000.0], None);
+
+        assert_eq!(t.visited_by(0, 4).cells, t.visited_by(4, 0).cells);
+        assert_eq!(t.visited_by(0, 4).samples, t.visited_by(4, 0).samples);
+    }
+
+    #[test]
+    fn samples_a_filter_excluded_are_counted_as_outside_rather_than_placed() {
+        // The table was built without them, so marking their cells would claim
+        // evidence the table does not rest on.
+        let mask = SampleMask::new(vec![true, true, false, false, false], 2, 5, vec![], true);
+
+        let t = table(&[1000.0, 1000.0, 3000.0, 3000.0, 1000.0], Some(&mask));
+
+        let visits = t.visited_by(0, 4);
+
+        assert_eq!(1, visits.cells);
+        assert_eq!(2, visits.samples);
+        assert_eq!(3, visits.outside);
+    }
+
+    #[test]
+    fn a_span_outside_the_tables_window_reaches_nothing_and_says_so() {
+        // The table covers samples 0..2; the span is past its end.
+        let (x, y, z) = (
+            trace("RPM", &[1000.0, 3000.0, 1000.0, 3000.0, 1000.0]),
+            trace("MAP", &repeat(50.0, 5)),
+            trace("AFR", &repeat(14.0, 5)),
+        );
+        let t = HistogramTable::build_on_breakpoints(
+            HistogramInputs::new(&x, &y, &z),
+            &[1000.0, 3000.0],
+            &[50.0],
+            0,
+            2,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        let visits = t.visited_by(3, 4);
+
+        assert!(visits.is_empty());
+        assert_eq!(0, visits.samples);
+        assert_eq!(2, visits.outside);
+    }
+
+    #[test]
+    fn a_cell_traced_back_to_the_log_marks_that_same_cell_coming_forward() {
+        // The round trip: click a cell, get its longest visit, mark that span,
+        // and the span must land back in the cell it came from.
+        let t = table(
+            &[3000.0, 3000.0, 1000.0, 1000.0, 1000.0, 1000.0, 3000.0, 3000.0, 3000.0],
+            None,
+        );
+
+        let (first, last) = t.longest_visit_to(1, 0).unwrap();
+        let visits = t.visited_by(first as isize, last as isize);
+
+        assert!(visits.visited(1, 0));
+        assert_eq!(1, visits.cells);
+    }
+
+    #[test]
+    fn visited_is_false_outside_the_table_rather_than_throwing() {
+        let visits = table(&[1000.0, 3000.0], None).visited_by(0, 1);
+
+        assert!(!visits.visited(-1, 0));
+        assert!(!visits.visited(0, -1));
+        assert!(!visits.visited(99, 0));
+        assert!(!visits.visited(0, 99));
+    }
+
+    // ---- LogFilterTests (the histogram pair) ----------------------------------
+
+    fn filter_log(channels: &[(&str, [f64; 4])]) -> LogDocument {
+        doc(channels.iter().map(|(n, v)| ch(n, "", 1, v)).collect())
+    }
+
+    #[test]
+    fn the_histogram_counts_only_samples_that_pass() {
+        let log = filter_log(&[
+            ("RPM", [1000.0, 1000.0, 1000.0, 1000.0]),
+            ("MAP", [50.0, 50.0, 50.0, 50.0]),
+            ("AFR", [10.0, 20.0, 10.0, 20.0]),
+            ("CLT", [100.0, 100.0, 180.0, 180.0]),
+        ]);
+
+        let warm = SampleFilter::build(&log, &[warm_filter()]);
+        let (x, y, z) = (
+            log.find_channel("RPM").unwrap(),
+            log.find_channel("MAP").unwrap(),
+            log.find_channel("AFR").unwrap(),
+        );
+
+        let all = HistogramTable::build(HistogramInputs::new(x, y, z), 1, 1, 0, 3, HistogramStatistic::Mean).unwrap();
+        let hot = HistogramTable::build(
+            HistogramInputs::new(x, y, z).with_mask(Some(&warm)),
+            1,
+            1,
+            0,
+            3,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        assert_eq!(4, all.sample_count);
+        assert_eq!(Some(15.0), all.values[(0, 0)]); // mean of 10,20,10,20
+
+        assert_eq!(2, hot.sample_count);
+        assert_eq!(Some(15.0), hot.values[(0, 0)]); // mean of the warm pair, 10 and 20
+    }
+
+    #[test]
+    fn filtering_also_tightens_the_axes_onto_what_remains() {
+        let log = filter_log(&[
+            ("RPM", [500.0, 1000.0, 5000.0, 6000.0]),
+            ("MAP", [20.0, 30.0, 90.0, 100.0]),
+            ("AFR", [14.0, 14.0, 12.0, 12.0]),
+            ("CLT", [100.0, 100.0, 180.0, 180.0]),
+        ]);
+
+        let warm = SampleFilter::build(&log, &[warm_filter()]);
+
+        let hot = HistogramTable::build(
+            HistogramInputs::new(
+                log.find_channel("RPM").unwrap(),
+                log.find_channel("MAP").unwrap(),
+                log.find_channel("AFR").unwrap(),
+            )
+            .with_mask(Some(&warm)),
+            2,
+            1,
+            0,
+            3,
+            HistogramStatistic::Mean,
+        )
+        .unwrap();
+
+        // Axis spans 5000..6000, not 500..6000, so bin centres are 5250 and 5750.
+        assert_eq!(vec![5250.0, 5750.0], hot.column_centers);
+    }
+}
