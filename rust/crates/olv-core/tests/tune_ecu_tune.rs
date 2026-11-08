@@ -376,3 +376,44 @@ fn a_derived_value_defined_in_terms_of_itself_does_not_hang() {
     // Falls back to the declared scale rather than looping.
     assert_places(1.0, tune.constant("fuelLoadBins").unwrap().scale, 6);
 }
+
+#[test]
+fn scalars_read_through_the_resolved_scale_like_scalar_does() {
+    // Defect fixed in the Rust: `scalars` used the declared scale (the fallback 1) where
+    // `scalar` used the one worked out from {fuelLoadRes}, so the two disagreed.
+    let ini = DERIVED_SCALE_INI.replace(
+        "   fuelLoadBins = array,",
+        "   loadNow = scalar, U08, 8, \"kPa\", {fuelLoadRes}, 0.0, 0.0, 511, 1
+   fuelLoadBins = array,",
+    );
+    let mut tune = derived_tune(&ini);
+    let algorithm = constant_of(&tune, "algorithm");
+    tune.poke_into_own(&algorithm, 0, 0.0);
+    tune.rescale();
+    tune.pages_mut()[0][8] = 5;
+
+    assert_eq!(tune.scalar("loadNow"), 10.0);
+    assert_eq!(tune.scalars().get("loadNow").copied(), Some(10.0));
+}
+
+#[test]
+fn identical_tunes_with_an_unknown_cell_do_not_differ() {
+    // Defect fixed in the Rust: NaN cells were counted as differing, even between a tune and
+    // itself, because NaN is not within a tolerance of anything.
+    use olv_core::tune::tune_compare;
+
+    let mut page = vec![0u8; 64];
+    page[4..8].copy_from_slice(&f32::NAN.to_le_bytes());
+    page[0..2].copy_from_slice(&5500u16.to_le_bytes());
+    let tune = EcuTune::from_pages(layout(), vec![page.clone()]);
+    assert!(tune.scalar("displacement").is_nan());
+
+    assert!(tune_compare::compare(&tune, &tune).is_empty());
+
+    // A real difference is still found beside the NaN.
+    page[0..2].copy_from_slice(&6000u16.to_le_bytes());
+    let other = EcuTune::from_pages(layout(), vec![page]);
+    let differences = tune_compare::compare(&tune, &other);
+    assert_eq!(differences.len(), 1);
+    assert_eq!(differences[0].name, "rpmHardLimit");
+}

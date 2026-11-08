@@ -153,7 +153,7 @@ fn extends(name: &str, alias: &str) -> bool {
 fn suits(role: ChannelRole, channel: &LogChannel) -> bool {
     use ChannelRole::*;
 
-    let units = simplify(channel.units());
+    let units = simplify_units(channel.units());
     if units.is_empty() {
         return true;
     }
@@ -448,6 +448,27 @@ fn lower_char(c: char) -> char {
     }
 }
 
+/// A unit reduced to something comparable, keeping the characters that are part of a unit's
+/// spelling ("g/s", "km/h", ":1") which `simplify` would strip and so make unmatchable.
+///
+/// The degree sign is dropped ("°C" is "c") unless it is the whole unit: a bare "°" is an
+/// angle, and must not collapse to an empty string, which every role accepts. (The C#
+/// simplified units with `simplify`, so its "g/s", "kg/h", "lb/min", "km/h" and "m/s" arms
+/// could never match and a bare "°" suited every role; both are defects, fixed here.)
+pub(crate) fn simplify_units(units: &str) -> String {
+    let trimmed = units.trim();
+    let simplified: String = trimmed
+        .chars()
+        .filter(|c| !matches!(c, ' ' | '_' | '.' | '-' | '\t' | '°'))
+        .map(lower_char)
+        .collect();
+    if simplified.is_empty() && trimmed.contains('°') {
+        "°".to_string()
+    } else {
+        simplified
+    }
+}
+
 /// A name reduced to something comparable: lower case, with spaces, underscores, dots and
 /// hyphens taken out, since every firmware writes "Throttle position", "throttle_pos" and
 /// "ThrottlePos" for the same thing.
@@ -510,5 +531,45 @@ mod tests {
         assert_eq!(found(&doc, ChannelRole::Mixture).as_deref(), Some("AFR"));
         assert!(!matches("AFR Load", ChannelRole::Mixture));
         assert!(matches("AFR1", ChannelRole::Mixture));
+    }
+
+    // Defect fixed in the Rust: the C# simplified units with the name simplifier, which
+    // strips "/" and "°", so these arms could never match.
+    #[test]
+    fn slashed_units_suit_their_roles() {
+        for (role, name, units) in [
+            (ChannelRole::MassAirFlow, "MAF", "g/s"),
+            (ChannelRole::MassAirFlow, "MAF", "kg/h"),
+            (ChannelRole::MassAirFlow, "MAF", "lb/min"),
+            (ChannelRole::VehicleSpeed, "Speed", "km/h"),
+            (ChannelRole::VehicleSpeed, "Speed", "m/s"),
+            (ChannelRole::Mixture, "AFR", ":1"),
+            (ChannelRole::Coolant, "CLT", "°C"),
+        ] {
+            let doc = log(&[(name, units, MOVING)]);
+            assert!(find(&doc, role).is_some(), "{units} should suit {role:?}");
+        }
+    }
+
+    // "m/s" simplified to "ms", so a speed in metres per second suited a pulse width
+    // (milliseconds) as well.
+    #[test]
+    fn metres_per_second_is_not_milliseconds() {
+        let doc = log(&[("Injector PW", "m/s", MOVING)]);
+        assert!(find(&doc, ChannelRole::InjectorPulseWidth).is_none());
+        let doc = log(&[("Injector PW", "ms", MOVING)]);
+        assert!(find(&doc, ChannelRole::InjectorPulseWidth).is_some());
+    }
+
+    #[test]
+    fn a_bare_degree_sign_suits_only_angles() {
+        let doc = log(&[
+            ("CLT", "°", MOVING),
+            ("RPM", "°", MOVING),
+            ("Spark advance", "°", MOVING),
+        ]);
+        assert!(find(&doc, ChannelRole::Coolant).is_none());
+        assert!(find(&doc, ChannelRole::EngineSpeed).is_none());
+        assert_eq!(found(&doc, ChannelRole::SparkAdvance).as_deref(), Some("Spark advance"));
     }
 }

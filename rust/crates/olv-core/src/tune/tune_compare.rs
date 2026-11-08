@@ -197,6 +197,9 @@ pub fn compare(mine: &EcuTune, theirs: &EcuTune) -> Vec<TuneDifference> {
 /// different.
 fn same(a: Option<f64>, b: Option<f64>) -> bool {
     match (a, b) {
+        // Two unknowns are the same unknown. (The C# counted NaN cells as differing, even
+        // between identical tunes, because NaN is not less than anything.)
+        (Some(a), Some(b)) if a.is_nan() && b.is_nan() => true,
         (Some(a), Some(b)) => (a - b).abs() < 1e-9,
         (None, None) => true,
         _ => false,

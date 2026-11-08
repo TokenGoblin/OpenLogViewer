@@ -320,7 +320,7 @@ fn json_string(s: &str) -> String {
             '\t' => out.push_str("\\t"),
             '\u{8}' => out.push_str("\\b"),
             '\u{c}' => out.push_str("\\f"),
-            ' '..='~' if !matches!(c, '"' | '<' | '>' | '&' | '\'' | '+') => out.push(c),
+            ' '..='~' if !matches!(c, '"' | '<' | '>' | '&' | '\'' | '+' | '`') => out.push(c),
             _ => {
                 let mut units = [0u16; 2];
                 for unit in c.encode_utf16(&mut units) {
@@ -813,6 +813,14 @@ ochGetCommand = "r\x00\x07%2o%2c"
             json_string("a+b&c\u{b0}\"\\"),
             "\"a\\u002Bb\\u0026c\\u00B0\\u0022\\\\\""
         );
+    }
+
+    // Checked against .NET 10: the default encoder escapes a backtick, and `Encoding.Latin1`
+    // gives one `?` per UTF-16 unit, so a character outside the BMP is two.
+    #[test]
+    fn a_backtick_is_escaped_and_a_supplementary_character_is_two_question_marks() {
+        assert_eq!(json_string("`x/~"), "\"\\u0060x/~\"");
+        assert_eq!(latin1("a\u{1F600}b"), vec![b'a', b'?', b'?', b'b']);
     }
 
     #[test]

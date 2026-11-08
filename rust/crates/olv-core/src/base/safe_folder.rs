@@ -171,8 +171,9 @@ impl SafeFolder {
     }
 
     /// The resolved path equals the folder, or starts with the folder followed by a
-    /// separator, compared ignoring case as the C# did (so a folder at a filesystem root,
-    /// whose full path already ends in a separator, accepts nothing, as in the C#).
+    /// separator, compared ignoring case as the C# did. A folder at a filesystem root already
+    /// ends in a separator, so none is added there (the C# added one regardless and so
+    /// rejected every file in a root folder).
     fn inside(&self, resolved: &Path) -> bool {
         let folder = upper(&self.folder.to_string_lossy());
         let resolved = upper(&resolved.to_string_lossy());
@@ -182,7 +183,9 @@ impl SafeFolder {
         }
 
         let mut prefix = folder;
-        prefix.push(std::path::MAIN_SEPARATOR);
+        if prefix.last().is_none_or(|&c| !std::path::is_separator(c)) {
+            prefix.push(std::path::MAIN_SEPARATOR);
+        }
         resolved.starts_with(&prefix)
     }
 }
@@ -280,5 +283,17 @@ mod tests {
         let folder = SafeFolder::new(scratch().join("nope")).unwrap();
         assert!(folder.files().is_empty());
         assert!(SafeFolder::new("  ").is_err());
+    }
+
+    // Defect fixed in the Rust: a folder at a filesystem root rejected every file.
+    #[test]
+    fn a_folder_at_a_filesystem_root_accepts_plain_names() {
+        let root = std::env::temp_dir().ancestors().last().unwrap().to_path_buf();
+        let folder = SafeFolder::new(&root).unwrap();
+
+        let resolved = folder.resolve("tune.msq").unwrap();
+
+        assert_eq!(resolved, root.join("tune.msq"));
+        assert!(folder.resolve("../x").is_err());
     }
 }
