@@ -3,3 +3,12 @@
 - **Never call `EcuConnection::dispose` on the UI thread**: it waits for the request in flight, up to its timeouts (about 15 s worst case in `read_identity`).
 - **Lost writes are tracked by byte range** (from the C# fix review). The app sends changed ranges, not whole pages, and treats them as on the ECU afterwards. When `EcuConnection::lost_ranges(page)` is non-empty, mark those bytes unsent again in the app's own "what's been sent" structures, so the next Send to ECU includes them, taken from the app's current tune image. Never write them automatically: the user presses Send, then Burn. Mirror what branch `fix-burn-after-reopen` does in the C# `MainViewModel`.
 - `discard_lost(page)` is the explicit "keep what the ECU has" escape: the only way to burn a page whose lost bytes the user chooses to abandon. Offer it only behind a clear confirmation naming the page and that those changes will not be saved.
+- **Completing the agent gates** (from the w5-agent review). `olv_agent`'s `AgentWriter` holds the gates, but only if the view model wires it correctly:
+  - Call the writer's `disconnect()` and `connect()` on all four connect paths and every reconnect. Connect disarms.
+  - Call `set_tune` with the freshly read tune after every connect; the writer refuses until then.
+  - Feed it every human write and every re-read, so its copy matches the ECU.
+  - Implement `WriterHost::human_unsent_pages()` from the real pending-edit state.
+  - Implement `live_rpm()` from the live session with a timestamp, never from an open log, and without taking any lock the poll holds.
+  - Answer `confirm_definition_import` with a real human confirmation.
+  - The AgentBridge must delegate every write to `AgentWriter` and never hold an `EcuConnection` of its own for writing.
+  - Read the tune through the writer's snapshot, never under its lock, from the UI thread.

@@ -81,6 +81,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         _theme = ThemeCatalog.Find(_settings.ThemeId);
         ThemeManager.Apply(_theme);
+        InterfaceScale.Apply(_settings.UiScale);
 
         ChannelView = CollectionViewSource.GetDefaultView(Channels);
         ChannelView.Filter = FilterChannel;
@@ -134,6 +135,31 @@ public sealed partial class MainViewModel : ObservableObject
     /// taken without disturbing the user's setting.
     /// </summary>
     public void PreviewTheme(string? id) => SwitchTheme(ThemeCatalog.Find(id));
+
+    /// <summary>
+    /// How large the interface is drawn, 1 being as designed. Always one of
+    /// <see cref="InterfaceScale.Steps"/>, and remembered.
+    /// </summary>
+    public double UiScale
+    {
+        get => InterfaceScale.Current;
+        set
+        {
+            double snapped = InterfaceScale.Snap(value);
+            if (snapped == InterfaceScale.Current) return;
+
+            InterfaceScale.Apply(snapped);
+            _settings.SetUiScale(snapped);
+            Raise(nameof(UiScale));
+        }
+    }
+
+    /// <summary>The zoom for this run only, without recording it: the <c>--zoom</c> switch.</summary>
+    public void PreviewUiScale(double scale)
+    {
+        InterfaceScale.Apply(scale);
+        Raise(nameof(UiScale));
+    }
 
     private bool SwitchTheme(Theme theme)
     {

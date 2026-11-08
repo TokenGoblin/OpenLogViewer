@@ -44,6 +44,7 @@ public sealed class LogPlot : FrameworkElement
     private Pen LanePen = null!;
 
     private Brush SelectionFill = null!;
+    private Typeface UiFace = null!;
     private Pen SelectionEdge = null!;
     private Brush OccurrenceFill = null!;
 
@@ -60,7 +61,7 @@ public sealed class LogPlot : FrameworkElement
         CardBrush = Fill(Color.FromArgb(0xF2, theme.Card.R, theme.Card.G, theme.Card.B));
         CardPen = Stroke(theme.Line, 1);
         CardLabel = Fill(theme.Muted);
-        CardValue = Fill(theme.Text);
+        CardValue = Fill(theme.Readout);
         CardAction = Fill(theme.Accent);
         CardRowHover = Fill(theme.Hover);
 
@@ -69,6 +70,8 @@ public sealed class LogPlot : FrameworkElement
         SelectionFill = Fill(Color.FromArgb(0x38, theme.Accent.R, theme.Accent.G, theme.Accent.B));
         SelectionEdge = Stroke(theme.Accent, 1);
         OccurrenceFill = Fill(Color.FromArgb(0x33, theme.Marker.R, theme.Marker.G, theme.Marker.B));
+
+        UiFace = ThemeFonts.Typeface(theme.Style.UiFont, FontWeights.Normal);
 
         InvalidateVisual();
     }
@@ -995,7 +998,7 @@ public sealed class LogPlot : FrameworkElement
         s,
         CultureInfo.CurrentCulture,
         FlowDirection.LeftToRight,
-        new Typeface("Segoe UI"),
+        UiFace,
         size,
         brush,
         VisualTreeHelper.GetDpi(this).PixelsPerDip);

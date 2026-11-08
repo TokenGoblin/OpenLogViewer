@@ -37,10 +37,27 @@
         <SolidColorBrush x:Key="Accent"    Color="#4FC3F7"/>
         <SolidColorBrush x:Key="OnAccent"  Color="#12161B"/>
         <SolidColorBrush x:Key="Marker"    Color="#FFB34D"/>
+        <SolidColorBrush x:Key="Chrome"    Color="#1B1F26"/>
+        <SolidColorBrush x:Key="Readout"   Color="#DDE3EA"/>
+
+        <!-- The non-colour half of a theme (see ThemeStyle), seeded the same way. -->
+        <FontFamily x:Key="UiFont">Segoe UI</FontFamily>
+        <FontFamily x:Key="DataFont">Consolas</FontFamily>
+        <CornerRadius x:Key="CornerSmall">3</CornerRadius>
+        <CornerRadius x:Key="Corner">4</CornerRadius>
+        <CornerRadius x:Key="CornerMedium">5</CornerRadius>
+        <CornerRadius x:Key="CornerLarge">6</CornerRadius>
+        <CornerRadius x:Key="CornerPill">9</CornerRadius>
+        <TextRenderingMode x:Key="TextRendering">Auto</TextRenderingMode>
+        <TextFormattingMode x:Key="TextFormatting">Ideal</TextFormattingMode>
+
+        <!-- The interface zoom (see InterfaceScale). Every window's content and
+             every popup takes it, since popups open outside the window's tree. -->
+        <ScaleTransform x:Key="UiScale" ScaleX="1" ScaleY="1"/>
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
         </Style>
 
         <Style TargetType="Button">
@@ -53,7 +70,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="b" CornerRadius="4"
+                        <Border x:Name="b" CornerRadius="{DynamicResource Corner}"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
@@ -90,7 +107,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="b" CornerRadius="4"
+                        <Border x:Name="b" CornerRadius="{DynamicResource Corner}"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
@@ -134,7 +151,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="b" CornerRadius="3" Margin="0,0,4,0" Padding="8,3"
+                        <Border x:Name="b" CornerRadius="{DynamicResource CornerSmall}" Margin="0,0,4,0" Padding="8,3"
                                 Background="Transparent"
                                 BorderBrush="{DynamicResource Line}" BorderThickness="1">
                             <TextBlock x:Name="t" FontSize="11"
@@ -166,7 +183,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="b" CornerRadius="3" Margin="1,0"
+                        <Border x:Name="b" CornerRadius="{DynamicResource CornerSmall}" Margin="1,0"
                                 Background="{DynamicResource PanelAlt}"
                                 BorderBrush="{DynamicResource Line}" BorderThickness="1">
                             <TextBlock x:Name="t" Text="{TemplateBinding Content}"
@@ -202,7 +219,7 @@
                                                       RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="b" CornerRadius="3" Padding="7,4"
+                                        <Border x:Name="b" CornerRadius="{DynamicResource CornerSmall}" Padding="7,4"
                                                 Background="{DynamicResource Bg}"
                                                 BorderBrush="{DynamicResource Line}" BorderThickness="1">
                                             <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets"
@@ -230,7 +247,8 @@
 
                             <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
                                    AllowsTransparency="True" Focusable="False" StaysOpen="False">
-                                <Border Background="{DynamicResource PanelAlt}" CornerRadius="3"
+                                <Border Background="{DynamicResource PanelAlt}" CornerRadius="{DynamicResource CornerSmall}"
+                                        LayoutTransform="{DynamicResource UiScale}"
                                         BorderBrush="{DynamicResource Line}" BorderThickness="1"
                                         MaxHeight="360"
                                         MinWidth="{Binding ActualWidth,
@@ -274,7 +292,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="b" CornerRadius="9" Margin="0,0,4,4" Padding="9,3"
+                        <Border x:Name="b" CornerRadius="{DynamicResource CornerPill}" Margin="0,0,4,4" Padding="9,3"
                                 Background="{DynamicResource PanelAlt}"
                                 BorderBrush="{DynamicResource Line}" BorderThickness="1">
                             <TextBlock x:Name="t" Text="{TemplateBinding Content}" FontSize="11"
@@ -300,7 +318,17 @@
              setting Background reaches it — on a dark scheme it shows as a white
              gutter beside every item, which is the same complaint as a white
              title bar in a smaller place. -->
+        <!-- Menus, context menus and tooltips take the system message font from
+             WPF's own theme style, which wins over the font a window hands down,
+             so each names the theme's font itself. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
+            <Setter Property="LayoutTransform" Value="{DynamicResource UiScale}"/>
+        </Style>
+
         <Style TargetType="ContextMenu">
+            <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
+            <Setter Property="LayoutTransform" Value="{DynamicResource UiScale}"/>
             <Setter Property="Background" Value="{DynamicResource PanelAlt}"/>
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource Line}"/>
@@ -311,7 +339,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" Padding="4"
+                                CornerRadius="{DynamicResource CornerLarge}" Padding="4"
                                 SnapsToDevicePixels="True">
                             <ItemsPresenter/>
                         </Border>
@@ -334,6 +362,7 @@
         </Style>
 
         <Style TargetType="Menu">
+            <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="Template">
@@ -348,6 +377,7 @@
         </Style>
 
         <Style TargetType="MenuItem">
+            <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
             <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="10,6"/>
@@ -356,7 +386,7 @@
                     <ControlTemplate TargetType="MenuItem">
                         <Grid>
                             <Border x:Name="row" Background="{TemplateBinding Background}"
-                                    CornerRadius="4" SnapsToDevicePixels="True">
+                                    CornerRadius="{DynamicResource Corner}" SnapsToDevicePixels="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition x:Name="tickColumn" Width="20"/>
@@ -384,13 +414,21 @@
                             <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
                                    IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
                                    Placement="Right" HorizontalOffset="-3" VerticalOffset="-8">
-                                <Border Background="{DynamicResource PanelAlt}"
-                                        BorderBrush="{DynamicResource Line}"
-                                        BorderThickness="1" CornerRadius="6" Padding="4"
-                                        SnapsToDevicePixels="True">
-                                    <StackPanel IsItemsHost="True"
-                                                KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                                </Border>
+                                <!-- Scrolls when taller than the screen, which the
+                                     interface zoom makes possible: at 150% the View
+                                     menu ran off the bottom and took Zoom, the way
+                                     back, with it. Shorter menus never show a bar. -->
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"
+                                              MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}">
+                                    <Border Background="{DynamicResource PanelAlt}"
+                                            BorderBrush="{DynamicResource Line}"
+                                            LayoutTransform="{DynamicResource UiScale}"
+                                            BorderThickness="1" CornerRadius="{DynamicResource CornerLarge}" Padding="4"
+                                            SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                    </Border>
+                                </ScrollViewer>
                             </Popup>
                         </Grid>
 
@@ -454,7 +492,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border x:Name="b" CornerRadius="3" Margin="2"
+                        <Border x:Name="b" CornerRadius="{DynamicResource CornerSmall}" Margin="2"
                                 Background="{DynamicResource Scroll}"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">

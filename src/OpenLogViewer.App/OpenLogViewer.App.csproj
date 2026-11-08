@@ -44,6 +44,12 @@
   <ItemGroup>
     <!-- Also embedded so the window can set it explicitly. -->
     <Resource Include="AppIcon.ico" />
+
+    <!-- The Retro theme's pixel font, compiled in so a theme never depends on
+         what happens to be installed. Drawn for this project and MIT like the
+         rest of it; the source and generator live in the Rust port
+         (rust/assets/fonts and olv-fontgen on the rust-port branch). -->
+    <Resource Include="Fonts\OLVRetro-8x16.ttf" />
   </ItemGroup>
 
 </Project>

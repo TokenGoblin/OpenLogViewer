@@ -60,6 +60,8 @@ miniz_oxide = "0.9"
 httparse = "1"
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 getrandom = "0.4"
+# SHA-256 for tuning-project tune fingerprints (MIT/Apache-2.0); must match the C# digest.
+sha2 = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

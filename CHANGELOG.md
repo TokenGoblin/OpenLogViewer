@@ -5,6 +5,31 @@
 Everything below landed in one run of work. Grouped by what it does for you
 rather than by commit.
 
+### Themes
+
+**Retro DOS theme.** View → Theme → Retro DOS. It looks like a 1990s DOS tuning
+screen: black ground, a text-mode blue frame, cyan rules, neon magenta for what you
+are acting on, and phosphor-green numbers. It uses OLV Retro, a pixel font drawn for
+this project (MIT, like the rest of it) and shown crisp with no smoothing, and square corners throughout. The tune table
+becomes a ruled grid of green values instead of a heat map. Switch back to any
+other theme the same way.
+
+**Zoom.** View → Zoom, or Ctrl +, Ctrl − and Ctrl 0, makes the whole interface
+larger, from 100% up to 200%, and remembers the choice. Everything grows
+together, text redraws sharp at the new size, and the toolbar wraps onto a second
+line instead of hiding controls when it runs out of room. At 100% every window
+looks exactly as it did before.
+
+**Themes can now change more than colour.** A theme can set the interface and
+data fonts, corner rounding, pixel-sharp text and how the tune table is drawn, as
+well as separate colours for live values, the window frame and plot grids. The
+fourteen existing themes set none of this and are pixel-for-pixel unchanged. A
+new theme, colours and style together, is one entry in `ThemeCatalog.cs`. Tests
+fail if any window or view hardcodes a font or corner radius again, since that one
+place would then ignore every theme. Secondary windows (Calculators, Insights,
+Project, Fault codes, Power) now also follow the theme's title bar colour, which
+only the main window did before.
+
 ### Housekeeping
 
 **Third-party notices, and the installer now carries them.** The published build

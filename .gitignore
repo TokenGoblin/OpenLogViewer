@@ -12,3 +12,4 @@ artifacts/
 # source; a 54 MB package is not.
 installer/obj/
 installer/out/
+tests/screens-build/

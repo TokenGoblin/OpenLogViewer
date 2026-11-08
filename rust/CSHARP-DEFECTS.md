@@ -38,3 +38,8 @@ in the agents' reports. Each one names where it is and how it was found.
 | `MaxxUsbSource` status | ECU status bytes 0 and 1 are read as the local NoAnswer and Uncertain states. | w4-live |
 | `MaxxCanSource` | If the drop count is unavailable at open it is never counted. | w4-live |
 | `MaxxTune` write | `offset + length` can overflow int before the ceiling check; the Rust checks in 64 bits. The C# ceiling test (offset ceiling-2, length 4) would still pass with the ceiling one higher. | w4-live |
+| `TuningProject.With(TuneVersion)` | Moves a replaced version to the end, so re-burning an old version makes it "latest" and the parent of the next version, breaking the documented oldest-first order. | w5-projects |
+| `AgentCommands` (batches) | Magnitude is measured against the value after earlier batch items, and the raw items are applied rather than the deduplicated diff, so `[{X: v+0.5r}, {X: v+r}]` moves a value its full range for one rate-limit count. Batch size is unbounded. | w5-agent review |
+| `/definitions/import` | An agent can install an INI, which defines the ranges, the DangerousConstants names and the write commands, so a doctored file with the right signature defeats the gates after the next connect. `mustMatch` is empty when nothing is connected. | w5-agent review |
+| `AgentServer` | No Host or Origin check (DNS rebinding); the token is accepted in the query string; a `null` batch entry gives a 500; a bare `?raw` is not true; the server leaks if the token file fails to write; the MCP server sends the token to any address in the file; a non-string `method` crashes it; WebSocket frames over 16 KB break. | w5-agent |
+| `AgentCommands` (rpm) | The idle gate lets a write through when rpm is unknown. | w5-agent |

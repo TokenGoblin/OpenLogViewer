@@ -66,6 +66,9 @@ public sealed class TuneTableView : FrameworkElement
     private Pen _changed = null!;
     private Typeface _typeface = null!;
     private Typeface _boldTypeface = null!;
+    private TableStyle _style;
+    private Brush _readoutInk = null!;
+    private Pen _cellRule = null!;
 
     public TuneTableView()
     {
@@ -216,6 +219,14 @@ public sealed class TuneTableView : FrameworkElement
         // it is the accent at full weight.
         _selected = Frozen(new Pen(Fill(theme.Accent), 2));
 
+        // A ruled grid has no fill to tell the selection from, and the accent
+        // is one more bright line among many; the readout ink is what the
+        // values are drawn in, so a box in it reads as "this number".
+        _style = theme.Style.Table;
+        _readoutInk = Fill(theme.Readout);
+        _cellRule = Frozen(new Pen(Fill(theme.Grid), 1));
+        if (_style == TableStyle.Grid) _selected = Frozen(new Pen(_readoutInk, 2));
+
         // A changed cell is the marker colour rather than the accent, and thick.
         // It used to be the accent a pixel thin, which was nearly invisible: the
         // heat ramp is blue, the accent is a blue-cyan, and a one-pixel line of
@@ -229,8 +240,8 @@ public sealed class TuneTableView : FrameworkElement
         // even where the cells are too small for an outline to be obvious.
         _changedInk = Fill(theme.Marker);
 
-        _typeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        _boldTypeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        _typeface = ThemeFonts.Typeface(theme.Style.DataFont, FontWeights.Normal);
+        _boldTypeface = ThemeFonts.Typeface(theme.Style.DataFont, FontWeights.Bold);
 
         InvalidateVisual();
     }
@@ -290,9 +301,13 @@ public sealed class TuneTableView : FrameworkElement
                 double value = table.Values[column, row];
 
                 var cell = new Rect(x, y, cellWidth + 0.5, cellHeight + 0.5);
-                Color fill = Shade(value, low, high);
+                bool heat = _style == TableStyle.Heat;
+                Color fill = heat ? Shade(value, low, high) : default;
 
-                dc.DrawRectangle(Fill(fill), null, cell);
+                // A ruled grid leaves the ground showing and says the value in
+                // numbers alone.
+                if (heat) dc.DrawRectangle(Fill(fill), null, cell);
+                else dc.DrawRectangle(null, _cellRule, new Rect(x, y, cellWidth, cellHeight));
 
                 // A changed cell is outlined rather than recoloured, so the
                 // shading still says what the value is while the outline says
@@ -307,7 +322,9 @@ public sealed class TuneTableView : FrameworkElement
                 FormattedText text = Text(
                     value.ToString(format, CultureInfo.CurrentCulture),
                     Math.Min(11, cellHeight * 0.62),
-                    changed ? _changedInk : ColorMath.Luminance(fill) > 0.5 ? _darkInk : _lightInk,
+                    changed ? _changedInk
+                        : !heat ? _readoutInk
+                        : ColorMath.Luminance(fill) > 0.5 ? _darkInk : _lightInk,
                     changed);
 
                 dc.DrawText(text, new Point(

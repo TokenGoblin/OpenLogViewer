@@ -155,7 +155,7 @@
 
                 <TextBlock Style="{StaticResource Heading}" Text="WHAT THIS LOG CAN DO"/>
 
-                <Border Padding="12,8" CornerRadius="5"
+                <Border Padding="12,8" CornerRadius="{DynamicResource CornerMedium}"
                         Background="{DynamicResource Panel}"
                         BorderBrush="{DynamicResource Line}" BorderThickness="1">
                     <StackPanel>
