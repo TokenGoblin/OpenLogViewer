@@ -16,3 +16,4 @@ in the agents' reports. Each one names where it is and how it was found.
 | `MaxxUsbProtocol.Request` | Builds any command, including 0x2F, which erases the ECU flash; it was safe only because no caller passed it. The Rust refuses 0x2F outright. | w1-ms-maxx review |
 | `DialogCondition` | A parenthesised ternary `(a ? b : c)` evaluates the group with `Or()` and comes out Unknown, while the same ternary without parentheses works, so some INI dialog fields may show or hide wrongly. | w1-ini |
 | `FilterStore.Reload` | A `null` element in filters.json throws a NullReferenceException and the whole file is lost; the Rust skips the element. Non-finite bounds throw on save only after the in-memory list has changed (ported in the same order). | w2-filters |
+| `ChannelUnits.IsLambda` | The `":1"` case can never match: `ChannelRoles.Simplify` strips colons first, so `":1"` becomes `"1"` and falls through to the value guess. | w2-math-channels |

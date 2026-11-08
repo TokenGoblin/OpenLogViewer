@@ -1,0 +1,1 @@
+- **SettingsReviewTests: ten of the twelve are yours** (from w2-math-channels): `tests/OpenLogViewer.Tests/SettingsReviewTests.cs`. The two about derived channels are already ported in `olv_core::math`. The other ten cover curves, INI-driven settings and similar. Port them with the tune operations they exercise.
