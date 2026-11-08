@@ -43,16 +43,14 @@ impl Fuel {
     ];
 }
 
-// TODO(fmt): .NET "N2" (culture-invariant, grouped, half away from zero on the decimal
-// expansion). Placeholder until `olv_core::fmt` lands; `format!` rounds ties to even.
+/// .NET "N2" in the culture the C# formats with here (current, en-US).
 fn n2(value: f64) -> String {
-    format!("{value:.2}")
+    crate::fmt::f64(value, "N2")
 }
 
-// TODO(fmt): .NET "P0". Placeholder until `olv_core::fmt` lands. Note the C# uses the current
-// culture: en-US gives "67%", the invariant culture gives "67 %". This placeholder is the former.
+/// .NET "P0", en-US: "67%" with no space, where the invariant culture writes "67 %".
 fn p0(fraction: f64) -> String {
-    format!("{:.0}%", fraction * 100.0)
+    crate::fmt::f64(fraction, "P0")
 }
 
 /// Air-fuel ratio at which each fuel burns completely.

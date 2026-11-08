@@ -31,6 +31,10 @@ fn main() -> ExitCode {
         Some("status") => status(args.iter().any(|a| a == "--run")),
         Some("corpus") => corpus(),
         Some("layers") => layers(),
+        Some("scaffold") => match args.get(1).and_then(|w| w.parse().ok()) {
+            Some(wave) => scaffold(wave),
+            None => Err("usage: cargo xtask scaffold <wave>".into()),
+        },
         _ => Err("usage: cargo xtask <inventory | check | brief <id> | status [--run] | corpus>".into()),
     };
     match result {
@@ -703,6 +707,109 @@ fn components(nodes: &[String], edges: &BTreeMap<String, BTreeSet<String>>) -> V
     t.out
 }
 
+/// `MaxxUsbProtocol` -> `maxx_usb_protocol`, `Obd2Pids` -> `obd2_pids`.
+fn snake(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
+    let mut out = String::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            let prev = chars[i - 1];
+            let next_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+            if prev.is_lowercase() || prev.is_ascii_digit() || (prev.is_uppercase() && next_lower) {
+                out.push('_');
+            }
+        }
+        out.extend(c.to_lowercase());
+    }
+    out
+}
+
+/// Appends `line` to a file unless it is already there.
+fn ensure_line(path: &Path, line: &str, header: &str) -> Result<bool, String> {
+    let text = fs::read_to_string(path).unwrap_or_else(|_| header.to_string());
+    if text.lines().any(|l| l.trim() == line) {
+        return Ok(false);
+    }
+    let mut text = text;
+    if !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text.push_str(line);
+    text.push('\n');
+    fs::write(path, text).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// Creates everything a wave's agents would otherwise each have to create, so that no
+/// two of them edit the same file: missing crates, the `pub mod` line for each module
+/// in its crate's lib.rs, the module's mod.rs, and one stub file per C# file. Agents
+/// then only fill in their own stubs. Running it twice changes nothing.
+fn scaffold(wave: u32) -> Res {
+    let pkgs = manifest()?;
+    let mut made = Vec::new();
+    for p in pkgs.iter().filter(|p| p.wave == wave && p.kind == "port") {
+        let krate = rust_dir().join("crates").join(&p.krate);
+        let src = krate.join("src");
+        if !krate.join("Cargo.toml").exists() {
+            fs::create_dir_all(&src).map_err(|e| e.to_string())?;
+            let core = if p.krate == "olv-core" {
+                String::new()
+            } else {
+                "olv-core = { path = \"../olv-core\" }\n".into()
+            };
+            fs::write(
+                krate.join("Cargo.toml"),
+                format!(
+                    "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\n{core}\n[dev-dependencies]\nolv-oracle = {{ path = \"../olv-oracle\" }}\nserde.workspace = true\n\n[lints]\nworkspace = true\n",
+                    p.krate
+                ),
+            )
+            .map_err(|e| e.to_string())?;
+            made.push(format!("crate {}", p.krate));
+        }
+        let lib_header = format!(
+            "//! {}: ported package by package from the C#; see `rust/PLAN.md`.\n\n",
+            p.krate
+        );
+        if ensure_line(&src.join("lib.rs"), &format!("pub mod {};", p.module), &lib_header)? {
+            made.push(format!("{}::{}", p.krate, p.module));
+        }
+        let dir = src.join(&p.module);
+        // A module already written as a single file is left alone.
+        if src.join(format!("{}.rs", p.module)).exists() {
+            continue;
+        }
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let mod_header = format!(
+            "//! `{}`: see `rust/packages.toml` for which package owns each file.\n\n",
+            p.module
+        );
+        for f in p.files.iter().filter(|f| !f.contains('/')) {
+            let name = snake(
+                f.trim_start_matches('I')
+                    .get(..)
+                    .filter(|_| f.starts_with('I') && f.chars().nth(1).is_some_and(char::is_uppercase))
+                    .unwrap_or(f),
+            );
+            ensure_line(&dir.join("mod.rs"), &format!("pub mod {name};"), &mod_header)?;
+            let stub = dir.join(format!("{name}.rs"));
+            if !stub.exists() {
+                fs::write(
+                    &stub,
+                    format!("//! Ported from `{f}.cs`. Owned by package `{}`.\n", p.id),
+                )
+                .map_err(|e| e.to_string())?;
+                made.push(format!("{}/{name}.rs", rel(&dir)));
+            }
+        }
+    }
+    println!("wave {wave}: {} created", made.len());
+    for m in made {
+        println!("  {m}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 fn layers() -> Res {
     let inv = read_inventory();
     let nodes: Vec<String> = inv.sources.keys().cloned().collect();
@@ -893,32 +1000,73 @@ fn status(run: bool) -> Res {
     // crate -> module -> (passed, failed)
     let mut results: BTreeMap<String, BTreeMap<String, (usize, usize)>> = BTreeMap::new();
     if run {
-        let out = Command::new("cargo")
-            .args([
-                "test",
-                "--workspace",
-                "--no-fail-fast",
-                "--quiet",
-                "--",
-                "--format=terse",
-            ])
+        // Build every test binary and ask cargo where each one is and what it belongs
+        // to, then run them one at a time. Reading `cargo test` output instead does not
+        // work: its "Running" headers go to stderr and the results to stdout, so which
+        // result came from which binary is lost.
+        let build = Command::new("cargo")
+            .args(["test", "--workspace", "--no-run", "--message-format=json"])
             .current_dir(rust_dir())
             .output()
             .map_err(|e| e.to_string())?;
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        let running = Regex::new(r"Running .*deps[\\/]([a-z_]+)-[0-9a-f]+").unwrap();
+        let mut binaries: Vec<(String, String, PathBuf, PathBuf)> = Vec::new(); // crate, target, exe, dir
+        for l in String::from_utf8_lossy(&build.stdout).lines() {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(l) else {
+                continue;
+            };
+            let Some(exe) = v["executable"].as_str() else { continue };
+            if v["profile"]["test"].as_bool() != Some(true) {
+                continue;
+            }
+            let id = v["package_id"].as_str().unwrap_or("");
+            // `path+file:///…/olv-core#0.1.0`, or `…/dir#olv-core@0.1.0` when the name
+            // differs from the folder.
+            let (path, tail) = id.rsplit_once('#').unwrap_or((id, ""));
+            let krate = match tail.split_once('@') {
+                Some((name, _)) => name.to_string(),
+                None => path.rsplit('/').next().unwrap_or("").to_string(),
+            };
+            let target = v["target"]["name"].as_str().unwrap_or("").to_string();
+            let dir = Path::new(v["manifest_path"].as_str().unwrap_or("."))
+                .parent()
+                .map(Path::to_path_buf);
+            binaries.push((krate, target, PathBuf::from(exe), dir.unwrap_or_else(rust_dir)));
+        }
+
+        // Unit tests are named by module (`base::smoothing::tests::x`). Reference tests
+        // live in `tests/oracle_<set>.rs` with bare names, so they count for the package
+        // whose `oracle/expected/<package>/<set>.json` they read.
         let line = Regex::new(r"^test ([\w:]+) \.\.\. (ok|FAILED)").unwrap();
-        let mut current = String::new();
-        for l in text.lines() {
-            if let Some(c) = running.captures(l) {
-                current = c[1].replace('_', "-");
-            } else if let Some(c) = line.captures(l) {
-                let module = c[1].split("::").next().unwrap_or("").to_string();
-                let e = results.entry(current.clone()).or_default().entry(module).or_default();
+        let set_owner: BTreeMap<String, String> = pkgs
+            .iter()
+            .flat_map(|p| {
+                let dir = rust_dir().join("oracle").join("expected").join(&p.id);
+                fs::read_dir(dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter_map(|e| {
+                        let name = e.file_name().to_string_lossy().to_string();
+                        name.strip_suffix(".json").map(|s| (s.to_string(), p.module.clone()))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (krate, target, exe, dir) in &binaries {
+            let module_override = target
+                .strip_prefix("oracle_")
+                .and_then(|set| set_owner.get(set))
+                .cloned();
+            let out = Command::new(exe)
+                .current_dir(dir)
+                .output()
+                .map_err(|e| format!("{}: {e}", exe.display()))?;
+            for l in String::from_utf8_lossy(&out.stdout).lines() {
+                let Some(c) = line.captures(l) else { continue };
+                let module = module_override
+                    .clone()
+                    .unwrap_or_else(|| c[1].split("::").next().unwrap_or("").to_string());
+                let e = results.entry(krate.clone()).or_default().entry(module).or_default();
                 if &c[2] == "ok" { e.0 += 1 } else { e.1 += 1 }
             }
         }

@@ -11,3 +11,6 @@ pub mod model;
 pub mod units;
 
 pub use error::{Error, Result};
+pub mod calc;
+pub mod channels;
+pub mod ini;

@@ -27,7 +27,7 @@ so the port adds the other two platforms as it goes, not as a later project.
 | Platforms | **Windows, Linux, macOS** (decided). Nothing platform-specific above `olv-transport`, and inside it each OS is its own module behind one trait | CI builds and tests all three on every push, so a Windows-only call anywhere else fails the build the day it is written. |
 | Licences | `cargo-deny`, allowing MIT/Apache/BSD/Zlib/ISC only | Keeps THIRD-PARTY-NOTICES' "no copyleft code" promise checkable. |
 | Retro font | **Our own** (decided): an original 8x16 pixel font drawn from scratch, MIT like the rest, built into a TTF by `olv-fontgen` | Removes the CC BY-SA question entirely. Not traced from IBM VGA or Px437. |
-| Number formatting | One `fmt` module that copies .NET's `G5`/`F1`/`N0` output, culture-invariant | The single most likely source of a thousand small mismatches. Built in Wave 0, used everywhere. |
+| Number formatting | One `fmt` module that copies .NET's output exactly, in en-US (where the C# used the current culture) and invariant (where it passed InvariantCulture) | The single most likely source of a thousand small mismatches. Built in Wave 0, used everywhere. |
 
 ## Crates
 
