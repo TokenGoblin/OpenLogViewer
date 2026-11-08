@@ -21,3 +21,5 @@ in the agents' reports. Each one names where it is and how it was found.
 | `Obd2Faults.Parse` | Its comment says a zero byte pair is padding and the rest is ignored, but the code only skips that one pair. | w2-obd |
 | `SsmParameterFile` | A `null` entry in `parameters` throws a NullReferenceException; the Rust skips it. | w2-obd |
 | `RealtimeDecoder` | A negative field offset throws; the Rust returns NaN for that field. Tune settings with keys differing only in case throw; the Rust keeps the last. | w2-obd |
+| `FtdiEcuTransport.Find` | With no MaxxECU present it falls back to the first FTDI device of any kind, so picking MaxxECU USB with a MicroSquirt on an FTDI cable would open the MicroSquirt and send it MaxxECU frames. The Rust only ever opens a device positively identified as a MaxxECU. | w2-transports review |
+| `SerialPortNames` (by comparison) | The C# WMI query saw only present devices; a port number reused by a new device was labelled correctly. Keep it that way: the Rust registry rows apply only to ports the live list reports as Bluetooth or unknown. | w2-transports review |
