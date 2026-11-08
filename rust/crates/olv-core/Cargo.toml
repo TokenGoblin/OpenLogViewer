@@ -6,6 +6,9 @@ license.workspace = true
 publish.workspace = true
 description = "Data model, log readers, INI and .msq handling, analysis, calculators."
 
+[dependencies]
+roxmltree.workspace = true
+
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
 serde.workspace = true
