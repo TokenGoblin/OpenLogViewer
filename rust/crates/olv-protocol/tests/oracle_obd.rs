@@ -235,6 +235,9 @@ fn faults_text(faults: &[Dtc]) -> Vec<String> {
         .collect()
 }
 
+/// Replies whose C# answer decodes codes that follow a padding pair.
+const PADDING_DIVERGENCE: &[&str] = &["43 00 00 01 33"];
+
 #[test]
 fn fault_codes_and_replies_match_the_csharp() {
     let mut replies = 0;
@@ -283,12 +286,23 @@ fn fault_codes_and_replies_match_the_csharp() {
                 assert_eq!(units, strings(&case["units"]), "{what}");
 
                 let counted = obd2_faults::parse(reply, mode, DtcState::Stored, true);
-                assert_eq!(codes_of(&counted), strings(&case["counted"]), "{what}");
-                assert!(counted.iter().all(|f| f.state == DtcState::Stored));
-
                 let bare = obd2_faults::parse(reply, mode, DtcState::Pending, false);
-                assert_eq!(codes_of(&bare), strings(&case["bare"]), "{what}");
+                assert!(counted.iter().all(|f| f.state == DtcState::Stored));
                 assert!(bare.iter().all(|f| f.state == DtcState::Pending));
+
+                // INTENDED DIVERGENCE (CSHARP-DEFECTS.md, Obd2Faults.Parse): a zero pair is
+                // padding and so is everything after it in its unit; the C# skipped only the
+                // pair, so a reply with codes after padding decodes differently. Those replies
+                // are not compared; `nothing_after_the_padding_is_a_code` (and the check just
+                // below) pin the corrected reading.
+                let (want_counted, want_bare) = (strings(&case["counted"]), strings(&case["bare"]));
+                let diverges = codes_of(&counted) != want_counted || codes_of(&bare) != want_bare;
+                if diverges {
+                    assert!(PADDING_DIVERGENCE.contains(&reply), "{what}: differs from the C#");
+                    eprintln!("skipped (padding defect): {what}");
+                    assert!(codes_of(&counted).len() <= want_counted.len(), "{what}");
+                    assert!(codes_of(&bare).len() <= want_bare.len(), "{what}");
+                }
 
                 replies += 1;
             }

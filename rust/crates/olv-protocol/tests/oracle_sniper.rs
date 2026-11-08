@@ -132,7 +132,11 @@ fn hefi_messages_fragments_and_session_frames_match_the_csharp() {
                 ));
                 let mut s = SniperSession::new(Scripted(Arc::clone(&state)));
                 s.open(Some(Duration::from_millis(200))).unwrap();
-                assert_eq!(s.ecu_node(), ecu_node);
+                // INTENDED DIVERGENCE (CSHARP-DEFECTS.md, SniperSession node id): the C# read
+                // the node as `CanId & 0x7FF` (`ecu_node` here), the Rust as the node the id
+                // packs, which is the one the ECU replied from.
+                let _ = ecu_node;
+                assert_eq!(s.ecu_node(), node_reply as i32);
                 {
                     let st = state.lock().unwrap();
                     assert_eq!(st.bitrates, open_bitrates);
@@ -160,7 +164,14 @@ fn hefi_messages_fragments_and_session_frames_match_the_csharp() {
                     }
                     .unwrap();
                     assert_eq!(reply, unhex(&r.reply), "{} reply", r.name);
-                    check_frames(&state.lock().unwrap().sent, &r.sent, &r.name);
+                    // The same frames as the C#, except that they are addressed to the node
+                    // the ECU replied from rather than to the C#'s misread one.
+                    let sent = state.lock().unwrap().sent.clone();
+                    assert_eq!(sent.len(), r.sent.len(), "{}: frame count", r.name);
+                    for (g, w) in sent.iter().zip(&r.sent) {
+                        assert_eq!(g.can_id, bulk_id(node_reply as i32, 0), "{}: id", r.name);
+                        assert_eq!(g.data, unhex(&w.data), "{}: data", r.name);
+                    }
                 }
             }
         }

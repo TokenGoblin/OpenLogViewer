@@ -487,6 +487,31 @@ entry = halfRpm, \"Half RPM\",  float, \"%.1f\"
         assert!(value(&decoder, &values, "coolant").is_nan());
     }
 
+    // The C# threw on a negative offset (the slice that follows the bounds check) and on
+    // tune settings whose keys differ only in case (a Dictionary built with
+    // OrdinalIgnoreCase); the Rust yields NaN for the field and keeps the last value.
+    #[test]
+    fn a_negative_offset_is_unknown_not_a_crash() {
+        let ini = "[OutputChannels]\nochBlockSize = 4\nodd = scalar, U08, -1, \"x\", 1.0, 0.0\nrpm = scalar, U16, 0, \"RPM\", 1.0, 0.0\n";
+        let decoder = RealtimeDecoder::new(msq_ini::read_output_channels(ini, None), None);
+
+        let values = decoder.decode(&[0x0B, 0xB8, 0, 0]);
+
+        assert!(value(&decoder, &values, "odd").is_nan());
+        assert!(close(value(&decoder, &values, "rpm"), 3000.0));
+    }
+
+    #[test]
+    fn settings_differing_only_in_case_keep_the_last_value() {
+        let ini = "[OutputChannels]\nochBlockSize = 4\nrpm = scalar, U16, 0, \"RPM\", 1.0, 0.0\nperCyl = { rpm / nCylinders }, \"RPM\"\n";
+        let settings = vec![("nCylinders".to_string(), 4.0), ("NCYLINDERS".to_string(), 6.0)];
+
+        let decoder = RealtimeDecoder::new(msq_ini::read_output_channels(ini, None), Some(&settings));
+
+        let values = decoder.decode(&[0x0B, 0xB8, 0, 0]);
+        assert!(close(value(&decoder, &values, "perCyl"), 500.0));
+    }
+
     #[test]
     fn an_expression_naming_something_absent_is_reported_not_thrown() {
         let ini = "[OutputChannels]\nochBlockSize = 4\n\

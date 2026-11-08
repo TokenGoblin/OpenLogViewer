@@ -390,6 +390,16 @@ mod tests {
         assert_eq!(on, ["Good"]);
     }
 
+    // The C# threw a NullReferenceException on a null entry and lost the whole file.
+    #[test]
+    fn a_null_entry_is_skipped_and_the_rest_of_the_file_is_read() {
+        let json = r#"{ "parameters": [ null, { "name": "Good", "address": "0x10" } ] }"#;
+
+        let names: Vec<String> = read(Some(json)).into_iter().map(|p| p.name).collect();
+
+        assert_eq!(names, ["Good"]);
+    }
+
     #[test]
     fn property_names_ignore_case_and_comments_are_skipped() {
         let json = "// a note\n{ \"Parameters\": [ /* x */ { \"NAME\": \" Knock \", \"Address\": \"0X1f\", \"Units\": \" dB \" } ] }";
