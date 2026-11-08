@@ -11,8 +11,8 @@ C#. The C# app keeps shipping until the Rust one has matched it on every ECU on 
 bench (Wave 5). Until then it is the reference that settles disputes: when the two
 disagree, the C# is right unless a person decides otherwise.
 
-"Pure Rust" means every line we write is Rust, and no C library is linked: not
-FTDI's `ftd2xx`, not libusb. The operating system's own interfaces (Win32, WinRT,
+"Pure Rust" means every line we write is Rust, and no third-party C library is
+linked: not FTDI's `ftd2xx`, not libusb. The operating system's own interfaces (Win32, WinRT,
 CoreBluetooth, BlueZ, usbfs, IOKit) are reached through Rust bindings to them.
 
 **Windows, Linux and macOS**, all from the first release. The C# app was Windows-only,
@@ -158,7 +158,7 @@ Same checks that proved the C# app, from the hardware notes:
 | MaxxECU Race | USB/FTDI | live data, writes (no separate burn step), needs 12 V, MTune closed |
 | OBD2 dongle | Bluetooth LE | trims, MAP, lambda on a running engine |
 | Vgate Wi-Fi | TCP | still never tested in either app |
-| Holley Sniper | WinUSB | blocked at layer 3 in both apps until a USB capture exists |
+| Holley Sniper | USB (`nusb`) | layers 1–2 again on the new USB code: interface number, IN packet size, the GetHardwareVersion reply length, that a read cancelled on timeout loses no records, and that nusb finds the dongle on Windows (it looks the device up by registry GUID, not the C#'s path). Then Linux (udev rules, no kernel driver holding it) and macOS. Layer 3 stays blocked in both apps until a USB capture exists. |
 
 **Gate:** every row that passes in C# today passes in Rust. Then build the installer
 (cargo-wix), with code signing still to be decided.
