@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["xtask", "crates/*"]
+members = ["xtask", "crates/*", "apps/*"]
 
 [workspace.package]
 edition = "2024"
@@ -57,6 +57,13 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 miniz_oxide = "0.9"
 # SHA-256 for tuning-project tune fingerprints (MIT/Apache-2.0); must match the C# digest.
 sha2 = "0.10"
+
+# The interface. egui draws every view itself (PLAN.md). eframe is taken without its default
+# features so that nothing system-wide is pulled in by accident: no system font provider,
+# no screen reader bridge. The renderer is chosen in the app, see `olv-themes`.
+egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
+raw-window-handle = "0.6"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

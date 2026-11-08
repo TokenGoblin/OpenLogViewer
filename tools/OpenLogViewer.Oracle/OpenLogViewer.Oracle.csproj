@@ -10,6 +10,17 @@
     <ProjectReference Include="..\..\src\OpenLogViewer.Core\OpenLogViewer.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    The theme maths is WPF-side code in the App project, which this tool cannot reference (it
+    targets Windows, this does not). The three files that hold the formulas are compiled in as
+    they are, with the WPF colour types they use stood in for by Shims/WpfColorShim.cs.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\OpenLogViewer.App\ColorMath.cs" Link="Linked\ColorMath.cs" />
+    <Compile Include="..\..\src\OpenLogViewer.App\Theme.cs" Link="Linked\Theme.cs" />
+    <Compile Include="..\..\src\OpenLogViewer.App\ThemeCatalog.cs" Link="Linked\ThemeCatalog.cs" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

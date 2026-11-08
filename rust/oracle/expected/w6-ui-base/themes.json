@@ -1,0 +1,1160 @@
+{
+  "generator": "tools/OpenLogViewer.Oracle",
+  "cases": [
+    {
+      "id": "midnight",
+      "name": "Midnight",
+      "group": "Dark",
+      "stated": {
+        "background": "#14171C",
+        "panel": "#1B1F26",
+        "panel_alt": "#222831",
+        "line": "#2C333E",
+        "text": "#DDE3EA",
+        "muted": "#828D9E",
+        "accent": "#4FC3F7",
+        "marker": "#FFB34D",
+        "ramp_cool": "#3987E5",
+        "ramp_warm": "#D03B3B",
+        "series": [
+          "#56820F",
+          "#9D4CAB",
+          "#B58D00",
+          "#7582D5",
+          "#DE5222",
+          "#007FAA",
+          "#BF3469",
+          "#06A4B5"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#DDE3EA",
+        "chrome": "#1B1F26",
+        "grid": "#2E3237",
+        "hover": "#3C424B",
+        "faint": "#5C6470",
+        "scroll": "#868B92",
+        "scroll_hover": "#B6BCC3",
+        "selected": "#264354",
+        "on_accent": "#0B0B0B",
+        "header": "#181B21",
+        "lane": "#24272C",
+        "cursor": "#ABB0B6",
+        "card": "#23272E",
+        "empty_cell": "#1E2126",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#0761BC",
+          "#3F80CF",
+          "#689EE2",
+          "#90BCF5",
+          "#B8DAFF"
+        ],
+        "cool_arm": [
+          "#3E4145",
+          "#0058B2",
+          "#226FC7",
+          "#3F85DC",
+          "#599CF1",
+          "#73B4FF"
+        ],
+        "warm_arm": [
+          "#3E4145",
+          "#AB091B",
+          "#C23434",
+          "#D9504C",
+          "#EF6B64",
+          "#FF857C"
+        ]
+      }
+    },
+    {
+      "id": "graphite",
+      "name": "Graphite",
+      "group": "Dark",
+      "stated": {
+        "background": "#17181A",
+        "panel": "#1E1F22",
+        "panel_alt": "#26282C",
+        "line": "#34363B",
+        "text": "#E2E3E6",
+        "muted": "#8B8E95",
+        "accent": "#7EB6E8",
+        "marker": "#E0A44A",
+        "ramp_cool": "#4A8FD0",
+        "ramp_warm": "#C4523F",
+        "series": [
+          "#B8496A",
+          "#2A7DB7",
+          "#A87C05",
+          "#7F86D3",
+          "#55843F",
+          "#7C5496",
+          "#24A59D",
+          "#E16A33"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#E2E3E6",
+        "chrome": "#1E1F22",
+        "grid": "#313235",
+        "hover": "#404246",
+        "faint": "#62656A",
+        "scroll": "#8A8B8E",
+        "scroll_hover": "#BBBCBF",
+        "selected": "#33404E",
+        "on_accent": "#0B0B0B",
+        "header": "#1A1C1E",
+        "lane": "#27282A",
+        "cursor": "#AFB0B3",
+        "card": "#26272A",
+        "empty_cell": "#212224",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#1E66A4",
+          "#4A83BA",
+          "#70A0D0",
+          "#96BDE5",
+          "#BDDBFB"
+        ],
+        "cool_arm": [
+          "#414243",
+          "#125E9B",
+          "#3173B0",
+          "#4B89C5",
+          "#64A0DA",
+          "#7CB6F0"
+        ],
+        "warm_arm": [
+          "#414243",
+          "#9E2E1D",
+          "#B44836",
+          "#CA604E",
+          "#E17966",
+          "#F7917E"
+        ]
+      }
+    },
+    {
+      "id": "daylight",
+      "name": "Daylight",
+      "group": "Light",
+      "stated": {
+        "background": "#FFFFFF",
+        "panel": "#F4F6F8",
+        "panel_alt": "#E8ECF0",
+        "line": "#CDD5DD",
+        "text": "#1B2026",
+        "muted": "#5A6672",
+        "accent": "#0B6BCB",
+        "marker": "#B25E00",
+        "ramp_cool": "#1E88E5",
+        "ramp_warm": "#D0342C",
+        "series": [
+          "#D32F69",
+          "#007AD5",
+          "#CC8600",
+          "#8C22A8",
+          "#2B7A2F",
+          "#6D7ED5",
+          "#E54918",
+          "#23A3B1"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": false,
+        "readout": "#1B2026",
+        "chrome": "#F4F6F8",
+        "grid": "#E1E2E3",
+        "hover": "#CBCFD4",
+        "faint": "#949CA3",
+        "scroll": "#7D8084",
+        "scroll_hover": "#464B50",
+        "selected": "#C1D7EE",
+        "on_accent": "#FFFFFF",
+        "header": "#FAFAFC",
+        "lane": "#EDEDEE",
+        "cursor": "#54585C",
+        "card": "#EBEDF0",
+        "empty_cell": "#F4F4F4",
+        "warning": "#AF7C00",
+        "danger": "#CC2827",
+        "nominal": "#2E9052",
+        "sequential_ramp": [
+          "#5BBCFF",
+          "#4A9BEC",
+          "#3A7BBC",
+          "#2A5C8E",
+          "#1B3F63"
+        ],
+        "cool_arm": [
+          "#D1D1D1",
+          "#47A9FF",
+          "#3292EC",
+          "#1C7BD0",
+          "#0065B4",
+          "#005099"
+        ],
+        "warm_arm": [
+          "#D1D1D1",
+          "#FF6A5B",
+          "#EA5549",
+          "#CD4036",
+          "#B12B24",
+          "#961210"
+        ]
+      }
+    },
+    {
+      "id": "paper",
+      "name": "Paper",
+      "group": "Light",
+      "stated": {
+        "background": "#FBF7EF",
+        "panel": "#F3EEE3",
+        "panel_alt": "#EAE3D5",
+        "line": "#D8CFBD",
+        "text": "#2A241B",
+        "muted": "#6B6152",
+        "accent": "#A85A16",
+        "marker": "#8A5A00",
+        "ramp_cool": "#1565C0",
+        "ramp_warm": "#C43B18",
+        "series": [
+          "#31671B",
+          "#8272EF",
+          "#EA6900",
+          "#1263BE",
+          "#F55E35",
+          "#7124A1",
+          "#29A08E",
+          "#AA0F55"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": false,
+        "readout": "#2A241B",
+        "chrome": "#F3EEE3",
+        "grid": "#E0DCD3",
+        "hover": "#CFC8BB",
+        "faint": "#9D9689",
+        "scroll": "#847F75",
+        "scroll_hover": "#524C43",
+        "selected": "#E2CDB6",
+        "on_accent": "#FFFFFF",
+        "header": "#F7F2E9",
+        "lane": "#EAE6DE",
+        "cursor": "#5E5950",
+        "card": "#EBE6DB",
+        "empty_cell": "#F1ECE4",
+        "warning": "#AF7C00",
+        "danger": "#CC2827",
+        "nominal": "#2E9052",
+        "sequential_ramp": [
+          "#6EB9FF",
+          "#5998EA",
+          "#4679BB",
+          "#335A8D",
+          "#223E62"
+        ],
+        "cool_arm": [
+          "#CECBC4",
+          "#5BA6FF",
+          "#488FEA",
+          "#3579CE",
+          "#2263B3",
+          "#0C4E98"
+        ],
+        "warm_arm": [
+          "#CECBC4",
+          "#FF7352",
+          "#E35E3F",
+          "#C74A2C",
+          "#AC3618",
+          "#912000"
+        ]
+      }
+    },
+    {
+      "id": "dracula",
+      "name": "Dracula",
+      "group": "Editor",
+      "stated": {
+        "background": "#282A36",
+        "panel": "#21222C",
+        "panel_alt": "#343746",
+        "line": "#44475A",
+        "text": "#F8F8F2",
+        "muted": "#9CA0B0",
+        "accent": "#BD93F9",
+        "marker": "#FFB86C",
+        "ramp_cool": "#7B8FE8",
+        "ramp_warm": "#FF5555",
+        "series": [
+          "#D3519E",
+          "#757B00",
+          "#8563B3",
+          "#008E37",
+          "#687CBF",
+          "#F64C4E",
+          "#0090A5",
+          "#C48132"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#F8F8F2",
+        "chrome": "#21222C",
+        "grid": "#43454E",
+        "hover": "#4F525E",
+        "faint": "#737785",
+        "scroll": "#979899",
+        "scroll_hover": "#CDCDCA",
+        "selected": "#433B59",
+        "on_accent": "#0B0B0B",
+        "header": "#242631",
+        "lane": "#393A45",
+        "cursor": "#C4C4C3",
+        "card": "#2A2B34",
+        "empty_cell": "#32343F",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#4B5BAE",
+          "#6879C3",
+          "#8797D8",
+          "#A8B6EC",
+          "#CAD6FF"
+        ],
+        "cool_arm": [
+          "#4F505A",
+          "#4352A5",
+          "#5768BA",
+          "#6C7ECF",
+          "#8295E4",
+          "#99ACFA"
+        ],
+        "warm_arm": [
+          "#4F505A",
+          "#B00017",
+          "#C72A31",
+          "#DE4A49",
+          "#F56561",
+          "#FF807A"
+        ]
+      }
+    },
+    {
+      "id": "nord",
+      "name": "Nord",
+      "group": "Editor",
+      "stated": {
+        "background": "#2E3440",
+        "panel": "#272C36",
+        "panel_alt": "#3B4252",
+        "line": "#434C5E",
+        "text": "#ECEFF4",
+        "muted": "#A0A8B7",
+        "accent": "#88C0D0",
+        "marker": "#EBCB8B",
+        "ramp_cool": "#5E81AC",
+        "ramp_warm": "#BF616A",
+        "series": [
+          "#B18D40",
+          "#008BA5",
+          "#B66951",
+          "#23A5A5",
+          "#BE6069",
+          "#5080BB",
+          "#658842",
+          "#A5689C"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#ECEFF4",
+        "chrome": "#272C36",
+        "grid": "#474C57",
+        "hover": "#545A69",
+        "faint": "#787F8D",
+        "scroll": "#93979E",
+        "scroll_hover": "#C5C8CE",
+        "selected": "#3C4D58",
+        "on_accent": "#0B0B0B",
+        "header": "#2A303B",
+        "lane": "#3D434E",
+        "cursor": "#BCC0C7",
+        "card": "#2F343E",
+        "empty_cell": "#383D49",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#3D6595",
+          "#5E81AC",
+          "#809EC4",
+          "#A2BBDB",
+          "#C6DAF2"
+        ],
+        "cool_arm": [
+          "#545962",
+          "#355C8C",
+          "#4B72A1",
+          "#6187B6",
+          "#789DCC",
+          "#90B4E1"
+        ],
+        "warm_arm": [
+          "#545962",
+          "#923944",
+          "#A85059",
+          "#BE676E",
+          "#D47E85",
+          "#EB969C"
+        ]
+      }
+    },
+    {
+      "id": "solarized-dark",
+      "name": "Solarized Dark",
+      "group": "Editor",
+      "stated": {
+        "background": "#002B36",
+        "panel": "#01313D",
+        "panel_alt": "#073642",
+        "line": "#0E4A57",
+        "text": "#EEE8D5",
+        "muted": "#93A1A1",
+        "accent": "#268BD2",
+        "marker": "#CB4B16",
+        "ramp_cool": "#268BD2",
+        "ramp_warm": "#DC322F",
+        "series": [
+          "#687800",
+          "#666ABD",
+          "#D75624",
+          "#2CA89F",
+          "#DE3431",
+          "#0075BA",
+          "#B58901",
+          "#C13D7A"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#EEE8D5",
+        "chrome": "#01313D",
+        "grid": "#1F444B",
+        "hover": "#274F57",
+        "faint": "#60787C",
+        "scroll": "#839691",
+        "scroll_hover": "#BFC3B7",
+        "selected": "#09455E",
+        "on_accent": "#0B0B0B",
+        "header": "#002E3A",
+        "lane": "#133A43",
+        "cursor": "#B2B9AD",
+        "card": "#0A3843",
+        "empty_cell": "#0C343E",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#0068AC",
+          "#3585C1",
+          "#63A2D6",
+          "#8CBFEA",
+          "#B6DDFF"
+        ],
+        "cool_arm": [
+          "#2E515A",
+          "#005FA3",
+          "#0775B7",
+          "#338BCC",
+          "#51A2E2",
+          "#6CB9F7"
+        ],
+        "warm_arm": [
+          "#2E515A",
+          "#B00007",
+          "#C72B29",
+          "#DE4A42",
+          "#F5665B",
+          "#FF8174"
+        ]
+      }
+    },
+    {
+      "id": "solarized-light",
+      "name": "Solarized Light",
+      "group": "Editor",
+      "stated": {
+        "background": "#FDF6E3",
+        "panel": "#F5EED9",
+        "panel_alt": "#EEE8D5",
+        "line": "#DCD4BC",
+        "text": "#073642",
+        "muted": "#657B83",
+        "accent": "#268BD2",
+        "marker": "#B58900",
+        "ramp_cool": "#268BD2",
+        "ramp_warm": "#DC322F",
+        "series": [
+          "#738402",
+          "#6368BA",
+          "#E86636",
+          "#1E9F96",
+          "#E9403A",
+          "#1380C6",
+          "#C12073",
+          "#B38806"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": false,
+        "readout": "#073642",
+        "chrome": "#F5EED9",
+        "grid": "#DDDDCE",
+        "hover": "#CECFC0",
+        "faint": "#9AA6A5",
+        "scroll": "#728986",
+        "scroll_hover": "#375B60",
+        "selected": "#C7D8D7",
+        "on_accent": "#0B0B0B",
+        "header": "#F9F2DE",
+        "lane": "#E9E7D6",
+        "cursor": "#44666A",
+        "card": "#EBE7D3",
+        "empty_cell": "#F1ECDB",
+        "warning": "#AF7C00",
+        "danger": "#CC2827",
+        "nominal": "#2E9052",
+        "sequential_ramp": [
+          "#62C0FF",
+          "#4F9EDC",
+          "#3E7DAF",
+          "#2D5E84",
+          "#1E405C"
+        ],
+        "cool_arm": [
+          "#CFCABA",
+          "#4DACF6",
+          "#3995DA",
+          "#247FBF",
+          "#0769A5",
+          "#00548C"
+        ],
+        "warm_arm": [
+          "#CFCABA",
+          "#FF665B",
+          "#ED5249",
+          "#D03D36",
+          "#B32624",
+          "#970910"
+        ]
+      }
+    },
+    {
+      "id": "monokai",
+      "name": "Monokai",
+      "group": "Editor",
+      "stated": {
+        "background": "#272822",
+        "panel": "#21221C",
+        "panel_alt": "#31322B",
+        "line": "#414339",
+        "text": "#F8F8F2",
+        "muted": "#A6A28C",
+        "accent": "#66D9EF",
+        "marker": "#FD971F",
+        "ramp_cool": "#4EA8C4",
+        "ramp_warm": "#F92672",
+        "series": [
+          "#018D7A",
+          "#FE2D76",
+          "#7D61B4",
+          "#5F8502",
+          "#CC6286",
+          "#A19528",
+          "#0093A7",
+          "#D07801"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#F8F8F2",
+        "chrome": "#21221C",
+        "grid": "#42433D",
+        "hover": "#4D4E47",
+        "faint": "#7A7767",
+        "scroll": "#979892",
+        "scroll_hover": "#CDCDC7",
+        "selected": "#304A4A",
+        "on_accent": "#0B0B0B",
+        "header": "#24251F",
+        "lane": "#383933",
+        "cursor": "#C4C4BE",
+        "card": "#2A2B25",
+        "empty_cell": "#31322C",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#006F89",
+          "#3F8AA1",
+          "#6AA5BA",
+          "#92C2D2",
+          "#BADFEC"
+        ],
+        "cool_arm": [
+          "#4E4F4A",
+          "#006680",
+          "#1E7B95",
+          "#3E91AA",
+          "#5AA7BF",
+          "#75BDD5"
+        ],
+        "warm_arm": [
+          "#4E4F4A",
+          "#AC0046",
+          "#C4275B",
+          "#DB4770",
+          "#F16387",
+          "#FF7D9D"
+        ]
+      }
+    },
+    {
+      "id": "one-dark",
+      "name": "One Dark",
+      "group": "Editor",
+      "stated": {
+        "background": "#282C34",
+        "panel": "#21252B",
+        "panel_alt": "#31363F",
+        "line": "#3E4451",
+        "text": "#CDD3DE",
+        "muted": "#828997",
+        "accent": "#61AFEF",
+        "marker": "#D19A66",
+        "ramp_cool": "#61AFEF",
+        "ramp_warm": "#E06C75",
+        "series": [
+          "#B38C40",
+          "#3779AD",
+          "#DB6871",
+          "#26A4B2",
+          "#A2692C",
+          "#7E8BD1",
+          "#587F38",
+          "#9660A6"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#CDD3DE",
+        "chrome": "#21252B",
+        "grid": "#3D424A",
+        "hover": "#474C55",
+        "faint": "#626874",
+        "scroll": "#80858D",
+        "scroll_hover": "#ABB0BA",
+        "selected": "#2F4356",
+        "on_accent": "#0B0B0B",
+        "header": "#242830",
+        "lane": "#353942",
+        "cursor": "#A4A9B4",
+        "card": "#282C32",
+        "empty_cell": "#30343C",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#0E68A3",
+          "#4484B9",
+          "#6CA1CF",
+          "#93BEE4",
+          "#BADCFA"
+        ],
+        "cool_arm": [
+          "#4F5259",
+          "#005F9A",
+          "#2775AE",
+          "#448BC4",
+          "#5EA1D9",
+          "#77B8EF"
+        ],
+        "warm_arm": [
+          "#4F5259",
+          "#9B2D3C",
+          "#B24751",
+          "#C85F67",
+          "#DE777E",
+          "#F58F95"
+        ]
+      }
+    },
+    {
+      "id": "gruvbox",
+      "name": "Gruvbox Dark",
+      "group": "Editor",
+      "stated": {
+        "background": "#282828",
+        "panel": "#1D2021",
+        "panel_alt": "#32302F",
+        "line": "#504945",
+        "text": "#EBDBB2",
+        "muted": "#A89984",
+        "accent": "#83A598",
+        "marker": "#FE8019",
+        "ramp_cool": "#458588",
+        "ramp_warm": "#CC241D",
+        "series": [
+          "#737500",
+          "#00989D",
+          "#B35707",
+          "#6FA05E",
+          "#A75970",
+          "#B78602",
+          "#098165",
+          "#E12B18"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#EBDBB2",
+        "chrome": "#1D2021",
+        "grid": "#413F3A",
+        "hover": "#4C4841",
+        "faint": "#7B7164",
+        "scroll": "#8E8771",
+        "scroll_hover": "#C2B695",
+        "selected": "#333D3B",
+        "on_accent": "#0B0B0B",
+        "header": "#222424",
+        "lane": "#383633",
+        "cursor": "#BAAE90",
+        "card": "#252727",
+        "empty_cell": "#32312F",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#007277",
+          "#3D8D91",
+          "#69A8AB",
+          "#91C4C6",
+          "#B9E0E2"
+        ],
+        "cool_arm": [
+          "#4F4F4F",
+          "#00696E",
+          "#187E83",
+          "#3C9498",
+          "#58AAAE",
+          "#73C0C4"
+        ],
+        "warm_arm": [
+          "#4F4F4F",
+          "#B00000",
+          "#C72C23",
+          "#DE4B3E",
+          "#F56757",
+          "#FF8171"
+        ]
+      }
+    },
+    {
+      "id": "tokyo-night",
+      "name": "Tokyo Night",
+      "group": "Editor",
+      "stated": {
+        "background": "#1A1B26",
+        "panel": "#16161E",
+        "panel_alt": "#24283B",
+        "line": "#2F334D",
+        "text": "#C0CAF5",
+        "muted": "#787C99",
+        "accent": "#7AA2F7",
+        "marker": "#FF9E64",
+        "ramp_cool": "#7AA2F7",
+        "ramp_warm": "#F7768E",
+        "series": [
+          "#B4853D",
+          "#486CBC",
+          "#E1627B",
+          "#27A3B4",
+          "#B05714",
+          "#4A9DCA",
+          "#4B7501",
+          "#8361B9"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#C0CAF5",
+        "chrome": "#16161E",
+        "grid": "#303241",
+        "hover": "#3A3F55",
+        "faint": "#575A71",
+        "scroll": "#747994",
+        "scroll_hover": "#9EA6CA",
+        "selected": "#2C354E",
+        "on_accent": "#0B0B0B",
+        "header": "#181822",
+        "lane": "#272937",
+        "cursor": "#969EC1",
+        "card": "#1D1D27",
+        "empty_cell": "#222430",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#3C5FAE",
+          "#5C7DC3",
+          "#7D9BD7",
+          "#A0B9EC",
+          "#C4D8FF"
+        ],
+        "cool_arm": [
+          "#43444D",
+          "#3456A4",
+          "#496CB9",
+          "#5F82CE",
+          "#7699E3",
+          "#8DB0F9"
+        ],
+        "warm_arm": [
+          "#43444D",
+          "#9F2446",
+          "#B6405A",
+          "#CC5970",
+          "#E37286",
+          "#F98B9D"
+        ]
+      }
+    },
+    {
+      "id": "contrast-dark",
+      "name": "High Contrast Dark",
+      "group": "HighContrast",
+      "stated": {
+        "background": "#000000",
+        "panel": "#000000",
+        "panel_alt": "#1C1C1C",
+        "line": "#FFFFFF",
+        "text": "#FFFFFF",
+        "muted": "#E0E0E0",
+        "accent": "#00E0FF",
+        "marker": "#FFD000",
+        "ramp_cool": "#0088FF",
+        "ramp_warm": "#FF3B30",
+        "series": [
+          "#00A899",
+          "#FB494A",
+          "#7B6BFE",
+          "#038434",
+          "#AC00C5",
+          "#AF8E00",
+          "#017ABA",
+          "#B95600"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#FFFFFF",
+        "chrome": "#000000",
+        "grid": "#212121",
+        "hover": "#3C3C3C",
+        "faint": "#929292",
+        "scroll": "#8C8C8C",
+        "scroll_hover": "#CCCCCC",
+        "selected": "#003138",
+        "on_accent": "#0B0B0B",
+        "header": "#000000",
+        "lane": "#141414",
+        "cursor": "#BFBFBF",
+        "card": "#0A0A0A",
+        "empty_cell": "#0D0D0D",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#005ED0",
+          "#217EE2",
+          "#569EF3",
+          "#83BDFF",
+          "#AFDBFF"
+        ],
+        "cool_arm": [
+          "#2E2E2E",
+          "#0054C6",
+          "#006CDB",
+          "#1A84F0",
+          "#3F9CFF",
+          "#5DB3FF"
+        ],
+        "warm_arm": [
+          "#2E2E2E",
+          "#B00000",
+          "#C72C23",
+          "#DE4B3E",
+          "#F56757",
+          "#FF8171"
+        ]
+      }
+    },
+    {
+      "id": "contrast-light",
+      "name": "High Contrast Light",
+      "group": "HighContrast",
+      "stated": {
+        "background": "#FFFFFF",
+        "panel": "#FFFFFF",
+        "panel_alt": "#EDEDED",
+        "line": "#000000",
+        "text": "#000000",
+        "muted": "#2A2A2A",
+        "accent": "#0032C8",
+        "marker": "#8A3A00",
+        "ramp_cool": "#0032C8",
+        "ramp_warm": "#C20000",
+        "series": [
+          "#B88E42",
+          "#8900B5",
+          "#107234",
+          "#717DFF",
+          "#E7462F",
+          "#0359DB",
+          "#AD0067",
+          "#21A3AD"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": false,
+        "data_font_is_retro": false,
+        "corner_scale": "3ff0000000000000",
+        "pixel_text": false,
+        "table": "Heat"
+      },
+      "derived": {
+        "is_dark": false,
+        "readout": "#000000",
+        "chrome": "#FFFFFF",
+        "grid": "#DEDEDE",
+        "hover": "#CCCCCC",
+        "faint": "#757575",
+        "scroll": "#737373",
+        "scroll_hover": "#333333",
+        "selected": "#C7D2F3",
+        "on_accent": "#FFFFFF",
+        "header": "#FFFFFF",
+        "lane": "#EBEBEB",
+        "cursor": "#404040",
+        "card": "#F5F5F5",
+        "empty_cell": "#F2F2F2",
+        "warning": "#AF7C00",
+        "danger": "#CC2827",
+        "nominal": "#2E9052",
+        "sequential_ramp": [
+          "#73B1FF",
+          "#5E91FF",
+          "#4A73CC",
+          "#36569B",
+          "#243B6C"
+        ],
+        "cool_arm": [
+          "#D1D1D1",
+          "#619DFF",
+          "#4F86FF",
+          "#3D70E4",
+          "#2C5AC7",
+          "#1B45AB"
+        ],
+        "warm_arm": [
+          "#D1D1D1",
+          "#FF6755",
+          "#EC5343",
+          "#CF3D30",
+          "#B3271D",
+          "#970B06"
+        ]
+      }
+    },
+    {
+      "id": "retro",
+      "name": "Retro DOS",
+      "group": "Retro",
+      "stated": {
+        "background": "#000000",
+        "panel": "#000000",
+        "panel_alt": "#00005A",
+        "line": "#38C8D8",
+        "text": "#F0F0F0",
+        "muted": "#A8A8A8",
+        "accent": "#FF40FF",
+        "marker": "#FFFF55",
+        "ramp_cool": "#2050FF",
+        "ramp_warm": "#FF4A3A",
+        "series": [
+          "#FF40FF",
+          "#40E0FF",
+          "#FFFF55",
+          "#6A7BFF",
+          "#55FF55",
+          "#FF8C1A",
+          "#20C0A0",
+          "#FF4F6E"
+        ]
+      },
+      "style": {
+        "ui_font_is_retro": true,
+        "data_font_is_retro": true,
+        "corner_scale": "0000000000000000",
+        "pixel_text": true,
+        "table": "Grid"
+      },
+      "derived": {
+        "is_dark": true,
+        "readout": "#55FF55",
+        "chrome": "#0000AA",
+        "grid": "#1E3CC8",
+        "hover": "#22226F",
+        "faint": "#6D6D6D",
+        "scroll": "#848484",
+        "scroll_hover": "#C0C0C0",
+        "selected": "#380E38",
+        "on_accent": "#0B0B0B",
+        "header": "#000000",
+        "lane": "#131313",
+        "cursor": "#B4B4B4",
+        "card": "#0A0A0A",
+        "empty_cell": "#0C0C0C",
+        "warning": "#EAB532",
+        "danger": "#FC5950",
+        "nominal": "#6BC987",
+        "sequential_ramp": [
+          "#2A55D3",
+          "#4C77E4",
+          "#6F97F5",
+          "#94B7FF",
+          "#BBD7FF"
+        ],
+        "cool_arm": [
+          "#2E2E2E",
+          "#224BC9",
+          "#3764DD",
+          "#4D7CF2",
+          "#6494FF",
+          "#7CACFF"
+        ],
+        "warm_arm": [
+          "#2E2E2E",
+          "#B00000",
+          "#C72C21",
+          "#DE4B3C",
+          "#F56756",
+          "#FF816F"
+        ]
+      }
+    }
+  ]
+}

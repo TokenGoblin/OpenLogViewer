@@ -7,10 +7,19 @@ publish.workspace = true
 
 [dependencies]
 olv-core = { path = "../olv-core" }
+olv-store = { path = "../olv-store" }
+egui.workspace = true
+png.workspace = true
+raw-window-handle.workspace = true
+
+# The title bar colour on Windows, through DWM (see ui/title_bar.rs).
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }
 serde.workspace = true
+ttf-parser.workspace = true
 
 [lints]
 workspace = true

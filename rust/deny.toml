@@ -32,6 +32,13 @@ allow = [
   "CC0-1.0",
 ]
 confidence-threshold = 0.9
+# The fonts egui ships (Ubuntu Light, Hack, Noto Emoji, emoji-icon-font) are under the SIL Open Font
+# Licence and the Ubuntu Font Licence. Both let a font be embedded in and redistributed with a program,
+# which is all this does with them: they are data in the binary, no code of ours is derived from them
+# and nothing links against them. Scoped to this one crate so no other dependency can use it.
+exceptions = [
+  { allow = ["OFL-1.1", "Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+]
 
 [bans]
 multiple-versions = "warn"

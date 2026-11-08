@@ -748,4 +748,108 @@ mod tests {
             .count();
         assert_eq!(leftovers, 0);
     }
+
+    // ----- the interface scale (w6-ui-base is its first user) -----------------------------------
+
+    #[test]
+    fn the_interface_scale_defaults_to_actual_size_and_is_not_written_then() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        let store = SettingsStore::new(path.clone());
+        assert_eq!(store.ui_scale(), 1.0);
+
+        store.set_theme(Some("nord")).unwrap();
+        assert!(
+            !fs::read_to_string(&path).unwrap().contains("uiScale"),
+            "1 is the default and is omitted"
+        );
+    }
+
+    #[test]
+    fn the_chosen_scale_is_written_as_ui_scale_and_survives_a_restart() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        SettingsStore::new(path.clone()).set_ui_scale(1.5).unwrap();
+
+        assert!(fs::read_to_string(&path).unwrap().contains("\"uiScale\""));
+        assert_eq!(SettingsStore::new(path).ui_scale(), 1.5);
+    }
+
+    #[test]
+    fn going_back_to_actual_size_removes_the_scale_from_the_file() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        let store = SettingsStore::new(path.clone());
+        store.set_ui_scale(2.0).unwrap();
+        store.set_ui_scale(1.0).unwrap();
+
+        assert!(!fs::read_to_string(&path).unwrap().contains("uiScale"));
+        assert_eq!(SettingsStore::new(path).ui_scale(), 1.0);
+    }
+
+    #[test]
+    fn a_scale_outside_one_to_three_is_clamped_when_set_and_ignored_when_read() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        let store = SettingsStore::new(path.clone());
+        store.set_ui_scale(40.0).unwrap();
+        assert_eq!(store.ui_scale(), MAXIMUM_UI_SCALE);
+        store.set_ui_scale(0.2).unwrap();
+        assert_eq!(store.ui_scale(), MINIMUM_UI_SCALE);
+        store.set_ui_scale(f64::NAN).unwrap();
+        assert_eq!(store.ui_scale(), 1.0);
+
+        // A hand-edited file must not leave the window too small or too large to reach the menu
+        // that puts it back, so a stored value outside the range is not honoured at all.
+        for stored in ["0", "40", "-1", "0.99", "3.01"] {
+            fs::write(&path, format!(r#"{{"Version":1,"uiScale":{stored}}}"#)).unwrap();
+            assert_eq!(SettingsStore::new(path.clone()).ui_scale(), 1.0, "stored {stored}");
+        }
+
+        for stored in ["1", "1.15", "3"] {
+            fs::write(&path, format!(r#"{{"Version":1,"uiScale":{stored}}}"#)).unwrap();
+            assert_eq!(
+                SettingsStore::new(path.clone()).ui_scale(),
+                stored.parse::<f64>().unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn the_scale_is_read_from_either_spelling_the_c_sharp_wrote() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        fs::write(&path, r#"{"Version":1,"UiScale":1.75}"#).unwrap();
+        assert_eq!(SettingsStore::new(path).ui_scale(), 1.75);
+    }
+
+    #[test]
+    fn a_settings_file_from_before_zoom_existed_starts_at_actual_size() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+        fs::write(&path, r#"{"Version":1,"ThemeId":"nord"}"#).unwrap();
+
+        let store = SettingsStore::new(path);
+        assert_eq!(store.ui_scale(), 1.0);
+        assert_eq!(store.theme_id().as_deref(), Some("nord"));
+    }
+
+    #[test]
+    fn saving_the_scale_does_not_drop_the_theme_and_the_other_way_round() {
+        let scratch = Scratch::new();
+        let path = settings_path(&scratch);
+
+        let store = SettingsStore::new(path.clone());
+        store.set_ui_scale(1.25).unwrap();
+        store.set_theme(Some("retro")).unwrap();
+
+        let reloaded = SettingsStore::new(path);
+        assert_eq!(reloaded.ui_scale(), 1.25);
+        assert_eq!(reloaded.theme_id().as_deref(), Some("retro"));
+    }
 }
