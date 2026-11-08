@@ -460,13 +460,15 @@ fn a_block_larger_than_one_reply_is_fetched_in_pieces() {
 
     let transport = FakeRusefi::new(block.clone());
     let connection = connection(transport.clone());
-    connection.use_layout(
-        &RealtimeLayout {
-            block_size: 2500,
-            ..layout()
-        },
-        false,
-    );
+    connection
+        .use_layout(
+            &RealtimeLayout {
+                block_size: 2500,
+                ..layout()
+            },
+            false,
+        )
+        .expect("layout accepted");
 
     let read = connection.read_realtime(2500).unwrap();
 
@@ -480,13 +482,15 @@ fn nothing_ever_asks_for_more_than_the_blocking_factor() {
     // only fix is to unplug it.
     let transport = FakeRusefi::new(vec![0; 2500]);
     let connection = connection(transport.clone());
-    connection.use_layout(
-        &RealtimeLayout {
-            block_size: 2500,
-            ..layout()
-        },
-        false,
-    );
+    connection
+        .use_layout(
+            &RealtimeLayout {
+                block_size: 2500,
+                ..layout()
+            },
+            false,
+        )
+        .expect("layout accepted");
 
     connection.read_realtime(2500).unwrap();
 
@@ -498,7 +502,7 @@ fn nothing_ever_asks_for_more_than_the_blocking_factor() {
 fn a_block_that_fits_in_one_reply_is_not_split() {
     let transport = FakeRusefi::new(block());
     let connection = connection(transport.clone());
-    connection.use_layout(&layout(), false);
+    connection.use_layout(&layout(), false).expect("layout accepted");
 
     connection.read_realtime(32).unwrap();
 
@@ -513,13 +517,15 @@ fn asking_for_the_whole_block_in_one_request_is_opt_in() {
     let transport = FakeRusefi::with_blocking_factor(vec![0; 2500], 4096);
     let connection = connection(transport.clone());
 
-    connection.use_layout(
-        &RealtimeLayout {
-            block_size: 2500,
-            ..layout()
-        },
-        true,
-    );
+    connection
+        .use_layout(
+            &RealtimeLayout {
+                block_size: 2500,
+                ..layout()
+            },
+            true,
+        )
+        .expect("layout accepted");
     connection.read_realtime(2500).unwrap();
 
     assert_eq!(transport.reads(), [(0, 2500)]);
@@ -530,13 +536,15 @@ fn the_blocking_factor_is_still_obeyed_by_default() {
     let transport = FakeRusefi::new(vec![0; 2500]);
     let connection = connection(transport.clone());
 
-    connection.use_layout(
-        &RealtimeLayout {
-            block_size: 2500,
-            ..layout()
-        },
-        false,
-    );
+    connection
+        .use_layout(
+            &RealtimeLayout {
+                block_size: 2500,
+                ..layout()
+            },
+            false,
+        )
+        .expect("layout accepted");
     connection.read_realtime(2500).unwrap();
 
     assert!(transport.reads().iter().all(|&(_, count)| count <= 1024));
@@ -546,14 +554,16 @@ fn the_blocking_factor_is_still_obeyed_by_default() {
 fn a_firmware_that_declares_no_blocking_factor_is_read_whole() {
     let transport = FakeRusefi::with_blocking_factor(vec![0; 2500], 4096);
     let connection = connection(transport.clone());
-    connection.use_layout(
-        &RealtimeLayout {
-            block_size: 2500,
-            blocking_factor: 0,
-            ..layout()
-        },
-        false,
-    );
+    connection
+        .use_layout(
+            &RealtimeLayout {
+                block_size: 2500,
+                blocking_factor: 0,
+                ..layout()
+            },
+            false,
+        )
+        .expect("layout accepted");
 
     connection.read_realtime(2500).unwrap();
 
@@ -566,7 +576,7 @@ fn a_reading_comes_back_off_the_wire_as_the_right_number() {
     let layout = layout();
 
     let connection = connection(FakeRusefi::new(block()));
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).expect("layout accepted");
 
     let decoder = RealtimeDecoder::new(layout.clone(), None);
     let values = decoder.decode(&connection.read_realtime(layout.block_size).unwrap());
@@ -580,7 +590,7 @@ fn a_live_session_over_rusefi_takes_its_channels_from_the_datalog() {
     let layout = layout();
 
     let connection = connection(FakeRusefi::new(block()));
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).expect("layout accepted");
 
     let session = LiveSession::for_tuner_studio(
         Arc::new(connection),
@@ -603,7 +613,7 @@ fn a_tunerstudio_source_is_a_live_source() {
 
     let layout = layout();
     let connection = Arc::new(connection(FakeRusefi::new(block())));
-    connection.use_layout(&layout, false);
+    connection.use_layout(&layout, false).expect("layout accepted");
 
     let source = olv_live::connection::tuner_studio_source::TunerStudioSource::new(
         connection,
