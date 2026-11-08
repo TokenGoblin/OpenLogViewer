@@ -10,6 +10,12 @@ all-features = true
 # Unmaintained crates are reported but do not fail the build; a known
 # vulnerability does.
 unmaintained = "workspace"
+ignore = [
+  # ttf-parser is unmaintained but still correct for reading fonts. It comes in through
+  # ab_glyph (egui's glyph rasterizer, also used by olv-fontgen) and is a test-only parser
+  # of our own generated font; no untrusted input reaches it. Revisit if ab_glyph moves on.
+  { id = "RUSTSEC-2026-0192", reason = "unmaintained, not a vulnerability; pulled in by ab_glyph" },
+]
 
 [licenses]
 allow = [
