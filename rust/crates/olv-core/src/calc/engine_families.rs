@@ -101,3 +101,88 @@ pub fn index_for(ve_percent: f64) -> usize {
     let family = for_ve(ve_percent);
     ALL.iter().position(|f| f.name == family.name).unwrap_or(ALL.len() - 1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn they_are_ordered_from_worst_breathing_to_best() {
+        let real: Vec<&EngineFamily> = ALL.iter().filter(|f| !f.is_custom()).collect();
+
+        assert!(real.len() >= 5);
+
+        for i in 1..real.len() {
+            assert!(
+                real[i].volumetric_efficiency > real[i - 1].volumetric_efficiency,
+                "{} should breathe better than {}",
+                real[i].name,
+                real[i - 1].name
+            );
+        }
+    }
+
+    #[test]
+    fn every_figure_is_one_a_real_engine_has() {
+        for family in ALL.iter() {
+            assert!(!family.name.trim().is_empty());
+            assert!(!family.note.trim().is_empty());
+
+            if family.is_custom() {
+                continue;
+            }
+
+            assert!((70.0..=115.0).contains(&family.volumetric_efficiency));
+        }
+    }
+
+    #[test]
+    fn only_the_race_engine_is_allowed_past_a_hundred() {
+        for family in ALL.iter() {
+            if family.volumetric_efficiency > 100.0 {
+                assert!(family.name.contains("Race"));
+            }
+        }
+    }
+
+    #[test]
+    fn there_is_a_way_to_say_you_measured_it_yourself() {
+        assert!(ALL[ALL.len() - 1].is_custom());
+        assert_eq!(1, ALL.iter().filter(|f| f.is_custom()).count());
+    }
+
+    #[test]
+    fn a_figure_from_the_list_is_recognised_as_that_kind_of_engine() {
+        for (ve, expected) in [
+            (75.0, "Older two-valve"),
+            (85.0, "Modern two-valve"),
+            (92.0, "Four-valve, fixed cams"),
+            (97.0, "Four-valve with cam phasing"),
+            (105.0, "Race, tuned intake"),
+        ] {
+            assert_eq!(expected, for_ve(ve).name);
+        }
+    }
+
+    #[test]
+    fn anything_else_is_treated_as_measured() {
+        for ve in [88.0, 101.0, 63.0, 0.0, -5.0] {
+            assert!(for_ve(ve).is_custom(), "{ve}");
+        }
+    }
+
+    #[test]
+    fn the_index_and_the_family_agree_with_each_other() {
+        for family in ALL.iter() {
+            if family.is_custom() {
+                continue;
+            }
+
+            let at = index_for(family.volumetric_efficiency);
+
+            assert_eq!(family.name, ALL[at].name);
+        }
+
+        assert_eq!(ALL.len() - 1, index_for(88.0));
+    }
+}
