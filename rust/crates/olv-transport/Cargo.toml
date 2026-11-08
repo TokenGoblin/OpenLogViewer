@@ -9,7 +9,6 @@ publish.workspace = true
 olv-core = { path = "../olv-core" }
 olv-protocol = { path = "../olv-protocol" }
 nusb.workspace = true
-serialport.workspace = true
 tokio.workspace = true
 futures.workspace = true
 uuid.workspace = true
@@ -24,9 +23,20 @@ btleplug.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus.workspace = true
 
-# Windows lists the paired Bluetooth devices and serial ports from the registry (the C# used WMI).
+# Our own serial-port layer (`transport/serial_port.rs`) replaces the `serialport` crate, which is
+# MPL-2.0. Windows: Win32 comm and SetupAPI through windows-sys. Linux and macOS: termios and poll
+# through rustix. macOS port enumeration: IOKit through io-kit-sys and core-foundation.
+# Windows also lists the paired Bluetooth devices and serial ports from the registry (the C# used WMI).
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
+windows-sys.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+io-kit-sys.workspace = true
+core-foundation.workspace = true
 
 [dev-dependencies]
 olv-oracle = { path = "../olv-oracle" }

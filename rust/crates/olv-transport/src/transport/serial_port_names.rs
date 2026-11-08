@@ -3,7 +3,7 @@
 //! Names the serial ports.
 //!
 //! The C# read the Windows device tree through WMI. Here the description, USB ids and serial
-//! number come from the `serialport` crate's own `available_ports` on every OS (SetupAPI,
+//! number come from our own `serial_port::available_ports` on every OS (SetupAPI,
 //! sysfs, IOKit), and the one thing it cannot see, a Windows Bluetooth port's device and
 //! whether it is the incoming one, is read from the `BTHENUM` registry branch on Windows.
 //!
@@ -33,6 +33,7 @@ use olv_protocol::ms::obd2_adapters;
 use time::OffsetDateTime;
 
 use super::serial_ecu_transport::{list_system_ports, sort_by_number};
+use super::serial_port::{PortInfo, PortType};
 
 /// A serial port and what the operating system knows about the device behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -244,14 +245,22 @@ pub(crate) fn description_of(friendly: &str) -> String {
     }
 }
 
-/// A port's entry from what the `serialport` crate reports about it.
-pub(crate) fn entry_from(info: &serialport::SerialPortInfo, bluetooth: &IgnoreCaseMap<Entry>) -> Entry {
-    if let Some(entry) = bluetooth.get(&info.port_name) {
+/// A port's entry from what the port enumeration reports about it.
+///
+/// The Bluetooth registry rows are consulted only for a port the live enumeration reports as
+/// present and either Bluetooth or of no known kind. The registry keeps every device ever paired,
+/// present or not (the C#'s WMI query saw only present ones), and Windows hands a freed port
+/// number to the next device. A stale MaxxECU pairing left on COM7 must not label a USB Speeduino
+/// that now sits on COM7, or the app would speak the MaxxECU protocol to it.
+pub(crate) fn entry_from(info: &PortInfo, bluetooth: &IgnoreCaseMap<Entry>) -> Entry {
+    if matches!(info.port_type, PortType::Bluetooth | PortType::Unknown)
+        && let Some(entry) = bluetooth.get(&info.port_name)
+    {
         return entry.clone();
     }
 
     match &info.port_type {
-        serialport::SerialPortType::UsbPort(usb) => {
+        PortType::Usb(usb) => {
             let description = usb
                 .product
                 .as_deref()
@@ -268,7 +277,7 @@ pub(crate) fn entry_from(info: &serialport::SerialPortInfo, bluetooth: &IgnoreCa
                 ..Entry::default()
             }
         }
-        serialport::SerialPortType::BluetoothPort => Entry {
+        PortType::Bluetooth => Entry {
             description: "Standard Serial over Bluetooth link".into(),
             bluetooth: true,
             ..Entry::default()
@@ -657,10 +666,10 @@ mod tests {
         assert_eq!(split_port_name("Foo (COM12"), None);
     }
 
-    fn usb(port: &str, vid: u16, pid: u16, serial: Option<&str>, product: Option<&str>) -> serialport::SerialPortInfo {
-        serialport::SerialPortInfo {
+    fn usb(port: &str, vid: u16, pid: u16, serial: Option<&str>, product: Option<&str>) -> PortInfo {
+        PortInfo {
             port_name: port.into(),
-            port_type: serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
+            port_type: PortType::Usb(crate::transport::serial_port::UsbPortInfo {
                 vid,
                 pid,
                 serial_number: serial.map(String::from),
@@ -696,11 +705,88 @@ mod tests {
     #[test]
     fn a_non_usb_port_has_no_id_so_nothing_is_remembered_for_it() {
         let none = IgnoreCaseMap::new();
-        let info = serialport::SerialPortInfo {
+        let info = PortInfo {
             port_name: "/dev/ttyS0".into(),
-            port_type: serialport::SerialPortType::Unknown,
+            port_type: PortType::Unknown,
         };
         assert_eq!(entry_from(&info, &none), Entry::default());
+    }
+
+    fn stale_maxx_row() -> IgnoreCaseMap<Entry> {
+        let rows = [
+            BluetoothRow {
+                id: r"BTHENUM\DEV_01B6EC10F00D\7&1&0&BLUETOOTHDEVICE_01B6EC10F00D".into(),
+                name: "MaxxECU_12345".into(),
+            },
+            BluetoothRow {
+                id: OUTGOING.into(),
+                name: "Standard Serial over Bluetooth link (COM7)".into(),
+            },
+        ];
+        bluetooth_entries(&rows)
+    }
+
+    #[test]
+    fn a_stale_bluetooth_pairing_does_not_label_the_usb_port_that_took_its_number() {
+        // The registry keeps a MaxxECU paired over Bluetooth on COM7 after it is gone. A USB
+        // Speeduino now enumerates as COM7; it must be described as what it is, or the app would
+        // speak the MaxxECU protocol to it.
+        let stale = stale_maxx_row();
+        assert!(stale.get("COM7").unwrap().device_name == "MaxxECU_12345");
+
+        let entry = entry_from(
+            &usb(
+                "COM7",
+                0x2341,
+                0x0042,
+                Some("95730333837351C01221"),
+                Some("Arduino Mega 2560 (COM7)"),
+            ),
+            &stale,
+        );
+        assert_eq!(entry.description, "Arduino Mega 2560");
+        assert_eq!(entry.device_name, "");
+        assert!(!entry.bluetooth);
+        assert_eq!(entry.device_id, r"USB\VID_2341&PID_0042\95730333837351C01221");
+    }
+
+    #[test]
+    fn a_port_listed_as_present_bluetooth_still_takes_its_registry_row() {
+        let stale = stale_maxx_row();
+        for kind in [PortType::Bluetooth, PortType::Unknown] {
+            let entry = entry_from(
+                &PortInfo {
+                    port_name: "COM7".into(),
+                    port_type: kind,
+                },
+                &stale,
+            );
+            assert_eq!(entry.device_name, "MaxxECU_12345");
+            assert!(entry.bluetooth);
+        }
+    }
+
+    #[test]
+    fn a_row_for_a_port_that_is_not_listed_is_never_reached() {
+        // Rows are only looked up for ports the enumeration returned, so a pairing whose port is
+        // no longer present produces nothing at all.
+        let stale = stale_maxx_row();
+        let present = [usb("COM3", 0x2341, 0x0042, None, None)];
+        let labelled: Vec<String> = present.iter().map(|p| entry_from(p, &stale).device_name).collect();
+        assert_eq!(labelled, [""]);
+    }
+
+    #[test]
+    fn a_pci_port_is_not_given_a_bluetooth_label_either() {
+        let stale = stale_maxx_row();
+        let entry = entry_from(
+            &PortInfo {
+                port_name: "COM7".into(),
+                port_type: PortType::Pci,
+            },
+            &stale,
+        );
+        assert_eq!(entry, Entry::default());
     }
 
     #[test]
