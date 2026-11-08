@@ -15,6 +15,12 @@ disagree, the C# is right unless a person decides otherwise.
 linked: not FTDI's `ftd2xx`, not libusb. The operating system's own interfaces (Win32, WinRT,
 CoreBluetooth, BlueZ, usbfs, IOKit) are reached through Rust bindings to them.
 
+**The one exception, decided by the user 2026-11-08:** on Windows, MaxxECU over USB loads
+FTDI's `ftd2xx.dll` at runtime. MaxxECU's own driver install puts that DLL on the machine and
+creates no COM port, and FTDI's driver owns the chip, so nothing else can reach it there. The
+DLL is not linked at build time, not shipped, and not needed for anything else. Linux and macOS
+reach the same chip in pure Rust over nusb.
+
 **Windows, Linux and macOS**, all from the first release. The C# app was Windows-only,
 so the port adds the other two platforms as it goes, not as a later project.
 

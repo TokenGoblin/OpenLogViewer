@@ -77,7 +77,7 @@ the sections it decided are marked *(Wave 0)*.
   (the `directories` crate) and say so in the report.
 - No `unsafe`; the workspace denies it. The one exception is `olv-transport`'s per-OS
   modules, where an operating-system call through its Rust bindings needs it; there
-  it is allowed per module and reviewed. No third-party C library is ever linked (no libusb, no FTDI `ftd2xx`); the operating system's own libraries and frameworks (Win32, IOKit, CoreFoundation, BlueZ over D-Bus) are the OS interface and are fine.
+  it is allowed per module and reviewed. No third-party C library is ever linked (no libusb, no FTDI `ftd2xx`); the operating system's own libraries and frameworks (Win32, IOKit, CoreFoundation, BlueZ over D-Bus) are the OS interface and are fine. The single exception is FTDI's `ftd2xx.dll`, loaded at runtime on Windows for MaxxECU USB only (see PLAN.md); nothing else may load a vendor library.
 
 ## Tests
 
