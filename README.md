@@ -992,7 +992,7 @@ in the same colour being exactly the failure the palettes exist to prevent.
 
 ## Colour schemes
 
-Pick one from the box at the top right. The choice is remembered in
+Pick one from **View → Theme**. The choice is remembered in
 `%APPDATA%\OpenLogViewer\settings.json`.
 
 | Group | Schemes |
@@ -1001,6 +1001,40 @@ Pick one from the box at the top right. The choice is remembered in
 | Light | Daylight, Paper |
 | Editor | Dracula, Nord, Solarized Dark, Solarized Light, Monokai, One Dark, Gruvbox Dark, Tokyo Night |
 | High contrast | High Contrast Dark, High Contrast Light |
+| Retro | Retro DOS |
+
+**Retro DOS** changes more than colour. It is a 1990s DOS tuning screen: a
+bundled IBM VGA pixel font drawn without smoothing, square corners, a text-mode
+blue frame, cyan rules, neon magenta for the selection, and phosphor-green
+numbers. The tune table becomes a ruled grid of green values instead of a heat
+map. The font, OLV Retro 8x16, was drawn for this project and is MIT licensed
+like the rest of it. Characters it lacks fall back to Consolas.
+
+### Zoom
+
+**View → Zoom** makes the whole interface larger: 100%, 115%, 125%, 150%, 175%
+or 200%. **Ctrl +** and **Ctrl −** step through those sizes and **Ctrl 0** goes
+back to 100%. The size is remembered with the theme. Text and controls grow
+together, so nothing gets clipped, and text is redrawn at the new size rather
+than stretched, so it stays sharp. Pixel fonts stay sharp too. Menus, drop-downs
+and tooltips grow with everything else, and a menu taller than the screen
+scrolls. When the toolbar no longer fits on one line it wraps onto a second
+instead of hiding controls. `--zoom 1.5` sets a size for one run without
+changing the saved one.
+
+### Adding a scheme
+
+Each scheme is one entry in `src/OpenLogViewer.App/ThemeCatalog.cs`. Colours
+are required. Three more colours are optional: `Readout` for live values,
+`Chrome` for the title bar, menu bar and status strip, and `Grid` for plot
+rules. Each falls back to a value worked out from the required ones. A `Style`
+is optional too, and sets the fonts, corner rounding (`CornerScale`),
+pixel-sharp text and how the tune table is drawn. Leave it out to get the
+standard look. Fonts are named the way WPF names them, so a font bundled under
+`Fonts/` is written `./Fonts/#Family Name, Fallback`. The catalog's tests check
+every new entry for contrast and colour-blind separation automatically, and fail
+if any window or view hardcodes a font or corner radius that would ignore the
+theme.
 
 A scheme sets more than the chrome. It also carries its own **trace palette**,
 and switching schemes re-picks the colours of everything plotted, because a

@@ -45,8 +45,11 @@ public sealed class HistogramView : FrameworkElement
     private Pen SelectedCellPen = null!;
     private Pen VisitedCellPen = null!;
 
+    private Typeface UiFace = null!;
+
     private void ApplyTheme(Theme theme)
     {
+        UiFace = ThemeFonts.Typeface(theme.Style.UiFont, FontWeights.Normal);
         Ramp = theme.SequentialRamp;
         CoolArm = theme.CoolArm;
         WarmArm = theme.WarmArm;
@@ -430,7 +433,7 @@ public sealed class HistogramView : FrameworkElement
 
     private FormattedText Label(string s, double size, Brush brush) => new(
         s, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-        new Typeface("Segoe UI"), size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        UiFace, size, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     private static T Frozen<T>(T freezable) where T : Freezable
     {

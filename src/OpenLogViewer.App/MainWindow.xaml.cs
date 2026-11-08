@@ -44,20 +44,16 @@ public partial class MainWindow : Window
             CurveView.EditedEvent, new RoutedEventHandler((_, _) => _vm.CurveChanged()));
         Plot.ViewChangedByUser += () => _follow = false;
 
-        // The title bar belongs to Windows, so it has to be coloured by hand —
-        // and again on every theme change, or a dark scheme leaves a white strip
-        // above it. Only once the handle exists, which is what SourceInitialized
-        // marks.
+        // The title bar belongs to Windows, so it has to be coloured by hand.
+        // ThemeManager does that for every window once it has loaded, and again
+        // on each theme change; this is only the first coat, as soon as the
+        // handle exists, so the main window never shows a white strip while it
+        // lays out.
         SourceInitialized += (_, _) => TitleBar.Apply(this, ThemeManager.Current);
-        ThemeManager.Changed += OnThemeChanged;
 
         // A live session holds a port open and a file being written; neither
         // should outlive the window.
-        Closed += (_, _) =>
-        {
-            ThemeManager.Changed -= OnThemeChanged;
-            StopLive();
-        };
+        Closed += (_, _) => StopLive();
 
         // The calibration tab's fault panel. Pointed at the view model now and
         // told to ask the car the first time somebody actually switches to it —
@@ -67,6 +63,7 @@ public partial class MainWindow : Window
         CalibrationFaults.ScanOnFirstSight();
 
         InputBindings.Add(new KeyBinding(new RelayCommand(Open), Key.O, ModifierKeys.Control));
+        PreviewKeyDown += OnZoomKeys;
 
         // Ctrl+K repeats the last connection. Does nothing when there is nothing
         // to repeat, rather than opening a menu somebody did not ask for.
@@ -80,8 +77,6 @@ public partial class MainWindow : Window
             new RelayCommand(() => { if (_vm.ShowLog) ToggleFind(); }),
             Key.F, ModifierKeys.Control));
     }
-
-    private void OnThemeChanged(Theme theme) => TitleBar.Apply(this, theme);
 
     /// <summary>
     /// Shrinks the window to the screen it will open on.
@@ -421,8 +416,15 @@ public partial class MainWindow : Window
     {
         ThemeMenuItem.Items.Clear();
 
+        // The catalog is ordered by group, so a rule between groups is enough
+        // to show dark, light, editor, contrast and retro as the sets they are.
+        ThemeGroup? group = null;
+
         foreach (Theme theme in _vm.Themes)
         {
+            if (group is not null && theme.Group != group) ThemeMenuItem.Items.Add(new Separator());
+            group = theme.Group;
+
             var item = new MenuItem
             {
                 Header = theme.Name,
@@ -437,6 +439,71 @@ public partial class MainWindow : Window
             ThemeMenuItem.Items.Add(item);
         }
     }
+
+    /// <summary>
+    /// The zoom menu: larger, smaller, as designed, and every step by name, so
+    /// the current size is visible as a tick and any size is one click away.
+    /// </summary>
+    private void OnZoomMenuOpened(object sender, RoutedEventArgs e)
+    {
+        ZoomMenuItem.Items.Clear();
+
+        MenuItem Command(string header, Action act, bool enabled)
+        {
+            var item = new MenuItem { Header = header, IsEnabled = enabled };
+            item.Click += (_, _) => act();
+            return item;
+        }
+
+        double scale = _vm.UiScale;
+        ZoomMenuItem.Items.Add(Command("Zoom _in    Ctrl +", ZoomIn, scale < InterfaceScale.Steps[^1]));
+        ZoomMenuItem.Items.Add(Command("Zoom _out   Ctrl −", ZoomOut, scale > InterfaceScale.Steps[0]));
+        ZoomMenuItem.Items.Add(Command("_Actual size   Ctrl 0", ZoomReset, scale != 1));
+        ZoomMenuItem.Items.Add(new Separator());
+
+        foreach (double step in InterfaceScale.Steps)
+        {
+            var item = new MenuItem
+            {
+                Header = InterfaceScale.Label(step),
+                IsCheckable = true,
+                IsChecked = step == scale,
+            };
+
+            double chosen = step;
+            item.Click += (_, _) => _vm.UiScale = chosen;
+            ZoomMenuItem.Items.Add(item);
+        }
+    }
+
+    private void ZoomIn() => _vm.UiScale = InterfaceScale.Larger(_vm.UiScale);
+
+    private void ZoomOut() => _vm.UiScale = InterfaceScale.Smaller(_vm.UiScale);
+
+    private void ZoomReset() => _vm.UiScale = 1;
+
+    /// <summary>
+    /// Ctrl with plus, minus or zero zooms, wherever the focus is. Caught on the
+    /// way down rather than as a key binding, because the tune table takes plus
+    /// and minus as nudges and would otherwise act on a cell first.
+    /// </summary>
+    private void OnZoomKeys(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add: ZoomIn(); break;
+            case Key.OemMinus or Key.Subtract: ZoomOut(); break;
+            case Key.D0 or Key.NumPad0: ZoomReset(); break;
+            default: return;
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>Zooms for this run only, without recording it: the <c>--zoom</c> switch.</summary>
+    public void PreviewZoom(double scale) => _vm.PreviewUiScale(scale);
 
     private void OnGuideClick(object sender, RoutedEventArgs e) => _vm.InGuideMode = true;
 
