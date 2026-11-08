@@ -1,0 +1,1 @@
+- **`MaxxGauges.For` is yours** (from w2-logs). It takes `olv_protocol::ms::MaxxChannel`, and `olv-core` cannot depend on `olv-protocol` (that would be a cycle), so it wasn't ported in `olv_core::logs::maxx_gauges`. `read_limits` and `problem` are there; `For` needs only `read_limits`. Port it in `olv-live` beside `MaxxEcuSource`, which uses it. Compare `MaxxGauges.cs`.
