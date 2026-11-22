@@ -95,6 +95,14 @@ internal sealed class FakeElm : IEcuTransport
     /// </summary>
     public bool Garble { get; init; }
 
+    /// <summary>
+    /// Store <c>ATSP0</c> and search nothing, as a MeatPi WiCAN (the original)
+    /// does: every request answers NO DATA until a protocol is set outright.
+    /// </summary>
+    public bool CannotSearch { get; init; }
+
+    private int _setProtocol;
+
     public List<string> Received { get; } = [];
 
     public bool IsOpen { get; private set; }
@@ -167,7 +175,14 @@ internal sealed class FakeElm : IEcuTransport
             case "STI": Say(Firmware.Length > 0 ? Firmware : "?"); break;
             case var st when st.StartsWith("ST", StringComparison.Ordinal): Say("?"); break;
 
+            case var sp when sp.StartsWith("ATSP", StringComparison.Ordinal):
+                _setProtocol = int.TryParse(sp.AsSpan(4), out int n) ? n : 0;
+                Say("OK");
+                break;
+
             case var at when at.StartsWith("AT", StringComparison.Ordinal): Say("OK"); break;
+
+            case var _ when CannotSearch && _setProtocol == 0: Say("NO DATA"); break;
 
             case "03": Faults(StoredCodes, 0x43); break;
             case "07": Faults(PendingCodes, 0x47); break;

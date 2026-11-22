@@ -122,9 +122,40 @@ address is the whole of what it is reached by.
 | --- | --- |
 | `192.168.0.10:35000` | Vgate iCar Pro and most dongles built like it |
 | `192.168.4.1:35000` | Other Wi-Fi ELM327 clones |
+| `192.168.80.1:3333` | MeatPi WiCAN on its own network (`WiCAN_…`, password `@meatpi#`), protocol set to ELM327 |
+| `192.168.0.10:3333` | MeatPi WiCAN Pro on its own network |
 
-Any other address can be given with `--connect-wifi <address>`. See
-[Command line](Command-line).
+Any other address can be typed into **Another address…** in the same menu, or
+given with `--connect-wifi <address>`. That is how a WiCAN joined to a home
+network is reached. See [Command line](Command-line).
+
+### Raw CAN capture (WiCAN in slcan mode)
+
+OBD2 asks one question at a time. On a CAN car the modules already broadcast
+revs, throttle and speed to each other tens of times a second, and an slcan
+adapter can listen to that.
+
+1. In the WiCAN's web page, set its protocol to **slcan**.
+2. **Connect ▾ ▸ Connect to a Wi-Fi OBD2 adapter ▸ Capture raw CAN from a WiCAN**,
+   and give its address.
+3. Do whatever shows the problem: rev the engine, drive.
+4. Stop it from the same menu.
+
+Give it the same address as in ELM327 mode, since the WiCAN serves whichever
+protocol it is set to on one port. It opens in listen-only mode at 500 kbit/s, so nothing is sent to the car. Three
+files land in `~/OpenLogViewer/can-captures/`:
+
+- every frame (`.csv`);
+- a summary of each identifier (`.summary.txt`);
+- a log of every byte that moved, and every neighbouring pair read as a 16-bit
+  number (`.bytes.csv`).
+
+The byte log opens straight away. Nothing is labelled, so the trace that follows
+the pedal is the revs.
+
+> **NOTICE:** This works only on a CAN car with the bus reachable at the OBD plug
+> (pins 6 and 14). A K-line car broadcasts nothing, and some cars put a gateway in
+> front of the plug. Neither path has met a real WiCAN yet.
 
 > **NOTICE:** **The Wi-Fi path has not been exercised against a real dongle by
 > this application.** The first address is where a Vgate iCar Pro is known to

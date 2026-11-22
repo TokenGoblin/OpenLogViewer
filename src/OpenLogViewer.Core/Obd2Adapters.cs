@@ -55,6 +55,9 @@ public static class Obd2Adapters
         "LELink",
         "Viecar",
         "iCar",
+
+        // MeatPi's ESP32 dongle, which advertises its own name and an id.
+        "WiCAN",
     ];
 
     /// <summary>

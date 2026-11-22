@@ -87,7 +87,38 @@ public sealed class WifiEcuTransport : IEcuTransport
     [
         $"{DefaultHost}:{DefaultPort}",
         $"192.168.4.1:{DefaultPort}",
+        WiCanAddress,
+        WiCanProAddress,
     ];
+
+    /// <summary>
+    /// Where a MeatPi WiCAN answers on its own access point (<c>WiCAN_</c> and its
+    /// id, password <c>@meatpi#</c>), with its protocol set to ELM327 in its web
+    /// page at the same address. From MeatPi's own setup guide; not yet tried here.
+    ///
+    /// Third rather than first: it is one dongle where the first is most of them,
+    /// and a connection with no address given tries these in order.
+    /// A WiCAN joined to a home network gets an address from the router instead,
+    /// shown on its Status page — which is what "Another address" is for.
+    /// </summary>
+    public const string WiCanAddress = "192.168.80.1:3333";
+
+    /// <summary>
+    /// Where a WiCAN Pro answers on its own access point: the Vgate's address, on
+    /// the WiCAN's port. Read from the firmware source (<c>wifi_network.c</c>),
+    /// not yet seen on a dongle. Which one is in the car is told by which of the
+    /// two answers.
+    /// </summary>
+    public const string WiCanProAddress = "192.168.0.10:3333";
+
+    /// <summary>What the menu calls each of <see cref="KnownAddresses"/>.</summary>
+    public static string Describe(string address) => address switch
+    {
+        "192.168.0.10:35000" => "Vgate iCar Pro, and most of them",
+        WiCanAddress => "MeatPi WiCAN, on its own Wi-Fi",
+        WiCanProAddress => "MeatPi WiCAN Pro, on its own Wi-Fi",
+        _ => "some other clones",
+    };
 
     /// <summary>
     /// An endpoint written as "host" or "host:port", the port defaulting to
@@ -177,7 +208,7 @@ public sealed class WifiEcuTransport : IEcuTransport
               + "dongle on it looks like.\n\n"
             : $"{cause.Message}\n\n")
         + "A Wi-Fi dongle is its own access point rather than something on your network, so:\n\n"
-        + "• join its Wi-Fi first — a Vgate iCar Pro publishes V-LINK — and check Windows has "
+        + "• join its Wi-Fi first — a Vgate iCar Pro publishes V-LINK, a WiCAN WiCAN_ and its id — and check Windows has "
         + "stayed on it. A network with no internet gets dropped for one that has some, often "
         + "within seconds of joining it.\n"
         + "• close any phone app that is using the dongle. These accept one connection at a "

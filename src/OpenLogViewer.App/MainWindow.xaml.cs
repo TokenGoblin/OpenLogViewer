@@ -1245,7 +1245,7 @@ public partial class MainWindow : Window
         var menu = new MenuItem
         {
             Header = "Connect to a Wi-Fi OBD2 adapter",
-            ToolTip = "For a Vgate iCar Pro Wi-Fi and the dongles built like it. These are their "
+            ToolTip = "For a Vgate iCar Pro Wi-Fi, a MeatPi WiCAN, and the dongles built like them. These are their "
                       + "own access point rather than a COM port or a paired device, so join "
                       + "their Wi-Fi first — V-LINK on a Vgate — and pick the address below.",
         };
@@ -1254,11 +1254,7 @@ public partial class MainWindow : Window
         {
             var item = new MenuItem
             {
-                Header = Decorate(
-                    address == WifiEcuTransport.KnownAddresses[0]
-                        ? $"{address}  (Vgate iCar Pro, and most of them)"
-                        : $"{address}  (some other clones)",
-                    Seen(address)),
+                Header = Decorate($"{address}  ({WifiEcuTransport.Describe(address)})", Seen(address)),
             };
 
             string at = address;
@@ -1266,6 +1262,22 @@ public partial class MainWindow : Window
 
             menu.Items.Add(item);
         }
+
+        // A dongle that has joined a home network — a WiCAN can — answers at
+        // whatever the router gave it, which no list can know.
+        var other = new MenuItem { Header = "Another address…" };
+        other.Click += async (_, _) =>
+        {
+            if (AskForText("Wi-Fi OBD2 adapter", "Address, as host or host:port:", _lastWifiAddress) is { } typed)
+            {
+                _lastWifiAddress = typed;
+                await StartLiveOverWifi(typed);
+            }
+        };
+        menu.Items.Add(other);
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CanCaptureItem());
 
         menu.Items.Add(new Separator());
         menu.Items.Add(new MenuItem
@@ -1279,6 +1291,169 @@ public partial class MainWindow : Window
         });
 
         return menu;
+    }
+
+    private string _lastWifiAddress = WifiEcuTransport.WiCanAddress;
+
+    private CanCapture? _canCapture;
+
+    private System.Windows.Threading.DispatcherTimer? _canTimer;
+
+    /// <summary>
+    /// Starts or stops a raw CAN capture from an slcan adapter — a MeatPi WiCAN with
+    /// its protocol set to slcan. Built fresh each time the menu opens, so it says
+    /// "stop" while one is running.
+    /// </summary>
+    private MenuItem CanCaptureItem()
+    {
+        if (_canCapture is { } running)
+        {
+            var stop = new MenuItem
+            {
+                Header = $"Stop the CAN capture ({running.FrameCount:N0} frames, {running.Ids.Count} ids)",
+            };
+            stop.Click += (_, _) => StopCanCapture();
+            return stop;
+        }
+
+        var start = new MenuItem
+        {
+            Header = "Capture raw CAN from a WiCAN (slcan mode)…",
+            ToolTip = "Listens to what the car's modules broadcast, far faster than OBD2 asks. "
+                      + "Set the WiCAN's protocol to slcan in its web page first. CAN cars only "
+                      + "(OBD plug pins 6 and 14). Listen-only: nothing is sent to the car. "
+                      + "When stopped, opens a log of every byte that moved — rev the engine "
+                      + "during the capture and look for the trace that follows it.",
+        };
+
+        start.Click += (_, _) =>
+        {
+            if (AskForText("Raw CAN capture", "WiCAN address (slcan mode), host:port:", _lastWifiAddress) is { } typed)
+            {
+                _lastWifiAddress = typed;
+                StartCanCapture(typed);
+            }
+        };
+
+        return start;
+    }
+
+    private void StartCanCapture(string address)
+    {
+        string folder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "OpenLogViewer", "can-captures");
+        string path = System.IO.Path.Combine(folder, $"can-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+
+        var capture = new CanCapture(WifiEcuTransport.At(address), path);
+
+        try
+        {
+            capture.Start();
+        }
+        catch (Exception ex)
+        {
+            capture.Dispose();
+            Record(address, "no answer");
+            MessageBox.Show(this, ex.Message, "Raw CAN capture", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _canCapture = capture;
+        _vm.SetHint($"Capturing CAN from {address}…");
+
+        _canTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _canTimer.Tick += (_, _) =>
+        {
+            if (_canCapture is not { } c) return;
+
+            double rate = c.Elapsed > 0 ? c.FrameCount / c.Elapsed : 0;
+            _vm.SetHint(c.FrameCount == 0
+                ? $"CAN capture: nothing heard yet after {c.Elapsed:0} s"
+                  + (c.FellBackToNormalOpen ? " (tried a normal open too)" : "")
+                  + " — is the WiCAN set to slcan, and is this a CAN car?"
+                : $"CAN capture: {c.FrameCount:N0} frames, {c.Ids.Count} ids, {rate:0} frames/s — stop it from the Wi-Fi menu");
+
+            if (!c.IsRunning) StopCanCapture();
+        };
+        _canTimer.Start();
+    }
+
+    private void StopCanCapture()
+    {
+        if (_canCapture is not { } capture) return;
+
+        _canCapture = null;
+        _canTimer?.Stop();
+        _canTimer = null;
+
+        capture.Stop();
+
+        string summaryPath = System.IO.Path.ChangeExtension(capture.Path, ".summary.txt");
+        System.IO.File.WriteAllText(summaryPath, capture.Summary());
+
+        IReadOnlyList<CanFrame> frames = capture.Frames;
+        string? error = capture.Error;
+        capture.Dispose();
+
+        if (frames.Count == 0)
+        {
+            _vm.SetHint("CAN capture heard nothing.");
+            MessageBox.Show(this,
+                "Not one frame arrived." + (error is null ? "" : $"\n\n{error}") + "\n\n"
+                + "• Is the WiCAN's protocol set to slcan (its web page, 192.168.80.1)?\n"
+                + "• Is this a CAN car? Pins 6 and 14 in the OBD plug. A K-line car broadcasts nothing.\n"
+                + "• Is the ignition on? Some cars put a gateway in front of the plug that passes nothing unasked.",
+                "Raw CAN capture", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string bytesPath = System.IO.Path.ChangeExtension(capture.Path, ".bytes.csv");
+
+        try
+        {
+            CanByteLog.Write(frames, bytesPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _vm.SetHint($"CAN capture saved to {capture.Path}. {ex.Message}");
+            return;
+        }
+
+        _vm.SetHint($"CAN capture: {frames.Count:N0} frames saved to {capture.Path}; summary beside it.");
+        LoadFile(bytesPath);
+    }
+
+    /// <summary>A one-line question, answered or cancelled. Null when cancelled or left blank.</summary>
+    private string? AskForText(string title, string prompt, string initial)
+    {
+        var box = new TextBox { Text = initial, MinWidth = 280, Margin = new Thickness(0, 6, 0, 10) };
+        var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 72, Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 72 };
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+
+        var panel = new StackPanel { Margin = new Thickness(14) };
+        panel.Children.Add(new TextBlock { Text = prompt });
+        panel.Children.Add(box);
+        panel.Children.Add(buttons);
+
+        var window = new Window
+        {
+            Title = title,
+            Content = panel,
+            Owner = this,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = false,
+        };
+
+        ok.Click += (_, _) => window.DialogResult = true;
+        window.Loaded += (_, _) => { box.Focus(); box.SelectAll(); };
+
+        return window.ShowDialog() == true && box.Text.Trim() is { Length: > 0 } text ? text : null;
     }
 
     /// <summary>

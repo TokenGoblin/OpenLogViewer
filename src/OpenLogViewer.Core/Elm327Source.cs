@@ -234,6 +234,18 @@ public sealed class Elm327Source : ILiveSource
         IReadOnlyList<byte> supported = Supported(elm);
         IReadOnlyList<Obd2Pid> pids = Obd2Pids.Known(supported);
 
+        // An adapter that answered and a car that listed nothing is usually a key
+        // turned off — but on an adapter that cannot search for a protocol it is
+        // the search that failed. Asked once more on 11-bit CAN at 500 kbit/s, the
+        // commonest protocol of all, before blaming the ignition. Costs one
+        // timeout on a car that really is off.
+        if (pids.Count == 0 && elm.AnsweredReset)
+        {
+            elm.UseProtocol(6);
+            supported = Supported(elm);
+            pids = Obd2Pids.Known(supported);
+        }
+
         // Told apart deliberately. An adapter that named itself and a car that
         // listed nothing is a key turned off, which the user can fix in a second;
         // an adapter that did not name itself is the wrong port or the wrong

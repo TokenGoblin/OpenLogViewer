@@ -150,6 +150,25 @@ public sealed class Elm327(IEcuTransport transport)
     public void WarmUp() => Send("0100", ResetTimeout);
 
     /// <summary>
+    /// Sets the protocol outright instead of searching for it, and spends the
+    /// first request the same way <see cref="WarmUp"/> does.
+    ///
+    /// For adapters whose <c>ATSP0</c> searches nothing. A MeatPi WiCAN (the
+    /// original, not the Pro) stores 0 and then answers every request NO DATA,
+    /// because its firmware implements protocols 6 to 9 and no search at all.
+    /// 6 is 11-bit CAN at 500 kbit/s, which is what a CAN car of that era uses.
+    /// </summary>
+    public void UseProtocol(int protocol)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(protocol, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(protocol, 9);
+
+        Send($"ATSP{protocol}", Timeout);
+        _protocol = null;
+        WarmUp();
+    }
+
+    /// <summary>
     /// What the adapter actually is, which is not what it says it is.
     ///
     /// Every OBD2 adapter answers <c>ATI</c> with an ELM327 version, genuine or
