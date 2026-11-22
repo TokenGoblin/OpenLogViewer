@@ -2,6 +2,7 @@
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using OpenLogViewer.App.Mcp;
+using OpenLogViewer.Tests;
 using Xunit;
 
 namespace OpenLogViewer.App.Tests;
@@ -201,21 +202,55 @@ public sealed class McpServerHostTests : IAsyncLifetime
     // ----- what must never be there --------------------------------------------
 
     [Fact]
-    public async Task NoToolAppliesARestoreOrClearsFaultCodes()
+    public async Task NoToolAppliesARestore()
     {
         // A test asserting the absence of a tool looks odd right up until
         // somebody adds one by reflex. Restoring a saved tune is the largest
         // change this application can make to an engine — the command line
-        // deliberately has no flag for it either — and clearing DTCs resets a
-        // vehicle's emissions readiness on a diagnosis an agent did not perform.
+        // deliberately has no flag for it either.
         await using McpClient client = await ConnectAsync();
 
         IList<McpClientTool> tools = await client.ListToolsAsync();
 
-        Assert.DoesNotContain(tools, t => t.Name is "apply_restore" or "clear_faults");
+        Assert.DoesNotContain(tools, t => t.Name is "apply_restore");
 
         // The planning half is present, and says whose move the rest is.
         Assert.Contains(tools, t => t.Name == "plan_restore");
+    }
+
+    [Fact]
+    public async Task ClearingFaultsErasesOnlyWhenThePersonSaysYes()
+    {
+        // The dialog is the whole of the safety here: the freeze frame goes with
+        // the codes. "No" in the window must leave every code where it was.
+        FakeElm car = new();
+        car.Answers[0x00] = [0b0001_1000, 0b0011_1010, 0b1000_0000, 0b0000_0000];
+        car.StoredCodes.Add("P0171");
+        _ui.Invoke(() => _vm.ConnectObd2(car, "COM3"));
+
+        await using McpClient client = await ConnectAsync();
+
+        _harness.Confirmation.Answer = false;
+        JsonElement refused = Payload(await client.CallToolAsync("clear_faults"));
+        Assert.False(refused.GetProperty("cleared").GetBoolean());
+        Assert.Equal(["P0171"], car.StoredCodes);
+        Assert.Equal(WriteKind.FaultErase, _harness.Confirmation.Last!.Kind);
+
+        _harness.Confirmation.Answer = true;
+        JsonElement erased = Payload(await client.CallToolAsync("clear_faults"));
+        Assert.True(erased.GetProperty("cleared").GetBoolean());
+        Assert.Empty(car.StoredCodes);
+    }
+
+    [Fact]
+    public async Task ClearingFaultsWithNothingConnectedSaysSo()
+    {
+        await using McpClient client = await ConnectAsync();
+
+        JsonElement reply = Payload(await client.CallToolAsync("clear_faults"));
+
+        Assert.False(reply.GetProperty("cleared").GetBoolean());
+        Assert.Empty(_harness.Confirmation.Asked);
     }
 
     [Fact]

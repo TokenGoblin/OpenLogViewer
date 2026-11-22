@@ -191,7 +191,10 @@ behalf.
 `scan_faults` — stored, pending and permanent codes, the warning light, the protocol, and
 whether the car's own count disagrees with the codes it listed.
 
-**There is no `clear_faults`.** See below.
+`clear_faults` — erases stored and pending codes (mode 04). **It shows the same
+confirmation dialog as the Clear button and waits for it**: nothing is erased unless a
+person clicks OK in the window, and a No returns `cleared: false`. Permanent codes cannot
+be erased this way.
 
 ### The tune, in memory
 
@@ -285,12 +288,12 @@ mechanisms.
   exists and applies nothing — and an agent is further from the engine than a script is, not
   closer. Applying one stays a person's move, from Tools ▸ Restore a saved tune to the ECU.
 
-- **There is no `clear_faults`.** Erasing DTCs takes the freeze frame with it — the record
-  of what the engine was doing when the fault occurred, and the most useful thing there is
-  for an intermittent — and resets the readiness monitors, which the car has to re-earn over
-  a full drive cycle before it can pass an emissions test. That is an irreversible change to
-  a vehicle's compliance state, made on a diagnosis the agent did not perform. Reading codes
-  is a tool; clearing them is a button.
+- **`clear_faults` asks a person every time.** Erasing DTCs takes the freeze frame with
+  it (the record of what the engine was doing when the fault occurred, and the most useful
+  thing there is for an intermittent). It also resets the readiness monitors, which the car
+  has to re-earn over a full drive cycle before it can pass an emissions test. So the tool
+  goes through the same dialog as the button, and an agent cannot answer it. Reading codes
+  needs no one; clearing them needs a click.
 
 - **One tool call touches the application at a time.** A confirmation dialog is a modal
   message loop, and a modal message loop keeps pumping the window's dispatcher — so without
