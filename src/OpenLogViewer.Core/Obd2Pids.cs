@@ -143,6 +143,19 @@ public static class Obd2Pids
             highWarning: 80, highDanger: 100),
         Single(0x10, "MAF", "g/s", 2, 0, 655.35, d => Word(d) / 100.0, bytes: 2),
         Single(0x11, "Throttle Position", "%", 1, 0, 100, d => d[0] * 100.0 / 255, hot: true),
+
+        // The downstream (post-catalyst) narrowband sensors: a voltage, 0 to 1.275,
+        // where about 0.45 is stoichiometric, high is rich and low is lean. The
+        // second byte is the sensor's own trim and is not taken. These are what
+        // tell a real lean from a front sensor reading falsely lean: a rear sensor
+        // high while the front reads lean says the front is wrong.
+        //
+        // Named for the PID 0x13 sensor layout (two banks of up to four), which is
+        // what a V engine reports. 0x15 is bank 1 sensor 2 under either layout;
+        // 0x19 is bank 2 sensor 2 under 0x13, and would be bank 3 under the rare
+        // four-bank 0x1D layout.
+        Single(0x15, "O2 B1S2", "V", 3, 0, 1.275, d => d[0] / 200.0, bytes: 2),
+        Single(0x19, "O2 B2S2", "V", 3, 0, 1.275, d => d[0] / 200.0, bytes: 2),
         Single(0x1F, "Run Time", "s", 0, 0, 65535, Word, bytes: 2),
         Single(0x21, "Distance with MIL", "km", 0, 0, 65535, Word, bytes: 2),
         Single(0x23, "Fuel Rail Pressure", "kPa", 0, 0, 655350, d => Word(d) * 10.0, bytes: 2),
@@ -151,6 +164,12 @@ public static class Obd2Pids
         // is taken — the voltage is diagnostic detail about the sensor rather
         // than a reading about the engine.
         Single(0x24, "Lambda", "", 3, 0, 2, d => Word(d) / 32768.0, bytes: 4),
+
+        // The same, from the fifth sensor position: bank 2 sensor 1 under the PID
+        // 0x13 layout a V engine reports. Without it a two-bank engine shows only
+        // one bank's mixture. "Lambda" above keeps its name, because logs and
+        // presets already use it.
+        Single(0x28, "Lambda B2", "", 3, 0, 2, d => Word(d) / 32768.0, bytes: 4),
 
         Single(0x2F, "Fuel Level", "%", 1, 0, 100, d => d[0] * 100.0 / 255,
             lowDanger: 5, lowWarning: 15),

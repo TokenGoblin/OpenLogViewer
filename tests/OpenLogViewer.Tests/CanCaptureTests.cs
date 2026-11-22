@@ -226,3 +226,40 @@ public class NoSearchAdapterTests
         Assert.DoesNotContain("ATSP6", car.Received);
     }
 }
+
+/// <summary>
+/// The rear oxygen sensors and the second bank's wideband, which a V engine
+/// reports and which tell a real lean from a front sensor reading falsely lean.
+/// </summary>
+public class OxygenSensorPidTests
+{
+    private static double Decode(byte pid, params byte[] data)
+    {
+        Obd2Pid p = Obd2Pids.All.Single(x => x.Pid == pid);
+        double[] v = new double[p.Channels.Count];
+        p.Decode(data, v);
+        return v[0];
+    }
+
+    [Fact]
+    public void ARearSensorReadsVolts()
+    {
+        Assert.Equal(0.71, Decode(0x15, 142, 0xFF), 3);   // rich side of 0.45
+        Assert.Equal(0.10, Decode(0x19, 20, 0xFF), 3);    // lean side
+    }
+
+    [Fact]
+    public void TheSecondBankWidebandReadsAsAnEquivalenceRatio()
+    {
+        // 0x9333 / 32768 = 1.15: the lean reading this was added to check.
+        Assert.Equal(1.150, Decode(0x28, 0x93, 0x33, 0x80, 0x00), 3);
+    }
+
+    [Fact]
+    public void TheyAreNamedSoBanksCanBeToldApart()
+    {
+        Assert.Equal("O2 B1S2", Obd2Pids.All.Single(x => x.Pid == 0x15).Channels[0].Name);
+        Assert.Equal("O2 B2S2", Obd2Pids.All.Single(x => x.Pid == 0x19).Channels[0].Name);
+        Assert.Equal("Lambda B2", Obd2Pids.All.Single(x => x.Pid == 0x28).Channels[0].Name);
+    }
+}
