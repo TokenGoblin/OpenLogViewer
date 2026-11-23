@@ -472,6 +472,36 @@ public class MaxxTuneTests
     }
 
     /// <summary>
+    /// A table's entry holds its 21-byte config struct, not its cells, so the
+    /// setting after it follows 21 bytes on. Counting the 22x22 grid put it 968
+    /// bytes on instead, and every implicit address after a table with it.
+    /// </summary>
+    [Fact]
+    public void TheSettingAfterATableFollowsItsConfigStructNotItsCells()
+    {
+        string xml = """
+            <ECUSettingsDefinitions version="1">
+              <ECUSetting name="VE Table 1 data" type="dynamicTable" length="22,22" address="1000" />
+              <ECUSetting name="After"           type="uint16"       length="1" />
+            </ECUSettingsDefinitions>
+            """;
+
+        string path = Path.Combine(Path.GetTempPath(), $"olv-maxx-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(path, xml);
+
+        try
+        {
+            IReadOnlyList<MaxxSettingDefinition> read = MaxxTuneDefinitions.Read(path);
+
+            Assert.Equal(1000 + MaxxTune.TableConfigSize, read.Single(d => d.Name == "After").Address);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
     /// A list is signed when the firmware says its smallest value is below zero,
     /// because the file gives lists no element type at all. Read unsigned, a
     /// temperature curve starting at −40 °C begins at 6,513 °C.

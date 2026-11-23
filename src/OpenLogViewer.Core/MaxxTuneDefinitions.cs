@@ -64,8 +64,18 @@ public sealed record MaxxSettingDefinition(
         _ => RealtimeType.U16,
     };
 
-    /// <summary>Bytes the whole setting occupies.</summary>
-    public int Size => ElementSize * Length;
+    /// <summary>
+    /// Bytes the whole setting occupies.
+    ///
+    /// A <c>dynamicTable</c> is the exception: what sits at its address is the
+    /// fixed-size config struct (<see cref="MaxxTune.TableConfigSize"/>), not the
+    /// cell grid its <c>length</c> describes, which lives elsewhere in the blob.
+    /// Counting the grid (968 bytes for a 22x22 table) moved the implicit-address
+    /// cursor past every setting after the table, mis-binding each of them until
+    /// the next one stating its own address. Found by main's MaxxECU review
+    /// (b194a21) in the same code inherited by both lines.
+    /// </summary>
+    public int Size => IsTable ? MaxxTune.TableConfigSize : ElementSize * Length;
 }
 
 /// <summary>

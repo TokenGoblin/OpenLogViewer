@@ -542,6 +542,14 @@ public static class MaxxTune
     }
 
     /// <summary>
+    /// Bytes a <c>dynamicTable</c> entry's config struct occupies at its own
+    /// address: the shape and where the cells live, not the cells themselves.
+    /// Shared with <see cref="MaxxSettingDefinition.Size"/>, which needs it to
+    /// advance the definitions file's implicit-address cursor past a table.
+    /// </summary>
+    public const int TableConfigSize = 21;
+
+    /// <summary>
     /// Works out a table's current shape from its 21-byte config struct.
     ///
     /// The struct is where the per-tune part lives: MTune's definitions say
@@ -551,7 +559,7 @@ public static class MaxxTune
     /// </summary>
     public static MaxxTable? TableAt(ReadOnlySpan<byte> blob, string name, int config)
     {
-        if (config < 0 || config + 21 > blob.Length) return null;
+        if (config < 0 || config + TableConfigSize > blob.Length) return null;
 
         int columns = blob[config + 0x06];
         int rows = blob[config + 0x07];
