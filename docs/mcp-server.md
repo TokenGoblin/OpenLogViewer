@@ -230,7 +230,7 @@ hardware**: built and tested against a simulation of the firmware. See
 | `wican_can_send` | One frame. Requires an arming; **does not ask again**. Never retried |
 | `wican_can_disarm` | Disarms at once. Never asks |
 | `wican_lua_status`, `wican_lua_list`, `wican_lua_get` | The Lua engine, including whether `lua_can_tx` lets scripts transmit; the stored scripts; one script's source |
-| `wican_lua_put`, `wican_lua_run`, `wican_lua_eval` | Upload, start, or evaluate one line. **Each asks a person**, naming the script, its size and whether `lua_can_tx` is enabled |
+| `wican_lua_put`, `wican_lua_run`, `wican_lua_eval` | Upload, start, or evaluate a short chunk (about 360 bytes, sent as base64). **Each asks a person**, naming the script, its size and whether `lua_can_tx` is enabled |
 | `wican_lua_stop` | Stops one script, or all of them (the kill switch). Never asks |
 
 ### The tune, in memory

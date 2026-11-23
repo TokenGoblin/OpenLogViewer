@@ -52,6 +52,8 @@ public class WcpFakeDeviceTests : IDisposable
         return lines;
     }
 
+    private static string B64(string code) => Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
+
     private string Final(List<string> lines) => lines.Last(l => l.StartsWith($"#{_seq}.", StringComparison.Ordinal));
 
     private void Ok(string command)
@@ -109,6 +111,157 @@ public class WcpFakeDeviceTests : IDisposable
 
         Assert.Contains($"#{_seq}:wcp=1", lines);
         Assert.Contains(lines, l => l.StartsWith($"#{_seq}:fw=", StringComparison.Ordinal) && l.EndsWith("+wcp1", StringComparison.Ordinal));
+    }
+
+    // ----- section 8, the clarifications ----------------------------------------------
+
+    [Fact]
+    public void S8_3_OkCountsItsDataLines()
+    {
+        List<string> lines = Ask("hello");
+
+        Assert.Equal($"#{_seq}.OK n=5", lines.Last());
+        Assert.Equal(5, lines.Count(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)));
+        string sent = Final(PrepareAndSend());
+        Assert.Equal($"#{_seq}.OK n=0 sent", sent);
+    }
+
+    private List<string> PrepareAndSend()
+    {
+        Ok("can start");
+        Ok("can arm");
+        return Ask("can send 7E0 01");
+    }
+
+    [Fact]
+    public void S8_2_WcpWaitsForThePromptAndStartsOnANewLine()
+    {
+        // An event due during an ELM327 reply goes after its prompt, and with
+        // CR LF in front of it, since the prompt is not followed by an LF.
+        _device.AfterElmPrompt.Add("!DROP 1");
+        _device.Write("ATI\r"u8);
+
+        byte[] buffer = new byte[512];
+        string wire = Encoding.ASCII.GetString(buffer, 0, _device.Read(buffer, TimeSpan.Zero));
+
+        Assert.EndsWith($">\r\n{Wcp.Frame("!DROP 1")}\r\n", wire, StringComparison.Ordinal);
+        Assert.Equal(1, wire.Count(c => c == '>'));
+    }
+
+    [Fact]
+    public void S8_2_NoExtraLineBreakAfterAnLf()
+    {
+        _device.Write(Encoding.ASCII.GetBytes(Wcp.Request(1, "ping") + "\r" + Wcp.Request(2, "ping") + "\r"));
+
+        byte[] buffer = new byte[512];
+        string wire = Encoding.ASCII.GetString(buffer, 0, _device.Read(buffer, TimeSpan.Zero));
+
+        Assert.DoesNotContain("\r\n\r\n", wire, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void S8_5_TheGateReportsArmedAndTheCapAndNothingElse()
+    {
+        List<string> status = Ask("status");
+        Assert.Contains($"#{_seq}:tx_rate_cap=200", status);
+        Assert.DoesNotContain(status, l => l.Contains("armed_ttl_s", StringComparison.Ordinal));
+
+        List<string> can = Ask("can status");
+        Assert.Contains($"#{_seq}:tx_rate_cap=200", can);
+        Assert.Contains($"#{_seq}:armed=0", can);
+        Assert.DoesNotContain(can, l => l.Contains("allow=", StringComparison.Ordinal));
+
+        Assert.Contains("!ARMED", Ask("can arm"));
+    }
+
+    [Fact]
+    public void S8_6_EvalIsBase64AndAtMost4KB()
+    {
+        List<string> lines = Ask("lua eval " + B64("print(\"one\")\nprint(\"two\")"));
+        Assert.Contains($"#{_seq}:one", lines);
+        Assert.Contains($"#{_seq}:two", lines);
+
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("lua eval print(1)")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void S8_8_LuaStatusIsKeyValueWithAScriptLineEach()
+    {
+        _device.LuaScripts["a"] = "x"u8.ToArray();
+        Ok("lua run a");
+
+        List<string> lines = Ask("lua status");
+
+        Assert.Contains($"#{_seq}:script=a state=running mem_kb=41 cb_max_ms=3 queue_drops=0 errors=0", lines);
+        Assert.All(lines.Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)), l => Assert.Contains('=', l));
+    }
+
+    [Fact]
+    public void S8_8_Base64LinesAreAtMost160Characters()
+    {
+        _device.LogFiles["a.db"] = new byte[3000];
+        _device.Base64PerLine = false;
+
+        List<string> data = Ask("log read a.db 0 3000").Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)).ToList();
+
+        Assert.All(data, l => Assert.True(l.Length - $"#{_seq}:".Length <= 160));
+    }
+
+    [Fact]
+    public void S8_8_ALogReadOver3072IsArgs()
+    {
+        _device.LogFiles["a.db"] = new byte[5000];
+
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("log read a.db 0 3073")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void S8_8_LogListGivesUnixSeconds()
+    {
+        _device.LogFiles["a.db"] = [1, 2, 3];
+
+        Assert.Matches(@"^#\d+:a\.db 3 \d+$", Ask("log list").First(l => l.Contains("a.db", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void S8_8_CanStartTakesKbps()
+    {
+        Ok("can start 250");
+
+        Assert.Contains($"#{_seq + 1}:bitrate=250", Ask("status"));
+    }
+
+    [Fact]
+    public void S8_8_ARemoteFrameIsFlaggedR()
+    {
+        Ok("can start");
+        Ok("can stream on");
+
+        _device.BusRemoteFrame(0x7DF, false, 8);
+        _device.BusRemoteFrame(0x18DAF110, true, 0);
+
+        List<string> lines = Drain();
+        Assert.Matches(@"^!CAN \d+ 7DF sr 8$", lines[0]);
+        Assert.Matches(@"^!CAN \d+ 18DAF110 xr 0$", lines[1]);
+    }
+
+    [Fact]
+    public void S8_9_LuaTransmitSettingsAreLiveAfterTheSaveWithoutAReboot()
+    {
+        Ok("can start");
+        Ok("config set lua_can_tx=enable");
+        Ok("config save");
+
+        Assert.Equal(0, _device.Reboots);
+        Assert.True(_device.LuaSend("a", 0x100, [1]).Sent);
+    }
+
+    [Fact]
+    public void S8_10_ARebootSaysBoot()
+    {
+        List<string> lines = Ask("reboot");
+
+        Assert.Equal("!BOOT v4.50p+wcp1", lines.Last());
     }
 
     // ----- CAN transmit: the light gate (section 3) --------------------------------
@@ -486,9 +639,10 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void LuaPutTruncatesAtOffsetZeroAndReportsTheSize()
     {
-        Assert.Equal($"#{_seq + 1}.OK 5", Final(Ask($"lua put s 0 {Convert.ToBase64String("hello"u8)}")));
-        Assert.Equal($"#{_seq + 1}.OK 11", Final(Ask($"lua put s 5 {Convert.ToBase64String(" world"u8)}")));
-        Assert.Equal($"#{_seq + 1}.OK 2", Final(Ask($"lua put s 0 {Convert.ToBase64String("hi"u8)}")));
+        // Contract 8.7: OK n=0 <file_total_bytes>.
+        Assert.Equal($"#{_seq + 1}.OK n=0 5", Final(Ask($"lua put s 0 {Convert.ToBase64String("hello"u8)}")));
+        Assert.Equal($"#{_seq + 1}.OK n=0 11", Final(Ask($"lua put s 5 {Convert.ToBase64String(" world"u8)}")));
+        Assert.Equal($"#{_seq + 1}.OK n=0 2", Final(Ask($"lua put s 0 {Convert.ToBase64String("hi"u8)}")));
 
         Assert.Equal("hi"u8.ToArray(), _device.LuaScripts["s"]);
     }
@@ -508,6 +662,6 @@ public class WcpFakeDeviceTests : IDisposable
         Ok("can arm");
 
         // Armed for WCP, but lua_can_tx is off: the eval's send is refused.
-        Assert.Contains($"#{_seq + 1}:nil\tlua_can_tx disabled", Ask("lua eval can.send(0x7E0, \"\\x01\")"));
+        Assert.Contains($"#{_seq + 1}:nil\tlua_can_tx disabled", Ask("lua eval " + B64("can.send(0x7E0, \"\\x01\")")));
     }
 }

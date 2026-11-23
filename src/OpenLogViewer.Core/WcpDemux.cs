@@ -25,6 +25,14 @@ namespace OpenLogViewer.Core;
 /// </para>
 ///
 /// <para>
+/// <b>The CR LF in front of a WCP line is WCP's.</b> The firmware sends CR LF
+/// before every WCP line unless its last byte was already an LF, so a line after
+/// a prompt arrives as <c>&gt;\r\n!CAN …</c>. Line ends at the start of a line are
+/// held until the next byte says whose they are: dropped before <c>#</c> or <c>!</c>,
+/// passed to the ELM327 side, in order, before anything else.
+/// </para>
+///
+/// <para>
 /// <b>What this cannot fix.</b> A WCP line the firmware writes into the
 /// <em>middle</em> of an ELM327 line — "<c>41 0C</c>", a whole <c>!CAN</c> line, then
 /// "<c> 1A F8</c>" — is not at a line start, so it goes to the ELM327 side and is
@@ -47,6 +55,13 @@ public sealed class WcpDemux
     private bool _inWcp;
     private bool _overflowing;
     private bool _swallowLf;
+
+    /// <summary>
+    /// Line ends seen at the start of a line, not yet given to the ELM327 side: the
+    /// firmware puts CR LF in front of every WCP line (contract 8.2), and whether
+    /// these are that or the chip's own blank line is known only from the byte after.
+    /// </summary>
+    private readonly List<byte> _held = [];
 
     /// <summary>
     /// The longest WCP line kept, in characters. Generous: a data line is at most
@@ -125,15 +140,35 @@ public sealed class WcpDemux
                 }
             }
 
+            if (_atLineStart && b is (byte)'\r' or (byte)'\n')
+            {
+                if (i > runStart) _elm(bytes[runStart..i]);
+
+                _held.Add(b);
+                runStart = i + 1;
+                continue;
+            }
+
             if (_atLineStart && b is (byte)'#' or (byte)'!')
             {
                 if (i > runStart) _elm(bytes[runStart..i]);
+
+                _held.Clear();
 
                 _inWcp = true;
                 _line.Clear();
                 _line.Append((char)b);
                 runStart = i + 1;
                 continue;
+            }
+
+            if (_held.Count > 0)
+            {
+                if (i > runStart) _elm(bytes[runStart..i]);
+
+                _elm(_held.ToArray());
+                _held.Clear();
+                runStart = i;
             }
 
             _atLineStart = b is (byte)'\r' or (byte)'\n' or (byte)'>';
@@ -149,6 +184,7 @@ public sealed class WcpDemux
     public void Reset()
     {
         _line.Clear();
+        _held.Clear();
         _inWcp = false;
         _overflowing = false;
         _swallowLf = false;

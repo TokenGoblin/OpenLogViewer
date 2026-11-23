@@ -153,6 +153,51 @@ public class WcpClientTests : IDisposable
     }
 
     [Fact]
+    public void AReplyShortOfItsCountIsAskedForAgain()
+    {
+        // A data line lost whole, CR and all, leaves nothing damaged to see; the
+        // count on the OK line is what shows it (contract 8.3).
+        _device.LoseDataLines = 1;
+
+        WcpValues config = _client.ConfigGet();
+
+        Assert.Equal(FakeWcpDevice.DefaultConfig.Count, config.Pairs.Count);
+        Assert.Equal(1, _client.ShortReplies);
+        Assert.Equal(1, _client.Retries);
+    }
+
+    [Fact]
+    public void TheCountIsNotPartOfTheSummary()
+    {
+        _device.LogFiles["a.db"] = [1, 2, 3];
+
+        Assert.Equal(3, _client.LogRead("a.db", 0, 10).Data.Length);
+        Assert.True(_client.Ping() >= 0);
+    }
+
+    [Fact]
+    public void ARebootMidSessionIsNoticedAndHelloAskedAgain()
+    {
+        // !BOOT can arrive at any time (contract 8.4, 8.10): whatever the session
+        // had set up on the device is gone, the arming first.
+        string? why = null;
+        string? booted = null;
+        _client.Disarmed += r => why = r;
+        _client.Booted += fw => booted = fw;
+
+        _client.CanArm();
+        _client.Request("reboot");
+
+        Assert.True(Eventually(() => booted is not null));
+        Assert.Equal("v4.50p+wcp1", booted);
+        Assert.Equal("boot", why);
+        Assert.False(_client.IsArmed);
+        Assert.Equal(1, _client.Boots);
+        Assert.Equal("hello", _device.Commands[^1]);
+        Assert.NotNull(_client.Identity);
+    }
+
+    [Fact]
     public void ADamagedDataLineMeansTheWholeReplyIsAskedForAgain()
     {
         // Nothing in a reply counts its data lines, so a damaged one would
@@ -170,7 +215,7 @@ public class WcpClientTests : IDisposable
     public void ALateReplyIsNotTakenForTheNextOne()
     {
         // A reply for a seq nobody is waiting on, arriving first.
-        _device.BetweenElmLines.Add("#999.OK stale");
+        _device.AfterElmPrompt.Add("#999.OK n=0 stale");
         _link.Write("ATI\r"u8);
 
         Assert.True(Eventually(() => _client.StaleLines == 1));
@@ -300,7 +345,8 @@ public class WcpClientTests : IDisposable
         _device.LogFiles["2026-11-22.db"] = file;
 
         IReadOnlyList<WcpLogFile> list = _client.LogList();
-        Assert.Equal(new WcpLogFile("2026-11-22.db", 10_000, "1763812800"), list.Single());
+        Assert.Equal(new WcpLogFile("2026-11-22.db", 10_000, 1763812800), list.Single());
+        Assert.Equal(new DateTimeOffset(2025, 11, 22, 12, 0, 0, TimeSpan.Zero), list[0].Modified);
 
         using var into = new MemoryStream();
         var seen = new List<long>();
@@ -342,7 +388,7 @@ public class WcpClientTests : IDisposable
         _client.CanFrame += frames.Add;
         _client.Dropped += n => dropped += n;
 
-        _client.CanStart(500_000);
+        _client.CanStart(500);
         _client.CanStreamOn();
 
         _device.BusFrame(0x7E8, false, 0x41, 0x0C, 0x1A, 0xF8);
@@ -371,7 +417,28 @@ public class WcpClientTests : IDisposable
         Assert.Equal("can stream on 7E8 7F8", _device.Commands[^1]);
     }
 
+    [Fact]
+    public void ARemoteFrameArrivesWithItsDlcAndNoData()
+    {
+        var frames = new List<WcpCanEvent>();
+        _client.CanFrame += frames.Add;
+        _client.CanStart();
+        _client.CanStreamOn();
+
+        _device.BusRemoteFrame(0x18DAF110, true, 8);
+
+        Assert.True(Eventually(() => frames.Count == 1));
+        Assert.True(frames[0].Remote);
+        Assert.True(frames[0].Extended);
+        Assert.Equal(8, frames[0].Length);
+        Assert.Empty(frames[0].Data);
+    }
+
     [Theory]
+    [InlineData("1000 7E8 sr 8", true)]
+    [InlineData("1000 18DAF110 xr 0", true)]
+    [InlineData("1000 7E8 sr 2 0102", false)]
+    [InlineData("1000 7E8 rs 2", false)]
     [InlineData("1000 7E8 s 2 410C", true)]
     [InlineData("1000 7E8 s 0", true)]
     [InlineData("1000 7E8 s 3 410C", false)]
@@ -552,9 +619,18 @@ public class WcpClientTests : IDisposable
     }
 
     [Fact]
-    public void EvalTakesOneLine()
+    public void EvalCodeTravelsAsBase64SoLineBreaksWork()
     {
-        Assert.Throws<WcpException>(() => _client.LuaEval("print('a')\nprint('b')"));
+        Assert.Equal(["a", "b"], _client.LuaEval("print(\"a\")\nprint(\"b\") -- a comment").Output);
+        Assert.Equal($"lua eval {Convert.ToBase64String("print(\"a\")\nprint(\"b\") -- a comment"u8)}", _device.Commands[^1]);
+    }
+
+    [Fact]
+    public void EvalCodeTooLongForOneRequestIsRefusedHere()
+    {
+        WcpException e = Assert.Throws<WcpException>(() => _client.LuaEval(new string('x', 400)));
+
+        Assert.Equal("HOST", e.Code);
         Assert.Empty(_device.Commands);
     }
 
@@ -585,7 +661,7 @@ public class WcpClientTests : IDisposable
             }
         });
 
-        _device.BetweenElmLines.Add("!CAN 5 7E8 s 1 41");
+        _device.AfterElmPrompt.Add("!CAN 5 7E8 s 1 41");
 
         using Elm327Source source = Elm327Source.Connect(_link);
 

@@ -96,6 +96,21 @@ public class WcpDemuxTests
     }
 
     [Fact]
+    public void TheCrLfInFrontOfAWcpLineIsWcps()
+    {
+        // Contract 8.2: the firmware puts CR LF before every WCP line that does
+        // not follow an LF. After a prompt, that CR LF is not the chip's.
+        AlwaysSplitsAs(
+            "41 0C 1A F8\r\r>\r\n!CAN 1000 7E8 s 2 0102*00\r\n",
+            "41 0C 1A F8\r\r>",
+            "!CAN 1000 7E8 s 2 0102*00");
+    }
+
+    [Fact]
+    public void ABlankLineThatIsNotFollowedByWcpIsStillTheChips() =>
+        AlwaysSplitsAs("OK\r\r\n\r>", "OK\r\r\n\r>");
+
+    [Fact]
     public void AHashInsideAnElmLineIsElm()
     {
         // Not at a line start, so not WCP — whatever it is.

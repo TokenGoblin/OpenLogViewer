@@ -189,7 +189,7 @@ public static class WicanTools
         {
             ok = true,
             logger = Values(w.Client.LogStatus()),
-            files = w.Client.LogList().Select(f => new { name = f.Name, bytes = f.Size, modified = f.Modified }),
+            files = w.Client.LogList().Select(f => new { name = f.Name, bytes = f.Size, modified = f.Modified?.ToString("o") }),
         });
 
     [McpServerTool]
@@ -423,10 +423,11 @@ public static class WicanTools
 
     [McpServerTool]
     [Description(
-        "Runs one line of Lua on the WiCAN in a scratch VM (5 s limit) and returns what it printed — the quick "
-        + "way to poke at the unit. Separate statements with ';'. Shows a confirmation dialog with the code and "
+        "Runs a chunk of Lua on the WiCAN in a scratch VM (5 s limit) and returns what it printed — the quick "
+        + "way to poke at the unit. About 360 bytes of code fit in one request; upload anything longer with "
+        + "wican_lua_put and run it. Shows a confirmation dialog with the code and "
         + "whether lua_can_tx lets it transmit, and waits for a person.")]
     public static Task<object> WicanLuaEval(
-        [Description("One line of Lua.")] string code, MainViewModel vm, IUiDispatcher dispatcher) =>
+        [Description("The Lua code.")] string code, MainViewModel vm, IUiDispatcher dispatcher) =>
         dispatcher.InvokeAsync(() => Outcome(vm.WicanLuaEval(code)));
 }

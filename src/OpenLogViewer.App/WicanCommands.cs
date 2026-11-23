@@ -281,16 +281,19 @@ public sealed partial class MainViewModel
         }
     }
 
-    /// <summary>Runs a one-line chunk in a scratch VM on the unit, and returns what it printed.</summary>
+    /// <summary>Runs a chunk of Lua in a scratch VM on the unit, and returns what it printed.</summary>
     public WicanOutcome WicanLuaEval(string code)
     {
         if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
         if (string.IsNullOrWhiteSpace(code)) return WicanOutcome.Refused("There is no code to run.");
 
-        if (code.AsSpan().IndexOfAny('\r', '\n') >= 0)
-            return WicanOutcome.Refused("lua eval takes one line. Join the statements with ';', or upload the script and run it.");
-
         int size = Encoding.UTF8.GetByteCount(code);
+
+        // Refused before the question rather than after it: the code travels as
+        // base64, and what does not fit in one request should not be asked about.
+        if (Wcp.Frame($"#65535 lua eval {Convert.ToBase64String(Encoding.UTF8.GetBytes(code))}").Length + 1 > Wcp.MaxRequestBytes)
+            return WicanOutcome.Refused(
+                $"That code is {size:N0} bytes, too long for one request (about 360 bytes fit). Upload it with wican_lua_put and run it.");
         string shown = code.Length > 300 ? code[..300] + "…" : code;
 
         if (!_confirm.Confirm(new WriteRequest(

@@ -14,10 +14,10 @@ namespace OpenLogViewer.Tests;
 /// 2026-11-22) and its Lua transmit rules (section 7.3) is implemented here the
 /// way the firmware must implement it, and <c>WcpFakeDeviceTests</c> asserts each
 /// one against this class directly, speaking raw WCP lines. Lua itself is not:
-/// a script here is bytes with a state, and <c>lua eval</c> understands only
+/// a script here is bytes with a state, and <c>lua eval</c> (base64, contract 8.6) understands only
 /// <c>print("…")</c>, <c>can.send(id, "…")</c> and <c>error("…")</c>. So this file is an
 /// executable reading of <c>diagnosis/wican-claude-protocol.md</c>; where the
-/// contract left something open, the choice made is marked <b>CHOICE</b> in a
+/// contract still leaves something open after its section 8, the choice made is marked <b>CHOICE</b> in a
 /// comment, and those are the places the firmware should be checked against.
 /// </para>
 ///
@@ -114,11 +114,15 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     /// <summary>Hold the CAN stream in the ring, as when the USB side cannot keep up.</summary>
     public bool HoldStream { get; set; }
 
-    /// <summary>How log chunks are base64'd: 150 bytes to a line, or one string cut at 200 characters.</summary>
+    /// <summary>How log chunks are base64'd: 120 bytes to a line, or one string cut at 160 characters (contract 8.8).</summary>
     public bool Base64PerLine { get; set; } = true;
 
-    /// <summary>Lines to slip in after the next CR of ELM327 output, to test interleaving.</summary>
-    public List<string> BetweenElmLines { get; } = [];
+    /// <summary>
+    /// Lines to send straight after the next ELM327 prompt, as WCP output queued
+    /// during a reply is flushed (contract 8.2) — with the CR LF the firmware puts
+    /// in front of a WCP line that does not follow an LF.
+    /// </summary>
+    public List<string> AfterElmPrompt { get; } = [];
 
     // ----- what the tests can read -----------------------------------------------
 
@@ -144,7 +148,8 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
     public bool CanRunning { get; private set; }
 
-    public int Bitrate { get; private set; } = 500_000;
+    /// <summary>The controller's bitrate, in kbit/s (contract 8.8: <c>can start 500</c>).</summary>
+    public int Bitrate { get; private set; } = 500;
 
     public bool Streaming { get; private set; }
 
@@ -332,7 +337,12 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     /// <see cref="HoldStream"/> is set it waits in the ring; a full ring counts a
     /// drop rather than blocking anything, as the contract requires of the TWAI task.
     /// </summary>
-    public void BusFrame(uint id, bool extended, params byte[] data)
+    public void BusFrame(uint id, bool extended, params byte[] data) => BusFrame(id, extended, false, data.Length, data);
+
+    /// <summary>A remote (RTR) frame: a DLC and no data, flagged <c>sr</c> or <c>xr</c> (contract 8.8).</summary>
+    public void BusRemoteFrame(uint id, bool extended, int dlc) => BusFrame(id, extended, true, dlc, []);
+
+    private void BusFrame(uint id, bool extended, bool remote, int dlc, byte[] data)
     {
         lock (_gate)
         {
@@ -345,7 +355,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
             string hex = Convert.ToHexString(data);
             string body = string.Create(CultureInfo.InvariantCulture,
-                $"!CAN {(long)(Now - _bootedAt).TotalMilliseconds} {Id(id, extended)} {(extended ? "x" : "s")} {data.Length}{(hex.Length > 0 ? " " + hex : "")}");
+                $"!CAN {(long)(Now - _bootedAt).TotalMilliseconds} {Id(id, extended)} {(extended ? "x" : "s")}{(remote ? "r" : "")} {dlc}{(hex.Length > 0 ? " " + hex : "")}");
 
             if (HoldStream)
             {
@@ -444,11 +454,12 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             for (int i = 0; i < got; i++)
             {
                 _out.Enqueue(reply[i]);
+                _lastOut = reply[i];
 
-                if (reply[i] == (byte)'\r' && BetweenElmLines.Count > 0)
+                if (reply[i] == (byte)'>' && AfterElmPrompt.Count > 0)
                 {
-                    foreach (string body in BetweenElmLines) EnqueueLineLocked(Wcp.Frame(body));
-                    BetweenElmLines.Clear();
+                    foreach (string body in AfterElmPrompt) EnqueueLineLocked(Wcp.Frame(body));
+                    AfterElmPrompt.Clear();
                 }
             }
 
@@ -504,7 +515,13 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
         foreach (string l in reply.Lines) EmitLocked(l, data: IsData(l));
         foreach (string l in reply.After) EmitLocked(l);
 
-        if (reply.Reboot) RebootLocked();
+        if (reply.Reboot)
+        {
+            RebootLocked();
+
+            // Contract 8.10: once, on Serial-B, after boot.
+            EmitLocked("!BOOT v4.50p+wcp1");
+        }
     }
 
     private static bool IsData(string body)
@@ -542,7 +559,12 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 Lines.Add($"#{Seq}:{text.Substring(at, Math.Min(Wcp.MaxDataText, text.Length - at))}");
         }
 
-        public void Ok(string summary = "") => Lines.Add(summary.Length > 0 ? $"#{Seq}.OK {summary}" : $"#{Seq}.OK");
+        /// <summary>The final line, carrying the count of data lines before it (contract 8.3).</summary>
+        public void Ok(string summary = "")
+        {
+            int n = Lines.Count(IsData);
+            Lines.Add(summary.Length > 0 ? $"#{Seq}.OK n={n} {summary}" : $"#{Seq}.OK n={n}");
+        }
 
         public void Err(string code, string message = "") =>
             Lines.Add(message.Length > 0 ? $"#{Seq}.ERR {code} {message}" : $"#{Seq}.ERR {code}");
@@ -569,13 +591,23 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
         EnqueueLineLocked(framed);
     }
 
+    /// <summary>
+    /// One WCP line onto the wire: CR LF first unless the last byte sent was an LF,
+    /// so the line starts a line whatever came before it (contract 8.2).
+    /// </summary>
     private void EnqueueLineLocked(string framed)
     {
         if (!IsOpen) return;
 
-        foreach (char c in framed + "\r\n") _out.Enqueue((byte)c);
+        string text = (_lastOut == (byte)'\n' ? "" : "\r\n") + framed + "\r\n";
+
+        foreach (char c in text) _out.Enqueue((byte)c);
+        _lastOut = (byte)'\n';
         Monitor.PulseAll(_gate);
     }
+
+    /// <summary>The last byte sent, for the CR LF rule. An LF at power-up, so the first line needs none.</summary>
+    private byte _lastOut = (byte)'\n';
 
     // ----- the commands -----------------------------------------------------------
 
@@ -656,10 +688,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
         r.Data($"can_drop={_dropsTotal}");
         r.Data($"stream={(Streaming ? "on" : "off")}");
         r.Data($"armed={(Armed ? 1 : 0)}");
-
-        // CHOICE: the contract still lists armed_ttl_s, though the light gate has
-        // no TTL; reported as the seconds left before the idle disarm.
-        r.Data($"armed_ttl_s={(Armed ? Math.Max(0, (int)Math.Ceiling((IdleDisarm - (Now - _lastRequest)).TotalSeconds)) : 0)}");
+        r.Data($"tx_rate_cap={WcpTxRate}");
         r.Data($"autopid={AutopidState}");
         r.Data($"logger={(Saved["logger_status"] == "enable" ? "on" : "off")}");
         r.Data("sd=ok");
@@ -754,9 +783,9 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
                 foreach ((string k, string v) in Staged) Saved[k] = v;
 
-                // Section 7.3.5: a save with lua_can_tx=disable is a kill switch.
-                // CHOICE: lua_can_tx and lua_tx_rate take effect at the save, not
-                // the reboot — the kill switch only means anything if they do.
+                // Section 7.3.5: a save with lua_can_tx=disable is a kill switch,
+                // and 8.9: lua_can_tx and lua_tx_rate are re-read at the save
+                // rather than at the reboot, so LuaSend reads Saved directly.
                 if (Saved["lua_can_tx"] == "disable") StopAllLuaLocked(r);
 
                 r.Ok("saved; reboot to apply");
@@ -909,24 +938,36 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             return;
         }
 
-        // CHOICE: more than 3 KB is clamped, not refused. The reply's byte count
-        // says how much came, so a host asking for more is told.
-        int take = (int)Math.Max(0, Math.Min(Math.Min(length, 3072), file.Length - offset));
+        // Contract 8.8: more than 3 KB is refused, not clamped.
+        if (length > 3072)
+        {
+            r.Err("ARGS", "length: at most 3072");
+            return;
+        }
+
+        int take = (int)Math.Max(0, Math.Min(length, file.Length - offset));
         byte[] chunk = take > 0 ? file.AsSpan((int)offset, take).ToArray() : [];
 
         if (Base64PerLine)
         {
-            // 150 bytes is exactly 200 base64 characters, with no padding until
-            // the last line, so each line decodes on its own.
-            for (int at = 0; at < chunk.Length; at += 150)
-                r.Lines.Add($"#{r.Seq}:{Convert.ToBase64String(chunk, at, Math.Min(150, chunk.Length - at))}");
+            // 120 bytes is exactly 160 base64 characters, the most a line may
+            // carry (contract 8.8), with no padding until the last line, so each
+            // line decodes on its own.
+            Base64Lines(r, chunk);
         }
-        else if (chunk.Length > 0)
+        else
         {
-            r.Data(Convert.ToBase64String(chunk));
+            string b64 = Convert.ToBase64String(chunk);
+            for (int at = 0; at < b64.Length; at += 160) r.Lines.Add($"#{r.Seq}:{b64.Substring(at, Math.Min(160, b64.Length - at))}");
         }
 
         r.Ok(string.Create(CultureInfo.InvariantCulture, $"{chunk.Length} {file.Length}"));
+    }
+
+    private static void Base64Lines(Reply r, byte[] bytes)
+    {
+        for (int at = 0; at < bytes.Length; at += 120)
+            r.Lines.Add($"#{r.Seq}:{Convert.ToBase64String(bytes, at, Math.Min(120, bytes.Length - at))}");
     }
 
     private void Can(string sub, string[] words, Reply r)
@@ -942,11 +983,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 r.Data($"drop={_dropsTotal}");
                 r.Data("bus_errors=0");
                 r.Data($"armed={(Armed ? 1 : 0)}");
-
-                // CHOICE: the contract still lists allow=<ids>; the light gate
-                // allows any identifier, so this says so.
-                r.Data("allow=any");
-                r.Data($"tx_rate={WcpTxRate}");
+                r.Data($"tx_rate_cap={WcpTxRate}");
                 r.Ok();
                 return;
 
@@ -955,7 +992,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 {
                     if (!int.TryParse(words[2], NumberStyles.None, CultureInfo.InvariantCulture, out int rate) || rate < 1)
                     {
-                        r.Err("ARGS", "bitrate in bit/s");
+                        r.Err("ARGS", "bitrate in kbit/s, e.g. 500");
                         return;
                     }
 
@@ -1079,8 +1116,8 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
         r.Ok("armed");
 
-        // CHOICE: !ARMED carries no fields now there is no TTL or allowlist, and
-        // is not repeated for an arm while already armed.
+        // !ARMED has no fields (contract 8.5). CHOICE: it is not repeated for an
+        // arm while already armed.
         if (!was) r.After.Add("!ARMED");
     }
 
@@ -1235,7 +1272,8 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 r.Data($"tx_count={_luaTx}");
                 r.Data($"tx_drop={_luaTxDrop}");
 
-                foreach ((string n, string state) in LuaStates) r.Data($"{n} {state} 41 3 0 0");
+                foreach ((string n, string state) in LuaStates)
+                    r.Data($"script={n} state={state} mem_kb=41 cb_max_ms=3 queue_drops=0 errors=0");
 
                 r.Ok();
                 return;
@@ -1282,7 +1320,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 chunk.CopyTo(file, offset);
                 LuaScripts[name] = file;
 
-                // CHOICE: OK <bytes> is the file's size after this chunk.
+                // Contract 8.7: OK n=0 <file_total_bytes>.
                 r.Ok(file.Length.ToString(CultureInfo.InvariantCulture));
                 return;
             }
@@ -1294,8 +1332,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                     return;
                 }
 
-                for (int at = 0; at < script.Length; at += 150)
-                    r.Lines.Add($"#{r.Seq}:{Convert.ToBase64String(script, at, Math.Min(150, script.Length - at))}");
+                Base64Lines(r, script);
 
                 r.Ok();
                 return;
@@ -1354,8 +1391,28 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 return;
 
             case "eval":
-                Eval(command.Length > "lua eval ".Length ? command["lua eval ".Length..] : "", r);
+            {
+                byte[] code;
+
+                try
+                {
+                    code = Convert.FromBase64String(words.Length == 3 ? words[2] : "");
+                }
+                catch (FormatException)
+                {
+                    r.Err("ARGS", "lua eval <base64>");
+                    return;
+                }
+
+                if (code.Length is 0 or > 4096)
+                {
+                    r.Err("ARGS", "code: 1 to 4096 bytes");
+                    return;
+                }
+
+                Eval(Encoding.UTF8.GetString(code), r);
                 return;
+            }
 
             case "resume-tx":
                 LuaTxSuspended = null;
@@ -1369,15 +1426,19 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     }
 
     /// <summary>
-    /// A very small reading of <c>lua eval</c>: statements split on <c>;</c>, of
+    /// A very small reading of <c>lua eval</c>: statements split on <c>;</c> and line breaks, of
     /// which <c>print("…")</c>, <c>can.send(0xID, "\xNN…")</c> and <c>error("…")</c>
     /// do something. Enough to show a host what an eval's output and failure look
     /// like, and that an eval's sends obey the Lua transmit rules.
     /// </summary>
     private void Eval(string code, Reply r)
     {
-        foreach (string raw in code.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string statement in code.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
+            // A comment runs to the end of its line, which base64 lets a chunk have.
+            int comment = statement.IndexOf("--", StringComparison.Ordinal);
+            string raw = comment >= 0 ? statement[..comment].TrimEnd() : statement;
+
             if (raw.StartsWith("print(\"", StringComparison.Ordinal) && raw.EndsWith("\")", StringComparison.Ordinal))
             {
                 r.Data(raw[7..^2]);

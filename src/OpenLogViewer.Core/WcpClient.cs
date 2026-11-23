@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace OpenLogViewer.Core;
 
@@ -37,7 +38,7 @@ public sealed class WcpException(string code, string message, string command = "
 public sealed class WcpNotSupportedException(string message) : Exception(message);
 
 /// <summary>One complete reply: its data lines and how it finished.</summary>
-/// <param name="Summary">The text after <c>OK</c>, or the error's message.</param>
+/// <param name="Summary">The text after <c>OK n=&lt;count&gt;</c>, or the error's message.</param>
 public sealed record WcpReply(int Seq, string Command, bool Ok, string Code, string Summary, IReadOnlyList<string> Data);
 
 /// <summary>
@@ -100,8 +101,11 @@ public sealed record WcpHello(int Protocol, string Firmware, string Device, stri
 public sealed record WcpConfigChange(string Key, string Old, string New);
 
 /// <summary>One file in the SD card logger's folder.</summary>
-/// <param name="Modified">As the device writes it; the contract does not fix a format.</param>
-public sealed record WcpLogFile(string Name, long Size, string Modified);
+/// <param name="ModifiedUnix">Its modification time, in seconds since 1970 (UTC); 0 when the device sent none.</param>
+public sealed record WcpLogFile(string Name, long Size, long ModifiedUnix)
+{
+    public DateTimeOffset? Modified => ModifiedUnix > 0 ? DateTimeOffset.FromUnixTimeSeconds(ModifiedUnix) : null;
+}
 
 /// <summary>One piece of a log file and how long the whole file is.</summary>
 public sealed record WcpLogChunk(byte[] Data, long Total);
@@ -136,7 +140,12 @@ public sealed record WcpLuaEvent(string Name, string Kind, string Text);
 
 /// <summary>One frame from a <c>!CAN</c> event.</summary>
 /// <param name="DeviceMs">The device's uptime when it was received, in milliseconds.</param>
-public sealed record WcpCanEvent(long DeviceMs, uint Id, bool Extended, byte[] Data);
+/// <param name="Remote">A remote (RTR) frame, flagged <c>sr</c> or <c>xr</c>: it carries a DLC and no data.</param>
+public sealed record WcpCanEvent(long DeviceMs, uint Id, bool Extended, byte[] Data, bool Remote = false, int Dlc = -1)
+{
+    /// <summary>The length the frame declared: the data's, except on a remote frame.</summary>
+    public int Length => Dlc >= 0 ? Dlc : Data.Length;
+}
 
 /// <summary>
 /// The host side of WCP: one request at a time, a CRC on every line, the retry
@@ -193,6 +202,12 @@ public sealed class WcpClient : IDisposable
     /// <summary>The default wait for a final line, from the contract.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>How long <c>config save</c> is waited for: it validates and writes flash (contract 8.6).</summary>
+    public static readonly TimeSpan ConfigSaveTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long <c>reboot</c> is waited for: its OK comes before the restart (contract 8.6).</summary>
+    public static readonly TimeSpan RebootTimeout = TimeSpan.FromSeconds(2);
+
     /// <summary>How long the firmware stays armed with no WCP request, from the contract.</summary>
     public static readonly TimeSpan IdleDisarm = TimeSpan.FromSeconds(10);
 
@@ -248,6 +263,12 @@ public sealed class WcpClient : IDisposable
     /// <summary>Requests sent again after <c>ERR CRC</c>, a timeout, or a damaged reply.</summary>
     public int Retries { get; private set; }
 
+    /// <summary>Replies that arrived with fewer data lines than their <c>n=</c> said.</summary>
+    public long ShortReplies { get; private set; }
+
+    /// <summary>How many times the device said it had restarted (<c>!BOOT</c>).</summary>
+    public int Boots { get; private set; }
+
     /// <summary>Lines whose CRC was wrong, over the session.</summary>
     public long DamagedLines { get; private set; }
 
@@ -276,6 +297,13 @@ public sealed class WcpClient : IDisposable
     /// <c>link</c> when this host saw the link close.
     /// </summary>
     public event Action<string>? Disarmed;
+
+    /// <summary>
+    /// The device restarted (<c>!BOOT &lt;fw&gt;</c>), with the firmware it came up
+    /// with. Raised after the arming is forgotten and <c>hello</c> has been asked
+    /// again, so <see cref="Identity"/> is the new one.
+    /// </summary>
+    public event Action<string>? Booted;
 
     /// <summary>A line from a Lua script on the device, or from its engine (<c>!LUA</c>).</summary>
     public event Action<WcpLuaEvent>? Lua;
@@ -409,15 +437,24 @@ public sealed class WcpClient : IDisposable
                 }
 
                 WcpLine final = pending.Final!;
+                string summary = final.Text;
+                bool short_ = false;
+
+                // OK carries the number of data lines it sent (contract 8.3):
+                // fewer arrived means one was lost whole, which no CRC can show.
+                if (final.Kind == WcpLineKind.Ok && TrySplitCount(final.Text, out int count, out string rest))
+                {
+                    summary = rest;
+                    short_ = pending.Data.Count < count;
+                    if (short_) ShortReplies++;
+                }
 
                 // ERR CRC is the firmware saying the request never ran, so a
-                // retry is always safe. A reply that came back with a damaged
-                // line in it is the same thing from the other side — the request
-                // ran, but part of its answer is missing, and nothing in the
-                // contract counts data lines to say which part — so it is asked
-                // again where asking again is harmless.
+                // retry is always safe. A short reply, or one with a damaged line
+                // in it, ran but lost part of its answer, so it is asked again
+                // where asking again is harmless.
                 bool resend = final.Kind == WcpLineKind.Error && final.Code == "CRC"
-                              || pending.Tainted && retryOnTimeout;
+                              || (pending.Tainted || short_) && retryOnTimeout;
 
                 if (resend && !last)
                 {
@@ -425,8 +462,11 @@ public sealed class WcpClient : IDisposable
                     continue;
                 }
 
+                if (short_ && retryOnTimeout)
+                    throw new InvalidDataException($"The WiCAN's answer to '{command}' lost data lines twice.");
+
                 return new WcpReply(
-                    seq, command, final.Kind == WcpLineKind.Ok, final.Code, final.Text, pending.Data);
+                    seq, command, final.Kind == WcpLineKind.Ok, final.Code, summary, pending.Data);
             }
             finally
             {
@@ -436,6 +476,23 @@ public sealed class WcpClient : IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>Splits <c>n=&lt;count&gt; [summary]</c>. False for a final line without the count.</summary>
+    internal static bool TrySplitCount(string text, out int count, out string rest)
+    {
+        count = 0;
+        rest = text;
+
+        if (!text.StartsWith("n=", StringComparison.Ordinal)) return false;
+
+        int space = text.IndexOf(' ');
+        string number = space < 0 ? text[2..] : text[2..space];
+
+        if (!int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out count)) return false;
+
+        rest = space < 0 ? "" : text[(space + 1)..];
+        return true;
     }
 
     private sealed class Pending(int seq)
@@ -559,6 +616,10 @@ public sealed class WcpClient : IDisposable
                 Raise(() => ArmedOn?.Invoke());
                 break;
 
+            case "BOOT":
+                OnBoot(line.Text.Trim());
+                break;
+
             case "DISARM":
                 ClearArming();
                 Raise(() => Disarmed?.Invoke(line.Text.Trim()));
@@ -572,6 +633,33 @@ public sealed class WcpClient : IDisposable
                 Raise(() => OtherEvent?.Invoke(line.Code, line.Text));
                 break;
         }
+    }
+
+    /// <summary>
+    /// A restart: everything the session had set up on the device is gone —
+    /// arming, an unlock, a stream — so the arming is forgotten here and
+    /// <c>hello</c> asked again, off the reading thread, since a request waits for
+    /// lines only that thread can deliver.
+    /// </summary>
+    private void OnBoot(string firmware)
+    {
+        Boots++;
+
+        if (ClearArming()) Raise(() => Disarmed?.Invoke("boot"));
+
+        Task.Run(() =>
+        {
+            try
+            {
+                if (!_disposed) Hello();
+            }
+            catch (Exception e) when (e is TimeoutException or WcpException or IOException or InvalidOperationException
+                                          or ObjectDisposedException or WcpNotSupportedException or InvalidDataException)
+            {
+            }
+
+            Raise(() => Booted?.Invoke(firmware));
+        });
     }
 
     /// <summary>
@@ -591,12 +679,12 @@ public sealed class WcpClient : IDisposable
     }
 
     /// <summary>
-    /// Reads the fields of a <c>!CAN</c> event: <c>&lt;t_ms&gt; &lt;id_hex&gt; &lt;x|s&gt; &lt;dlc&gt; &lt;data_hex&gt;</c>.
+    /// Reads the fields of a <c>!CAN</c> event: <c>&lt;t_ms&gt; &lt;id_hex&gt; &lt;flags&gt; &lt;dlc&gt; [data_hex]</c>,
+    /// the flags <c>s</c> or <c>x</c>, then <c>r</c> for a remote frame (contract 8.8).
     ///
-    /// The data is optional because a frame with no data has none to write, and
-    /// the contract does not say whether the firmware leaves a trailing space
-    /// before the star in that case; both are accepted. A data length that
-    /// disagrees with the DLC is a torn line and is refused rather than decoded.
+    /// The data is absent for a frame with none and for every remote frame. A data
+    /// length that disagrees with the DLC is a torn line and is refused rather than
+    /// decoded.
     /// </summary>
     public static bool TryParseCan(string fields, out WcpCanEvent frame)
     {
@@ -608,10 +696,16 @@ public sealed class WcpClient : IDisposable
         if (!long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out long ms)) return false;
         if (!TryParseId(parts[1], out uint id)) return false;
 
-        bool extended;
-        if (parts[2] == "x") extended = true;
-        else if (parts[2] == "s") extended = false;
-        else return false;
+        bool extended, remote;
+
+        switch (parts[2])
+        {
+            case "s": extended = false; remote = false; break;
+            case "x": extended = true; remote = false; break;
+            case "sr": extended = false; remote = true; break;
+            case "xr": extended = true; remote = true; break;
+            default: return false;
+        }
 
         if (extended ? id > 0x1FFFFFFF : id > 0x7FF) return false;
 
@@ -619,7 +713,7 @@ public sealed class WcpClient : IDisposable
             return false;
 
         string hex = parts.Length == 5 ? parts[4] : "";
-        if (hex.Length != dlc * 2) return false;
+        if (hex.Length != (remote ? 0 : dlc * 2)) return false;
 
         byte[] data;
 
@@ -632,7 +726,7 @@ public sealed class WcpClient : IDisposable
             return false;
         }
 
-        frame = new WcpCanEvent(ms, id, extended, data);
+        frame = new WcpCanEvent(ms, id, extended, data, remote, dlc);
         return true;
     }
 
@@ -700,7 +794,7 @@ public sealed class WcpClient : IDisposable
     /// </summary>
     public void Reboot()
     {
-        Request("reboot", retryOnTimeout: false);
+        Request("reboot", RebootTimeout, retryOnTimeout: false);
         ClearArming();
     }
 
@@ -775,17 +869,23 @@ public sealed class WcpClient : IDisposable
     public string ConfigSave(bool reboot = false)
     {
         // Longer than the default: this validates, writes a temporary file to
-        // flash and renames it, and the contract's 3 s is a figure for commands
-        // that do not touch flash. Retried on a timeout only without the reboot.
+        // flash and renames it. Retried on a timeout only without the reboot.
         WcpReply reply = Request(
             reboot ? "config save --reboot" : "config save",
-            TimeSpan.FromTicks(Math.Max(Timeout.Ticks, TimeSpan.FromSeconds(10).Ticks)),
+            Longer(ConfigSaveTimeout),
             retryOnTimeout: !reboot);
 
         if (reboot) ClearArming();
 
         return reply.Summary;
     }
+
+    /// <summary>
+    /// A command's own timeout, or this client's general one where that is longer —
+    /// so a test that shortens <see cref="Timeout"/> does not lengthen everything,
+    /// and nothing waits less than its command needs.
+    /// </summary>
+    private TimeSpan Longer(TimeSpan own) => own > Timeout ? own : Timeout;
 
     private static void CheckKey(string key)
     {
@@ -850,7 +950,8 @@ public sealed class WcpClient : IDisposable
             if (parts.Length < 2) continue;
 
             long size = long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out long s) ? s : -1;
-            files.Add(new WcpLogFile(parts[0], size, parts.Length > 2 ? string.Join(' ', parts[2..]) : ""));
+            long mtime = parts.Length > 2 && long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out long m) ? m : 0;
+            files.Add(new WcpLogFile(parts[0], size, mtime));
         }
 
         return files;
@@ -975,19 +1076,19 @@ public sealed class WcpClient : IDisposable
 
     // ----- CAN, receive ------------------------------------------------------
 
-    /// <summary><c>can status</c>: mode, bitrate, counters, arming, allowlist, transmit rate.</summary>
+    /// <summary><c>can status</c>: mode, bitrate, counters, <c>armed</c> and <c>tx_rate_cap</c>.</summary>
     public WcpValues CanStatus() => new(Request("can status").Data);
 
     /// <summary>
-    /// <c>can start [bitrate]</c>: starts the CAN controller, listen-only. Without
+    /// <c>can start [kbps]</c>: starts the CAN controller, listen-only. Without
     /// a bitrate the device uses its configured one.
     /// </summary>
-    /// <param name="bitrate">Bits per second, e.g. 500000; null for the configured rate.</param>
-    public void CanStart(int? bitrate = null)
+    /// <param name="kbps">Kilobits per second, e.g. 500 (contract 8.8); null for the configured rate.</param>
+    public void CanStart(int? kbps = null)
     {
-        if (bitrate is { } b) ArgumentOutOfRangeException.ThrowIfLessThan(b, 1);
+        if (kbps is { } k) ArgumentOutOfRangeException.ThrowIfLessThan(k, 1);
 
-        Request(bitrate is { } rate
+        Request(kbps is { } rate
             ? string.Create(CultureInfo.InvariantCulture, $"can start {rate}")
             : "can start");
     }
@@ -1103,32 +1204,43 @@ public sealed class WcpClient : IDisposable
     public const int MaxLuaChunk = 300;
 
     /// <summary>
-    /// How long <c>lua eval</c> is waited for. The firmware gives a chunk 5 s, so the
-    /// contract's 3 s default would give up on one that is still within its limit.
+    /// How long <c>lua eval</c> is waited for (contract 8.6). The firmware gives a
+    /// chunk 5 s, so the 3 s default would give up on one still within its limit.
     /// </summary>
     public static readonly TimeSpan LuaEvalTimeout = TimeSpan.FromSeconds(8);
+
+    /// <summary>How long <c>lua run</c> is waited for: it compiles and runs the script's top level.</summary>
+    public static readonly TimeSpan LuaRunTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The most Lua source <c>lua eval</c> takes, decoded, in bytes.</summary>
+    public const int MaxEvalBytes = 4096;
 
     /// <summary><c>lua status</c>: the engine, whether scripts may transmit, and each script.</summary>
     public WcpLuaStatus LuaStatus()
     {
         WcpReply reply = Request("lua status");
 
-        // Two shapes in one reply: the engine's key=value lines and a
-        // space-separated line per script. A script line never has an '='.
+        // The engine's key=value lines, and one line per script that is itself
+        // key=value pairs: script=<name> state=… mem_kb=… (contract 8.8).
         var scripts = new List<WcpLuaScript>();
+        var engine = new List<string>();
 
-        foreach (string line in reply.Data.Where(l => !l.Contains('=', StringComparison.Ordinal)))
+        foreach (string line in reply.Data)
         {
-            string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (p.Length < 2) continue;
+            if (!line.StartsWith("script=", StringComparison.Ordinal))
+            {
+                engine.Add(line);
+                continue;
+            }
 
-            scripts.Add(new WcpLuaScript(p[0], p[1], Num(p, 2), Num(p, 3), Num(p, 4), Num(p, 5)));
+            var fields = new WcpValues(line.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+            scripts.Add(new WcpLuaScript(
+                fields["script"], fields["state"], fields.Long("mem_kb") ?? 0, fields.Long("cb_max_ms") ?? 0,
+                fields.Long("queue_drops") ?? 0, fields.Long("errors") ?? 0));
         }
 
-        return new WcpLuaStatus(new WcpValues(reply.Data), scripts);
-
-        static long Num(string[] p, int i) =>
-            i < p.Length && long.TryParse(p[i], NumberStyles.None, CultureInfo.InvariantCulture, out long v) ? v : 0;
+        return new WcpLuaStatus(new WcpValues(engine), scripts);
     }
 
     /// <summary><c>lua list</c>: the stored scripts.</summary>
@@ -1155,9 +1267,8 @@ public sealed class WcpClient : IDisposable
     /// <para>
     /// Each chunk says where it goes, so sending one twice writes the same bytes to
     /// the same place, and a chunk is retried like any other idempotent request.
-    /// The count in each final line is checked: the contract says <c>OK &lt;bytes&gt;</c>
-    /// without saying whether that is the chunk or the file so far, so either is
-    /// accepted and anything else is a failed upload.
+    /// Each answer is <c>OK n=0 &lt;file_total_bytes&gt;</c> (contract 8.7), and the total
+    /// must be where this chunk ends, or the upload has failed.
     /// </para>
     ///
     /// <para>Uploading does not run anything. <see cref="LuaRun"/> does.</para>
@@ -1181,7 +1292,7 @@ public sealed class WcpClient : IDisposable
             string first = reply.Summary.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
 
             if (!long.TryParse(first, NumberStyles.None, CultureInfo.InvariantCulture, out long said)
-                || said != length && said != offset + length)
+                || said != offset + length)
                 throw new InvalidDataException(
                     $"Uploading {name}: the WiCAN acknowledged {(first.Length > 0 ? first : "nothing")} bytes "
                     + $"for the {length} at {offset}.");
@@ -1230,7 +1341,7 @@ public sealed class WcpClient : IDisposable
     public void LuaRun(string name)
     {
         CheckScriptName(name);
-        Request($"lua run {name}", retryOnTimeout: false);
+        Request($"lua run {name}", Longer(LuaRunTimeout), retryOnTimeout: false);
     }
 
     /// <summary>
@@ -1250,24 +1361,33 @@ public sealed class WcpClient : IDisposable
     }
 
     /// <summary>
-    /// <c>lua eval &lt;code&gt;</c>: a one-off chunk in a scratch VM, with its output.
+    /// <c>lua eval &lt;base64&gt;</c>: a one-off chunk in a scratch VM, with its output.
     ///
     /// <para>
-    /// One line only. WCP is line-framed, so a chunk with a line break in it cannot
-    /// be sent; Lua accepts <c>;</c> between statements, but a <c>--</c> comment
-    /// would swallow everything after it on the line, so code is refused rather
-    /// than having its line breaks quietly replaced.
+    /// The code travels as base64 (contract 8.6), so it may be several lines, up to
+    /// <see cref="MaxEvalBytes"/>. In practice the 512-byte request limit binds
+    /// first: base64 is four characters for three bytes, so about 360 bytes of
+    /// source fit in one request. Longer code is refused here with that said, and
+    /// is better uploaded and run.
     /// </para>
     /// </summary>
     public WcpConsoleResult LuaEval(string code)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
 
-        if (code.AsSpan().IndexOfAny('\r', '\n') >= 0)
-            throw new WcpException("HOST",
-                "lua eval takes one line. Join the statements with ';', or upload the script and run it.", "lua eval");
+        byte[] bytes = Encoding.UTF8.GetBytes(code);
 
-        WcpReply reply = Exchange($"lua eval {code.Trim()}", LuaEvalTimeout, retryOnTimeout: false);
+        if (bytes.Length > MaxEvalBytes)
+            throw new WcpException("HOST", $"lua eval takes at most {MaxEvalBytes} bytes of code, not {bytes.Length}.", "lua eval");
+
+        string command = $"lua eval {Convert.ToBase64String(bytes)}";
+
+        if (Wcp.Frame($"#65535 {command}").Length + 1 > Wcp.MaxRequestBytes)
+            throw new WcpException("HOST",
+                $"That code is {bytes.Length} bytes, and as base64 it does not fit in one {Wcp.MaxRequestBytes}-byte request "
+                + "(about 360 bytes do). Upload it with lua put and run it instead.", "lua eval");
+
+        WcpReply reply = Exchange(command, Longer(LuaEvalTimeout), retryOnTimeout: false);
 
         return new WcpConsoleResult(reply.Ok, reply.Data, reply.Ok ? "" : $"{reply.Code} {reply.Summary}".Trim());
     }

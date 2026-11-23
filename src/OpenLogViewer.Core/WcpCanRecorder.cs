@@ -149,7 +149,7 @@ public sealed class WcpCanRecorder : IDisposable
             }
             else
             {
-                var frame = new SlcanFrame(seconds, e.Id, e.Extended, false, e.Data);
+                var frame = new SlcanFrame(seconds, e.Id, e.Extended, e.Remote, e.Data);
                 FrameCount++;
 
                 _file.WriteLine(string.Create(CultureInfo.InvariantCulture,
