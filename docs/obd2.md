@@ -197,6 +197,12 @@ its ELM327 chip, which echoes it back; that is taken as "stock", the stray answe
 is cleared, and the session is plain OBD2 exactly as before. The hint under the
 toolbar says when the custom firmware was found.
 
+A unit that is still booting answers `hello` with `BUSY`, and is asked again for
+up to 10 s rather than taken for stock. A unit that says nothing at all, because
+it was restarting, is taken for stock until it announces its restart: OpenLogViewer
+then asks `hello` again, and if the custom firmware answers, its features appear
+without reconnecting.
+
 **OBD2 logging keeps working at the same time.** Both conversations share the one
 USB port. Every WCP line starts with `#` or `!`, which ELM327 output never begins
 a line with, so the two are separated as they arrive and neither sees the other.
@@ -210,13 +216,13 @@ What it gives, through the MCP tools (see [AI agent access](mcp-server.md#wican-
 | Console | Run any of the firmware's own console commands |
 | AutoPID | The values the unit polls from the car by itself |
 | SD logs | List the logger's files and download one |
-| CAN stream | Record the bus listen-only to a file, with an optional filter, and get the same byte log as an [slcan capture](#raw-can-capture-wican-in-slcan-mode) |
-| CAN transmit | Arm, send frames, disarm |
-| Lua | List, read, upload, run, stop and evaluate scripts that run on the unit itself |
+| CAN stream | Record the bus listen-only to a file, with an optional filter (standard or extended frames), and get the same byte log as an [slcan capture](#raw-can-capture-wican-in-slcan-mode) |
+| CAN transmit | Arm, send frames, disarm, and clear a transmit fault |
+| Lua | List, read, upload, run, stop and evaluate scripts that run on the unit itself, and see each script's free stack |
 
 ### What asks a person first
 
-Four things change the unit or can reach the vehicle's bus, and each shows the
+Five things change the unit or can reach the vehicle's bus, and each shows the
 same confirmation dialog as an ECU write. A tool call waits until it is answered:
 
 - **Saving settings.** The dialog lists every change. The unit checks them as it
@@ -226,7 +232,15 @@ same confirmation dialog as an ECU write. A tool call waits until it is answered
   200 frames a second. It lasts until it is disarmed, the unit restarts, or 10 s
   pass with nothing from this computer; OpenLogViewer keeps it alive while it is
   connected. Sends after that are not asked about again — that is the design of
-  the gate, so the arming question is the moment to be sure.
+  the gate, so the arming question is the moment to be sure. The unit refuses to
+  arm (`no-traffic`) unless it has received CAN frames in the last second, which is
+  its check that the bitrate is right before it drives the bus.
+- **Clearing a transmit fault.** If a frame cannot be sent (a transmit timeout,
+  bus-off, error-passive, or the error counter climbing), the unit latches
+  transmit off: it disarms with the fault as the reason, goes back to
+  listen-only and suspends Lua transmit. `wican_can_status` shows the fault. It
+  stays latched until it is cleared, and clearing it is asked like an arming,
+  because it is what lets transmit back on after the bus refused it.
 - **Uploading, running or evaluating a Lua script.** The dialog names the script
   and its size, and says whether `lua_can_tx` is enabled. With it enabled, a
   script can transmit on the bus by itself, with no arming and nobody watching.
@@ -244,6 +258,32 @@ Disarming and stopping scripts never ask.
 - **Only alongside an OBD2 session.** The features live as long as the session,
   so a car that lists no parameters (ignition off) means no session and no WCP.
 - **Over MCP only.** Nothing in the window drives these features yet.
+
+### How the link copes with losses
+
+Serial-B drops bytes while the unit writes flash, so every line carries a CRC and
+a request can be asked again. A retry after a timeout keeps the request's number,
+and the firmware answers a number it has already run from a store of its last
+eight replies, without running the command again. A frame send, `lua run`,
+`lua eval` and a restart are never retried at all.
+
+- **Uploads resume.** If a chunk of a Lua upload loses its answer, OpenLogViewer
+  asks for the stored size and carries on from the end of what landed, or starts
+  over from the beginning if the size makes no sense.
+- **Long settings are read whole.** The unit cuts a value longer than a line can
+  carry and marks it with `~`; OpenLogViewer then asks for that value again as
+  base64, so the value you see is complete.
+- **Script output is shown as printed.** The unit escapes `>` and unprintable
+  bytes as `\xHH` so they cannot be mistaken for the ELM327 prompt; OpenLogViewer
+  turns them back.
+- **WCP waits its turn.** A WCP request is held while the ELM327 chip is still
+  answering an OBD2 command, for at most 1.7 s, so the two do not contend for the
+  port.
+- **The session is kept alive.** The unit treats 10 s without a request as a
+  disconnect: it disarms, ends a `config unlock`, and drops staged settings. So
+  OpenLogViewer pings every 2 s while any of those is in force. A save is refused
+  if the unit's settings changed since the change was staged, and a staged value
+  containing the password mask `****` is refused.
 
 ## Speed, and why it is slow
 

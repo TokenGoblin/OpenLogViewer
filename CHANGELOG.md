@@ -13,6 +13,12 @@ A stock unit is plain ELM327, as before. Saving settings, arming transmit (once
 per arming) and uploading, running or evaluating Lua all ask a person first.
 Built against a simulation of the firmware only.
 
+Brought in line with the firmware review fixes: a lost answer to an upload chunk
+is recovered, a unit still booting is asked again, retries keep their number so
+the firmware answers them without running anything twice, a transmit fault is
+shown and clearing it (`wican_can_resume`) asks a person, and long settings and
+escaped script output arrive whole.
+
 ### A MaxxECU can now be connected over USB, with every channel it sends
 
 **A MaxxECU's USB port is not a COM port and never becomes one.** The driver
