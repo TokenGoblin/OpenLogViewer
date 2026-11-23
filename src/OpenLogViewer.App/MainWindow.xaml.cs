@@ -692,6 +692,29 @@ public partial class MainWindow : Window
         _vm.EditTable(TuneTableEdit.Set(value));
     }
 
+    /// <summary>
+    /// Runs <see cref="MainViewModel.ProbeSniper"/> and reports what it found —
+    /// a diagnostic action, not a connect. See that method's own doc comment
+    /// for why a Holley Sniper has no live-session connect entry point yet.
+    /// </summary>
+    public void ProbeSniper(string device)
+    {
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        string outcome;
+
+        try
+        {
+            outcome = _vm.ProbeSniper(device);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        Report(outcome);
+    }
+
     private void Report(string outcome)
     {
         _vm.SetHint(outcome);

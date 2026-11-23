@@ -54,7 +54,7 @@ public partial class App : Application
         // here swallows whatever follows it whether or not that was meant for
         // it. That is the "--insights" trap above, and it turns
         // "--connect-maxxecu-usb run.mlg" into a session with no log open.
-        "--maxxecu-serial",
+        "--maxxecu-serial", "--probe-sniper",
     ];
 
     /// <summary>
@@ -188,6 +188,13 @@ public partial class App : Application
             _ = window.ConnectToWifi(
                 at.Equals("auto", StringComparison.OrdinalIgnoreCase) ? "" : at);
         }
+
+        // "--probe-sniper" attempts a real connection to a Holley Sniper ECU
+        // over its USB->CAN dongle and reports what happened — a diagnostic,
+        // not a live connect, since nothing here can decode telemetry into
+        // named channels yet. See MainViewModel.ProbeSniper's own doc
+        // comment for why.
+        if (e.Args.Contains("--probe-sniper")) window.ProbeSniper("");
 
         int viaMenu = Array.IndexOf(e.Args, "--connect-menu");
         if (viaMenu >= 0 && viaMenu + 1 < e.Args.Length)
