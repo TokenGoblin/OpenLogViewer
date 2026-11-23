@@ -29,6 +29,9 @@ public enum WriteKind
     /// <summary>CAN transmit on a WiCAN Pro, armed for any identifier until it is disarmed.</summary>
     CanArm,
 
+    /// <summary>A WiCAN Pro's transmit fault latch cleared, so CAN transmit can be armed again.</summary>
+    CanResume,
+
     /// <summary>A Lua script, into a WiCAN Pro's flash.</summary>
     LuaUpload,
 

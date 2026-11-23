@@ -19,11 +19,12 @@ namespace OpenLogViewer.App.Mcp;
 /// </para>
 ///
 /// <para>
-/// <b>What a person is asked, and what they are not.</b> Four things go through
+/// <b>What a person is asked, and what they are not.</b> Five things go through
 /// the same <see cref="IWriteConfirmation"/> dialog as an ECU write, and the call
 /// blocks until it is answered: saving settings to the unit's flash
 /// (<c>wican_config_save</c>), arming CAN transmit (<c>wican_can_arm</c>, once per
-/// arming), and uploading, running or evaluating Lua (<c>wican_lua_put</c>,
+/// arming), clearing a transmit fault latch so it can be armed again
+/// (<c>wican_can_resume</c>), and uploading, running or evaluating Lua (<c>wican_lua_put</c>,
 /// <c>wican_lua_run</c>, <c>wican_lua_eval</c>), because a script can transmit by
 /// itself when <c>lua_can_tx</c> is enabled. <c>wican_can_send</c> does not ask:
 /// it requires transmit to be armed, and the arming was the question. Stopping
@@ -220,17 +221,34 @@ public static class WicanTools
 
     [McpServerTool]
     [Description(
-        "The WiCAN's CAN controller: mode, bitrate, frames received and sent, drops, bus errors, whether "
-        + "transmit is armed, and whether a recording from wican_can_stream is running.")]
+        "The WiCAN's CAN controller: mode, bitrate, frames received and sent, rxRecent (frames in the last "
+        + "second: arming is refused with no-traffic when this is 0), drops, bus errors, whether transmit is armed, "
+        + "and whether a recording from wican_can_stream is running. transmitFault is set when the WiCAN latched "
+        + "transmit off after a bus fault (tx-timeout, bus-off, error-passive, tec): it disarmed, went back to "
+        + "listen-only and suspended Lua transmit, and stays so until wican_can_resume.")]
     public static Task<object> WicanCanStatus(MainViewModel vm, IUiDispatcher dispatcher) =>
-        Read(vm, dispatcher, w => new
+        Read(vm, dispatcher, w =>
         {
-            ok = true,
-            can = Values(w.Client.CanStatus()),
-            armedHere = w.Client.IsArmed,
-            recording = w.Capture is { } c
-                ? new { running = c.IsRunning, path = c.Path, frames = c.FrameCount, dropped = c.Dropped, seconds = Math.Round(c.Elapsed, 1), stoppedBecause = c.StoppedBecause }
-                : null,
+            WcpValues can = w.Client.CanStatus();
+            string? fault = w.Client.TransmitFault;
+
+            return new
+            {
+                ok = true,
+                can = Values(can),
+                rxRecent = can.Long(WcpWire.RxRecent),
+                armedHere = w.Client.IsArmed,
+                transmitFault = fault,
+                lastDisarm = w.Client.LastDisarmReason,
+                warning = fault is null
+                    ? null
+                    : $"TRANSMIT FAULT: the WiCAN latched CAN transmit off ({fault}) and disarmed. It is listen-only, and "
+                      + "Lua transmit is suspended, until wican_can_resume (which a person confirms). Find the cause — a "
+                      + "wrong bitrate, a bus with nothing to acknowledge, or frames a module objects to — before resuming.",
+                recording = w.Capture is { } c
+                    ? new { running = c.IsRunning, path = c.Path, frames = c.FrameCount, dropped = c.Dropped, seconds = Math.Round(c.Elapsed, 1), stoppedBecause = c.StoppedBecause }
+                    : null,
+            };
         });
 
     [McpServerTool]
@@ -312,6 +330,15 @@ public static class WicanTools
         dispatcher.InvokeAsync(() => Outcome(vm.WicanCanArm()));
 
     [McpServerTool]
+    [Description(
+        "Clears the WiCAN's transmit fault latch (can resume) after it disarmed with a fault — see transmitFault in "
+        + "wican_can_status. It does not arm, but it lets transmit be armed again and lifts the suspension of Lua "
+        + "transmit, so it shows a confirmation dialog and waits: nothing is sent unless a person clicks OK. Find "
+        + "the fault's cause first. Never on a moving vehicle.")]
+    public static Task<object> WicanCanResume(MainViewModel vm, IUiDispatcher dispatcher) =>
+        dispatcher.InvokeAsync(() => Outcome(vm.WicanCanResume()));
+
+    [McpServerTool]
     [Description("Disarms CAN transmit on the WiCAN at once. Never asks.")]
     public static Task<object> WicanCanDisarm(MainViewModel vm, IUiDispatcher dispatcher) =>
         Read(vm, dispatcher, w =>
@@ -359,7 +386,9 @@ public static class WicanTools
     [McpServerTool]
     [Description(
         "The WiCAN's Lua engine: whether scripts may transmit on the CAN bus (tx: enabled, disabled or "
-        + "suspended — set by the lua_can_tx setting), transmit counts, and each loaded script's state.")]
+        + "suspended — set by the lua_can_tx setting), transmit counts, and each loaded script's state, memory, "
+        + "slowest callback, errors and stackFree (bytes of its task's stack never used; small means close to "
+        + "overflowing).")]
     public static Task<object> WicanLuaStatus(MainViewModel vm, IUiDispatcher dispatcher) =>
         Read(vm, dispatcher, w =>
         {
@@ -369,7 +398,7 @@ public static class WicanTools
                 ok = true,
                 engine = Values(s.Values),
                 transmitEnabled = s.TransmitEnabled,
-                scripts = s.Scripts.Select(x => new { name = x.Name, state = x.State, memKb = x.MemKb, callbackMaxMs = x.CallbackMaxMs, queueDrops = x.QueueDrops, errors = x.Errors }),
+                scripts = s.Scripts.Select(x => new { name = x.Name, state = x.State, memKb = x.MemKb, callbackMaxMs = x.CallbackMaxMs, queueDrops = x.QueueDrops, errors = x.Errors, stackFree = x.StackFree }),
             };
         });
 
@@ -424,7 +453,7 @@ public static class WicanTools
     [McpServerTool]
     [Description(
         "Runs a chunk of Lua on the WiCAN in a scratch VM (5 s limit) and returns what it printed — the quick "
-        + "way to poke at the unit. About 360 bytes of code fit in one request; upload anything longer with "
+        + "way to poke at the unit. At most 360 bytes of code fit in one request; upload anything longer with "
         + "wican_lua_put and run it. Shows a confirmation dialog with the code and "
         + "whether lua_can_tx lets it transmit, and waits for a person.")]
     public static Task<object> WicanLuaEval(

@@ -4265,8 +4265,7 @@ public sealed partial class MainViewModel : ObservableObject
         // session starts on the same port: see WicanPro.
         if (Obd2Adapters.IsWiCanProUsb(SerialPortNames.DeviceIdOf(port)))
         {
-            WicanProConnection pro = WicanPro.ConnectOnPort(port, BatchMemory);
-            StartObd2(pro.Source, port, pro.Wcp);
+            StartWicanPro(WicanPro.ConnectOnPort(port, BatchMemory), port);
             return;
         }
 
@@ -5000,6 +4999,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Before the session, while the link is still open: disposing it disarms
         // CAN transmit if it was armed and ends any recording cleanly.
+        ForgetWicanPending();
         _wican?.Dispose();
         _wican = null;
 

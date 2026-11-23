@@ -100,6 +100,7 @@ public class WicanWorkflowTests : IDisposable
     public void DisconnectingDisarms()
     {
         MainViewModel vm = Connected(out FakeWcpDevice device);
+        vm.Wican!.Client.CanStart();
         vm.WicanCanArm();
         Assert.True(device.Armed);
 
@@ -358,5 +359,95 @@ public class WicanWorkflowTests : IDisposable
         Assert.True(Get<bool>(await WicanTools.WicanLuaStop(vm, _ui), "ok"));
         Assert.Equal(3, _confirm.Asked.Count);
         Assert.Equal("stopped", device.LuaStates["speedo"]);
+    }
+
+    // ----- after the review fixes of 2026-11-22 ---------------------------------
+
+    [Fact]
+    public async Task AFaultIsShownAndResumingItAsksFirst()
+    {
+        MainViewModel vm = Connected(out FakeWcpDevice device);
+        vm.Wican!.Client.CanStart();
+        Assert.True(vm.WicanCanArm().Done);
+
+        device.FailNextSend = true;
+        Assert.False(Get<bool>(await WicanTools.WicanCanSend("7E0", "01", vm, _ui), "ok"));
+
+        DateTime until = DateTime.UtcNow.AddSeconds(3);
+        while (vm.Wican.Client.TransmitFault is null && DateTime.UtcNow < until) Thread.Sleep(10);
+
+        object status = await WicanTools.WicanCanStatus(vm, _ui);
+        Assert.Equal("tx-timeout", Get<string>(status, "transmitFault"));
+        Assert.Contains("TRANSMIT FAULT", Get<string>(status, "warning"), StringComparison.Ordinal);
+        Assert.Equal("fault tx-timeout", Get<string>(status, "lastDisarm"));
+
+        // Arming is refused here while latched, without a question.
+        int asked = _confirm.Asked.Count;
+        WicanOutcome arm = vm.WicanCanArm();
+        Assert.False(arm.Done);
+        Assert.Contains("wican_can_resume", arm.Message, StringComparison.Ordinal);
+        Assert.Equal(asked, _confirm.Asked.Count);
+
+        _confirm.Answer = false;
+        Assert.True(Get<bool>(await WicanTools.WicanCanResume(vm, _ui), "declined"));
+        Assert.Equal("tx-timeout", device.TxFault);
+        Assert.Equal(WriteKind.CanResume, _confirm.Last!.Kind);
+        Assert.Contains("tx-timeout", _confirm.Last.Detail, StringComparison.Ordinal);
+
+        _confirm.Answer = true;
+        Assert.True(Get<bool>(await WicanTools.WicanCanResume(vm, _ui), "ok"));
+        Assert.Null(device.TxFault);
+        Assert.Null(vm.Wican.Client.TransmitFault);
+        Assert.False(device.Armed);
+
+        Assert.True(vm.WicanCanArm().Done);
+    }
+
+    [Fact]
+    public void ArmingOnASilentBusSaysWhy()
+    {
+        MainViewModel vm = Connected(out FakeWcpDevice device);
+        device.BusChatter = false;
+        vm.Wican!.Client.CanStart();
+
+        WicanOutcome arm = vm.WicanCanArm();
+
+        Assert.False(arm.Done);
+        Assert.Contains("no CAN frames", arm.Message, StringComparison.Ordinal);
+        Assert.False(device.Armed);
+    }
+
+    [Fact]
+    public async Task LuaStatusShowsStackFree()
+    {
+        MainViewModel vm = Connected(out FakeWcpDevice device);
+        device.LuaScripts["a"] = "x"u8.ToArray();
+        vm.Wican!.Client.LuaRun("a");
+
+        object status = await WicanTools.WicanLuaStatus(vm, _ui);
+        object script = ((System.Collections.IEnumerable)Get<object>(status, "scripts")).Cast<object>().Single();
+
+        Assert.Equal(31744L, Get<long?>(script, "stackFree"));
+    }
+
+    [Fact]
+    public void AUnitThatWasRestartingIsTakenOverWhenItSaysBoot()
+    {
+        MainViewModel vm = NewViewModel();
+        var device = new FakeWcpDevice(FakeWcpDevice.Car()) { Silent = true };
+        vm.ConnectObd2WicanPro(device, "COM8", TimeSpan.FromMilliseconds(200));
+
+        Assert.True(vm.IsObd2Live);
+        Assert.False(vm.IsWicanLive);
+
+        device.Silent = false;
+        device.AnnounceBoot();
+
+        DateTime until = DateTime.UtcNow.AddSeconds(3);
+        while (!vm.IsWicanLive && DateTime.UtcNow < until) Thread.Sleep(20);
+
+        Assert.True(vm.IsWicanLive);
+        Assert.Equal("v4.50p+wcp1", vm.Wican!.Identity!.Firmware);
+        Assert.Equal("COM8", vm.Wican.Port);
     }
 }

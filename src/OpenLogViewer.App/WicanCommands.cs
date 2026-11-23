@@ -24,7 +24,7 @@ public sealed record WicanOutcome(bool Done, bool Declined, string Message, IRea
 /// The WiCAN Pro's custom-firmware features, as the view model offers them.
 ///
 /// <para>
-/// <b>Where the gate is.</b> Four things here change the unit or can reach the
+/// <b>Where the gate is.</b> Five things here change the unit or can reach the
 /// vehicle's bus, and every one asks <see cref="IWriteConfirmation"/> first, after
 /// its own checks and immediately before the request goes out — the same rule
 /// every ECU write here follows, and for the same reason: the question quotes what
@@ -35,6 +35,8 @@ public sealed record WicanOutcome(bool Done, bool Declined, string Message, IRea
 /// <item><see cref="WicanCanArm"/> — once per arming. Individual sends are not asked
 /// about again, which is the owner's decision recorded in the contract: the gate is
 /// deliberately light, and the question is the moment to be sure.</item>
+/// <item><see cref="WicanCanResume"/> — clears a transmit fault latch, which is what
+/// lets transmit be armed again after the bus refused it.</item>
 /// <item><see cref="WicanLuaPut"/>, <see cref="WicanLuaRun"/>, <see cref="WicanLuaEval"/> —
 /// a script can transmit on the bus by itself when <c>lua_can_tx</c> is enabled,
 /// with no arming and nobody watching, so the question says whether it is.</item>
@@ -44,21 +46,77 @@ public sealed partial class MainViewModel
 {
     private WicanDevice? _wican;
 
+    /// <summary>
+    /// A WiCAN Pro connection that answered as stock firmware, watched for a
+    /// <c>!BOOT</c> after which the custom firmware may answer after all (a unit
+    /// that was restarting when it was connected). Null otherwise.
+    /// </summary>
+    private WicanProConnection? _wicanPending;
+    private string _wicanPendingPort = "";
+
     /// <summary>The WiCAN Pro's custom firmware, while an OBD2 session is connected through one. Null otherwise.</summary>
-    public WicanDevice? Wican => _wican;
+    public WicanDevice? Wican
+    {
+        get
+        {
+            AdoptLateWcp();
+            return _wican;
+        }
+    }
 
     /// <summary>Whether a WiCAN Pro with the custom firmware is connected.</summary>
-    public bool IsWicanLive => _wican is not null && IsLive;
+    public bool IsWicanLive => Wican is not null && IsLive;
 
     /// <summary>
     /// Connects to a WiCAN Pro over a transport already chosen: the WCP probe,
     /// then the ELM327 session on the same link. The seam the tests drive, and
     /// the path <see cref="ConnectObd2(string)"/> takes for a Pro's USB port.
     /// </summary>
-    public void ConnectObd2WicanPro(IEcuTransport transport, string port, TimeSpan? helloTimeout = null)
+    public void ConnectObd2WicanPro(IEcuTransport transport, string port, TimeSpan? helloTimeout = null) =>
+        StartWicanPro(WicanPro.Connect(transport, BatchMemory, helloTimeout), port);
+
+    private void StartWicanPro(WicanProConnection pro, string port)
     {
-        WicanProConnection pro = WicanPro.Connect(transport, BatchMemory, helloTimeout);
         StartObd2(pro.Source, port, pro.Wcp);
+
+        if (pro.Wcp is null)
+        {
+            // Taken over when next asked for, on the asking thread (see Wican),
+            // rather than from the worker thread that finds it.
+            _wicanPending = pro;
+            _wicanPendingPort = port;
+        }
+    }
+
+    /// <summary>
+    /// Takes over a control lane that answered after the session started, on the
+    /// thread asking — the interface thread — rather than the one that found it.
+    /// </summary>
+    private void AdoptLateWcp()
+    {
+        if (_wicanPending is not { } pending || _wican is not null) return;
+        if (pending.Wcp is not { } late) return;
+
+        _wicanPending = null;
+
+        if (_live is null || !ReferenceEquals(_obd2, pending.Source))
+        {
+            late.Dispose();
+            return;
+        }
+
+        _wican = new WicanDevice(late, _wicanPendingPort);
+    }
+
+    /// <summary>Stops watching for a late control lane, disposing one that answered and was never taken over.</summary>
+    private void ForgetWicanPending()
+    {
+        if (_wicanPending is not { } pending) return;
+
+        _wicanPending = null;
+        pending.StopWatching();
+
+        if (_wican is null) pending.Wcp?.Dispose();
     }
 
     private const string NoWican =
@@ -77,7 +135,7 @@ public sealed partial class MainViewModel
     /// </summary>
     public WicanOutcome WicanConfigSave(bool reboot = false)
     {
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
 
         IReadOnlyList<WcpConfigChange> diff;
 
@@ -139,9 +197,14 @@ public sealed partial class MainViewModel
     /// </summary>
     public WicanOutcome WicanCanArm()
     {
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
 
         if (wican.Client.IsArmed) return new WicanOutcome(true, false, "Already armed.");
+
+        if (wican.Client.TransmitFault is { } latched)
+            return WicanOutcome.Refused(
+                $"Transmit is latched off after a bus fault ({latched}). Find out why first; wican_can_resume clears "
+                + "the latch, which a person confirms, and then it can be armed again.");
 
         if (!_confirm.Confirm(new WriteRequest(
                 WriteKind.CanArm,
@@ -164,7 +227,46 @@ public sealed partial class MainViewModel
         }
         catch (Exception e) when (IsWcpFailure(e))
         {
-            return WicanOutcome.Refused($"The WiCAN did not arm: {e.Message}");
+            return WicanOutcome.Refused(e is WcpException { IsNoTraffic: true }
+                ? "The WiCAN refused to arm: it has received no CAN frames cleanly in the last second, which is its "
+                  + "check that the bitrate is right before it lets the controller drive the bus. Is the controller "
+                  + "started (wican_can_stream start) at the vehicle's bitrate, and the ignition on?"
+                : $"The WiCAN did not arm: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Clears a latched transmit fault (<c>can resume</c>), once a person has agreed.
+    /// It does not arm, but it is what lets transmit back on after the bus said
+    /// something was wrong, so it is asked like an arming.
+    /// </summary>
+    public WicanOutcome WicanCanResume()
+    {
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
+
+        string fault = wican.Client.TransmitFault ?? "none seen by this application";
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.CanResume,
+                "Clear the WiCAN's transmit fault latch, so CAN transmit can be armed again?",
+                $"The latched fault: {fault}.\n\n"
+                + "The WiCAN latched transmit off because the bus refused its frames — a transmit timeout, bus-off, "
+                + "error-passive, or the error counter climbing. That usually means a wrong bitrate, a bus with nothing "
+                + "to acknowledge, or frames a module objects to. Clearing it does not arm transmit; it lets it be armed "
+                + "again, and also lifts the suspension of Lua transmit.\n\n"
+                + "Do not do this on a vehicle that is moving.")))
+        {
+            return WicanOutcome.NotConfirmed;
+        }
+
+        try
+        {
+            wican.Client.CanResume();
+            return new WicanOutcome(true, false, "Fault latch cleared. Transmit is still disarmed; arm it again to send.");
+        }
+        catch (Exception e) when (IsWcpFailure(e))
+        {
+            return WicanOutcome.Refused($"The WiCAN did not clear the latch: {e.Message}");
         }
     }
 
@@ -176,7 +278,7 @@ public sealed partial class MainViewModel
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
 
         if (!wican.Client.IsArmed)
             return WicanOutcome.Refused("Transmit is not armed. Arm it first (wican_can_arm), which a person confirms.");
@@ -200,7 +302,7 @@ public sealed partial class MainViewModel
     {
         ArgumentNullException.ThrowIfNull(script);
 
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
         if (!WcpClient.IsScriptName(name)) return WicanOutcome.Refused($"'{name}' is not a script name: letters, digits, '_' or '-', without '.lua'.");
         if (script.Length == 0) return WicanOutcome.Refused("The script is empty.");
 
@@ -243,7 +345,7 @@ public sealed partial class MainViewModel
     /// <summary>Starts a stored script now.</summary>
     public WicanOutcome WicanLuaRun(string name)
     {
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
         if (!WcpClient.IsScriptName(name)) return WicanOutcome.Refused($"'{name}' is not a script name.");
 
         WcpLuaFile? file;
@@ -284,16 +386,17 @@ public sealed partial class MainViewModel
     /// <summary>Runs a chunk of Lua in a scratch VM on the unit, and returns what it printed.</summary>
     public WicanOutcome WicanLuaEval(string code)
     {
-        if (_wican is not { } wican) return WicanOutcome.Refused(NoWican);
+        if (Wican is not { } wican) return WicanOutcome.Refused(NoWican);
         if (string.IsNullOrWhiteSpace(code)) return WicanOutcome.Refused("There is no code to run.");
 
         int size = Encoding.UTF8.GetByteCount(code);
 
         // Refused before the question rather than after it: the code travels as
         // base64, and what does not fit in one request should not be asked about.
-        if (Wcp.Frame($"#65535 lua eval {Convert.ToBase64String(Encoding.UTF8.GetBytes(code))}").Length + 1 > Wcp.MaxRequestBytes)
+        if (size > WcpClient.MaxEvalBytes)
             return WicanOutcome.Refused(
-                $"That code is {size:N0} bytes, too long for one request (about 360 bytes fit). Upload it with wican_lua_put and run it.");
+                $"That code is {size:N0} bytes, too long for one request (at most {WcpClient.MaxEvalBytes} fit). "
+                + "Upload it with wican_lua_put and run it.");
         string shown = code.Length > 300 ? code[..300] + "…" : code;
 
         if (!_confirm.Confirm(new WriteRequest(
