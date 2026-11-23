@@ -79,6 +79,16 @@ public interface IReadsAvailable
 /// </para>
 ///
 /// <para>
+/// <b>No WCP request while an ELM327 command waits for its prompt</b> (review item
+/// F17). The firmware holds WCP back from the moment an ELM327 command line
+/// arrives until the chip's <c>&gt;</c> goes out (contract 8.2), for up to 1.5 s, so
+/// a request written in that window only waits on the device instead of here —
+/// and eats its own timeout doing it. So a WCP line waits here for the prompt,
+/// for at most <see cref="ElmPromptWait"/>, and an ELM327 command written while a
+/// WCP line is waiting lets it go first.
+/// </para>
+///
+/// <para>
 /// <b>Closing it is a disconnect.</b> <see cref="Elm327Source.Recover"/> closes and
 /// reopens its transport to put a dead link back together; when that transport is
 /// this, the WCP side loses its link for the same moment, and the firmware treats
@@ -93,6 +103,33 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
     private readonly Lock _writeGate = new();
     private readonly object _elmGate = new();
     private readonly Queue<byte> _elm = new();
+
+    /// <summary>Guards the turn-taking between an ELM327 command awaiting its prompt and a WCP line waiting to go.</summary>
+    private readonly object _turn = new();
+    private DateTime? _elmAwaitingSince;
+    private int _wcpWaiting;
+
+    /// <summary>
+    /// The longest a WCP line waits for an ELM327 prompt before it goes anyway: a
+    /// little over the firmware's own 1.5 s hold, so a prompt that never comes —
+    /// a command the chip dropped — costs this once rather than stalling WCP.
+    /// </summary>
+    public static readonly TimeSpan ElmPromptWait = TimeSpan.FromMilliseconds(1700);
+
+    /// <summary>The longest an ELM327 command waits for a WCP line queued ahead of it.</summary>
+    private static readonly TimeSpan WcpTurnWait = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>WCP lines that had to wait for an ELM327 prompt before going out.</summary>
+    public long HeldForElm { get; private set; }
+
+    /// <summary>Whether an ELM327 command written here is still waiting for its <c>&gt;</c>.</summary>
+    public bool ElmAwaitingPrompt
+    {
+        get
+        {
+            lock (_turn) return _elmAwaitingSince is { } since && DateTime.UtcNow - since < ElmPromptWait;
+        }
+    }
 
     private Thread? _pump;
     private volatile bool _stop;
@@ -141,6 +178,12 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
 
         lock (_elmGate) _elm.Clear();
 
+        lock (_turn)
+        {
+            _elmAwaitingSince = null;
+            Monitor.PulseAll(_turn);
+        }
+
         _pump = new Thread(Pump) { IsBackground = true, Name = "WiCAN link" };
         _pump.Start();
     }
@@ -157,6 +200,12 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
         _inner.Close();
 
         lock (_elmGate) Monitor.PulseAll(_elmGate);
+
+        lock (_turn)
+        {
+            _elmAwaitingSince = null;
+            Monitor.PulseAll(_turn);
+        }
 
         if (wasOpen) Closed?.Invoke();
     }
@@ -206,6 +255,16 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
 
     private void TakeElm(ReadOnlySpan<byte> bytes)
     {
+        // The prompt ends the ELM327 exchange, and with it the firmware's hold on WCP.
+        if (bytes.Contains((byte)'>'))
+        {
+            lock (_turn)
+            {
+                _elmAwaitingSince = null;
+                Monitor.PulseAll(_turn);
+            }
+        }
+
         lock (_elmGate)
         {
             foreach (byte b in bytes) _elm.Enqueue(b);
@@ -262,15 +321,38 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
         lock (_elmGate) _elm.Clear();
     }
 
-    /// <summary>An ELM327 command, or anything else that is not WCP. Sent as it is given.</summary>
+    /// <summary>
+    /// An ELM327 command, or anything else that is not WCP. Sent as it is given,
+    /// after any WCP line already waiting for its turn; a carriage return in it
+    /// marks a command awaiting its prompt.
+    /// </summary>
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_fault is { } fault) throw new IOException(fault.Message, fault);
 
-        lock (_writeGate) _inner.Write(data);
+        bool command = data.Contains((byte)'\r');
+
+        lock (_turn)
+        {
+            // A WCP line that waited out the last prompt goes before this command,
+            // or a poll loop writing its next command the moment the prompt
+            // arrives would keep WCP waiting for ever.
+            DateTime until = DateTime.UtcNow + WcpTurnWait;
+
+            while (command && _wcpWaiting > 0 && _elmAwaitingSince is null && DateTime.UtcNow < until)
+                Monitor.Wait(_turn, until - DateTime.UtcNow);
+
+            lock (_writeGate) _inner.Write(data);
+
+            if (command) _elmAwaitingSince = DateTime.UtcNow;
+        }
     }
 
-    /// <summary>One WCP line, with a carriage return to end it.</summary>
+    /// <summary>
+    /// One WCP line, with a carriage return to end it. Waits first, for at most
+    /// <see cref="ElmPromptWait"/>, while an ELM327 command written here has not had
+    /// its prompt: see the class remarks.
+    /// </summary>
     public void SendLine(string line)
     {
         ArgumentNullException.ThrowIfNull(line);
@@ -280,7 +362,40 @@ public sealed class WcpLink : IEcuTransport, IWcpPort
 
         byte[] bytes = Encoding.ASCII.GetBytes(line + "\r");
 
-        lock (_writeGate) _inner.Write(bytes);
+        lock (_turn)
+        {
+            _wcpWaiting++;
+
+            try
+            {
+                bool held = false;
+
+                while (_elmAwaitingSince is { } since && _pump is not null)
+                {
+                    TimeSpan left = since + ElmPromptWait - DateTime.UtcNow;
+
+                    // No prompt in time: the command was dropped, or its answer
+                    // lost. Go anyway; the firmware's own hold has lapsed by now.
+                    if (left <= TimeSpan.Zero)
+                    {
+                        _elmAwaitingSince = null;
+                        break;
+                    }
+
+                    held = true;
+                    Monitor.Wait(_turn, left);
+                }
+
+                if (held) HeldForElm++;
+
+                lock (_writeGate) _inner.Write(bytes);
+            }
+            finally
+            {
+                _wcpWaiting--;
+                Monitor.PulseAll(_turn);
+            }
+        }
     }
 
     public void Dispose()

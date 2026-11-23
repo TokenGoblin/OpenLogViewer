@@ -211,7 +211,18 @@ public class WcpFramingTests
     // ----- sequence numbers ----------------------------------------------------
 
     [Fact]
-    public void SeqStartsAtOne() => Assert.Equal(1, new WcpSequence().Next());
+    public void SeqStartsAtOneWhenToldTo() => Assert.Equal(1, new WcpSequence(0).Next());
+
+    [Fact]
+    public void SeqStartsSomewhereRandomByDefault()
+    {
+        // F17: a firmware that answers a repeated seq from its reply store must
+        // not be handed the last session's seqs again by a new one.
+        int[] starts = [.. Enumerable.Range(0, 8).Select(_ => new WcpSequence().Next())];
+
+        Assert.All(starts, s => Assert.InRange(s, 1, 65535));
+        Assert.True(starts.Distinct().Count() > 1, string.Join(",", starts));
+    }
 
     [Fact]
     public void SeqWrapsPastZero()

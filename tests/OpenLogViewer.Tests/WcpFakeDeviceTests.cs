@@ -171,17 +171,24 @@ public class WcpFakeDeviceTests : IDisposable
         Assert.Contains($"#{_seq}:armed=0", can);
         Assert.DoesNotContain(can, l => l.Contains("allow=", StringComparison.Ordinal));
 
+        Ok("can start");
         Assert.Contains("!ARMED", Ask("can arm"));
     }
 
     [Fact]
-    public void S8_6_EvalIsBase64AndAtMost4KB()
+    public void S8_6_EvalIsBase64AndAtMost360Bytes()
     {
         List<string> lines = Ask("lua eval " + B64("print(\"one\")\nprint(\"two\")"));
         Assert.Contains($"#{_seq}:one", lines);
         Assert.Contains($"#{_seq}:two", lines);
 
         Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("lua eval print(1)")), StringComparison.Ordinal);
+
+        // Contract 8.11 (review item H6): 360 bytes decoded, not 4 KB; more is TOOLONG.
+        string fits = "print(\"ok\")\n--" + new string('x', 346);
+        Assert.Equal(360, fits.Length);
+        Assert.Contains($"#{_seq + 1}:ok", Ask("lua eval " + B64(fits)));
+        Assert.StartsWith($"#{_seq + 1}.ERR TOOLONG", Final(Ask("lua eval " + B64(fits + "x"))), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -192,8 +199,236 @@ public class WcpFakeDeviceTests : IDisposable
 
         List<string> lines = Ask("lua status");
 
-        Assert.Contains($"#{_seq}:script=a state=running mem_kb=41 cb_max_ms=3 queue_drops=0 errors=0", lines);
+        Assert.Contains($"#{_seq}:script=a state=running mem_kb=41 cb_max_ms=3 queue_drops=0 errors=0 stack_free=31744", lines);
         Assert.All(lines.Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)), l => Assert.Contains('=', l));
+    }
+
+    // ----- after the review fixes of 2026-11-22 ----------------------------------------
+
+    [Fact]
+    public void F17_ARepeatedRequestIsAnsweredFromTheStoreWithoutRunning()
+    {
+        Ok("can start");
+        Ok("can arm");
+
+        string line = Wcp.Request(++_seq, "can send 7E0 01") + "\r";
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        string first = Final(Drain());
+
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        List<string> again = Drain();
+
+        Assert.Equal([first], again);
+        Assert.Single(_device.Transmitted);
+        Assert.Single(_device.Replayed);
+    }
+
+    [Fact]
+    public void F17_TheStoreHoldsEight()
+    {
+        for (int i = 0; i < FakeWcpDevice.ReplyStoreSize + 1; i++) Ok("ping");
+
+        // The first ping has fallen out of the store, so the same line runs again.
+        _device.Write(Encoding.ASCII.GetBytes(Wcp.Request(1, "ping") + "\r"));
+        Drain();
+        Assert.Empty(_device.Replayed);
+
+        _device.Write(Encoding.ASCII.GetBytes(Wcp.Request(_seq, "ping") + "\r"));
+        Drain();
+        Assert.Single(_device.Replayed);
+    }
+
+    [Fact]
+    public void F17_ACrcRefusalIsNotStored()
+    {
+        _device.RejectWithCrc = 1;
+        string line = Wcp.Request(++_seq, "ping") + "\r";
+
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        Assert.Equal($"#{_seq}.ERR CRC", Final(Drain()));
+
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        Assert.StartsWith($"#{_seq}.OK", Final(Drain()), StringComparison.Ordinal);
+        Assert.Empty(_device.Replayed);
+    }
+
+    [Fact]
+    public void S8_12_LuaPutRefusesAnOverlapAndAGap()
+    {
+        Ok($"lua put s 0 {Convert.ToBase64String("hello"u8)}");
+
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask($"lua put s 3 {Convert.ToBase64String("lo"u8)}")), StringComparison.Ordinal);
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask($"lua put s 9 {Convert.ToBase64String("x"u8)}")), StringComparison.Ordinal);
+        Assert.Equal("hello"u8.ToArray(), _device.LuaScripts["s"]);
+    }
+
+    [Fact]
+    public void H2_AUnitStillBootingAnswersBusy()
+    {
+        _device.BusyHellos = 1;
+
+        Assert.Equal($"#{_seq + 1}.ERR BUSY booting", Final(Ask("hello")));
+        Assert.Equal($"#{_seq + 1}.OK n=5", Final(Ask("hello")));
+    }
+
+    [Fact]
+    public void DataLinesAreAtMost190Characters()
+    {
+        Assert.Equal(190, Wcp.MaxDataText);
+
+        List<string> lines = Ask("autopid data");
+        Assert.All(lines.Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)),
+            l => Assert.True(l.Length - $"#{_seq}:".Length <= 190, l));
+    }
+
+    [Fact]
+    public void ALongSettingIsCutWithATildeAndB64GivesItWhole()
+    {
+        string value = new('v', 300);
+        Ok($"config set sta_fallbacks={value}");
+
+        string shown = Ask("config get sta_fallbacks").Single(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal))[$"#{_seq}:".Length..];
+        Assert.Equal(190, shown.Length);
+        Assert.StartsWith("sta_fallbacks=vvv", shown, StringComparison.Ordinal);
+        Assert.EndsWith("~", shown, StringComparison.Ordinal);
+
+        // Never split into a line without its key.
+        Assert.All(Ask("config get").Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)), l => Assert.Contains('=', l));
+
+        string b64 = string.Concat(Ask("config get sta_fallbacks --b64")
+            .Where(l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal)).Select(l => l[$"#{_seq}:".Length..]));
+        Assert.Equal(value, Encoding.UTF8.GetString(Convert.FromBase64String(b64)));
+    }
+
+    [Fact]
+    public void F19_AStagedValueContainingTheMaskIsRefused()
+    {
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("config set sta_fallbacks=[{\"ssid\":\"a\",\"pass\":\"****\"}]")), StringComparison.Ordinal);
+        Assert.Equal("[]", _device.Staged["sta_fallbacks"]);
+    }
+
+    [Fact]
+    public void F24_ASaveOverAChangedConfigIsRefused()
+    {
+        Ok("config set sta_ssid=Garage");
+        _device.ChangeConfigOutside("ap_ch", "11");
+
+        Assert.Equal($"#{_seq + 1}.ERR STATE changed", Final(Ask("config save")));
+        Assert.Equal("", _device.Saved["sta_ssid"]);
+
+        // Staged afresh from the settings as they now are, it saves.
+        Ok("config discard");
+        Ok("config set sta_ssid=Garage");
+        Ok("config save");
+        Assert.Equal("11", _device.Saved["ap_ch"]);
+    }
+
+    [Fact]
+    public void F24_TenSecondsOfSilenceDropsTheStageAndTheUnlock()
+    {
+        Ok("config set sta_ssid=Garage");
+        Ok("config unlock");
+
+        _device.Advance(TimeSpan.FromSeconds(11));
+
+        Assert.False(_device.Unlocked);
+        Assert.DoesNotContain(Ask("config diff"), l => l.StartsWith($"#{_seq}:", StringComparison.Ordinal));
+        Assert.StartsWith($"#{_seq + 1}.ERR DENIED", Final(Ask("config secrets")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StreamingWithTheControllerOffIsState() =>
+        Assert.StartsWith($"#{_seq + 1}.ERR STATE", Final(Ask("can stream on")), StringComparison.Ordinal);
+
+    [Fact]
+    public void AnExtendedFilterTakesX()
+    {
+        Ok("can start");
+        Ok("can stream on 18DAF110 1FFFFFFF x");
+
+        _device.BusFrame(0x18DAF110, true, 1);
+        _device.BusFrame(0x110, false, 2);
+        Assert.Equal(["!CAN 0 18DAF110 x 1 01"], Drain());
+
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can stream on 18DAF110 1FFFFFFF")), StringComparison.Ordinal);
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can stream on 110 7FF q")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void F27_ArmingOnASilentBusIsRefusedAndRxRecentSaysWhy()
+    {
+        _device.BusChatter = false;
+        Ok("can start");
+
+        Assert.Contains($"#{_seq + 1}:rx_recent=0", Ask("can status"));
+        Assert.Equal($"#{_seq + 1}.ERR STATE no-traffic", Final(Ask("can arm")));
+        Assert.False(_device.Armed);
+
+        _device.BusFrame(0x7E8, false, 1);
+        Assert.Contains($"#{_seq + 1}:rx_recent=1", Ask("can status"));
+        Ok("can arm");
+    }
+
+    [Fact]
+    public void F27_ALuaScriptsFirstSendOnASilentBusIsRefused()
+    {
+        EnableLuaTx();
+        _device.BusChatter = false;
+
+        Assert.Equal((false, "no-traffic"), _device.LuaSend("s", 0x100, [1]));
+
+        _device.BusFrame(0x7E8, false, 1);
+        Assert.True(_device.LuaSend("s", 0x100, [1]).Sent);
+
+        // Once in normal mode, later sends do not need the bus to have spoken.
+        _device.Advance(TimeSpan.FromSeconds(2));
+        Assert.True(_device.LuaSend("s", 0x100, [1]).Sent);
+    }
+
+    [Fact]
+    public void F26_ATransmitFailureLatchesUntilCanResume()
+    {
+        Ok("can start");
+        Ok("can arm");
+        _device.FailNextSend = true;
+
+        List<string> failed = Ask("can send 7E0 01");
+
+        Assert.Equal($"#{_seq}.ERR IO tx-timeout", failed[0]);
+        Assert.Contains("!DISARM fault tx-timeout", failed);
+        Assert.Contains("!LUA - tx suspended tx-timeout", failed);
+        Assert.False(_device.Armed);
+        Assert.Contains($"#{_seq + 1}:mode=listen", Ask("can status"));
+
+        Assert.Equal($"#{_seq + 1}.ERR STATE fault tx-timeout", Final(Ask("can arm")));
+        Assert.Contains($"#{_seq + 1}:tx=suspended", Ask("lua status"));
+
+        Ok("can resume");
+        Assert.Null(_device.TxFault);
+        Assert.Contains($"#{_seq + 1}:tx=disabled", Ask("lua status"));
+        Ok("can arm");
+        Assert.Contains($"#{_seq + 1}:mode=normal", Ask("can status"));
+    }
+
+    [Fact]
+    public void F11_ScriptOutputIsEscaped()
+    {
+        _device.LuaPrint("s", "a > b\r\n");
+
+        Assert.Equal(["!LUA s print a \\x3E b\\x0D\\x0A"], Drain());
+    }
+
+    [Fact]
+    public void F9_ALuaTimeoutIsStateTimeout() =>
+        Assert.Equal($"#{_seq + 1}.ERR STATE timeout", Final(Ask("lua eval " + B64("print(\"a\")\nwhile true do end"))));
+
+    [Fact]
+    public void F10_LuaStatusReportsStackFree()
+    {
+        _device.LuaScripts["a"] = "x"u8.ToArray();
+        Ok("lua run a");
+
+        Assert.Contains(Ask("lua status"), l => l.Contains(" stack_free=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -302,6 +537,7 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void Rule2_TenSecondsWithoutARequestDisarms()
     {
+        Ok("can start");
         Ok("can arm");
 
         _device.Advance(TimeSpan.FromSeconds(9.9));
@@ -315,6 +551,7 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void Rule2_AnyRequestCountsAsTheKeepAlive()
     {
+        Ok("can start");
         Ok("can arm");
 
         for (int i = 0; i < 5; i++)
@@ -329,6 +566,7 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void Rule2_ARequestAfterTheIdleTimeDoesNotRevive()
     {
+        Ok("can start");
         Ok("can arm");
         Ok("can start");
 
@@ -346,6 +584,7 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void Rule2_ARebootDisarms()
     {
+        Ok("can start");
         Ok("can arm");
         Ok("reboot");
 
@@ -408,6 +647,7 @@ public class WcpFakeDeviceTests : IDisposable
     [Fact]
     public void Rule5_DisarmSaysHost()
     {
+        Ok("can start");
         Ok("can arm");
 
         List<string> lines = Ask("can disarm");
@@ -661,7 +901,8 @@ public class WcpFakeDeviceTests : IDisposable
         Ok("can start");
         Ok("can arm");
 
-        // Armed for WCP, but lua_can_tx is off: the eval's send is refused.
-        Assert.Contains($"#{_seq + 1}:nil\tlua_can_tx disabled", Ask("lua eval " + B64("can.send(0x7E0, \"\\x01\")")));
+        // Armed for WCP, but lua_can_tx is off: the eval's send is refused. The
+        // tab in Lua's "nil<TAB>reason" arrives escaped (F11).
+        Assert.Contains($"#{_seq + 1}:nil\\x09lua_can_tx disabled", Ask("lua eval " + B64("can.send(0x7E0, \"\\x01\")")));
     }
 }

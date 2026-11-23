@@ -74,7 +74,7 @@ public class WcpClientTests : IDisposable
 
         Assert.Null(WcpClient.Detect(_link, TimeSpan.FromSeconds(3)));
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(1), $"{clock.Elapsed}");
-        Assert.Contains(_device.ElmLines, l => l.StartsWith("#1 hello", StringComparison.Ordinal));
+        Assert.Contains(_device.ElmLines, l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^#\d+ hello\*"));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class WcpClientTests : IDisposable
     // ----- retries ---------------------------------------------------------------
 
     [Fact]
-    public void ACrcRefusalIsRetriedOnceWithANewSeq()
+    public void ACrcRefusalIsRetriedOnceWithTheSameSeq()
     {
         _device.RejectWithCrc = 1;
 
@@ -185,6 +185,7 @@ public class WcpClientTests : IDisposable
         _client.Disarmed += r => why = r;
         _client.Booted += fw => booted = fw;
 
+        _client.CanStart();
         _client.CanArm();
         _client.Request("reboot");
 
@@ -325,6 +326,7 @@ public class WcpClientTests : IDisposable
     [Fact]
     public void ARebootForgetsTheArming()
     {
+        _client.CanStart();
         _client.CanArm();
         _client.Reboot();
 
@@ -483,10 +485,11 @@ public class WcpClientTests : IDisposable
     [InlineData(0x20000000u, true)]
     public void AnIdentifierTooWideForItsKindIsRefusedHere(uint id, bool extended)
     {
+        _client.CanStart();
         _client.CanArm();
 
         Assert.Equal("HOST", Assert.Throws<WcpException>(() => _client.CanSend(id, [1], extended)).Code);
-        Assert.Equal(["can arm"], _device.Commands);
+        Assert.Equal(["can start", "can arm"], _device.Commands);
     }
 
     [Fact]
@@ -518,6 +521,7 @@ public class WcpClientTests : IDisposable
     [Fact]
     public void ArmedEventsFromTheDeviceAreFollowed()
     {
+        _client.CanStart();
         _client.CanArm();
         Assert.True(Eventually(() => _client.IsArmed));
 
@@ -530,6 +534,7 @@ public class WcpClientTests : IDisposable
     {
         string? why = null;
         _client.Disarmed += r => why = r;
+        _client.CanStart();
         _client.CanArm();
 
         _link.Close();
@@ -605,7 +610,7 @@ public class WcpClientTests : IDisposable
 
         Assert.False(status.TransmitEnabled);
         Assert.Equal("on", status.Values["engine"]);
-        Assert.Equal(new WcpLuaScript("a", "running", 41, 3, 0, 0), status.Scripts.Single());
+        Assert.Equal(new WcpLuaScript("a", "running", 41, 3, 0, 0, 31744), status.Scripts.Single());
     }
 
     [Fact]
@@ -680,10 +685,10 @@ public class WcpClientTests : IDisposable
 
     // ----- the keep-alive, in real time ---------------------------------------------
 
-    /// <summary>Real clock, and an idle disarm short enough to test in a second or so.</summary>
+    /// <summary>Real clock, and an idle disarm of a second: short enough to test, long enough to survive a loaded machine.</summary>
     public sealed class KeepAlive : IDisposable
     {
-        private readonly FakeWcpDevice _device = new(manualClock: false) { IdleDisarm = TimeSpan.FromMilliseconds(500) };
+        private readonly FakeWcpDevice _device = new(manualClock: false) { IdleDisarm = TimeSpan.FromMilliseconds(1000) };
         private readonly WcpLink _link;
 
         public KeepAlive()
@@ -699,6 +704,7 @@ public class WcpClientTests : IDisposable
         {
             using var client = new WcpClient(_link) { PingInterval = TimeSpan.FromMilliseconds(100) };
 
+            client.CanStart();
             client.CanArm();
             Thread.Sleep(1500);
 
@@ -714,6 +720,7 @@ public class WcpClientTests : IDisposable
             string? why = null;
             client.Disarmed += r => why = r;
 
+            client.CanStart();
             client.CanArm();
 
             Assert.True(Eventually(() => why is not null, 3000));
@@ -727,6 +734,7 @@ public class WcpClientTests : IDisposable
         {
             using var client = new WcpClient(_link) { PingInterval = TimeSpan.FromMilliseconds(50) };
 
+            client.CanStart();
             client.CanArm();
             Thread.Sleep(300);
             client.CanDisarm();
@@ -741,6 +749,7 @@ public class WcpClientTests : IDisposable
         public void DisposingDisarms()
         {
             var client = new WcpClient(_link) { PingInterval = TimeSpan.FromMilliseconds(100) };
+            client.CanStart();
             client.CanArm();
 
             client.Dispose();

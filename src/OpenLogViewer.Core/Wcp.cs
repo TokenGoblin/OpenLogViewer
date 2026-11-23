@@ -47,11 +47,14 @@ public static class Wcp
     public const int MaxRequestBytes = 512;
 
     /// <summary>
-    /// The longest a data line's text is, before its CRC. The firmware splits
-    /// anything longer across lines; recorded here because the fake has to do
-    /// the same, and because base64 is chunked to fit it.
+    /// The longest a data line's text is, before its CRC: 190 characters, fixed for
+    /// both sides by the review of 2026-11-22 (the contract first said 200). The
+    /// firmware splits anything longer across lines, except a <c>key=value</c>
+    /// setting, which it cuts and marks with <see cref="WcpWire.Truncated"/>;
+    /// recorded here because the fake has to do the same, and because base64 is
+    /// chunked to fit it.
     /// </summary>
-    public const int MaxDataText = 200;
+    public const int MaxDataText = 190;
 
     /// <summary>
     /// CRC-8/SMBUS: polynomial 0x07, initial value 0, no reflection, no final XOR.
@@ -116,6 +119,61 @@ public static class Wcp
                 nameof(command));
 
         return line;
+    }
+
+    /// <summary>
+    /// Undoes the firmware's escaping of script output: <c>\xHH</c> for <c>&gt;</c>
+    /// and every byte outside 0x20–0x7E, in <c>print</c>, <c>emit</c> and
+    /// <c>lua eval</c> output (review item F11). The firmware escapes because a
+    /// <c>&gt;</c> or a line break reaching the wire would be read as the end of a line.
+    ///
+    /// <para>
+    /// The bytes are decoded as UTF-8, since that is what a script printing text
+    /// most often holds. The firmware does not escape a backslash, so a script that
+    /// prints the four characters <c>\x41</c> shows here as <c>A</c>; only the
+    /// firmware could tell the two apart.
+    /// </para>
+    /// </summary>
+    public static string Unescape(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (!text.Contains("\\x", StringComparison.Ordinal)) return text;
+
+        var bytes = new List<byte>(text.Length);
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\\' && i + 3 < text.Length && text[i + 1] == 'x'
+                && byte.TryParse(text.AsSpan(i + 2, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out byte b))
+            {
+                bytes.Add(b);
+                i += 3;
+                continue;
+            }
+
+            if (text[i] < 0x80) bytes.Add((byte)text[i]);
+            else bytes.AddRange(Encoding.UTF8.GetBytes(text[i].ToString()));
+        }
+
+        return Encoding.UTF8.GetString([.. bytes]);
+    }
+
+    /// <summary>
+    /// The firmware's escaping, which <see cref="Unescape"/> reverses: what the fake
+    /// does to script output, kept beside its inverse so the two cannot drift.
+    /// </summary>
+    public static string Escape(ReadOnlySpan<byte> bytes)
+    {
+        var text = new StringBuilder(bytes.Length);
+
+        foreach (byte b in bytes)
+        {
+            if (b is < 0x20 or > 0x7E or (byte)'>') text.Append(CultureInfo.InvariantCulture, $"\\x{b:X2}");
+            else text.Append((char)b);
+        }
+
+        return text.ToString();
     }
 
     /// <summary>
@@ -280,19 +338,34 @@ public sealed record WcpLine(WcpLineKind Kind, int Seq, string Text, string Code
 /// Zero is excluded because the firmware uses it for "I could not read your
 /// number" (<c>#0.ERR CRC</c>), so a request numbered 0 could not be told apart
 /// from that.
+///
+/// <para>
+/// <b>It starts somewhere random.</b> The firmware answers a repeated request
+/// from a store of its last eight replies rather than running it again (review
+/// item F17). A new session that started at 1 every time would reuse the seqs of
+/// the last one, and a firmware that keys that store on the seq alone would answer
+/// this session's <c>#2 config get</c> with the last session's <c>#2 can arm</c>.
+/// Starting at a random number makes that a one-in-thousands chance rather than a
+/// certainty.
+/// </para>
 /// </summary>
 public sealed class WcpSequence
 {
     private readonly Lock _gate = new();
     private int _last;
 
-    /// <param name="last">The number before the first one handed out, for a test that wants to see the wrap.</param>
-    public WcpSequence(int last = 0)
+    /// <param name="last">
+    /// The number before the first one handed out, for a test that wants to see
+    /// the wrap or a known seq; null for a random start.
+    /// </param>
+    public WcpSequence(int? last = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(last, 0);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(last, 65535);
+        int start = last ?? Random.Shared.Next(0, 65535);
 
-        _last = last;
+        ArgumentOutOfRangeException.ThrowIfLessThan(start, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(start, 65535);
+
+        _last = start;
     }
 
     public int Next()
@@ -303,4 +376,88 @@ public sealed class WcpSequence
             return _last;
         }
     }
+}
+
+/// <summary>
+/// The exact words of the firmware behaviour added by the review of 2026-11-22,
+/// in one place.
+///
+/// <para>
+/// <b>Why one place.</b> These were written while the firmware fixes were being
+/// made in parallel, from the fix list rather than from the firmware itself, so a
+/// word here may turn out to be spelled differently on the device. Every parser
+/// that reads one goes through this class, and reads it tolerantly — a prefix
+/// rather than a whole line, <c>key=value</c> with unknown keys ignored — so a
+/// correction is a change to a constant, not a hunt.
+/// </para>
+/// </summary>
+public static class WcpWire
+{
+    /// <summary>The error code a booting unit answers with, e.g. <c>ERR BUSY booting</c>.</summary>
+    public const string Busy = "BUSY";
+
+    /// <summary>The <c>ERR STATE</c> message refusing an arm or a first Lua send on a silent bus: <c>ERR STATE no-traffic</c>.</summary>
+    public const string NoTraffic = "no-traffic";
+
+    /// <summary>The <c>ERR STATE</c> message for a Lua chunk past its time limit: <c>ERR STATE timeout</c>.</summary>
+    public const string LuaTimeout = "timeout";
+
+    /// <summary>The <c>ERR STATE</c> message for a save whose base changed since staging: <c>ERR STATE changed</c>.</summary>
+    public const string ConfigChanged = "changed";
+
+    /// <summary>A password as the device shows it, and what may never be staged back: values containing it are refused.</summary>
+    public const string Masked = "****";
+
+    /// <summary>The suffix on a setting's value that the device cut at the line limit.</summary>
+    public const char Truncated = '~';
+
+    /// <summary>The flag asking <c>config get &lt;key&gt;</c> for its value as base64 lines.</summary>
+    public const string Base64Flag = "--b64";
+
+    /// <summary>The flag on <c>can stream on &lt;id&gt; &lt;mask&gt; x</c> marking an extended (29-bit) filter.</summary>
+    public const string ExtendedFlag = "x";
+
+    /// <summary>The command clearing a transmit fault latch.</summary>
+    public const string CanResume = "can resume";
+
+    /// <summary>The first word of a <c>!DISARM</c> reason for a latched transmit fault: <c>!DISARM fault &lt;reason&gt;</c>.</summary>
+    public const string Fault = "fault";
+
+    /// <summary>The fault reasons the fix list names. Others are passed through as they come.</summary>
+    public static readonly IReadOnlyList<string> FaultReasons = ["tx-timeout", "bus-off", "error-passive", "tec"];
+
+    /// <summary><c>can status</c>: frames received in the last second.</summary>
+    public const string RxRecent = "rx_recent";
+
+    /// <summary><c>lua status</c>, on each script's line: the bytes of its task's stack never used.</summary>
+    public const string StackFree = "stack_free";
+
+    /// <summary>
+    /// Keys a <c>can status</c> may use to report a latched fault. None is in the
+    /// fix list; read if present, so a firmware that adds one is shown.
+    /// </summary>
+    public static readonly IReadOnlyList<string> FaultKeys = ["tx_fault", "fault", "latch"];
+
+    /// <summary>Whether a <c>!DISARM</c> reason is a fault, and which: <c>fault tx-timeout</c> gives <c>tx-timeout</c>.</summary>
+    public static bool IsFault(string reason, out string fault)
+    {
+        fault = "";
+        if (reason is null) return false;
+
+        string r = reason.Trim();
+
+        if (!r.StartsWith(Fault, StringComparison.OrdinalIgnoreCase)
+            || r.Length > Fault.Length && r[Fault.Length] is not (' ' or ':' or '='))
+            return false;
+
+        fault = r[Fault.Length..].TrimStart(' ', ':', '=').Trim();
+        if (fault.Length == 0) fault = "unknown";
+        return true;
+    }
+
+    /// <summary>Whether an error's message starts with one of the words above, ignoring case.</summary>
+    public static bool Says(string message, string word) =>
+        message is not null
+        && message.TrimStart().StartsWith(word, StringComparison.OrdinalIgnoreCase)
+        && (message.TrimStart().Length == word.Length || !char.IsAsciiLetterOrDigit(message.TrimStart()[word.Length]));
 }
