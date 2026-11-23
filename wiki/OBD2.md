@@ -8,6 +8,7 @@ definition file and nothing set up in advance.
 - [Connecting: USB or wired](#connecting-usb-or-wired)
 - [Connecting: Bluetooth LE](#connecting-bluetooth-le)
 - [Connecting: Wi-Fi](#connecting-wi-fi)
+- [WiCAN Pro custom firmware (WCP)](#wican-pro-custom-firmware-wcp)
 - [Speed, and why it is slow](#speed-and-why-it-is-slow)
 - [Gauges](#gauges)
 - [Fault codes](#fault-codes)
@@ -175,6 +176,75 @@ the pedal is the revs.
 These adapters accept **one connection at a time**, so a phone app still holding
 it is refused rather than queued. Close the phone app first.
 
+## WiCAN Pro custom firmware (WCP)
+
+> **WARNING:** **This needs custom firmware on the WiCAN Pro, and has not been run
+> on hardware.** It was built against a written protocol contract and a
+> simulation of the firmware, and every test of it runs against that simulation.
+> No WiCAN Pro running the firmware existed when it was written. Treat this
+> section as the design, not as a measurement.
+
+A MeatPi WiCAN Pro plugged in by USB is an ordinary ELM327 adapter to this
+application: **Connect ▾** finds its port by its USB interface, opens it at
+2,000,000 baud with DTR and RTS held off, and reads the car. A Pro running the
+custom firmware also answers a second, line-based protocol on the same port,
+**WCP**, and OpenLogViewer uses it when it is there.
+
+**What happens on connecting.** Before the OBD2 session starts, OpenLogViewer
+sends WCP's `hello`. A unit with the custom firmware answers it, and the session
+starts as usual with the WCP features alongside. A stock unit passes the line to
+its ELM327 chip, which echoes it back; that is taken as "stock", the stray answer
+is cleared, and the session is plain OBD2 exactly as before. The hint under the
+toolbar says when the custom firmware was found.
+
+**OBD2 logging keeps working at the same time.** Both conversations share the one
+USB port. Every WCP line starts with `#` or `!`, which ELM327 output never begins
+a line with, so the two are separated as they arrive and neither sees the other.
+
+What it gives, through the MCP tools (see [AI agent access](AI-agent-access-MCP#wican-pro-custom-firmware)):
+
+| Feature | What it does |
+| --- | --- |
+| Status | Supply voltage, Wi-Fi, CAN counters, AutoPID, the SD logger, memory |
+| Settings | Read the unit's settings (passwords always masked), stage changes, see the difference, save to its flash |
+| Console | Run any of the firmware's own console commands |
+| AutoPID | The values the unit polls from the car by itself |
+| SD logs | List the logger's files and download one |
+| CAN stream | Record the bus listen-only to a file, with an optional filter, and get the same byte log as an [slcan capture](#raw-can-capture-wican-in-slcan-mode) |
+| CAN transmit | Arm, send frames, disarm |
+| Lua | List, read, upload, run, stop and evaluate scripts that run on the unit itself |
+
+### What asks a person first
+
+Four things change the unit or can reach the vehicle's bus, and each shows the
+same confirmation dialog as an ECU write. A tool call waits until it is answered:
+
+- **Saving settings.** The dialog lists every change. The unit checks them as it
+  does at boot and refuses a save that would fail, so a save cannot leave it
+  factory-resetting.
+- **Arming CAN transmit, once per arming.** Arming allows any identifier, up to
+  200 frames a second. It lasts until it is disarmed, the unit restarts, or 10 s
+  pass with nothing from this computer; OpenLogViewer keeps it alive while it is
+  connected. Sends after that are not asked about again — that is the design of
+  the gate, so the arming question is the moment to be sure.
+- **Uploading, running or evaluating a Lua script.** The dialog names the script
+  and its size, and says whether `lua_can_tx` is enabled. With it enabled, a
+  script can transmit on the bus by itself, with no arming and nobody watching.
+
+Disarming and stopping scripts never ask.
+
+> **CAUTION:** **Do not arm transmit, or run a script that can transmit, on a
+> vehicle that is moving.** The bus at the OBD port reaches the modules that run
+> the engine, the brakes and the steering.
+
+### Limits of this version
+
+- **USB only.** The WCP features need the USB connection; over Wi-Fi the Pro is
+  plain ELM327.
+- **Only alongside an OBD2 session.** The features live as long as the session,
+  so a car that lists no parameters (ignition off) means no session and no WCP.
+- **Over MCP only.** Nothing in the window drives these features yet.
+
 ## Speed, and why it is slow
 
 **It is slow, and that is the protocol rather than this application.**
@@ -315,6 +385,7 @@ adapter.
 | **Batched requests killing a link** | The two-strike memory, the refusal to re-probe and the settings entry that records it are all built for a failure nothing here has watched happen |
 | **A non-"ELM" clone across a key-off** | The recovery path for adapters whose banner omits the word is proven against a fake and no further |
 | **OBD2 through an AI agent** | `connect_obd2_wifi`, `connect_obd2_ble` and `scan_faults` have not been driven against a car |
+| **WiCAN Pro custom firmware (WCP)** | Built and tested against a simulation only; no unit running the firmware has been connected |
 
 None of these is known to be broken. They are simply not known to work, and this
 page says which is which rather than letting the confident parts vouch for the
@@ -326,7 +397,9 @@ rest.
 - **No tune.** A standard vehicle has no tune to read, so **Calibration** shows
   fault codes instead.
 - **No writing.** OpenLogViewer never writes to an OBD2 vehicle except to clear
-  fault codes, and only when you confirm it.
+  fault codes, and only when you confirm it. The one exception is CAN transmit
+  through a WiCAN Pro running the custom firmware, which is armed only when you
+  confirm it (see [WCP](#wican-pro-custom-firmware-wcp)).
 - **Parameters vary by car.** The car reports which ones it answers to. A
   parameter the car does not support simply does not appear.
 - **Manufacturer-specific codes are not decoded.** See above.

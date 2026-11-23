@@ -143,7 +143,7 @@ To undo, run the same sequence in reverse and burn again — or, for a whole tun
 
 ## Tool inventory
 
-64 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
+90 tools. Every one returns JSON with a boolean outcome field, and a `reason` when the
 answer is no — so a precondition the window has not met yet ("no log is open") comes back
 as something an agent can act on rather than as an opaque error.
 
@@ -208,6 +208,30 @@ whether the car's own count disagrees with the codes it listed.
 confirmation dialog as the Clear button and waits for it**: nothing is erased unless a
 person clicks OK in the window, and a No returns `cleared: false`. Permanent codes cannot
 be erased this way.
+
+### WiCAN Pro (custom firmware)
+
+Only with a MeatPi WiCAN Pro connected over USB through `connect_obd2` **and running the
+custom WCP firmware**; otherwise every one refuses with a reason. **Not yet run on
+hardware**: built and tested against a simulation of the firmware. See
+[OBD2](obd2.md#wican-pro-custom-firmware-wcp).
+
+| Tool | What it does |
+|---|---|
+| `wican_status` | Firmware, voltage, Wi-Fi, CAN counters, arming, AutoPID, logger, memory |
+| `wican_config_get`, `wican_config_set`, `wican_config_diff`, `wican_config_discard` | Read settings (passwords always masked), stage a change, see or drop what is staged |
+| `wican_config_save` | Saves the staged settings to the unit's flash. **Asks a person**, listing every change |
+| `wican_console` | Runs one of the firmware's console commands |
+| `wican_autopid` | The unit's AutoPID values, all or one |
+| `wican_log_list`, `wican_log_read` | The SD logger's files; download one to this computer |
+| `wican_can_status`, `wican_can_txlog` | The CAN controller, and the last 32 frames transmitted |
+| `wican_can_stream` | `start` records the bus listen-only to a bounded file (time and frame limits, optional id/mask filter); `stop` ends it and writes a byte log `open_log` can open |
+| `wican_can_arm` | Arms transmit, any identifier, until disarmed, a restart or 10 s of silence. **Asks a person, once per arming** |
+| `wican_can_send` | One frame. Requires an arming; **does not ask again**. Never retried |
+| `wican_can_disarm` | Disarms at once. Never asks |
+| `wican_lua_status`, `wican_lua_list`, `wican_lua_get` | The Lua engine, including whether `lua_can_tx` lets scripts transmit; the stored scripts; one script's source |
+| `wican_lua_put`, `wican_lua_run`, `wican_lua_eval` | Upload, start, or evaluate one line. **Each asks a person**, naming the script, its size and whether `lua_can_tx` is enabled |
+| `wican_lua_stop` | Stops one script, or all of them (the kill switch). Never asks |
 
 ### The tune, in memory
 
@@ -307,6 +331,12 @@ mechanisms.
   has to re-earn over a full drive cycle before it can pass an emissions test. So the tool
   goes through the same dialog as the button, and an agent cannot answer it. Reading codes
   needs no one; clearing them needs a click.
+
+- **A WiCAN Pro's settings, CAN transmit and Lua go through the same dialog.** Saving its
+  settings, arming CAN transmit and uploading, running or evaluating a Lua script each ask
+  a person. Arming is asked once per arming and the sends that follow are not, which is
+  the gate the firmware's protocol was designed around: deliberately light, with the
+  question as the moment to be sure.
 
 - **One tool call touches the application at a time.** A confirmation dialog is a modal
   message loop, and a modal message loop keeps pumping the window's dispatcher — so without
@@ -469,6 +499,8 @@ the pre-test read.
 
 - **OBD2 over the Wi-Fi and BLE dongles** — `connect_obd2_wifi`, `connect_obd2_ble` and
   `scan_faults` against a running car. This is the last untested surface.
+- **The WiCAN Pro tools against a unit running the custom firmware.** None existed when
+  they were written; they are proven against a simulation of it only.
 - **The MicroSquirt is in a live car** and stays read-only unless somebody asks otherwise.
 - **A person actually ticking a box in the Overview window** and an agent seeing it in
   `get_overview_selections`. The round trip up to that point is proven — see below — but

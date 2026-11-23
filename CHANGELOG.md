@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### A WiCAN Pro running custom firmware offers its settings, logs, CAN and Lua
+
+**Needs the custom WCP firmware, and has not been run on hardware.** Connecting
+to a MeatPi WiCAN Pro over USB now asks whether it speaks WCP, a control protocol
+that shares the port with its ELM327. If it does, its status, settings, console,
+AutoPID values, SD logs, CAN stream, CAN transmit and Lua scripts are reachable
+through new `wican_*` MCP tools while OBD2 logging carries on over the same port.
+A stock unit is plain ELM327, as before. Saving settings, arming transmit (once
+per arming) and uploading, running or evaluating Lua all ask a person first.
+Built against a simulation of the firmware only.
+
 ### A MaxxECU can now be connected over USB, with every channel it sends
 
 **A MaxxECU's USB port is not a COM port and never becomes one.** The driver
