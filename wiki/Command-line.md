@@ -209,6 +209,25 @@ Ignition (24)
     Ign load, Knock in, SPK: Base Spark Advance, SPK: Knock retard ...
 ```
 
+## Insights without the window
+
+`tools/OpenLogViewer.Insights` (olv-insights) runs the same analysis as the
+**Insights** button with no window, no ECU and no network, over one log or every
+log in a folder:
+
+```text
+olv-insights drive.mlg
+olv-insights ~/OpenLogViewer/Logs --project "The E28" --note "after VE +4%"
+olv-insights drive.mlg --json
+```
+
+It exits **0** when nothing is wrong, **1** for something worth watching and **2**
+for a warning, so a script can act on a drive without parsing anything.
+
+Given `--project`, it also records what it found into that vehicle's tuning
+project: keeps the findings, raises a fix for anything newly warned about, and
+notes a repeat against the fix already tracking it.
+
 ## Known issues
 
 > **NOTICE:** **`--insights` and `--screenshot` together hang.** The findings
