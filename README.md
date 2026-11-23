@@ -75,7 +75,7 @@ says which cells it does not have the evidence to move.
 | MegaSquirt, MicroSquirt | Serial / USB | Yes — a TunerStudio `.ini` |
 | rusEFI | Serial / USB | Yes |
 | Speeduino | Serial / USB | Yes |
-| MaxxECU | Serial / USB | No |
+| MaxxECU | USB (an FTDI device, not a COM port) or Bluetooth — see [live connection](docs/live-connection.md#maxxecu) | No |
 | Any OBD2 vehicle | ELM327 over USB, Bluetooth LE or Wi-Fi | No |
 | Subaru, over SSM | Serial / USB | No — you supply an address list |
 

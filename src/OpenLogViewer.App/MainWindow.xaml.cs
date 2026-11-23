@@ -378,6 +378,30 @@ public partial class MainWindow : Window
         _faults.Close();
     }
 
+    private DynoWindow? _dyno;
+
+    /// <summary>
+    /// The dyno, kept alive the way the calculators and the power estimate are.
+    ///
+    /// The use of it is to try a weight, look at the curve and try another, so a
+    /// window that forgot the car every time it closed would make that a
+    /// retyping exercise.
+    /// </summary>
+    private void OnDynoClick(object sender, RoutedEventArgs e)
+    {
+        if (_dyno is null)
+        {
+            _dyno = new DynoWindow(_vm) { Owner = this };
+            _dyno.Closed += (_, _) => _dyno = null;
+
+            return;
+        }
+
+        if (_dyno.WindowState == WindowState.Minimized) _dyno.WindowState = WindowState.Normal;
+
+        _dyno.Activate();
+    }
+
     private PowerWindow? _power;
 
     /// <summary>
@@ -403,6 +427,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Opens the power estimate and draws it, for a scripted run.</summary>
+    /// <summary>
+    /// Draws the dyno over whatever log was opened, for a screenshot.
+    ///
+    /// The same trick the power estimate uses, and for the same reason: a window
+    /// that can only be reached by clicking cannot be checked without a person
+    /// to click it.
+    /// </summary>
+    public void CaptureDyno(string path)
+    {
+        OnDynoClick(this, new RoutedEventArgs());
+
+        if (_dyno is null) return;
+
+        _dyno.UpdateLayout();
+        ImageExport.Save(_dyno.Content as FrameworkElement ?? _dyno, path);
+
+        _dyno.Close();
+    }
+
     public void CapturePower(string path)
     {
         OnEstimatePowerClick(this, new RoutedEventArgs());
@@ -497,7 +540,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnAboutClick(object sender, RoutedEventArgs e)
     {
-        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+        // No number rather than a number that is wrong. This used to fall back to
+        // a literal "0.1.0", which is a second place the version had to be
+        // remembered at every release and would quietly start lying at the first
+        // one somebody forgot.
+        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
+                         ?? "(version unknown)";
 
         MessageBox.Show(
             this,
@@ -1003,7 +1051,24 @@ public partial class MainWindow : Window
             Add(scan);
         }
 
-        if (wired.Length + paired.Length + adapters.Count == 0)
+        // A MaxxECU on USB, which belongs here with the other devices that are
+        // actually plugged in rather than down among the entries that are always
+        // offered. It cannot come from the port list: a MaxxECU on USB never
+        // becomes a COM port, because the driver MaxxECU ships installs FTDI's
+        // bus driver without the virtual-port half. Anybody hunting for it among
+        // the ports is looking somewhere it has never been.
+        MenuItem[] usbMaxxEcus = [.. MaxxEcuUsbItems()];
+
+        if (usbMaxxEcus.Length > 0)
+        {
+            if (wired.Length + paired.Length + adapters.Count > 0) Add(new Separator());
+
+            foreach (MenuItem item in usbMaxxEcus) Add(item);
+        }
+
+        // Counted in, or the menu says "Nothing found" directly above a MaxxECU
+        // it has just found.
+        if (wired.Length + paired.Length + adapters.Count + usbMaxxEcus.Length == 0)
             Add(new MenuItem { Header = "Nothing found", IsEnabled = false });
 
         // Always offered, unlike everything above it. A Wi-Fi dongle appears in
@@ -1553,6 +1618,121 @@ public partial class MainWindow : Window
         await StartLiveOverWifi(address, quiet: true);
 
         App.Report(_vm.IsLive ? $"live: {_vm.Status}" : "not live");
+    }
+
+    /// <summary>
+    /// An entry for each MaxxECU plugged in over USB.
+    ///
+    /// These cannot come from the port list, because a MaxxECU on USB never
+    /// becomes a COM port: the driver Maxxtuning ships installs FTDI's bus
+    /// driver without the virtual-port half, so Windows lists the ECU under
+    /// "Universal Serial Bus controllers" and gives it no port number at all.
+    /// Anybody hunting for it among the COM ports is looking somewhere it has
+    /// never been.
+    ///
+    /// Listed only when one is actually plugged in, unlike the paired Bluetooth
+    /// entries above: a cable is present or it is not, and there is nothing to
+    /// offer when it is not.
+    /// </summary>
+    private IEnumerable<MenuItem> MaxxEcuUsbItems()
+    {
+        IReadOnlyList<FtdiDevice> found;
+
+        try
+        {
+            found = FtdiEcuTransport.MaxxEcus();
+        }
+        catch (Exception e)
+        {
+            // A menu is never worth a crash, and a machine without the FTDI
+            // library simply has no MaxxECU to offer.
+            App.Report($"Could not list the USB MaxxECUs: {e.Message}");
+            yield break;
+        }
+
+        foreach (FtdiDevice device in found)
+        {
+            var item = new MenuItem
+            {
+                Header = Decorate($"{device.Label} (USB)", Seen(device.Serial)),
+                ToolTip = device.IsOpen
+                    ? "Already open in another program — MTune holds it for as long as it is "
+                      + "connected, and two programs cannot share it."
+                    : "A MaxxECU on its USB cable. It is an FTDI device rather than a COM port, "
+                      + "which is why it is not in the list of ports above.",
+            };
+
+            item.Click += (_, _) => StartMaxxEcuUsb(device);
+
+            yield return item;
+        }
+    }
+
+    /// <summary>
+    /// Connects to a MaxxECU over USB.
+    ///
+    /// On the interface thread, like every other connection here, and not off it
+    /// as this once was. Connecting builds the gauges, and the collections those
+    /// live in are bound to the window: WPF refuses to have them changed from
+    /// anywhere but the thread that owns them, so the background call failed
+    /// every time with a message about CollectionView that named nothing to do
+    /// with a MaxxECU. The wait it was avoiding is the two seconds the ECU is
+    /// listened to at connect, which is shorter than the three a MegaSquirt
+    /// spends reading its settings on the interface thread already.
+    /// </summary>
+    private void StartMaxxEcuUsb(FtdiDevice device, bool quiet = false)
+    {
+        ConnectButton.IsEnabled = false;
+        _vm.SetHint($"Connecting to {device.Label} over USB…");
+        Mouse.OverrideCursor = Cursors.Wait;
+
+        try
+        {
+            _vm.ConnectMaxxEcuUsb(device.Serial);
+            Record(device.Serial, "answered");
+        }
+        // Everything, as on the serial path and for the same reason: a
+        // connection that fails is never worth taking the application down, and
+        // the list of types a failing one can throw is not knowable from here.
+        catch (Exception e)
+        {
+            Record(device.Serial, "no answer");
+
+            if (quiet) App.Report($"Could not connect to {device.Label}: {e}");
+            else
+                MessageBox.Show(this,
+                    $"Could not connect to {device.Label} over USB.\n\n{e.Message}",
+                    "OpenLogViewer", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            _vm.SetHint($"{device.Label} did not answer.");
+            return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+            ConnectButton.IsEnabled = true;
+        }
+
+        LiveSessionStarted();
+    }
+
+    /// <summary>Opens a MaxxECU over USB, for a scripted run or an agent.</summary>
+    public void ConnectToMaxxEcuUsb(string serial = "")
+    {
+        FtdiDevice? device = FtdiEcuTransport.MaxxEcus()
+            .FirstOrDefault(d => serial.Length == 0
+                                 || d.Serial.Equals(serial, StringComparison.OrdinalIgnoreCase));
+
+        if (device is null)
+        {
+            App.Report(serial.Length > 0
+                ? $"no MaxxECU on USB with serial {serial}"
+                : "no MaxxECU is plugged in over USB");
+
+            return;
+        }
+
+        StartMaxxEcuUsb(device, quiet: true);
     }
 
     private MenuItem Obd2Menu(IReadOnlyList<SerialPortInfo> ports)

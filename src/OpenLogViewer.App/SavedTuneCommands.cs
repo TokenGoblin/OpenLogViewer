@@ -57,8 +57,20 @@ public sealed partial class MainViewModel
     /// looks like a tune and is not.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Whether the last <see cref="SaveTuneToFile"/> actually wrote the file.
+    ///
+    /// Said here rather than worked out by looking for the file afterwards. A
+    /// save over a path TunerStudio is holding open fails, leaves the older file
+    /// exactly where it was, and <c>File.Exists</c> then reports a success that
+    /// points at somebody else's tune.
+    /// </summary>
+    public bool TuneSaved { get; private set; }
+
     public string SaveTuneToFile(string path, string comment = "")
     {
+        TuneSaved = false;
+
         if (_ecuTune is not { } tune) return "There is no tune to save.";
         if (TuneIsPlaceholder)
             return "This is a firmware definition rather than a tune — every value in it reads as "
@@ -67,6 +79,8 @@ public sealed partial class MainViewModel
         try
         {
             MsqWriter.Save(path, tune, _ecuSignature, _tuneSymbols, comment, _tuneFile);
+
+            TuneSaved = true;
 
             return $"Saved {tune.Pages.Sum(p => p.Length):N0} bytes of settings to "
                    + $"{Path.GetFileName(path)}.";
@@ -410,8 +424,23 @@ public sealed partial class MainViewModel
     /// moment somebody changes something without saving, and both remain pages
     /// of plausible numbers.
     /// </summary>
+    /// <summary>
+    /// Whether the last <see cref="CompareWithSavedTune"/> actually compared
+    /// anything.
+    ///
+    /// <see cref="TuneDifferences"/> alone cannot say. It used to be left
+    /// untouched when a file could not be read, so the previous comparison's
+    /// list stood as the answer to a question about a different file — and on a
+    /// fresh session the same failure produced an empty list, which reads as
+    /// "the file matches" rather than "the file could not be read". Those are
+    /// opposite answers and a tuner acts on them differently.
+    /// </summary>
+    public bool TuneCompared { get; private set; }
+
     public string CompareWithSavedTune(string path)
     {
+        TuneCompared = false;
+
         if (_ecuTune is not { } mine || _tuneLayout is not { } layout)
             return "There is no tune to compare against. Connect to an ECU or open a tune first.";
 
@@ -426,6 +455,7 @@ public sealed partial class MainViewModel
             MsqLoad load = MsqApply.Load(layout, file, mine);
 
             TuneDifferences = TuneCompare.Compare(load.Tune, mine);
+            TuneCompared = true;
             Raise(nameof(TuneDifferences));
 
             string whose = Path.GetFileName(path);
@@ -450,6 +480,12 @@ public sealed partial class MainViewModel
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or LogFormatException)
         {
+            // Cleared, not left standing. The window shows this list too, so a
+            // failed read would otherwise leave the previous file's differences
+            // on screen underneath the failure message.
+            TuneDifferences = [];
+            Raise(nameof(TuneDifferences));
+
             return $"Could not read {Path.GetFileName(path)}: {e.Message}";
         }
     }

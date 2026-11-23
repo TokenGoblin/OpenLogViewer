@@ -2613,8 +2613,55 @@ public sealed partial class MainViewModel : ObservableObject
     /// a firmware that admits to being writable.
     /// </summary>
     public bool CanWriteTable =>
-        HasTableChanges && _ecuConnection is not null && _tuneLayout is not null
-        && !TuneIsPlaceholder && !TuneIsFromFile;
+        HasTableChanges && _tuneLayout is not null && !TuneIsPlaceholder && !TuneIsFromFile
+        && (_ecuConnection is not null || CanWriteThisMaxxTable);
+
+    /// <summary>
+    /// Whether the open table is one this MaxxECU session knows where to put.
+    ///
+    /// Only that it was read from this ECU, now. The size used to matter as well:
+    /// a table too big for one write is briefly inconsistent with its own
+    /// checksum, and that was refused outright while nobody could say what the
+    /// firmware did about it. It reads the table as nought for one evaluation and
+    /// ticks a counter — so the big maps are writable, and the caution belongs in
+    /// the confirmation rather than in a shut button.
+    /// </summary>
+    private bool CanWriteThisMaxxTable =>
+        _maxxSource is not null
+        && TableEdit is { } edit
+        && _maxxTables.Any(t => t.Name == edit.Name);
+
+    /// <summary>
+    /// Engine speed as the live session last saw it, or null when it is stopped
+    /// or not being reported.
+    ///
+    /// For one purpose: saying so before a write that would be unwise on a
+    /// turning engine. A number read from the session beats asking somebody to
+    /// remember.
+    /// </summary>
+    private double? RunningRpm
+    {
+        get
+        {
+            if (_live is not { } live) return null;
+
+            // Through the same role lookup everything else here uses, rather than
+            // by matching the name "RPM". The channel is named by MTune's
+            // definitions and not by this program, so a firmware that spells it
+            // any other way would silently drop the warning out of the
+            // confirmation of a permanent write — which is the one place a
+            // missing warning costs something.
+            if (ChannelRoles.Find(live.Snapshot(), ChannelRole.EngineSpeed)
+                is not { Samples.Length: > 0 } rpm)
+                return null;
+
+            float last = rpm.Samples[^1];
+
+            // Above a speed nothing reads by accident, so a stopped engine
+            // reporting noise does not warn about itself.
+            return last > 50 ? last : null;
+        }
+    }
 
     /// <summary>
     /// Whether burning is possible at all, which needs a controller on the other
@@ -2866,6 +2913,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (TuneMayNotLeaveThisWindow() is { } refusal) return refusal;
 
         if (TableEdit is not { } edit) return "No table is open.";
+
+        // A MaxxECU is not written the way the rest are — a different command, a
+        // checksum to go with the cells, and nothing to burn afterwards.
+        if (_maxxSource is not null) return WriteMaxxTable(edit);
+
         if (_ecuConnection is not { } connection) return "Not connected to an ECU.";
         if (_ecuTune is not { } tune || _tuneLayout is not { } layout) return "No tune has been read.";
         if (!edit.HasChanges) return "Nothing has been changed.";
@@ -2924,6 +2976,275 @@ public sealed partial class MainViewModel : ObservableObject
         {
             return $"The write failed: {e.Message}";
         }
+    }
+
+    /// <summary>
+    /// Sends a table to a MaxxECU, which is a different act from sending one to
+    /// anything else here.
+    ///
+    /// <para>
+    /// Three things differ and each of them matters. The cells carry a checksum
+    /// the firmware verifies on every evaluation, so they cannot go without it —
+    /// and a table too big for one write is briefly inconsistent with that
+    /// checksum while the pieces land, which the firmware answers by reading it
+    /// as nought for one evaluation. The write is checked by asking the ECU to
+    /// checksum its own tune, which says nothing else moved rather than only that
+    /// these bytes arrived. And there is no burn: this is permanent as it lands,
+    /// so the tune is written to a file first, and if it cannot be, nothing is
+    /// sent at all.
+    /// </para>
+    /// </summary>
+    private WriteResult WriteMaxxTable(TuneEdit edit)
+    {
+        if (_maxxSource is not { } source) return "Not connected to a MaxxECU.";
+        if (_ecuTune is not { } tune) return "No tune has been read.";
+        if (!edit.HasChanges) return "Nothing has been changed.";
+
+        if (_maxxTables.FirstOrDefault(t => t.Name == edit.Name) is not { } table)
+            return $"{edit.Name} is not one of the tables read from this ECU.";
+
+        if (edit.Encode(tune) is not { } write)
+            return "This table cannot be encoded, so nothing was sent.";
+
+        int cells = edit.ChangedCount;
+
+        // A table too big for one write is briefly inconsistent with its own
+        // checksum while the pieces land, and the firmware answers that by
+        // reading the table as nought for one evaluation. Harmless stopped;
+        // not a thing to do to an engine pulling.
+        bool atOnce = MaxxTune.FitsInOneWrite(table);
+
+        string caution = atOnce
+            ? ""
+            : $"\n\n{edit.Name} is {table.Columns} by {table.Rows}, which is too big to send at "
+              + "once. While the pieces land the ECU reads this table as 0 for one evaluation, "
+              + "then normally again.";
+
+        // True of every write to one of these, not only a split one: the ECU
+        // throws away its whole table cache rather than the entry for the table
+        // that changed, so the read after a write re-evaluates all of them. One
+        // fresh evaluation each and cheap — but it is every map, not this one,
+        // and that is worth knowing before it happens to a turning engine.
+        if (RunningRpm is { } rpm)
+            caution += $"\n\nTHE ENGINE IS TURNING — {rpm:N0} RPM. Every table on the ECU "
+                       + "re-evaluates on the first read after any write, not just this one.";
+
+        if (!_confirm.Confirm(new WriteRequest(
+                WriteKind.Table,
+                $"Send {cells} changed cell{(cells == 1 ? "" : "s")} of {edit.Name} to the MaxxECU?",
+                "This is permanent the moment it lands. A MaxxECU has no burn to withhold — it "
+                + "applies the change to the running tune and saves it itself, so turning the key "
+                + "off will not undo it.\n\n"
+                + "The tune as it stands now is written to a file first, and that file is the only "
+                + "way back."
+                + caution)))
+        {
+            return "Nothing was sent.";
+        }
+
+        try
+        {
+            byte[] before = source.ReadTune();
+
+            // No way back, no write. The backup is the only undo this controller
+            // has, so failing to take one is a reason to stop rather than a note
+            // to add to the message afterwards.
+            if (BackUpMaxxTune(before) is not { } backup)
+                return "The tune could not be written to a file first, so nothing was sent. A "
+                       + "MaxxECU has no burn to withhold and no power cycle undoes a write, so "
+                       + "that file is the only way back — check the workspace folder is "
+                       + "writable.";
+
+            // What the tune becomes if every piece lands, which is what the ECU
+            // is asked to agree with afterwards.
+            byte[] expectedAfter(IReadOnlyList<(int Offset, byte[] Data)> sent)
+            {
+                byte[] after = [.. before];
+                foreach ((int offset, byte[] data) in sent) data.CopyTo(after, offset);
+
+                return after;
+            }
+
+            // The editor encodes the whole grid at the constant's own offset, and
+            // this checks that rather than trusting it. The two describe the same
+            // table by different routes — one through the layout built for the
+            // tune model, one through the config struct read from the ECU — and
+            // if they ever disagreed, the cells would be written somewhere, at
+            // some size, permanently.
+            var grid = new short[table.Columns * table.Rows];
+
+            if (write.Offset != table.CellsAt || write.Data.Length != grid.Length * 2)
+                return $"The editor describes {edit.Name} as {write.Data.Length} bytes at "
+                       + $"{write.Offset} and the ECU as {grid.Length * 2} at {table.CellsAt}. "
+                       + "They disagree, so nothing was sent.";
+
+            for (int i = 0; i < grid.Length; i++)
+                grid[i] = BitConverter.ToInt16(write.Data, i * 2);
+
+            // Checksum last, so the table stops disagreeing with itself on the
+            // last byte that lands rather than at some point after it.
+            IReadOnlyList<(int Offset, byte[] Data)> pieces =
+                MaxxTune.WritesFor(before, table, grid);
+
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                MaxxWriteStatus status = source.WriteTune(pieces[i].Offset, pieces[i].Data);
+
+                if (status == MaxxWriteStatus.Ok) continue;
+
+                // Refused before anything of this piece was taken, and nothing
+                // sent so far in a single-piece write. Only then is "nothing
+                // changed" a true thing to say.
+                if (status == MaxxWriteStatus.NoAnswer && i == 0)
+                    return $"The MaxxECU did not answer, so nothing was sent and nothing was "
+                           + $"changed. The tune as it was is in {backup}.";
+
+                // Anything else means bytes are already on the ECU, or may be.
+                // The one thing not to do here is guess, so go and look.
+                return Inspect(source, expectedAfter(pieces), backup, edit.Name, status, i, pieces.Count);
+            }
+
+            // What the tune should now be, and what the ECU says it is.
+            //
+            // Reading the written range back would only say the bytes that were
+            // sent arrived. This asks the ECU to checksum its whole tune, 4 KB at
+            // a time, and compares that against the same sum worked out here —
+            // so it answers the question that matters on a controller with no
+            // undo, which is whether anything moved that should not have. It
+            // costs one exchange.
+            if (Disagreement(source, expectedAfter(pieces), pieces) is { } wrong)
+                return $"{wrong} The tune as it was is in {backup}.";
+
+            // The whole record, checksum included, and not only the grid.
+            //
+            // Accepting the grid alone leaves the copy held here four bytes
+            // different from the ECU for every table written — the old checksum
+            // against new cells. Nothing shows it until that copy is saved or
+            // sent somewhere, and then it describes a table the firmware would
+            // read as 0 on every evaluation.
+            foreach ((int offset, byte[] data) in pieces)
+            {
+                var applied = new TuneWrite(0, offset, data);
+
+                tune.Accept(applied);
+                _settingsEdit?.Accept(applied);
+            }
+
+            SelectedEcuTable = RereadTable(edit.Name) ?? SelectedEcuTable;
+
+            return WriteResult.Sent(
+                $"Sent {cells} changed cell{(cells == 1 ? "" : "s")} to the MaxxECU. It is running "
+                + "this now and has already saved it — there is no burn, and no power cycle will "
+                + $"undo it. The tune as it was is in {backup}.");
+        }
+        catch (Exception e) when (e is EcuProtocolException or IOException or InvalidOperationException
+                                      or ArgumentException)
+        {
+            return $"The write failed: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Writes the tune to a file before anything is sent, and hands back where it
+    /// went — or null if it could not be written.
+    ///
+    /// On every other controller the way back from a bad write is the ignition
+    /// key. On this one there is none, so the way back has to be made before it
+    /// is needed rather than after — and if it cannot be made, the write does not
+    /// happen. A read-only workspace is a reason not to send, not a detail to
+    /// report afterwards.
+    /// </summary>
+    private string? BackUpMaxxTune(byte[] blob)
+    {
+        try
+        {
+            string folder = Workspace.Ensure(Path.Combine(Workspace.Root, "MaxxECU tunes"));
+            string path = Path.Combine(folder, $"maxxecu-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.bin");
+
+            File.WriteAllBytes(path, blob);
+
+            return File.Exists(path) ? path : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                      or ArgumentException or NotSupportedException)
+        {
+            App.Report($"The MaxxECU's tune could not be backed up: {e}");
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the ECU's tune is what it should now be, said in words, or null
+    /// when it is.
+    ///
+    /// Asks the ECU to checksum its own tune rather than reading it back: that
+    /// answers "did anything move that should not have" instead of "did the
+    /// bytes I sent arrive", which is the question worth asking where there is no
+    /// undo, and it costs one exchange. Falls back to reading the written ranges
+    /// back on an ECU that will not do it, because weaker beats nothing.
+    /// </summary>
+    private static string? Disagreement(
+        MaxxUsbSource source, byte[] expected, IReadOnlyList<(int Offset, byte[] Data)> pieces)
+    {
+        uint[] theirs = source.TuneChecksums();
+        uint[] ours = MaxxTune.ChecksumsOf(expected);
+
+        if (theirs.Length == 0)
+        {
+            foreach ((int offset, byte[] data) in pieces)
+                if (!source.VerifyTune(offset, data))
+                    return "The MaxxECU took the write but read back something else, so the tune "
+                           + "on it is not what was sent.";
+
+            return null;
+        }
+
+        if (theirs.Length != ours.Length)
+            return $"The MaxxECU checksummed {theirs.Length} parts of its tune where "
+                   + $"{ours.Length} were expected, so whether the write landed cannot be told "
+                   + "from here.";
+
+        int at = -1;
+        for (int i = 0; i < ours.Length && at < 0; i++) if (theirs[i] != ours[i]) at = i;
+
+        return at < 0
+            ? null
+            : "The MaxxECU took the write, but its own checksum of the tune disagrees with what "
+              + $"it should now be, from {at * MaxxTune.ChecksumChunk} onwards. The tune is not "
+              + "what was intended.";
+    }
+
+    /// <summary>
+    /// Works out what actually happened after a write that did not come back
+    /// with a plain yes.
+    ///
+    /// The status alone cannot say. A payload that went out and was never
+    /// acknowledged looks exactly like one that never went — and on this
+    /// controller the difference is a tune that is permanently changed, so
+    /// reporting "nothing was changed" on a guess is the worst thing available.
+    /// This goes and looks.
+    /// </summary>
+    private static WriteResult Inspect(
+        MaxxUsbSource source,
+        byte[] expected,
+        string backup,
+        string name,
+        MaxxWriteStatus status,
+        int piece,
+        int pieces)
+    {
+        string where = pieces == 1 ? "" : $" part {piece + 1} of {pieces} of";
+
+        if (Disagreement(source, expected, []) is null)
+            return WriteResult.Sent(
+                $"The MaxxECU answered{where} this write with {status}, but its tune is exactly "
+                + $"what {name} was meant to become — so it did land. The tune as it was is in "
+                + $"{backup}.");
+
+        return $"The MaxxECU answered{where} this write with {status}, and its tune is now neither "
+               + $"what it was nor what was intended. {name} may be half written and reading as 0. "
+               + $"The tune as it was is in {backup}; restoring it is the way back.";
     }
 
     /// <summary>
@@ -3087,7 +3408,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     private string _projectTuneName = "";
 
-    private void ReadTuneFromEcu(EcuConnection connection, string iniText)
+    /// <summary>
+    /// Puts down whatever tune was held, before another is picked up.
+    ///
+    /// Its own method because there is more than one way in — an ECU over the
+    /// TunerStudio protocol, a definition file, a saved tune, and a MaxxECU over
+    /// USB — and every one of them has to forget the same nine or ten things.
+    /// The MaxxECU path was written without this and forgot most of them: its
+    /// tables were appended to the last firmware's rather than replacing them,
+    /// and a placeholder flag left over from an opened definition file marked a
+    /// tune read off a real ECU as invented.
+    /// </summary>
+    private void ForgetTune()
     {
         _ecuTune = null;
         _tuneLayout = null;
@@ -3108,6 +3440,7 @@ public sealed partial class MainViewModel : ObservableObject
         // branch everywhere it is read back, silently.
         _tuneFile = null;
         _tuneSymbols = null;
+        _maxxTables = [];
         EcuTables.Clear();
         SettingsMenu.Clear();
 
@@ -3120,6 +3453,11 @@ public sealed partial class MainViewModel : ObservableObject
         Raise(nameof(OpenDialog));
         Raise(nameof(OpenMenuEntry));
         EcuTuneSummary = "";
+    }
+
+    private void ReadTuneFromEcu(EcuConnection connection, string iniText)
+    {
+        ForgetTune();
 
         try
         {
@@ -3537,15 +3875,53 @@ public sealed partial class MainViewModel : ObservableObject
     ///
     /// Nothing of the TunerStudio path applies: there is no signature to ask
     /// for, no firmware INI, and no way to read the tune — so this gets gauges
-    /// and logging, and calibration stays empty. The fourteen channels are
-    /// fixed, because a subscription can only be replayed from one that was
-    /// captured and not composed.
+    /// and logging, and calibration stays empty.
+    ///
+    /// The same call for a USB cable and for a paired Bluetooth port. A MaxxECU
+    /// puts the identical protocol on both — its radio is a relay in front of
+    /// the controller, not a second way of asking — so there is nothing here to
+    /// branch on and nothing a caller has to know.
     /// </summary>
     public void ConnectMaxxEcu(string port)
     {
+        // Three attempts is a Bluetooth accommodation: establishing an RFCOMM
+        // link is reported to fail the first time after an ECU boots and succeed
+        // the second.
+        StartMaxxEcu(new SerialEcuTransport(port) { OpenAttempts = 3 }, port);
+    }
+
+    /// <summary>
+    /// Starts a session against a MaxxECU over its USB port.
+    ///
+    /// Its own entry because a MaxxECU's USB is not a serial port and cannot be
+    /// reached as one. Windows gives it no COM number at all — the driver
+    /// Maxxtuning ships installs the FTDI bus half and no virtual port — so it
+    /// appears in no list of ports, and the device is opened through FTDI's own
+    /// library instead. See <see cref="FtdiEcuTransport"/>.
+    /// </summary>
+    /// <param name="serial">
+    /// The serial in the ECU's own USB chip, or empty for whichever MaxxECU is
+    /// plugged in. It is what identifies the ECU across a replug.
+    /// </param>
+    public void ConnectMaxxEcuUsb(string serial = "")
+    {
         Disconnect();
 
-        var source = new MaxxEcuSource(new SerialEcuTransport(port) { OpenAttempts = 3 });
+        // The tune first, while the cable is still nobody's.
+        //
+        // A MaxxECU has one USB device and one program may hold it, so the tune
+        // cannot be read alongside the telemetry poll — it has to happen before
+        // the session takes the cable or not at all. Four seconds, once, which is
+        // about what a MegaSquirt spends on the same errand.
+        _maxxTuneTrouble = "";
+        byte[]? blob = ReadMaxxTune(serial);
+
+        // A different protocol, not the same one over a different wire — so a
+        // different source. See MaxxUsbProtocol.
+        var source = new MaxxUsbSource(
+            new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate));
+
+        string where = serial.Length > 0 ? $"USB {serial}" : "USB";
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
         _live = new LiveSession(source, new LiveSessionSettings
@@ -3556,16 +3932,222 @@ public sealed partial class MainViewModel : ObservableObject
 
         _live.Start();
 
-        _livePort = port;
+        // Only once the session is up, because this is what says a MaxxECU can be
+        // written. Set before, a connection that fails in Open or Learn leaves it
+        // pointing at a source that never proved anything — and a failed connect
+        // never reaches Disconnect, so the tune read from the last ECU would
+        // still be on screen, offering to write this one at the other one's
+        // offsets.
+        _maxxSource = source;
+
+        _livePort = where;
         _liveSignature = "MaxxECU";
         _liveVersion = "";
         _liveIni = "";
         _liveRecording = recording ?? "";
 
+        if (serial.Length > 0) SerialPortNames.RememberDevice(serial, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+
+        SeedMaxxGauges(source.Channels);
+
+        string tune = AdoptMaxxTune(blob);
+
+        Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
+        Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
+        Hint = $"{Opening(recording)} Over USB a MaxxECU names every channel it sends, so this "
+               + $"session found {source.Channels.Count} of them by listening rather than by "
+               + "being told — a channel it sends only when the value changes, so what is here "
+               + "depends on what was moving. RPM, coolant, lambda and the rest worth having are "
+               + $"logged whether they moved or not, and read zero until the ECU first reports them.{tune}";
+
+        Raise(nameof(IsLive));
+        Raise(nameof(LiveDetail));
+        Raise(nameof(CanExport));
+        Raise(nameof(CanRecord));
+        Raise(nameof(CanReconnect));
+        RaiseRecording();
+    }
+
+    /// <summary>
+    /// Reads the ECU's tune, or gives up quietly.
+    ///
+    /// Quietly because a tune is not what somebody connected for. The session is
+    /// worth having without it — on a machine that has never had MTune there are
+    /// no definitions to read it with, and on one that has, the read can still
+    /// fail — and none of that is a reason to refuse to log.
+    /// </summary>
+    private byte[]? ReadMaxxTune(string serial)
+    {
+        try
+        {
+            using var transport = new FtdiEcuTransport(serial, MaxxUsbProtocol.BaudRate);
+            transport.Open();
+
+            return MaxxTune.Read(transport);
+        }
+        catch (Exception e)
+        {
+            // Kept, not only logged. The log is a file nobody is looking at, and
+            // the difference between "this ECU's tune cannot be read" and "the
+            // Calibration tab is empty for some reason" is the whole of what
+            // somebody needs to know here.
+            _maxxTuneTrouble = e.Message;
+            App.Report($"The MaxxECU's tune could not be read: {e}");
+
+            return null;
+        }
+    }
+
+    /// <summary>Why the last MaxxECU tune read did not happen, if it did not.</summary>
+    private string _maxxTuneTrouble = "";
+
+    /// <summary>
+    /// The live MaxxECU, when the session is one.
+    ///
+    /// Held because it is the only way to the cable: the poll loop owns the
+    /// device and serialises everything through it, so a write goes out between
+    /// two rounds rather than over the top of one.
+    /// </summary>
+    private MaxxUsbSource? _maxxSource;
+
+    /// <summary>Where each of its tables keeps its cells, as they were read.</summary>
+    private IReadOnlyList<MaxxTable> _maxxTables = [];
+
+    /// <summary>
+    /// Turns the blob into tables and settings, and hands them to the rest of
+    /// the application as though they had come from an INI.
+    /// </summary>
+    /// <returns>A sentence for the connection hint.</returns>
+    private string AdoptMaxxTune(byte[]? blob)
+    {
+        // First, and whatever happens next — including the tune not having been
+        // read at all. Failing to pick a tune up has to put the last one down,
+        // or a Calibration tab goes on showing a Speeduino's tables under a
+        // MaxxECU heading, which is worse than an empty one because it looks
+        // like it worked.
+        ForgetTune();
+
+        try
+        {
+            if (blob is null)
+                return " Its tune could not be read, so calibration is not available"
+                       + (_maxxTuneTrouble.Length > 0 ? $": {_maxxTuneTrouble}" : ".");
+
+            IReadOnlyList<MaxxSettingDefinition> definitions =
+                MaxxTuneDefinitions.Read(MaxxTuneDefinitions.Find());
+
+            if (definitions.Count == 0)
+                return " Its tune was read but cannot be named: MTune is not installed here, and "
+                       + "its settings definitions are what say what the bytes mean.";
+
+            MaxxTuneModel model = MaxxTune.Build(
+                blob, definitions, MaxxChannelDefinitions.Read(MaxxGauges.FindDefinitions()));
+
+            _tuneLayout = model.Layout;
+            _ecuTune = EcuTune.FromPages(model.Layout, blob);
+            _ecuTableDefinitions = model.Tables;
+            _maxxTables = model.Maps;
+            _settingsEdit = new TuneSettingsEdit(_ecuTune);
+
+            // Not the firmware's, because a MaxxECU does not describe one — see
+            // MaxxTune.Build. Without it the settings half of this view is empty
+            // on a MaxxECU while the tune behind it holds eight thousand of them.
+            _ecuInterface = model.Pages;
+
+            // The tables first and the menu after, for the reason the ECU path
+            // gives: the menu decides whether an entry names a table by looking
+            // one up, and against an empty list every table-backed entry
+            // disappears.
+            foreach (TuneTable table in Ordered(_ecuTune.Tables(model.Tables))) EcuTables.Add(table);
+
+            EcuTableChoices.Refresh();
+            BuildSettingsMenu();
+
+            EcuTuneSummary =
+                $"{MaxxTune.BlobSize:N0} bytes read from the ECU · {EcuTables.Count} tables · "
+                + $"{_ecuTune.Scalars().Count:N0} settings"
+                + (_ecuInterface is { IsEmpty: false } pages
+                    ? $" · {pages.Dialogs.Count:N0} pages, grouped here rather than by MTune"
+                    : "");
+
+            return $" Its tune was read too — {EcuTables.Count} tables, named from MTune's own "
+                   + "definitions.";
+        }
+        catch (Exception e)
+        {
+            App.Report($"The MaxxECU's tune could not be decoded: {e}");
+
+            // Half a tune is not a tune. A decode that fell over partway has
+            // left some of this assigned and some of it not, and what it would
+            // put on screen is a mixture nobody can tell from a whole one.
+            ForgetTune();
+
+            return " Its tune was read but could not be decoded.";
+        }
+        finally
+        {
+            Raise(nameof(HasEcuTune));
+            Raise(nameof(NoEcuTune));
+            Raise(nameof(ShowNoTuneNotice));
+            Raise(nameof(EcuTableSummary));
+            Raise(nameof(EcuTuneSummary));
+            Raise(nameof(HasSettingsPages));
+            Raise(nameof(SettingsSummary));
+            RaiseWriteGates();
+
+            // The first one is the biggest, which is the one worth opening on.
+            SelectedEcuTable = EcuTables.FirstOrDefault();
+        }
+    }
+
+    /// <summary>
+    /// The part that is the same whichever link a MaxxECU is reached over.
+    ///
+    /// Written once rather than twice: the USB path was added after the
+    /// Bluetooth one, and everything from the gauges to remembering the device
+    /// is wiring that a second copy would have been free to forget.
+    /// </summary>
+    /// <param name="deviceId">
+    /// What to remember the ECU by: the port's own hardware id where it has a
+    /// port, and the USB serial where it does not.
+    /// </param>
+    private void StartMaxxEcu(IEcuTransport transport, string where, string deviceId = "")
+    {
+        Disconnect();
+
+        var source = new MaxxEcuSource(transport);
+        string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
+
+        _live = new LiveSession(source, new LiveSessionSettings
+        {
+            RecordingPath = recording,
+            MaximumRate = LiveRate,
+        });
+
+        _live.Start();
+
+        _livePort = where;
+        _liveSignature = "MaxxECU";
+        _liveVersion = "";
+        _liveIni = "";
+        _liveRecording = recording ?? "";
+
+        // Remembered against the device, as every other connection path does and
+        // this one did not. Without it a MaxxECU never joins the "used before"
+        // group in the connect menu and never becomes the Ctrl+K reconnect.
+        if (deviceId.Length > 0) SerialPortNames.RememberDevice(deviceId, _liveSignature);
+        else SerialPortNames.Remember(where, _liveSignature);
+        _settings.SetKnownEcus(SerialPortNames.Remembered());
+        _settings.SetEcuLastUsed(SerialPortNames.LastUsed());
+        Raise(nameof(ReconnectLabel));
+
         SeedMaxxGauges();
 
         Status = $"Live — MaxxECU   •   {_live.Names.Count} channels";
-        Title = "Live: MaxxECU — OpenLogViewer";
+        Title = $"Live: MaxxECU ({where}) — OpenLogViewer";
         Hint = $"{Opening(recording)} A MaxxECU sends a fixed set of channels, "
                + "and its tune cannot be read, so calibration is not available for it.";
 
@@ -4123,7 +4705,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// name, unit, scale and limits — so the dials come from the same place the
     /// decode does rather than from anything invented here.
     /// </summary>
-    private void SeedMaxxGauges()
+    private void SeedMaxxGauges() => SeedMaxxGauges(MaxxProtocol.Subscribed);
+
+    /// <param name="channels">
+    /// What this session actually carries. Fourteen over Bluetooth, where the
+    /// subscription fixes them; over USB, however many the ECU turned out to
+    /// name — which is why this is a parameter rather than a constant.
+    /// </param>
+    private void SeedMaxxGauges(IReadOnlyList<MaxxChannel> channels)
     {
         foreach (GaugeItem existing in AllGauges) existing.ShownChanged -= OnGaugeShownChanged;
 
@@ -4132,7 +4721,13 @@ public sealed partial class MainViewModel : ObservableObject
         _gaugeIni = null;
         _revCounterScaled = false;
 
-        IReadOnlyList<GaugeSpec> specs = MaxxGauges.For(MaxxProtocol.Subscribed, MaxxGauges.FindDefinitions());
+        IReadOnlyList<GaugeSpec> specs = MaxxGauges.For(channels, MaxxGauges.FindDefinitions());
+
+        // A hundred dials is a catalogue rather than a dashboard, so over USB
+        // only the ones anybody watches are put out. Every channel is still in
+        // the sidebar, still logged and still recorded — this is which of them
+        // start on screen.
+        bool everyOne = specs.Count <= 20;
 
         foreach (GaugeSpec spec in specs)
         {
@@ -4141,8 +4736,7 @@ public sealed partial class MainViewModel : ObservableObject
             item.ShownChanged += OnGaugeShownChanged;
             AllGauges.Add(item);
 
-            // Every one of them: fourteen is a dashboard, not a catalogue.
-            if (item.IsConnected)
+            if (item.IsConnected && (everyOne || Dashboard.Count < 12))
             {
                 item.Show(true);
                 Dashboard.Add(item);
@@ -4301,6 +4895,10 @@ public sealed partial class MainViewModel : ObservableObject
         _live.Dispose();
         _live = null;
         _ecuConnection = null;
+
+        // The cable is gone with the session, so nothing can be written to it any
+        // more — and leaving this set would offer to.
+        _maxxSource = null;
         _obd2 = null;
         _obd2Undecoded = [];
 
@@ -5344,11 +5942,34 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void RemoveMathChannel(MathChannel channel)
     {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        // Asked before the removal, while the definition is still there to be
+        // read against. Removing one quietly is how the power estimate's three
+        // channels ended up as two that could not build: nothing said the
+        // airflow the other two read had gone with it.
+        IReadOnlyList<MathChannel> orphaned =
+            MathChannelBuilder.Dependents(channel.Name, _mathStore.Channels);
+
         if (!_mathStore.Remove(channel)) return;
 
         RefreshMathChannels();
         Reapply();
-        Hint = $"Removed \"{channel.Name}\".";
+
+        Hint = orphaned.Count == 0
+            ? $"Removed \"{channel.Name}\"."
+            : $"Removed \"{channel.Name}\" — {Naming(orphaned)} read it and will no longer build.";
+    }
+
+    /// <summary>Up to three names in a list, and a count for any beyond that.</summary>
+    private static string Naming(IReadOnlyList<MathChannel> channels)
+    {
+        string[] names = [.. channels.Take(3).Select(c => $"\"{c.Name}\"")];
+        string listed = names.Length == 1
+            ? names[0]
+            : string.Join(", ", names[..^1]) + " and " + names[^1];
+
+        return channels.Count > 3 ? $"{listed} and {channels.Count - 3} more" : listed;
     }
 
     /// <summary>Loads the definition back into the editor so it can be changed.</summary>

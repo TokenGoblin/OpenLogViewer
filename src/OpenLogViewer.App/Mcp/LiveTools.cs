@@ -104,8 +104,8 @@ public static class LiveTools
         MainViewModel vm = null!,
         IWindowSource windows = null!,
         IUiDispatcher dispatcher = null!) =>
-        Connect(vm, windows, dispatcher,
-            window => _ = window.ConnectToWifi(address),
+        ConnectAsync(vm, windows, dispatcher,
+            window => window.ConnectToWifi(address),
             () => vm.ConnectObd2Wifi(address),
             address.Length == 0 ? "find a Wi-Fi adapter" : $"connect to {address}");
 
@@ -138,7 +138,14 @@ public static class LiveTools
                 return new { connected = false, reason = e.Message };
             }
 
-            return Describe(vm);
+            // Asked, not assumed. Describe hardcodes connected = true, and this
+            // was the one connect route that returned it without checking — so
+            // an adapter that was found, opened and then failed to become a live
+            // session was reported as connected, with a channel list of nothing.
+            // Every other route here has always made this check.
+            return vm.IsLive
+                ? Describe(vm)
+                : (object)new { connected = false, reason = vm.LiveStatus };
         });
 
     [McpServerTool]
@@ -154,7 +161,9 @@ public static class LiveTools
             $"connect over SSM on {port}");
 
     [McpServerTool]
-    [Description("Connects to a MaxxECU over a serial port.")]
+    [Description("Connects to a MaxxECU over a serial port, which is how a paired "
+                 + "Bluetooth one is reached. A MaxxECU on USB has no port: use "
+                 + "ConnectMaxxEcuUsb for that.")]
     public static Task<object> ConnectMaxxEcu(
         [Description("Port name.")] string port,
         MainViewModel vm,
@@ -164,6 +173,31 @@ public static class LiveTools
             window => window.ConnectToMaxxEcu(port),
             () => vm.ConnectMaxxEcu(port),
             $"connect to the MaxxECU on {port}");
+
+    [McpServerTool]
+    [Description("Connects to a MaxxECU over its USB cable. A MaxxECU's USB is an FTDI "
+                 + "device rather than a COM port, so it appears in no list of serial "
+                 + "ports; ListMaxxEcuUsb says which are plugged in.")]
+    public static Task<object> ConnectMaxxEcuUsb(
+        [Description("The ECU's USB serial, or empty for whichever one is plugged in.")]
+        string serial,
+        MainViewModel vm,
+        IWindowSource windows,
+        IUiDispatcher dispatcher) =>
+        Connect(vm, windows, dispatcher,
+            window => window.ConnectToMaxxEcuUsb(serial ?? ""),
+            () => vm.ConnectMaxxEcuUsb(serial ?? ""),
+            $"connect to the MaxxECU on USB{(serial is { Length: > 0 } ? $" ({serial})" : "")}");
+
+    [McpServerTool]
+    [Description("Lists the MaxxECUs plugged in over USB, with the serial each is opened by.")]
+    public static object ListMaxxEcuUsb() =>
+        new
+        {
+            available = FtdiEcuTransport.IsAvailable,
+            devices = FtdiEcuTransport.MaxxEcus()
+                .Select(d => new { d.Serial, d.Description, inUseByAnotherProgram = d.IsOpen }),
+        };
 
     [McpServerTool]
     [Description("Closes the live connection, and the recording with it if one is running.")]
@@ -306,6 +340,43 @@ public static class LiveTools
             try
             {
                 if (windows.Window is { } window) viaWindow(window);
+                else headless();
+            }
+            catch (Exception e)
+                when (e is IOException or InvalidOperationException or TimeoutException
+                          or UnauthorizedAccessException or EcuProtocolException)
+            {
+                return new { connected = false, reason = $"Could not {what}: {e.Message}" };
+            }
+
+            return vm.IsLive
+                ? Describe(vm)
+                : (object)new { connected = false, reason = vm.LiveStatus };
+        });
+
+    /// <summary>
+    /// The same thing for a connection that is asynchronous, waited for to the
+    /// end rather than to its first await.
+    ///
+    /// <para>
+    /// Waiting is what makes the answer true — the old code discarded the task
+    /// and read <c>IsLive</c> before the socket was open, so it always reported
+    /// a failure. It is also what makes a second attempt safe: the dispatcher
+    /// lets one call through at a time, so a retry now queues behind the
+    /// connection in progress and meets the "already live" guard instead of
+    /// slipping past it and opening a second socket.
+    /// </para>
+    /// </summary>
+    private static Task<object> ConnectAsync(
+        MainViewModel vm, IWindowSource windows, IUiDispatcher dispatcher,
+        Func<MainWindow, Task> viaWindow, Action headless, string what) =>
+        dispatcher.InvokeAsync<object>(async () =>
+        {
+            if (vm.IsLive) return new { connected = false, reason = AlreadyLiveRefusal };
+
+            try
+            {
+                if (windows.Window is { } window) await viaWindow(window);
                 else headless();
             }
             catch (Exception e)

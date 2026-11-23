@@ -2,8 +2,153 @@
 
 ## Unreleased
 
-Everything below landed in one run of work. Grouped by what it does for you
+### A MaxxECU can now be connected over USB, with every channel it sends
+
+**A MaxxECU's USB port is not a COM port and never becomes one.** The driver
+MaxxECU ships installs FTDI's bus driver with no virtual-serial-port half, so
+Windows lists the ECU under *Universal Serial Bus controllers* and gives it no
+port number — which meant the "Serial / USB" this documented had never been
+possible. Looking for it among the COM ports finds nothing, and nothing is wrong
+with the cable.
+
+It is reached through FTDI's own library instead, and it appears in **Connect ▾**
+as its own entry when one is plugged in.
+
+USB also turned out to speak **a different protocol from Bluetooth** — no shared
+byte of framing, no activation to replay — so it is a different implementation
+rather than the same one over another wire. It is the better of the two:
+
+- **Every channel the ECU sends, not a fixed fourteen.** 136 on the unit this was
+  proven against. The USB stream names each value it carries, so the session asks
+  the ECU what it has rather than being told in advance, and names, units and
+  decimals come from MTune's own channel definitions.
+- Verified on a MaxxECU Race: battery 13.80 V, MAP 86.8 kPa against a barometric
+  86.7 kPa with the engine stopped, both unplugged temperature sensors pegged at
+  their −39.9 °C floor.
+
+### The MaxxECU checksum was identified, so its messages can be composed
+
+The Bluetooth path could only ever **replay** messages captured from MTune, which
+is why its channel list was frozen at fourteen: the checksum had defeated an
+exhaustive search of 16-bit CRCs. It is the STM32's own CRC peripheral —
+CRC-32/MPEG-2 fed as little-endian 32-bit words, which is what hid it from a
+byte-oriented search — and it is now verified against **411 of 411** recorded
+frames. Composing the captured activation and subscription reproduces them byte
+for byte.
+
+The frame reader checks it, so a trailer that happens to occur inside a payload
+is now rejected by arithmetic rather than accepted as a frame.
+
+### A MaxxECU session says it is live only once a reading has arrived
+
+Opening the link and arming it were being reported as a connection. A paired
+Bluetooth port whose ECU is switched off opens perfectly happily, so the window
+said "Live — MaxxECU", drew empty gauges, and dropped the session seconds later
+from a background thread — which reads as a link that worked and then broke
+rather than one that was never there.
+
+### A MaxxECU is remembered, like every other controller
+
+It was the one connection path that never recorded what answered, so a MaxxECU
+never joined the "used before" group in the connect menu and never became the
+**Ctrl+K** reconnect. Devices with no COM port — which is every MaxxECU on USB —
+are remembered by their USB serial.
+
+## 0.2.0 — 2026-09-11
+
+The first release with a version behind it. Grouped by what it does for you
 rather than by commit.
+
+**If you read one thing, read the first two entries.** Both are defects that were
+producing confident wrong answers about real engines — a log whose time column
+had a gap in it was being read as a count of samples, and a calculated channel
+could be quietly orphaned by removing the one it read. Neither announced itself.
+
+### Logs with a gap in their time column stopped being read as sample counts
+
+**Three of seven real MS3 recordings to hand were losing their time base
+entirely, and nothing said so.** TunerStudio writes a NaN into the first
+sample's Time often enough that it is ordinary. The reader decided whether to
+trust a time column by asking whether its last reading beat its first — and
+every comparison against NaN is false, so a sound column spanning 1,754 seconds
+was thrown away and replaced by a count of samples.
+
+A 29-minute drive was then reported as **7 hours 18 minutes**, and every number
+measured against time was out by the logging rate — about fifteen times, in the
+direction that flatters it. The virtual dyno is the worst of these: power is a
+rate, so it produced a perfectly shaped curve that was wrong throughout.
+
+- Both readers now judge a time column by its first and last **real** readings.
+  The delimited reader had the same blind spot with the opposite sign — it
+  tested each reading against the one before it, which a NaN in between also
+  makes false, so it accepted columns that plainly ran backwards. The rule lives
+  in one place now rather than being written out twice and disagreeing.
+- The time base itself is filled, so the axis is a clean run of seconds even
+  where the column it came from has a hole. The recorded Time channel keeps its
+  hole, because that is what the file says.
+- `LogDocument.HasRealTimeBase` says whether the base was read or counted, and
+  **the dyno and the coastdown now refuse a counted one** rather than answering
+  wrongly. Insights reports it as a warning, with what it affects.
+
+### A calculated channel no longer breaks when the one it reads is removed
+
+Definitions were applied in the order they happened to be saved, so a channel
+could only read one defined above it. The editor appends, so writing the pieces
+of an estimate in the order you think of them produced a set that did not build,
+with nothing in the file to show why. They are now placed by repeated passes
+until no more will go, which is order-independent; a genuine cycle is reported
+rather than looped on.
+
+Two more things that went with it:
+
+- **Removing a definition says what it breaks.** It used to go quietly. That is
+  how the power estimate's three channels became two that could not build — the
+  airflow the other two read had been removed and nothing mentioned them.
+- **A failure names the definition that actually broke.** A chain fails at its
+  root, but the parser can only complain about the name in front of it: with the
+  airflow gone, "Torque (est)" reported `Unexpected '('`, because it had matched
+  the log's own shorter "Power" channel and choked on the bracket left in the
+  name. True, and two definitions away from the cause. It now reads *It reads
+  "Power (speed density)", which could not be built: 'Airflow' is not a channel
+  in this log, nor a function.*
+
+### Insights stopped guessing at atmospheric pressure, and at the idle
+
+Two findings were reading engines wrongly, and both did it quietly.
+
+**Ambient pressure fell back to the highest manifold reading in the log.** That
+is roughly right on a naturally aspirated engine and nothing like right on a
+boosted one — it made "was there boost" mean "was the peak above the peak",
+which is never true, so the boost finding could not fire on the logs it exists
+for. It now comes from the barometer channel, or from manifold pressure with the
+key on and the engine stopped, which is the barometer measured by the sensor that
+matters. With neither, it says so instead of inventing a datum.
+
+**The idle pooled the coast-down in with the idle.** A comment claimed the
+overrun was excluded "by requiring the engine not to be dropping"; no such test
+existed. So a car that was driven and then idled had its whole deceleration
+through 1,500 rpm counted as idle, and a deceleration spreads far wider than any
+hunt — a perfectly steady engine was reported as hunting on the strength of the
+driving before it. What separates the two is not the rate of change, which is
+similar: it is that a hunt oscillates about idle and stays there, while a coast
+comes down from above.
+
+### Three findings a review had raised and nobody had fixed
+
+Each was verified against the source first, given a failing test, fixed, and then
+had the defect put back to confirm the test caught it.
+
+- **`--insights` swallowed the log path.** It was listed among the switches that
+  take a value and takes none, so `--insights run.mlg` opened no log while
+  `run.mlg --insights` worked — which reads as an intermittent fault rather than
+  a rule. The list is now walked by a test that asserts every switch in it
+  consumes exactly one value.
+- **A float past what a float can hold was sent to the ECU.** Every integer type
+  was range-checked and F32 was not: the cast produced ±Infinity without
+  failing, and the write went out. On rusEFI nearly every setting is an F32.
+- **An even smoothing window threw.** The buffer was sized to the window, and a
+  window of four gathers five samples — two either side plus the sample. Every
+  level the application offers is odd, so it had never fired.
 
 ### The documentation was audited and restructured
 
@@ -1333,9 +1478,9 @@ became 61 MB.
 
 ### Still open
 
-- Loading blocks the UI thread. A 12.4 MB log freezes the window for about
-  200 ms; a much larger SD-card log would be seconds.
-- `MainViewModel` has grown past 1,000 lines and holds theme, filters,
-  histogram, presets, calculated channels and the channel list.
-- Text logs allocate about 59 MB parsing a 3 MB `.msl`, nearly all of it
-  per-cell substrings. Retained memory is unaffected; this is load-time churn.
+Moved out of this file and into
+**[docs/known-issues.md](docs/known-issues.md)**, which is built into the wiki
+and checked by CI — so unlike a list kept here it cannot quietly go stale. It
+holds the verified defects that are not yet fixed, what has no test behind it,
+what has never met hardware, and the performance and structure notes that used
+to sit in this section.

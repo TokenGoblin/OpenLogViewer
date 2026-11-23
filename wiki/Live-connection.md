@@ -4,6 +4,7 @@ Reading an ECU, or a car, as it runs.
 
 - [What a live session is](#what-a-live-session-is)
 - [Supported controllers](#supported-controllers)
+- [MaxxECU](#maxxecu)
 - [Definition files](#definition-files)
 - [Connecting](#connecting)
 - [Reconnecting](#reconnecting)
@@ -33,9 +34,125 @@ against a file applies to the ECU too.
 | MegaSquirt, MicroSquirt | Serial / USB tuning cable | Yes |
 | rusEFI | Serial / USB | Yes |
 | Speeduino | Serial / USB | Yes |
-| MaxxECU | Serial / USB | No — its own protocol |
+| MaxxECU | Bluetooth, or USB — see [MaxxECU](#maxxecu) | No — its own protocol |
 | Any OBD2 vehicle | ELM327 adapter: USB, Bluetooth LE or Wi-Fi | No — see [OBD2](OBD2) |
 | Subaru, over SSM | Serial / USB | No, but you supply an address list — see [Subaru SSM](Subaru-SSM) |
+
+## MaxxECU
+
+A MaxxECU speaks its own protocol rather than TunerStudio's, so it needs no
+definition file. Over USB its **tune is read too**, so the tables are there to
+look at alongside the logging; over Bluetooth it is not. It gets gauges, logging
+and every analysis that works on a log either way.
+
+It offers three links. Two of them are reached here.
+
+| Link | How it appears | Channels | Tune |
+| --- | --- | --- | --- |
+| **USB** | Not a COM port — see below | **Every channel the ECU sends** | **Read** — 169 tables on the unit this was proven against |
+| **Bluetooth** | A paired COM port named `MaxxECU_<serial>` | A fixed fourteen | Not read |
+| **Wi-Fi** | The ECU's own access point | Not implemented | — |
+
+Both working links are verified on a MaxxECU Race. **Prefer USB**: it is faster,
+and it carries everything the ECU measures rather than a fixed list.
+
+The two are not the same protocol — a MaxxECU speaks something quite different
+down each — which is why they differ in what they can do rather than only in
+speed.
+
+### Bluetooth
+
+Pair the ECU with Windows first. It then appears in **Connect ▾** as
+`COM<n> — MaxxECU_<serial> (Bluetooth)` and is recognised automatically, because
+the device name says what it is.
+
+A MaxxECU that has not been talked to since it was powered on accepts the
+connection and then sends nothing at all, indefinitely. OpenLogViewer sends the
+same activation the MaxxECU phone app does, which is what unlocks it — so this is
+handled, but it is why a session is not reported as live until a reading has
+actually arrived.
+
+### USB
+
+> **NOTICE:** **A MaxxECU on USB never becomes a COM port.** The driver
+> MaxxECU ships installs FTDI's bus driver without the virtual-serial-port half,
+> so Windows lists the ECU under *Universal Serial Bus controllers* as `MaxxECU`
+> and gives it no port number. Looking for it among the COM ports will never find
+> it, however long you wait — nothing is wrong with the cable.
+
+So it has its own entry. A MaxxECU plugged in over USB appears in **Connect ▾**
+as `MaxxECU (MX000000) (USB)`, below the ports and above the OBD2 entries, and
+only when one is actually plugged in.
+
+The device is opened through FTDI's own library, `ftd2xx.dll`, which arrives with
+MTune and with MaxxECU's driver package. On a machine that has had neither, no
+MaxxECU is listed.
+
+**One program at a time.** MTune holds the USB device for as long as it is
+connected, and two programs cannot share it. Disconnect in MTune first; the error
+says so if you forget.
+
+**The channels are discovered, not configured.** Over USB a MaxxECU names every
+value it sends, so the session asks the ECU what it has rather than being told in
+advance, against a fixed fourteen over Bluetooth. Names, units and decimals come
+from MTune's own channel definitions where MTune is installed, and channels
+appear by number where it is not.
+
+**How many you get depends on what was moving.** A MaxxECU sends a channel only
+when its value changes, so what a session hears in the couple of seconds it
+listens is whatever happened to be moving then. On the bench ECU this was proven
+against, that is 136 channels on the first connect of a day and about 50 on the
+next — listening longer does not help, because the large number is a queued
+backlog being drained rather than a full list.
+
+So the channels worth having are logged whether they moved or not: engine speed,
+manifold pressure, coolant, intake air temperature, lambda, throttle, battery,
+ignition advance and the rest of the fourteen a MaxxECU subscribes to for its own
+Bluetooth dash, plus throttle position. **One that the ECU has not reported yet
+reads zero until it does** — right for engine speed with the key off, wrong for a
+coolant temperature, and over as soon as the value first moves. Without this,
+connecting before starting the engine — which is the ordinary order — left every
+one of them out of the log for the whole session.
+
+### The tune, over USB
+
+Connecting reads the ECU's whole tune, which takes about four seconds and happens
+before the logging starts, because only one program may hold the USB device.
+The tables then appear under **Calibration** like any other ECU's: 169 of them on
+the unit this was proven against, named from MTune's own settings definitions.
+
+This needs **MTune installed**, for the same reason reading a MegaSquirt needs
+its INI: `ecuSettingsDefinitions.xml` is what says which bytes are which setting,
+what they are scaled by and what the firmware will accept. Without it the tune is
+still read and cannot be named, and the connection says so.
+
+> **NOTICE:** **A MaxxECU has no burn, so it has no undo.** On every other
+> controller here a write lands in working memory and is lost at the next power
+> cycle unless it is burned, which makes turning the key off the way out of a
+> mistake. A MaxxECU applies a write to the running tune and saves it itself, in
+> one step — turning the key off will not undo it.
+>
+> So **the tune is written to a file first**, under `MaxxECU tunes` in your
+> workspace, every time anything is sent. That file is the way back, and the
+> message after a write names it.
+
+Tables can be sent with **Send to ECU**; **Burn** is not offered, because there
+is nothing to burn. A table bigger than 126 cells — a VE or ignition map — cannot
+be sent in one write, and while its pieces land the ECU reads that one table as 0
+for a single evaluation before reading normally again. That is nothing with the
+engine stopped and is not something to do under load, so the confirmation says
+so, and says it louder if engine speed in the same session is above idle.
+
+The first two seconds of a USB session are spent listening, which is how long it
+takes to hear what the ECU is sending. Longer does not help — measured against
+the bench unit, a raw listen had found 51 channels after one second and 55 after
+sixty. A channel that first moves after that cannot be added, because a log's
+columns cannot change once it has rows, which is why the ones worth having are
+listed whether they have moved or not.
+
+**If nothing answers**, the usual cause is that the ECU has no 12 V. Its USB chip
+powers up from the cable alone, so the ECU appears in the connect menu whether or
+not the ECU itself is running.
 
 ## Definition files
 

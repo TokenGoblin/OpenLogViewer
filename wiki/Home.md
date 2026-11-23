@@ -28,6 +28,7 @@ deliberately leaves out.
 | [Histogram and scatter](Histogram-and-scatter) | Binning a log into a table, and plotting samples unaveraged |
 | [VE calibration](VE-calibration) | Suggesting a fuel table from logged mixture against target |
 | [Calculated channels](Calculated-channels) | Defining new channels from existing ones; expression syntax |
+| [Virtual dyno](Virtual-dyno) | Power and torque from a full-throttle pull, by three independent routes |
 
 ## Live connection
 
@@ -55,6 +56,7 @@ deliberately leaves out.
 | --- | --- |
 | [Architecture](Architecture) | How the code is laid out and how data flows through it |
 | [Development](Development) | Building, testing, the installer, and contributing |
+| [Known issues](Known-issues) | Verified defects not yet fixed, and what has no test or no hardware behind it |
 | [Changelog](https://github.com/TokenGoblin/OpenLogViewer/blob/main/CHANGELOG.md) | Release history |
 
 ---

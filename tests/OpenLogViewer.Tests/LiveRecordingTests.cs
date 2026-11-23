@@ -375,4 +375,114 @@ public class LiveRecordingTests : IDisposable
         using var reopened = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         Assert.True(reopened.Length > 0);
     }
+
+    // ----- a source that only knows its channels once it is open --------------
+
+    /// <summary>
+    /// A MaxxECU over USB, in the one respect that matters here: it is told
+    /// nothing in advance and learns every channel from the telemetry itself, so
+    /// it has no names at all until <see cref="ILiveSource.Open"/> has run.
+    /// </summary>
+    private sealed class LearnsWhenOpened : ILiveSource
+    {
+        private int _n;
+
+        public IReadOnlyList<string> Names { get; private set; } = [];
+
+        public IReadOnlyList<string> Units { get; private set; } = [];
+
+        public IReadOnlyList<int> Digits { get; private set; } = [];
+
+        public int Retries => 0;
+
+        public bool WasOpened { get; private set; }
+
+        public void Open()
+        {
+            WasOpened = true;
+            Names = ["Battery voltage", "MAP"];
+            Units = ["V", "kPa"];
+            Digits = [2, 1];
+        }
+
+        public double[] Read()
+        {
+            int n = Interlocked.Increment(ref _n);
+
+            return [13.8, 86 + (n % 3)];
+        }
+
+        public void Recover() { }
+
+        public void Dispose() { }
+    }
+
+    /// <summary>
+    /// Such a source records.
+    ///
+    /// It did not: the check for an empty channel list ran before the source was
+    /// opened, so every USB MaxxECU session was refused with "No channels to
+    /// record" — a message about the ECU having nothing to say, raised before
+    /// anything had been said to the ECU. The whole feature was unreachable from
+    /// the application while the protocol underneath it worked.
+    /// </summary>
+    [Fact]
+    public void ASourceThatLearnsItsChannelsWhenOpenedCanRecord()
+    {
+        string path = TempFile();
+        var source = new LearnsWhenOpened();
+
+        using var session = new LiveSession(source,
+            new LiveSessionSettings { RecordingPath = path, MaximumRate = 200 });
+
+        Assert.Empty(session.Names);
+
+        session.Start();
+        UntilRecorded(session, 3);
+        session.Stop();
+
+        Assert.True(source.WasOpened);
+        Assert.Equal(["Battery voltage", "MAP"], session.Names);
+
+        string[] rows = Rows(path);
+        Assert.Contains("Battery voltage", rows[0]);
+        Assert.Contains("MAP", rows[0]);
+        Assert.True(rows.Length >= 4, $"expected a header and rows, got {rows.Length} lines");
+    }
+
+    /// <summary>
+    /// A source that is opened and still has nothing is still refused. The guard
+    /// was not wrong, only asked too early — an ECU that answers and names no
+    /// channel gives a session with no columns, and that is worth saying rather
+    /// than recording a file of timestamps.
+    /// </summary>
+    [Fact]
+    public void ASourceThatNamesNoChannelsIsStillRefused()
+    {
+        using var session = new LiveSession(new NamesNothing());
+
+        InvalidOperationException failure =
+            Assert.Throws<InvalidOperationException>(session.Start);
+
+        Assert.Contains("No channels", failure.Message);
+    }
+
+    private sealed class NamesNothing : ILiveSource
+    {
+        public IReadOnlyList<string> Names => [];
+
+        public IReadOnlyList<string> Units => [];
+
+        public IReadOnlyList<int> Digits => [];
+
+        public int Retries => 0;
+
+        public void Open() { }
+
+        public double[] Read() => [];
+
+        public void Recover() { }
+
+        public void Dispose() { }
+    }
 }

@@ -299,4 +299,88 @@ public class ReviewFixTests
         Assert.Contains("left alone", plan.Summary, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ----- a float past what a float can hold ---------------------------------
+
+    private const string Floats = """
+        [Constants]
+        endianness = little
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+           cranking = scalar, F32, 0, "ms", 1, 0, 0, 1000, 2
+        """;
+
+    /// <summary>
+    /// Every integer type was range-checked and F32 was not, so a number past
+    /// what a float can hold became ±Infinity on the cast — silently, because
+    /// the cast does not fail — and was sent to the controller. On rusEFI nearly
+    /// every setting is an F32.
+    /// </summary>
+    [Theory]
+    [InlineData(1e39)]
+    [InlineData(-1e39)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NaN)]
+    public void AFloatThatWillNotFitIsRefusedRatherThanSentAsInfinity(double value)
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Floats);
+        EcuTune tune = EcuTune.FromPages(layout, new byte[16]);
+        TuneConstant cranking = tune.Constant("cranking")!;
+
+        Assert.False(tune.PokeInto(tune.Pages, cranking, 0, value));
+
+        // And the page is untouched, rather than holding a half-written number.
+        Assert.Equal(0, tune.ValueIn(tune.Pages, "cranking"));
+    }
+
+    // ----- reading past the end of a constant ---------------------------------
+
+    private const string Neighbours = """
+        [Constants]
+        endianness = little
+        page = 1
+        nPages = 1
+        pageSize = 16
+        pageIdentifier = "\x01"
+        pageReadCommand = "r%2o%2c"
+           shortTable = array,  U08, 0, [2], "%", 1, 0, 0, 255, 0
+           nextAlong  = scalar, U08, 2, "deg", 10, 0, 0, 2550, 0
+        """;
+
+    /// <summary>
+    /// The read path bounded an element against the page rather than against the
+    /// constant, so an index past the end of a short table walked into whatever
+    /// was declared next and decoded it with this constant's scale. PokeInto has
+    /// always bounded the other way; these now agree.
+    /// </summary>
+    [Fact]
+    public void ReadingPastTheEndOfAConstantIsRefusedRatherThanTheNextOne()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Neighbours);
+        EcuTune tune = EcuTune.FromPages(layout, [11, 22, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        Assert.Equal(11, tune.ValueIn(tune.Pages, "shortTable", 0));
+        Assert.Equal(22, tune.ValueIn(tune.Pages, "shortTable", 1));
+
+        // Element 2 is the neighbour's byte. Read as this table it came back as
+        // 33; it is not part of this table and there is no answer.
+        Assert.Null(tune.ValueIn(tune.Pages, "shortTable", 2));
+        Assert.Null(tune.ValueIn(tune.Pages, "shortTable", -1));
+
+        // And the neighbour still reads as itself, at its own scale.
+        Assert.Equal(330, tune.ValueIn(tune.Pages, "nextAlong"));
+    }
+
+    [Fact]
+    public void AFloatThatFitsIsStillWritten()
+    {
+        TuneLayout layout = TuneLayoutReader.Read(Floats);
+        EcuTune tune = EcuTune.FromPages(layout, new byte[16]);
+        TuneConstant cranking = tune.Constant("cranking")!;
+
+        Assert.True(tune.PokeInto(tune.Pages, cranking, 0, 12.5));
+        Assert.Equal(12.5, tune.ValueIn(tune.Pages, "cranking")!.Value, 4);
+    }
 }

@@ -178,6 +178,119 @@ public class MaxxEcuTests
         Assert.True(reader.Discarded > 0);
     }
 
+    // ----- the checksum -----------------------------------------------------
+
+    [Fact]
+    public void EveryFrameInBothRecordingsPassesItsChecksum()
+    {
+        // The point of this one. The checksum was recorded here as unidentified
+        // for as long as the only frames that could be sent were ones captured
+        // out of MTune — so the claim that it is identified now has to be
+        // answerable by the recordings rather than by argument.
+        //
+        // 411 frames of a real MaxxECU Race, none of them constructed here.
+        List<MaxxFrame> frames = [.. ReadAll(Opening, out MaxxFrameReader first),
+                                  .. ReadAll(Steady, out MaxxFrameReader second)];
+
+        Assert.Equal(411, frames.Count);
+
+        // Rebuilding each frame from its type and payload alone has to land on
+        // bytes that are actually in the recording — checksum, length, trailer
+        // and all. Nothing here is constructed from the composer's own output.
+        Assert.All(frames, f =>
+        {
+            byte[] rebuilt = MaxxProtocol.Frame(f.Type, f.Payload);
+            Assert.True(
+                Contains(Opening, rebuilt) || Contains(Steady, rebuilt),
+                $"A composed type 0x{f.Type:X2} frame of {f.Length} bytes is not in the recording.");
+        });
+
+        // And the reader, which now checks the checksum before accepting a
+        // frame, threw none of them out.
+        Assert.Equal(0, first.Rejected);
+        Assert.Equal(0, second.Rejected);
+    }
+
+    /// <summary>Whether the recording contains these exact bytes.</summary>
+    private static bool Contains(byte[] stream, byte[] frame)
+    {
+        for (int at = 0; at + frame.Length <= stream.Length; at++)
+            if (stream.AsSpan(at, frame.Length).SequenceEqual(frame))
+                return true;
+
+        return false;
+    }
+
+    [Theory]
+    // The three messages this file replays, each with the checksum it was
+    // captured carrying. Composing them has to land on the same bytes, or
+    // "identified" means only that a formula was found that fits nothing.
+    [InlineData(0x18, "", 0x2D80)]                          // ask for the channel names
+    [InlineData(0x15, "", 0xCE88)]                          // ask for the firmware version
+    [InlineData(0x13, "E701", 0x6CBF)]                      // subscribe to the rev limit
+    public void AComposedFrameCarriesTheCapturedChecksum(int type, string payloadHex, int checksum)
+    {
+        byte[] payload = Convert.FromHexString(payloadHex);
+        byte[] frame = MaxxProtocol.Frame((byte)type, payload);
+
+        Assert.Equal(checksum, frame[^6] | (frame[^5] << 8));
+    }
+
+    [Fact]
+    public void ComposingTheActivationReproducesTheCapture()
+    {
+        // The activation was captured nine times and is replayed verbatim. If
+        // composing it lands on the same 38 bytes then the composer is right
+        // about a real message rather than merely self-consistent.
+        byte[] composed =
+        [
+            .. MaxxProtocol.Frame(MaxxProtocol.NamesRequest, []),
+            .. MaxxProtocol.Frame(MaxxProtocol.VersionRequest, []),
+            .. MaxxProtocol.Subscribe([487]),
+        ];
+
+        Assert.Equal(MaxxProtocol.Activation.ToArray(), composed);
+    }
+
+    [Fact]
+    public void ComposingTheSubscriptionReproducesTheCapture()
+    {
+        // The same, for the fourteen-channel subscription — and this is the one
+        // that matters, because it is the message whose channel list was fixed
+        // by what had been recorded. Reproducing it exactly is what says the
+        // list can now be chosen.
+        byte[] composed = MaxxProtocol.Subscribe(MaxxProtocol.Subscribed.Select(c => c.Id));
+
+        Assert.Equal(MaxxProtocol.Subscription.ToArray(), composed);
+    }
+
+    [Fact]
+    public void AFrameWithABrokenChecksumIsRefused()
+    {
+        byte[] frame = MaxxProtocol.Frame(0x01, [1, 2, 3, 4]);
+        frame[^6] ^= 0xFF;
+
+        Assert.False(MaxxFrameReader.Read(frame, out MaxxFrame? single, out _) is true);
+        Assert.Null(single);
+
+        var reader = new MaxxFrameReader();
+        reader.Feed(frame);
+
+        Assert.False(reader.TryTake(out MaxxFrame? streamed));
+        Assert.Null(streamed);
+        Assert.Equal(1, reader.Rejected);
+    }
+
+    [Fact]
+    public void AChannelOutsideTheEcusNumberingIsRefused()
+    {
+        // Not refused by the ECU: the dispatcher masks a channel id to eleven
+        // bits, so 2048 subscribes to channel 0 and reports it under whatever
+        // name the caller had in mind for 2048.
+        Assert.Throws<ArgumentOutOfRangeException>(() => MaxxProtocol.Subscribe([2048]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MaxxProtocol.Subscribe([-1]));
+    }
+
     // ----- the subscription and its decode ----------------------------------
 
     [Fact]

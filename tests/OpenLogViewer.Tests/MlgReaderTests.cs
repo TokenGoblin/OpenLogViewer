@@ -167,6 +167,74 @@ public class MlgReaderTests : IDisposable
 
         Assert.Equal("Sample", log.Time.Name);
         Assert.Equal(5, log.Time.At(5));
+        Assert.False(log.HasRealTimeBase);
+    }
+
+    /// <summary>
+    /// Taken from three of the author's own MS3 recordings, where the first
+    /// sample's Time is NaN and every one after it is sound. Comparing the last
+    /// against the first then asks "is 1754.322 greater than NaN", which is
+    /// false, and half an hour of driving was being read as 26,263 seconds.
+    /// </summary>
+    [Fact]
+    public void TimeIsStillTheBaseWhenTheFirstSampleIsNotANumber()
+    {
+        string path = File_(Basic(), 6, (f, s) =>
+            f == 0 ? (s == 0 ? double.NaN : s * 0.25) : 0);
+
+        LogDocument log = LogReaderFactory.Load(path);
+
+        Assert.Equal("Time", log.Time.Name);
+        Assert.True(log.HasRealTimeBase);
+        Assert.Equal(1.25, log.Time.At(5), 3);
+
+        // The base is the axis, so the hole is closed in it: a NaN at sample 0
+        // gives a NaN view range, an empty plot and a readout saying "NaN s".
+        // Carried back at the rate of the rest, so it still rises.
+        // Sample 1 is 0.25 s and the spacing is 0.25, so sample 0 lands on zero.
+        Assert.Equal(0, log.Time.At(0), 3);
+        Assert.All(
+            Enumerable.Range(0, log.SampleCount).Select(log.Time.At),
+            v => Assert.True(double.IsFinite(v), "the time base still holds a hole"));
+
+        // The recorded channel is what the file said, hole and all.
+        Assert.True(double.IsNaN(log.Channels.Single(c => c.Name == "Time").At(0)));
+    }
+
+    /// <summary>
+    /// The same hole at the other end: a recording cut off mid-sample leaves the
+    /// last Time unwritten, and reading that as the finish is what decides the
+    /// log runs backwards.
+    /// </summary>
+    [Fact]
+    public void TimeIsStillTheBaseWhenTheLastSampleIsNotANumber()
+    {
+        string path = File_(Basic(), 6, (f, s) =>
+            f == 0 ? (s == 5 ? double.NaN : s * 0.25) : 0);
+
+        LogDocument log = LogReaderFactory.Load(path);
+
+        Assert.Equal("Time", log.Time.Name);
+        Assert.True(log.HasRealTimeBase);
+    }
+
+    [Fact]
+    public void ATimeColumnThatIsAllNotANumberIsNoTimeBase()
+    {
+        string path = File_(Basic(), 6, (f, s) => f == 0 ? double.NaN : 0);
+
+        LogDocument log = LogReaderFactory.Load(path);
+
+        Assert.Equal("Sample", log.Time.Name);
+        Assert.False(log.HasRealTimeBase);
+    }
+
+    [Fact]
+    public void ARealTimeBaseSaysSo()
+    {
+        string path = File_(Basic(), 6, (f, s) => f == 0 ? s * 0.25 : 0);
+
+        Assert.True(LogReaderFactory.Load(path).HasRealTimeBase);
     }
 
     [Theory]

@@ -20,7 +20,11 @@ public class McpToolTests : IDisposable
     private readonly ViewModelHarness _harness = new();
     private readonly ImmediateUiDispatcher _dispatcher = new();
 
-    public void Dispose() => _harness.Dispose();
+    public void Dispose()
+    {
+        _harness.Dispose();
+        foreach (string p in _temp) { try { File.Delete(p); } catch (IOException) { } }
+    }
 
     private MainViewModel WithTable(out FakeController board)
     {
@@ -33,6 +37,15 @@ public class McpToolTests : IDisposable
 
     private static T Read<T>(object reply, string name) =>
         (T)reply.GetType().GetProperty(name)!.GetValue(reply)!;
+
+    /// <summary>
+    /// A reply's refusal text, or the whole reply when it did not refuse. Safe
+    /// to pass as an assertion message, which is evaluated whether or not the
+    /// assertion fails — reading "reason" directly throws on a reply that
+    /// succeeded and therefore has none.
+    /// </summary>
+    private static string Why(object reply) =>
+        reply.GetType().GetProperty("reason")?.GetValue(reply) as string ?? reply.ToString() ?? "";
 
     // ----- edit_table ----------------------------------------------------------
 
@@ -140,5 +153,90 @@ public class McpToolTests : IDisposable
         Assert.True(Read<bool>(reply, "sent"), Read<string>(reply, "message"));
         Assert.False(Read<bool>(reply, "declined"));
         Assert.NotNull(board);
+    }
+
+    // ----- save_tune_to_file and compare_with_saved_tune -----------------------
+    //
+    // These two decided their own success by looking at the file system rather
+    // than by asking the thing that did the work, and both could report a
+    // success that had not happened. Nothing here covered them at all.
+
+    private string Temp(string extension)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"olv-{Guid.NewGuid():N}{extension}");
+        _temp.Add(path);
+        return path;
+    }
+
+    private readonly List<string> _temp = [];
+
+    [Fact]
+    public async Task SavingATuneSaysItSaved()
+    {
+        MainViewModel vm = WithTable(out _);
+        string path = Temp(".msq");
+
+        object reply = await TuneFileTools.SaveTuneToFile(path, "", vm, _dispatcher);
+
+        Assert.True(Read<bool>(reply, "saved"));
+        Assert.True(File.Exists(path));
+    }
+
+    /// <summary>
+    /// A file of that name existing afterwards is not evidence this write put it
+    /// there. Saving over one TunerStudio is holding open fails and leaves the
+    /// older file exactly where it was — which used to be answered as a success
+    /// pointing at somebody else's tune.
+    /// </summary>
+    [Fact]
+    public async Task SavingOverAHeldFileIsNotReportedAsASave()
+    {
+        MainViewModel vm = WithTable(out _);
+
+        string held = Temp(".msq");
+        File.WriteAllText(held, "someone else's tune");
+
+        using var _hold = File.Open(held, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        object reply = await TuneFileTools.SaveTuneToFile(held, "", vm, _dispatcher);
+
+        Assert.False(Read<bool>(reply, "saved"));
+        Assert.Contains("Could not write", Read<string>(reply, "reason"));
+    }
+
+    /// <summary>
+    /// The worst wrong answer this server can give. A file that could not be
+    /// read used to come back as "compared: true" carrying either the previous
+    /// comparison's differences or, on a fresh session, an empty list — and an
+    /// empty list reads as "the file matches the ECU", which is the thing
+    /// somebody checks before driving.
+    /// </summary>
+    [Fact]
+    public async Task AComparisonAgainstAnUnreadableFileIsNotAComparison()
+    {
+        MainViewModel vm = WithTable(out _);
+
+        string corrupt = Temp(".msq");
+        File.WriteAllText(corrupt, "<msq><page number=\"0\"><constant name=\"crank");
+
+        object reply = await TuneFileTools.CompareWithSavedTune(corrupt, vm, _dispatcher);
+
+        Assert.False(Read<bool>(reply, "compared"));
+        Assert.Contains("Could not read", Read<string>(reply, "reason"));
+    }
+
+    [Fact]
+    public async Task AComparisonAgainstAGoodFileStillReportsItsDifferences()
+    {
+        MainViewModel vm = WithTable(out _);
+
+        string saved = Temp(".msq");
+        Assert.True(Read<bool>(await TuneFileTools.SaveTuneToFile(saved, "", vm, _dispatcher), "saved"));
+
+        object reply = await TuneFileTools.CompareWithSavedTune(saved, vm, _dispatcher);
+
+        // The reply carries "reason" only when it refused, so it cannot be read
+        // as the assertion's message — Assert.True evaluates that either way.
+        Assert.True(Read<bool>(reply, "compared"), Why(reply));
     }
 }

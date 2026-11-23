@@ -35,15 +35,26 @@ public partial class App : Application
     }
 
     /// <summary>Switches that are followed by a value rather than standing alone.</summary>
-    private static readonly string[] TakesAValue =
+    internal static readonly string[] TakesAValue =
     [
         "--theme", "--screenshot", "--export", "--connect", "--connect-ble", "--connect-menu",
-        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--calibration",
+        "--settle", "--menu", "--scan-menu", "--top-menu", "--calculators", "--power", "--dyno",
+        "--calibration",
         "--cell", "--tune-cell", "--select", "--compare", "--z", "--tune-axes", "--pointer", "--mark",
         "--find", "--guide", "--settings", "--page", "--live-page",
-        "--insights",
+        // "--insights" is deliberately absent: it stands alone and opens the
+        // findings for whatever log is loaded. Listing it here made it swallow
+        // the following argument, so "--insights run.mlg" opened no log at all
+        // while "run.mlg --insights" worked — which reads as intermittent.
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
         "--faults", "--connect-ssm", "--connect-wifi",
+        // The serial that "--connect-maxxecu-usb" may be narrowed with. It is a
+        // switch of its own rather than a value after that one, because the
+        // value is optional — one MaxxECU needs no naming — and a switch listed
+        // here swallows whatever follows it whether or not that was meant for
+        // it. That is the "--insights" trap above, and it turns
+        // "--connect-maxxecu-usb run.mlg" into a session with no log open.
+        "--maxxecu-serial",
     ];
 
     /// <summary>
@@ -55,7 +66,7 @@ public partial class App : Application
     /// and the failure surfaces as a modal dialog before the window is shown,
     /// which looks exactly like the app hanging on startup.
     /// </summary>
-    private static string? LogPathIn(string[] args)
+    internal static string? LogPathIn(string[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
@@ -155,6 +166,17 @@ public partial class App : Application
         int ble = Array.IndexOf(e.Args, "--connect-ble");
         if (ble >= 0 && ble + 1 < e.Args.Length) window.ConnectToBle(e.Args[ble + 1]);
 
+        // "--connect-maxxecu-usb" opens a MaxxECU over its USB cable. There is no
+        // port to give it: a MaxxECU on USB never becomes a COM port. Add
+        // "--maxxecu-serial MX000000" where more than one is plugged in.
+        if (e.Args.Contains("--connect-maxxecu-usb"))
+        {
+            int named = Array.IndexOf(e.Args, "--maxxecu-serial");
+
+            window.ConnectToMaxxEcuUsb(
+                named >= 0 && named + 1 < e.Args.Length ? e.Args[named + 1] : "");
+        }
+
         // "--connect-wifi 192.168.0.10:35000" opens a Wi-Fi OBD2 dongle, which
         // is reachable by address and by nothing else. The address may be left
         // off — "--connect-wifi auto" — to try the ones they are known to use.
@@ -206,6 +228,15 @@ public partial class App : Application
             string tab = e.Args[calc + 1];
             string to = e.Args[calc + 2];
             RunThenExit(window, () => window.CaptureCalculators(tab, to));
+            return;
+        }
+
+        // "--dyno out.png" draws the dyno over whatever log was opened.
+        int dyno = Array.IndexOf(e.Args, "--dyno");
+        if (dyno >= 0 && dyno + 1 < e.Args.Length)
+        {
+            string to = e.Args[dyno + 1];
+            RunThenExit(window, () => window.CaptureDyno(to));
             return;
         }
 

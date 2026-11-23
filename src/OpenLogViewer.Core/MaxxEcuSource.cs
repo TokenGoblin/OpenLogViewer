@@ -1,7 +1,15 @@
 namespace OpenLogViewer.Core;
 
 /// <summary>
-/// A live source over a MaxxECU's Bluetooth link.
+/// A live source over a MaxxECU's own link, whether that is the USB port on the
+/// ECU or a paired Bluetooth one.
+///
+/// The two are the same conversation. A MaxxECU's Bluetooth and Wi-Fi are an
+/// ESP32 sitting in front of the controller that actually runs the engine, and
+/// it relays application messages without adding anything of its own; USB
+/// reaches that same controller directly. So everything below — the activation,
+/// the subscription, the framing — is transport-agnostic, and the only thing
+/// that differs is how long the first frame takes to appear.
 ///
 /// Unlike the TunerStudio path, nothing is requested per sample: the ECU is told
 /// once what to send and then pushes frames of its own accord. So a read here
@@ -27,6 +35,19 @@ public sealed class MaxxEcuSource : ILiveSource
 
     /// <summary>How long to wait for a reading before calling it a failure.</summary>
     private static readonly TimeSpan FrameTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// The longer allowance the first reading gets.
+    ///
+    /// A running session is two seconds from its last frame to the next one. The
+    /// first frame after arming is a different matter: the ECU answers the
+    /// activation with its configuration and label dumps — 17,544 bytes over
+    /// twelve seconds on a cold one — and the first actual reading arrives
+    /// somewhere inside that. Two seconds is comfortably enough over Bluetooth,
+    /// where the ECU has usually been awake for a while, and is exactly the
+    /// window a cold ECU on a freshly plugged USB cable misses.
+    /// </summary>
+    private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(8);
 
     public MaxxEcuSource(IEcuTransport transport)
     {
@@ -65,6 +86,18 @@ public sealed class MaxxEcuSource : ILiveSource
     {
         _transport.Open();
         Arm();
+
+        // And prove it, before anything reports a session as running.
+        //
+        // Opening and arming are not evidence that anything is coming back —
+        // <see cref="Recover"/> has said so since it was written, and the way in
+        // did not. A port that reaches nothing opens perfectly happily: a
+        // Bluetooth one that is paired to a switched-off ECU, a USB one that is
+        // some other device entirely. Without this the window said "Live —
+        // MaxxECU", drew fourteen empty gauges, and dropped the session a couple
+        // of seconds later from a background thread, which reads as a link that
+        // worked and then broke rather than one that was never there.
+        Read(FirstFrameTimeout);
     }
 
     /// <summary>
@@ -82,9 +115,11 @@ public sealed class MaxxEcuSource : ILiveSource
         _transport.Write(MaxxProtocol.Subscription);
     }
 
-    public double[] Read()
+    public double[] Read() => Read(FrameTimeout);
+
+    private double[] Read(TimeSpan within)
     {
-        DateTime deadline = DateTime.UtcNow + FrameTimeout;
+        DateTime deadline = DateTime.UtcNow + within;
 
         while (DateTime.UtcNow < deadline)
         {
@@ -104,7 +139,14 @@ public sealed class MaxxEcuSource : ILiveSource
         }
 
         throw new EcuProtocolException(
-            $"No reading arrived within {FrameTimeout.TotalSeconds:N0} seconds.");
+            $"No reading arrived within {within.TotalSeconds:N0} seconds. "
+            + (OtherFrames > 0
+                ? $"A MaxxECU is there and talking — {OtherFrames} other frames arrived — but it "
+                  + "sent no telemetry, which is what an ECU does when it did not take the "
+                  + "subscription."
+                : "Nothing that speaks MaxxECU answered. Over a cable, check it is the MaxxECU's "
+                  + "own USB port rather than another device on the same machine; over Bluetooth, "
+                  + "check the ECU has power, since a paired port is listed either way."));
     }
 
     /// <summary>
@@ -125,12 +167,9 @@ public sealed class MaxxEcuSource : ILiveSource
             // A link whose device has gone cannot be closed politely.
         }
 
-        _transport.Open();
-        Arm();
-
-        // Proves it: opening and arming are not evidence that anything is coming
-        // back.
-        Read();
+        // Which proves it on the way: opening and arming are not evidence that
+        // anything is coming back.
+        Open();
     }
 
     public void Dispose() => _transport.Dispose();

@@ -466,6 +466,16 @@ public sealed class EcuTune
 
             case RealtimeType.F32:
                 // A float keeps its fraction; rounding it would be the bug.
+                //
+                // Range-checked like every integer type, which it was not. A
+                // value past what a float can hold becomes ±Infinity on the cast
+                // — silently, because the cast does not fail — and was then sent
+                // to the controller. On rusEFI nearly every setting is F32, so
+                // this was the one type where a bad number in an .msq reached
+                // the ECU unexamined.
+                if (!double.IsFinite(value)
+                    || value is < -float.MaxValue or > float.MaxValue) return false;
+
                 if (little) BinaryPrimitives.WriteSingleLittleEndian(at, (float)value);
                 else BinaryPrimitives.WriteSingleBigEndian(at, (float)value);
                 return true;
@@ -652,6 +662,13 @@ public sealed class EcuTune
     private double? Value(IReadOnlyList<byte[]> pages, TuneConstant constant, int element)
     {
         if (constant.Page < 0 || constant.Page >= pages.Count) return null;
+
+        // Inside this constant, not merely inside the page — the same bound
+        // PokeInto has always applied on the way in. Without it an index past
+        // the end reads whatever setting is declared next and decodes it with
+        // this one's scale and units, so a row off the end of a short table
+        // comes back as a plausible number belonging to something else.
+        if (element < 0 || element >= Math.Max(1, constant.Columns * constant.Rows)) return null;
 
         byte[] page = pages[constant.Page];
         int at = constant.Offset + (element * constant.ElementSize);

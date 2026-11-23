@@ -638,6 +638,67 @@ public static class Guide
                 + "condition."),
         ]),
 
+        new("Dyno",
+            "What the engine made, worked out from a pull already in your log.",
+        [
+            new("Open it",
+                "Tools ▸ Dyno… over an open log. It finds the full-throttle pulls by itself and "
+                + "offers the widest one first, so the sheet you land on is the one worth reading. "
+                + "A pull has to last two seconds, cover 1,500 rpm and be sampled at ten a second "
+                + "before it is offered at all."),
+
+            new("Three routes, deliberately not averaged",
+                "Road load works from what the car did — a known mass accelerating at a measured "
+                + "rate — and assumes nothing about combustion, which makes it the one to trust "
+                + "first. Air and injectors both work forward from fuel and land at the crank. "
+                + "They are drawn over one another rather than averaged: where they disagree, the "
+                + "shape of the disagreement says which input is wrong, and averaging a good "
+                + "measurement with a bad one only produces a confident wrong answer."),
+
+            new("What you have to type",
+                "Only what no recording can state: mass, gearing, tyre, displacement, injector "
+                + "flow, BSFC, driveline loss. Everything else is read from the log and the tune "
+                + "it carries. What you change is remembered — but only what you change, so a "
+                + "field you leave alone goes on following whatever tune is in front of it "
+                + "instead of carrying one car's weight into the next log. Forget what I entered "
+                + "puts it all back."),
+
+            new("Every figure says where it came from",
+                "The table under the fields tags each input log, tune, entered, assumed or "
+                + "missing. Read it before the horsepower. A figure resting on seventeen "
+                + "measurements and two assumptions is worth quoting; the same figure resting on "
+                + "two measurements and seventeen assumptions is not, and from the outside they "
+                + "are identical."),
+
+            new("The gear matters more than it looks",
+                "Effective mass includes the rotating parts, and their contribution scales with "
+                + "the square of the gear ratio. With a road speed channel the gear is measured. "
+                + "Without one it is worked out, by trying each gear and seeing which makes the "
+                + "road-load and air routes agree — the readout says by how much it won, and a "
+                + "narrow margin says so rather than pretending. You can also tell it outright."),
+
+            new("The differential and the tyre are one number",
+                "A log only ever sees the two multiplied together, as road speed per engine "
+                + "revolution: a differential six per cent taller and a tyre six per cent smaller "
+                + "are the same log. If the routes will not reconcile, measure the rolling "
+                + "diameter and enter that — the tyre field takes a measured diameter as readily "
+                + "as a sidewall size."),
+
+            new("Power and torque share one axis",
+                "Which would be wrong almost anywhere else. Torque in pound-feet is horsepower "
+                + "times 5,252 over engine speed, so the two are the same measurement written "
+                + "twice and they cross at exactly 5,252 rpm on every sheet ever printed. The "
+                + "marker is drawn where the arithmetic says it must fall, which makes the "
+                + "crossing a free check on the lines."),
+
+            new("What it will not do",
+                "It is not a dyno: it cannot hold a steady state, so it says nothing about part "
+                + "throttle. It does not know whether the road was level — one per cent of grade "
+                + "is around nine horsepower on a heavy car. Neither SAE nor DIN correction is "
+                + "applied to a boosted engine, because a turbocharger already compensates for "
+                + "thin air and correcting as well counts the same recovery twice."),
+        ]),
+
         new("Calculators",
             "The arithmetic a tuner keeps a phone open for.",
         [

@@ -74,6 +74,7 @@ $pages = [ordered] @{
     'histogram-and-scatter.md' = 'Histogram-and-scatter'
     've-calibration.md'        = 'VE-calibration'
     'calculated-channels.md'   = 'Calculated-channels'
+    'virtual-dyno.md'          = 'Virtual-dyno'
     'live-connection.md'       = 'Live-connection'
     'obd2.md'                  = 'OBD2'
     'subaru-ssm.md'            = 'Subaru-SSM'
@@ -86,6 +87,7 @@ $pages = [ordered] @{
     'mlg-format.md'            = 'MLG-log-format'
     'architecture.md'          = 'Architecture'
     'development.md'           = 'Development'
+    'known-issues.md'          = 'Known-issues'
 }
 
 # Where a repository file lives. GitLab's canonical path carries a "/-/" segment
@@ -110,7 +112,8 @@ $writtenAgainst = 'https://github.com/TokenGoblin/OpenLogViewer'
 # because somebody who has read one should recognise the other.
 $sections = [ordered] @{
     'Start here'      = @('Home', 'Getting-started', 'Installation', 'User-guide')
-    'Analysis'        = @('Histogram-and-scatter', 'VE-calibration', 'Calculated-channels')
+    'Analysis'        = @('Histogram-and-scatter', 'VE-calibration', 'Calculated-channels',
+                          'Virtual-dyno')
     'Live connection' = @('Live-connection', 'OBD2', 'Subaru-SSM', 'Editing-a-tune')
     'Reference'       = @('Configuration', 'Command-line', 'Troubleshooting',
                           'AI-agent-access-MCP', 'Firmware-definitions-and-channels',

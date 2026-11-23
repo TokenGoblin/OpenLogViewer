@@ -43,12 +43,53 @@ public sealed record EngineSpec
     public double InjectorDeadTimeMs { get; init; } = 1.0;
 
     /// <summary>
-    /// True where the injectors fire twice per cycle rather than once.
+    /// How many times each injector opens per engine cycle — per two turns of the
+    /// crank on a four-stroke.
     ///
-    /// Doubles the duty a given pulse width represents, so getting it wrong is a
-    /// factor of two on everything downstream.
+    /// <para>
+    /// <b>Not "batch or sequential", and not the squirt count either.</b> Both
+    /// were tried here and both are wrong, for the same reason: they describe the
+    /// arrangement rather than the thing the arithmetic needs, which is simply
+    /// how often one injector opens.
+    /// </para>
+    /// <para>
+    /// Batch — simultaneous, or alternating — means the injectors fire as a group
+    /// rather than timed to each cylinder's intake stroke, and by itself it
+    /// changes nothing about how much fuel goes in. Squirts per cycle is how many
+    /// injection <em>events</em> there are per cycle. The two combine, and not by
+    /// multiplying: with simultaneous firing every injector opens on every event,
+    /// but with alternating the injectors are split into two banks that take
+    /// every other event, so two squirts a cycle means each injector opens once.
+    /// </para>
+    /// <para>
+    /// On the car this was worked out against, MegaSquirt is set to three for its
+    /// divider on six cylinders — two squirts a cycle — and to alternating, which
+    /// is one opening per injector. Taking it as two put the volumetric
+    /// efficiency the measured mixture implies at a hundred and sixty-six per
+    /// cent, which a cylinder cannot do. Taking it as one put it at eighty-three,
+    /// and the fuel consumption at 0.60, and both are exactly where a rich
+    /// turbocharged engine sits.
+    /// </para>
+    /// <para>
+    /// It is not an integer because a bank arrangement need not divide evenly.
+    /// </para>
     /// </summary>
-    public bool BatchInjection { get; init; }
+    public double OpeningsPerEngineCycle { get; init; } = 1;
+
+    /// <summary>
+    /// How much longer the injector takes to open for every volt the supply is
+    /// down, in milliseconds a volt.
+    ///
+    /// An injector is a solenoid, and a tired battery under load opens it more
+    /// slowly. Zero leaves the dead time flat. MegaSquirt calls it the battery
+    /// factor and every tune carries one; on the car here it is 0.12, and the
+    /// supply fell from 13.4 volts to 11.9 through a single pull, which is a
+    /// fifth of a millisecond — three per cent of the fuel at the top of it.
+    /// </summary>
+    public double DeadTimeMsPerVolt { get; init; }
+
+    /// <summary>The supply the dead time above was measured at.</summary>
+    public double DeadTimeAtVolts { get; init; } = 13.8;
 
     /// <summary>
     /// True where the logged fuel pressure is already the difference across the
@@ -148,6 +189,11 @@ public static class PowerEstimate
         LogChannel? iat = ChannelRoles.Find(log, ChannelRole.IntakeAir);
         LogChannel? mixture = ChannelRoles.Find(log, ChannelRole.Mixture);
         LogChannel? ve = ChannelRoles.Find(log, ChannelRole.VolumetricEfficiency);
+
+        // A controller's VE table is not necessarily a volumetric efficiency, and
+        // where it is provably not one it must not be used as though it were.
+        if (ve is not null && LooksLikeFuellingTable(ve)) ve = null;
+
         LogChannel? maf = ChannelRoles.Find(log, ChannelRole.MassAirFlow);
         LogChannel? pulseWidth = ChannelRoles.Find(log, ChannelRole.InjectorPulseWidth);
         LogChannel? duty = ChannelRoles.Find(log, ChannelRole.InjectorDuty);
@@ -261,17 +307,25 @@ public static class PowerEstimate
         var channels = new List<MathChannel>();
         string dutyPercent;
 
-        if (duty is not null)
+        // The pulse width first, and the controller's own duty only as a fallback.
+        //
+        // A duty cycle reported by the controller has the dead time inside it — a
+        // MegaSquirt's is the pulse width times engine speed over twelve hundred,
+        // to the decimal, with nothing taken off. But an injector held open for
+        // its opening time flows nothing, so that figure counts fuel that never
+        // left the rail. The width can have the dead time subtracted; a duty
+        // cannot, because the two are already added together by then.
+        if (duty is not null && (rpm is null || pulseWidth is null))
         {
             dutyPercent = duty.Name;
         }
         else
         {
             // Per cent, so the channel reads the way an ECU reports it. The
-            // divisor is 120,000 ms in a minute of firing once every two turns,
-            // over 100 for the percentage — halved again for batch, which fires
-            // twice as often.
-            double divisor = spec.BatchInjection ? 600 : 1200;
+            // 1,200 is the 120,000 ms in a minute of opening once every two
+            // turns, over 100 for the percentage; opening more often than that
+            // scales it, and pays the dead time again each time.
+            double divisor = 1200 / Math.Max(spec.OpeningsPerEngineCycle, 0.01);
 
             channels.Add(new MathChannel
             {
@@ -340,7 +394,7 @@ public static class PowerEstimate
             "Injectors",
             $"{spec.Cylinders} × {spec.InjectorCcPerMinute:N0} cc/min"
             + (duty is null ? $", {spec.InjectorDeadTimeMs:N2} ms dead time" : $", duty from {duty.Name}")
-            + $", {(spec.BatchInjection ? "batch" : "sequential")}, {pressureNote}"
+            + $", {spec.OpeningsPerEngineCycle:N0} opening(s) a cycle, {pressureNote}"
             + $", {TuningMath.Name(spec.Fuel)}, BSFC {spec.Bsfc:N2}",
             channels);
     }
@@ -464,6 +518,51 @@ public static class PowerEstimate
     /// same either way. Anything that goes meaningfully below zero is a gauge; a
     /// true absolute pressure has nowhere below vacuum to go.
     /// </summary>
+    /// <summary>
+    /// The highest a real volumetric efficiency can plausibly reach, per cent.
+    ///
+    /// A little over a hundred, because a well-tuned engine at resonance really
+    /// does fill better than static conditions would allow. Much over it is not a
+    /// cylinder filling more than full; it is a different quantity wearing the
+    /// same name.
+    /// </summary>
+    public const double HighestPlausibleVe = 110;
+
+    /// <summary>
+    /// Whether a channel called "VE" is a fuelling table rather than a
+    /// volumetric efficiency.
+    ///
+    /// <para>
+    /// The MegaSquirt family — and Speeduino and rusEFI after it — compute the
+    /// pulse width from a table they call VE, but the table's scale is set by the
+    /// injector calibration rather than by physics. Tuners routinely scale it so
+    /// the numbers land somewhere convenient, and on a boosted engine it goes
+    /// wherever it needs to: on a real turbocharged log it reaches 136.5%.
+    /// </para>
+    /// <para>
+    /// A cylinder cannot fill to 136% of itself. Taken as a volumetric efficiency
+    /// that number inflates the air by more than a third, and with it every
+    /// horsepower worked out from the air — which is how a 3.4 litre six came to
+    /// be credited with 658.
+    /// </para>
+    /// <para>
+    /// This catches the case that is provably not a volumetric efficiency. It
+    /// cannot confirm the other way: a table that never exceeds a hundred is
+    /// still a table, and may still be scaled to something other than filling.
+    /// That is why using one is reported rather than assumed to be fine.
+    /// </para>
+    /// </summary>
+    internal static bool LooksLikeFuellingTable(LogChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        // Against the declared units, since a channel already expressed as a
+        // fraction of one is on a different scale entirely.
+        double top = ChannelUnits.Fraction(channel, channel.Max) * 100;
+
+        return top > HighestPlausibleVe;
+    }
+
     internal static bool LooksLikeGauge(LogChannel channel)
     {
         for (int i = 0; i < channel.Length; i++)

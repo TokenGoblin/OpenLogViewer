@@ -117,7 +117,7 @@ public sealed class MlgReader : ILogReader
         for (int i = 0; i < fieldCount; i++)
             channels.Add(LogChannel.Adopt(fields[i].Name, fields[i].Units, fields[i].Digits, columns[i]));
 
-        LogChannel time = ResolveTimeBase(fields, preciseTime, timeField, sampleCount);
+        (LogChannel time, bool realTime) = ResolveTimeBase(fields, preciseTime, timeField, sampleCount);
         var (signature, info) = ReadInfoBlock(data, infoStart, dataStart);
 
         return new LogDocument
@@ -125,6 +125,7 @@ public sealed class MlgReader : ILogReader
             FilePath = path,
             Channels = channels,
             Time = time,
+            HasRealTimeBase = realTime,
             Markers = ReadMarkers(data, dataStart, stride, markerOffsets, time),
             Signature = signature,
             CaptureInfo = info,
@@ -317,18 +318,23 @@ public sealed class MlgReader : ILogReader
     /// Built from the separately decoded doubles rather than a stored channel: a
     /// time base keeps full precision, because it accumulates over the recording.
     /// </summary>
-    private static LogChannel ResolveTimeBase(
+    private static (LogChannel Channel, bool IsReal) ResolveTimeBase(
         MlgField[] fields, double[]? seconds, int timeField, int sampleCount)
     {
-        // A time column that never moves is no use as a time base.
-        if (seconds is { Length: > 1 } && seconds[^1] > seconds[0])
-            return new LogChannel(fields[timeField].Name, fields[timeField].Units,
-                                  fields[timeField].Digits, seconds, preservePrecision: true);
+        // A time column that never moves is no use as a time base. Asked through
+        // TimeBase because a hole at either end is not the same thing as a column
+        // that stands still, and comparing the raw ends cannot tell them apart.
+        // Filled, so the axis is a clean run of seconds even where the column it
+        // came from has a hole. The Time channel in Channels keeps the hole.
+        if (seconds is { Length: > 1 } && TimeBase.Rises(seconds))
+            return (new LogChannel(fields[timeField].Name, fields[timeField].Units,
+                                   fields[timeField].Digits, TimeBase.Fill(seconds),
+                                   preservePrecision: true), true);
 
         // Fall back to a synthetic index when the log has no usable Time column.
         var synthetic = new double[sampleCount];
         for (int i = 0; i < sampleCount; i++) synthetic[i] = i;
-        return new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true);
+        return (new LogChannel("Sample", "#", 0, synthetic, preservePrecision: true), false);
     }
 
     /// <summary>

@@ -59,9 +59,27 @@ public sealed record SerialPortInfo(string PortName, string Description, bool Is
     /// <summary>Whether anything has ever answered here.</summary>
     public bool IsKnown => KnownEcu.Length > 0;
 
-    /// <summary>True when this port reaches a MaxxECU, which advertises as MaxxECU_&lt;serial&gt;.</summary>
+    /// <summary>
+    /// True when this port reaches a MaxxECU, which speaks its own protocol and
+    /// must be told apart before it is connected to.
+    ///
+    /// Three ways, because the three links it arrives on say different amounts.
+    /// Over Bluetooth it advertises as <c>MaxxECU_&lt;serial&gt;</c> and is
+    /// unmistakable. Over USB it is a virtual COM port like any other, and
+    /// whether Windows names it depends entirely on which driver claimed it —
+    /// so the description is checked too, and a unit that Windows describes as
+    /// nothing in particular is not recognised at all.
+    ///
+    /// That last case is what <see cref="KnownEcu"/> is for. Connecting once,
+    /// from the menu entry that does not need to be told, records the ECU
+    /// against the device's hardware id — so the port is recognised from then
+    /// on, and stays recognised across a replug that changes its COM number.
+    /// </summary>
     public bool IsMaxxEcu =>
-        DeviceName.StartsWith("MaxxECU", StringComparison.OrdinalIgnoreCase);
+        Mentions(DeviceName) || Mentions(Description) || Mentions(KnownEcu);
+
+    private static bool Mentions(string text) =>
+        text.Contains("MaxxECU", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// True when this port looks like an OBD2 adapter.
@@ -132,12 +150,32 @@ public static class SerialPortNames
     public static void Remember(string portName, string signature)
     {
         string id = All().FirstOrDefault(p => p.PortName == portName)?.DeviceId ?? "";
-        if (id.Length == 0 || signature.Length == 0) return;
+        if (id.Length == 0) return;
+
+        RememberDevice(id, signature);
+    }
+
+    /// <summary>
+    /// The same, for a device that is not behind a COM port at all.
+    ///
+    /// <see cref="Remember"/> turns a port name into the hardware id it is keyed
+    /// by, and gives up when no port matches — which is every device that never
+    /// gets a port number. A MaxxECU on USB is one: it is an FTDI device, so
+    /// looking it up among the serial ports finds nothing and quietly remembers
+    /// nothing, which is how a connection path comes to be the only one whose
+    /// ECU is never added to the "used before" list.
+    ///
+    /// Its own hardware id here is the USB serial, which is as steady as a
+    /// device id and rather more legible.
+    /// </summary>
+    public static void RememberDevice(string deviceId, string signature)
+    {
+        if (deviceId.Length == 0 || signature.Length == 0) return;
 
         lock (Gate)
         {
-            Ecus[id] = signature;
-            Used[id] = DateTimeOffset.Now;
+            Ecus[deviceId] = signature;
+            Used[deviceId] = DateTimeOffset.Now;
         }
     }
 

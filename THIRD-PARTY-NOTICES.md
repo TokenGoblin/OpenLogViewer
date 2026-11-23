@@ -17,8 +17,15 @@ not meet that.
 |---|---|---|
 | .NET runtime and libraries (`dotnet/runtime`) | MIT | © .NET Foundation and Contributors |
 | Windows Presentation Foundation (`dotnet/wpf`) | MIT | © .NET Foundation and Contributors |
+| ASP.NET Core (`dotnet/aspnetcore`) | MIT | © .NET Foundation and Contributors |
 | `System.IO.Ports` | MIT | © .NET Foundation and Contributors |
 | `System.Management` | MIT | © .NET Foundation and Contributors |
+| `ModelContextProtocol.AspNetCore` | MIT | © Anthropic and contributors |
+
+ASP.NET Core and the Model Context Protocol SDK are what host the local agent
+server described in [docs/mcp-server.md](docs/mcp-server.md). They ship in the
+installer whether or not anybody ever arms it, which is why they are listed here
+rather than below.
 
 Each carries the MIT terms, which are the same as this project's own — reproduced
 in [LICENSE](LICENSE). Full per-component notices ship with the .NET SDK as
@@ -66,12 +73,26 @@ folder. Nothing is downloaded and nothing is bundled.
 
 ## No internet access, and no telemetry
 
-Nothing is sent anywhere, ever. There is no HTTP client, no analytics, no update
-check and no crash reporting, and the application does not know or care whether
-the machine is online — which is the point, because it is mostly used in a garage
-with neither internet nor phone signal.
+Nothing is sent anywhere, ever. There is no HTTP client, no analytics and no
+update check, and the application does not know or care whether the machine is
+online — which is the point, because it is mostly used in a garage with neither
+internet nor phone signal.
 
-There is exactly one socket. `WifiEcuTransport` opens a TCP connection to an
+There is no crash *reporting*, in the sense of anything leaving the machine. An
+unhandled exception is written to `openlogviewer-run.log` in the temporary
+folder, alongside what a `--screenshot` or `--connect` run did, because a GUI
+application has no console and a scripted run that fails silently is the worst
+way for one to fail. That file stays where it is written and is never read by
+anything but you.
+
+There are exactly two sockets, and neither reaches the internet.
+
+The first is a **listener**, and it is off until somebody arms it: the local
+agent server binds `127.0.0.1` and nothing else, refuses any request naming a
+cross-site origin, and is never remembered between launches. It accepts
+connections; it makes none.
+
+The second is `WifiEcuTransport`, which opens a TCP connection to an
 OBD2 adapter that serves its own Wi-Fi network — the address is typed in, is
 never discovered or defaulted to anything off the machine, and is in practice a
 private one such as `192.168.0.10:35000`. It carries the same ELM327 commands

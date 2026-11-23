@@ -91,7 +91,14 @@ public static class Smoothing
         }
 
         int half = window / 2;
-        var buffer = new double[window];
+
+        // Sized from the span actually gathered below, which is half either side
+        // of the sample plus the sample itself. An even window gathers one more
+        // than the window says — 4 gives 2 either side, so 5 — and sizing this
+        // to the window instead overran the buffer. Every level the application
+        // offers is odd, so it never fired in the product; a caller passing 4
+        // got an IndexOutOfRangeException from the middle of a smoother.
+        var buffer = new double[(2 * half) + 1];
 
         for (int i = 0; i < values.Count; i++)
         {

@@ -363,6 +363,17 @@ Dead time is worth getting roughly right: at 7,000 rpm one millisecond is six
 per cent of the cycle, so leaving it out overstates the fuel and therefore the
 power.
 
+**The wideband is read whichever way your ECU reports it.** Every controller
+writes the same measurement differently — MegaSquirt logs `AFR` in units of
+`AFR`, rusEFI logs lambda, MaxxECU and Haltech write `λ`, others write `:1` or a
+bare number with no unit at all. There is nothing to set: the unit is believed
+where it says which, and where it does not the values decide, because lambda
+lives around one and a ratio around the fuel's stoichiometric figure. That
+figure is taken from the **Fuel** you chose, which matters on alcohol — methanol
+is stoichiometric at 6.45, so an engine on it at lambda 0.75 logs a ratio of
+4.8, and a fixed threshold would read that as lambda and multiply it by 6.45 a
+second time.
+
 ## Calculators
 
 **Tools ▸ Calculators…** — the arithmetic a tuner otherwise keeps a phone open

@@ -96,6 +96,8 @@ public class GuideTests
     [InlineData("compare")]
     [InlineData("restore")]
     [InlineData("estimate power")]
+    [InlineData("dyno")]
+    [InlineData("road load")]
     public void EveryFeatureIsDescribedSomewhere(string feature) =>
         Assert.Contains(Guide.AllEntries, e => e.Matches(feature));
 

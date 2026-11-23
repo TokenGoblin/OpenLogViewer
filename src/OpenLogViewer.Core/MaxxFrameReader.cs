@@ -28,6 +28,16 @@ public sealed class MaxxFrameReader
     public int Discarded { get; private set; }
 
     /// <summary>
+    /// Candidate frames that framed correctly and failed their checksum.
+    ///
+    /// Not the same thing as a discarded byte. Some of these are a trailer
+    /// occurring inside a payload with a length that happened to line up, which
+    /// is the case this rejects and is harmless; a steady stream of them instead
+    /// means the link is corrupting data, which is worth being able to say.
+    /// </summary>
+    public int Rejected { get; private set; }
+
+    /// <summary>
     /// Adds received bytes to whatever is already waiting.
     ///
     /// Appends and nothing else. Capping the buffer here looks like prudent
@@ -87,6 +97,18 @@ public sealed class MaxxFrameReader
                 int declared = _buffer[t - 4] | (_buffer[t - 3] << 8);
                 if (declared != t - 8) continue;
 
+                // And the checksum agrees. Magic, a trailer and a length that
+                // lines up already make the framing all but unambiguous, but
+                // "all but" is the whole difficulty here: a payload may contain
+                // any of those bytes, and a frame accepted at the wrong offset
+                // is decoded rather than refused. The checksum is what turns
+                // that from unlikely into arithmetic.
+                if (Checksum(t) != (_buffer[t - 2] | (_buffer[t - 1] << 8)))
+                {
+                    Rejected++;
+                    continue;
+                }
+
                 found = t;
                 break;
             }
@@ -137,6 +159,23 @@ public sealed class MaxxFrameReader
         return -1;
     }
 
+    /// <summary>
+    /// The checksum over a candidate frame that starts at the front of the
+    /// buffer and has its trailer at <paramref name="trailerAt"/>.
+    ///
+    /// Copied out rather than computed in place because the buffer is a list and
+    /// the checksum takes a span. The frames are a few hundred bytes at most.
+    /// </summary>
+    private ushort Checksum(int trailerAt)
+    {
+        int covered = trailerAt - 2;
+
+        Span<byte> body = covered <= 512 ? stackalloc byte[covered] : new byte[covered];
+        for (int i = 0; i < covered; i++) body[i] = _buffer[i];
+
+        return MaxxProtocol.Checksum(body);
+    }
+
     private bool IsTrailerAt(int at)
     {
         ReadOnlySpan<byte> trailer = MaxxProtocol.Trailer;
@@ -163,6 +202,9 @@ public sealed class MaxxFrameReader
 
         if (!data[1..4].SequenceEqual(MaxxProtocol.Magic)) return false;
         if (!data[^4..].SequenceEqual(MaxxProtocol.Trailer)) return false;
+
+        if (MaxxProtocol.Checksum(data[..^6]) != BinaryPrimitives.ReadUInt16LittleEndian(data[^6..]))
+            return false;
 
         frame = new MaxxFrame(data[0], data.Slice(4, declared).ToArray());
         consumed = data.Length;

@@ -22,6 +22,9 @@ public sealed class ImmediateUiDispatcher : IUiDispatcher
 
         return Task.CompletedTask;
     }
+
+    /// <summary>Runs it here and waits for all of it, which is the point.</summary>
+    public Task<T> InvokeAsync<T>(Func<Task<T>> action) => action();
 }
 
 /// <summary>No window, which is what a headless test has.</summary>

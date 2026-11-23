@@ -12,6 +12,7 @@
 - [Histogram and scatter](Histogram-and-scatter)
 - [VE calibration](VE-calibration)
 - [Calculated channels](Calculated-channels)
+- [Virtual dyno](Virtual-dyno)
 
 **Live connection**
 

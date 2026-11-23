@@ -1,8 +1,10 @@
 using System.IO;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using ModelContextProtocol.AspNetCore;
 
 namespace OpenLogViewer.App.Mcp;
@@ -150,6 +152,40 @@ internal sealed class McpClientActivity
 /// </summary>
 public sealed class McpServerHost : IMcpServerHost
 {
+    /// <summary>
+    /// Whether a request's <c>Origin</c> is one this server will answer.
+    ///
+    /// <para>
+    /// No header at all is the ordinary case and is allowed: an agent speaking
+    /// JSON-RPC over HTTP is not a browsing context and sends none. A header
+    /// that is present has to name loopback, because the only thing that sets
+    /// one here is a page, and a page has no business driving an ECU.
+    /// </para>
+    /// <para>
+    /// Internal so the tests can ask it directly. Reaching it through a socket
+    /// would test Kestrel's header parsing rather than this rule.
+    /// </para>
+    /// </summary>
+    internal static bool OriginIsLocal(StringValues origin)
+    {
+        if (origin.Count == 0) return true;
+
+        // More than one Origin is not something a browser sends; it is somebody
+        // hoping one of them is the one that gets read.
+        if (origin.Count > 1) return false;
+
+        string? value = origin[0];
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        // "null" is what a sandboxed frame or a file:// page sends, and it names
+        // no site that could be checked.
+        if (value.Equals("null", StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)) return false;
+
+        return uri.IsLoopback;
+    }
+
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
 
     private WebApplication? _app;
@@ -213,6 +249,30 @@ public sealed class McpServerHost : IMcpServerHost
             builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
             WebApplication app = builder.Build();
+
+            // Before anything else, because a request this refuses must not
+            // count as activity or reach a tool.
+            //
+            // Loopback keeps other machines out and does nothing about this one.
+            // A page in a browser can post to 127.0.0.1 as readily as an agent
+            // can, and a name that resolves to 127.0.0.1 makes the browser treat
+            // it as that site's own origin — the rebinding attack the MCP
+            // transport spec requires an Origin check against. A cross-site
+            // caller sends one; a local agent sends none.
+            app.Use(async (context, next) =>
+            {
+                if (!OriginIsLocal(context.Request.Headers.Origin))
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsync(
+                        "OpenLogViewer's agent server does not accept cross-site requests.")
+                        .ConfigureAwait(false);
+
+                    return;
+                }
+
+                await next(context).ConfigureAwait(false);
+            });
 
             // Ahead of MapMcp, so it wraps the long-lived event stream a
             // streaming client holds open as well as the individual calls.

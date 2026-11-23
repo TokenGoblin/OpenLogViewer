@@ -145,6 +145,124 @@ public class PowerEstimateTests
         Assert.False(ChannelUnits.IsLambda(ratio));
     }
 
+    // ----- how each firmware writes the same measurement ----------------------
+    //
+    // Every wideband measures one thing and no two firmwares report it alike.
+    // Reading it the wrong way is out by the stoichiometric ratio — about
+    // fifteen times on petrol — so each of these is a real way of writing it.
+
+    [Theory]
+    [InlineData("lambda")]
+    [InlineData("Lambda")]
+    [InlineData("λ")]
+    [InlineData("L")]
+    public void AUnitThatSaysLambdaIsBelieved(string units) =>
+        Assert.True(ChannelUnits.IsLambda(new LogChannel("Mixture", units, 3, [0.85, 0.9])));
+
+    /// <summary>
+    /// ":1" is how a great many dashes and firmwares write an air-fuel ratio.
+    /// The unit list used to test for it literally, which could never match:
+    /// units are simplified before comparison and that strips the colon, so it
+    /// arrived as "1" and fell through to the values.
+    /// </summary>
+    [Theory]
+    [InlineData("AFR")]
+    [InlineData("afr")]
+    [InlineData(":1")]
+    [InlineData("A/F")]
+    [InlineData("ratio")]
+    public void AUnitThatSaysRatioIsBelieved(string units) =>
+        Assert.False(ChannelUnits.IsLambda(new LogChannel("Mixture", units, 3, [13.0, 13.5])));
+
+    /// <summary>
+    /// The threshold cannot be a fixed number. Methanol is stoichiometric at
+    /// 6.45, so an engine on it running at lambda 0.75 logs an air-fuel ratio of
+    /// 4.8 — and any constant low enough to recognise lambda also swallows that,
+    /// which multiplies it by 6.45 a second time.
+    /// </summary>
+    [Fact]
+    public void AMethanolRatioIsNotMistakenForLambda()
+    {
+        var ratio = new LogChannel("Mixture", "", 2, [4.8, 5.0, 4.9, 5.2]);
+
+        Assert.False(ChannelUnits.IsLambda(ratio, Fuel.Methanol));
+    }
+
+    [Fact]
+    public void LambdaOnMethanolIsStillLambda()
+    {
+        var lambda = new LogChannel("Mixture", "", 3, [0.78, 0.80, 0.82]);
+
+        Assert.True(ChannelUnits.IsLambda(lambda, Fuel.Methanol));
+    }
+
+    /// <summary>
+    /// A wideband reads nothing before it is warm, and a great many logs open
+    /// with a minute of that. Deciding from the smallest and largest value made
+    /// those samples count for as much as the whole rest of the recording.
+    /// </summary>
+    [Fact]
+    public void ColdSamplesReadingZeroDoNotDecideWhatTheChannelIs()
+    {
+        double[] values = [.. Enumerable.Repeat(0.0, 40).Concat(Enumerable.Repeat(13.2, 200))];
+
+        Assert.False(ChannelUnits.IsLambda(new LogChannel("AFR", "", 2, values)));
+    }
+
+    /// <summary>
+    /// And the same at the other end: MegaSquirt pegs a wideband at 25.5 when
+    /// it is open-circuit, which the old midpoint moved just as far.
+    /// </summary>
+    [Fact]
+    public void ASensorPeggedAtItsRailDoesNotDecideEither()
+    {
+        double[] values = [.. Enumerable.Repeat(0.90, 200).Concat(Enumerable.Repeat(25.5, 40))];
+
+        Assert.True(ChannelUnits.IsLambda(new LogChannel("Mixture", "", 3, values)));
+    }
+
+    [Fact]
+    public void AChannelWithNoReadingsAtAllIsNotCalledLambda()
+    {
+        var empty = new LogChannel("Mixture", "", 3, [0, 0, double.NaN]);
+
+        Assert.False(ChannelUnits.IsLambda(empty));
+    }
+
+    // ----- where only the unit can decide -------------------------------------
+    //
+    // The two tests above this pair pass whether or not the unit is recognised,
+    // because the values rescue them. These are the cases where the values
+    // cannot, which is the whole reason the unit is consulted first.
+
+    /// <summary>
+    /// A sensor that never woke up. There are no readings to judge, so the unit
+    /// is all there is — and a log that says lambda is lambda even when every
+    /// sample of it is zero.
+    /// </summary>
+    [Fact]
+    public void AUnitIsBelievedWhenThereAreNoReadingsToJudge()
+    {
+        var dead = new LogChannel("Lambda", "λ", 3, [0, 0, 0, 0]);
+
+        Assert.True(ChannelUnits.IsLambda(dead));
+        Assert.False(ChannelUnits.IsLambda(new LogChannel("AFR", ":1", 2, [0, 0, 0, 0])));
+    }
+
+    /// <summary>
+    /// A wideband stuck at a fixed 1.0 reads exactly like lambda and is not. The
+    /// unit is the only thing that says otherwise, and ":1" is a common way to
+    /// write it — one the unit list used to miss entirely, because units are
+    /// simplified before comparison and that strips the colon.
+    /// </summary>
+    [Fact]
+    public void AStuckRatioLabelledOneToOneIsNotReadAsLambda()
+    {
+        var stuck = new LogChannel("AFR", ":1", 2, [1.0, 1.0, 1.0, 1.0]);
+
+        Assert.False(ChannelUnits.IsLambda(stuck));
+    }
+
     [Fact]
     public void BoostLoggedAsGaugePressureIsRecognisedAndAddedBackOn()
     {
@@ -250,17 +368,22 @@ public class PowerEstimateTests
     }
 
     [Fact]
-    public void BatchInjectionIsWorthExactlyTwiceSequential()
+    public void TwoSquirtsACycleIsWorthExactlyTwiceOne()
     {
         LogDocument log = Log(
             ("RPM", "rpm", [7000, 7000, 7000]),
             ("PW", "ms", [4, 4, 4]));
 
-        double sequential = Value(log, BigInjectors, PowerEstimate.InjectorPowerChannel);
-        double batch = Value(
-            log, BigInjectors with { BatchInjection = true }, PowerEstimate.InjectorPowerChannel);
+        double once = Value(log, BigInjectors, PowerEstimate.InjectorPowerChannel);
+        double twice = Value(
+            log, BigInjectors with { OpeningsPerEngineCycle = 2 }, PowerEstimate.InjectorPowerChannel);
 
-        Assert.Equal(2, batch / sequential, 6);
+        // Not "batch against sequential", which is a different setting and makes
+        // no difference to the fuel: firing the injectors together rather than
+        // timing them to each cylinder changes nothing about how long they are
+        // open. How many times each opens per two turns of the crank changes
+        // everything, and this is that.
+        Assert.Equal(2, twice / once, 6);
     }
 
     [Fact]
@@ -366,15 +489,20 @@ public class PowerEstimateTests
     public void TheSpreadIsWhatSaysAVeTableIsWrong()
     {
         // The diagnostic. The injectors are counting real fuel; the speed density
-        // figure believes a VE that is twenty per cent optimistic. The spread is
-        // what makes that visible rather than leaving two plausible numbers.
+        // figure believes a VE that is optimistic. The spread is what makes that
+        // visible rather than leaving two plausible numbers.
+        //
+        // 108% rather than the 120% this once used. A cylinder cannot fill to
+        // 120% of itself, so a table reading that is not an optimistic volumetric
+        // efficiency — it is a fuelling table, which is a different quantity, and
+        // is now refused as one rather than believed.
         LogDocument log = Log(
             ("RPM", "rpm", [7000, 7000, 7000]),
             ("MAP", "kPa", [101.325, 101.325, 101.325]),
             ("IAT", "C", [20, 20, 20]),
             ("AFR", "afr", [12.5, 12.5, 12.5]),
             ("PW", "ms", [4.176, 4.176, 4.176]),
-            ("VE", "%", [120, 120, 120]));
+            ("VE", "%", [108, 108, 108]));
 
         var spec = new EngineSpec
         {
@@ -384,8 +512,8 @@ public class PowerEstimateTests
 
         double spread = Value(log, spec, PowerEstimate.SpreadChannel);
 
-        // The injector figure sits about a sixth below the inflated air figure.
-        Assert.InRange(spread, -20, -14);
+        // The injector figure sits below the inflated air figure by enough to see.
+        Assert.InRange(spread, -12, -3);
     }
 
     // ----- mass air flow, torque and the wheels --------------------------------
