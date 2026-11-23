@@ -184,13 +184,14 @@ public static class WicanTools
     // ----- logs --------------------------------------------------------------
 
     [McpServerTool]
-    [Description("Lists the files in the WiCAN's SD card logger folder, with sizes, and the logger's status.")]
+    [Description("Lists the files in the WiCAN's SD card logger folder, with sizes, and the logger's status. skipped counts files the WiCAN left out because their names cannot be read by wican_log_read.")]
     public static Task<object> WicanLogList(MainViewModel vm, IUiDispatcher dispatcher) =>
         Read(vm, dispatcher, w => new
         {
             ok = true,
             logger = Values(w.Client.LogStatus()),
             files = w.Client.LogList().Select(f => new { name = f.Name, bytes = f.Size, modified = f.Modified?.ToString("o") }),
+            skipped = w.Client.LogListSkipped,
         });
 
     [McpServerTool]
@@ -222,10 +223,12 @@ public static class WicanTools
     [McpServerTool]
     [Description(
         "The WiCAN's CAN controller: mode, bitrate, frames received and sent, rxRecent (frames in the last "
-        + "second: arming is refused with no-traffic when this is 0), drops, bus errors, whether transmit is armed, "
-        + "and whether a recording from wican_can_stream is running. transmitFault is set when the WiCAN latched "
-        + "transmit off after a bus fault (tx-timeout, bus-off, error-passive, tec): it disarmed, went back to "
-        + "listen-only and suspended Lua transmit, and stays so until wican_can_resume.")]
+        + "second: arming is refused with no-traffic when this is 0), drops, bus errors, the transmit and receive "
+        + "error counters (tec, rec), whether transmit is armed, and whether a recording from wican_can_stream is "
+        + "running. latch and transmitFault are set when the WiCAN latched transmit off after a bus fault "
+        + "(tx-timeout, bus-off, error-passive, tec, bus-errors): it disarmed, went back to listen-only and "
+        + "suspended Lua transmit, and stays so until wican_can_resume. lastDisarm is the last reason it disarmed "
+        + "(host, idle, reconfig, fault …).")]
     public static Task<object> WicanCanStatus(MainViewModel vm, IUiDispatcher dispatcher) =>
         Read(vm, dispatcher, w =>
         {
@@ -239,6 +242,9 @@ public static class WicanTools
                 rxRecent = can.Long(WcpWire.RxRecent),
                 armedHere = w.Client.IsArmed,
                 transmitFault = fault,
+                latch = can.Has(WcpWire.LatchKey) ? can[WcpWire.LatchKey] : null,
+                tec = can.Long(WcpWire.Tec),
+                rec = can.Long(WcpWire.Rec),
                 lastDisarm = w.Client.LastDisarmReason,
                 warning = fault is null
                     ? null

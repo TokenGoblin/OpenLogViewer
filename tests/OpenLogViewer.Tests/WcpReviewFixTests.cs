@@ -195,15 +195,69 @@ public class WcpReviewFixTests : IDisposable
     }
 
     [Fact]
-    public void F17_AReplayWithoutItsDataLinesIsAskedForOnceMore()
+    public void F17_AReplayBringsItsDataLines()
     {
-        // The whole reply lost; the store has only the final line, which says
-        // nineteen lines were sent and brings none — so a new seq, and it runs again.
+        // The whole reply lost; the store keeps a reply of up to 1 KB whole.
+        _device.LoseReplies = 1;
+
+        Assert.Equal("0", _client.Status()["armed"]);
+
+        Assert.Equal(["status"], _device.Commands);
+        Assert.Single(_device.Replayed);
+    }
+
+    [Fact]
+    public void F17_AReplyTooLongToStoreRunsAgainOnItsRetry()
+    {
+        byte[] file = [.. Enumerable.Range(0, 3000).Select(i => (byte)i)];
+        _device.LogFiles["a.db"] = file;
+        _device.LoseReplies = 1;
+
+        Assert.Equal(file, _client.LogRead("a.db", 0, 3000).Data);
+
+        Assert.Equal(2, _device.Commands.Count(c => c.StartsWith("log read", StringComparison.Ordinal)));
+        Assert.Empty(_device.Replayed);
+        Assert.Equal(_device.Requests[0], _device.Requests[1]);
+    }
+
+    [Fact]
+    public void F17_AReplayOfOnlyTheFinalLineIsAskedForOnceMore()
+    {
+        // A firmware that stored only the final line: the replay says how many
+        // lines were sent and brings none, so a new seq, and it runs again.
+        _device.ReplayFinalOnly = true;
         _device.LoseReplies = 1;
 
         Assert.Equal("0", _client.Status()["armed"]);
 
         Assert.Equal(["status", "status"], _device.Commands);
+        Assert.Single(_device.Replayed);
+    }
+
+    [Fact]
+    public void F17_BusyConsoleIsRetriedWithTheSameSeq()
+    {
+        _device.BusyConsole = 1;
+
+        Assert.Equal(["12.6V"], _client.Console("system --voltage").Output);
+
+        Assert.Equal(2, _device.Requests.Count);
+        Assert.Equal(_device.Requests[0], _device.Requests[1]);
+        Assert.Equal(["console system --voltage"], _device.Commands);
+    }
+
+    [Fact]
+    public void F17_HelloClearsTheStore()
+    {
+        _device.LoseReplies = 1;
+        _client.Ping();
+        Assert.Single(_device.Replayed);
+
+        _client.Hello();
+
+        // The same request text again, after a hello, runs rather than replays.
+        _device.Write(Encoding.ASCII.GetBytes(Wcp.Frame(_device.Requests[0]) + "\r"));
+        Assert.True(Eventually(() => _device.Commands.Count(c => c == "ping") == 2));
         Assert.Single(_device.Replayed);
     }
 
@@ -268,7 +322,7 @@ public class WcpReviewFixTests : IDisposable
         Assert.True(frames.Single().Extended);
 
         _client.CanStreamOn(0x7E8, 0x7F8);
-        Assert.Equal("can stream on 7E8 7F8", _device.Commands[^1]);
+        Assert.Equal("can stream on 7E8 7F8 s", _device.Commands[^1]);
 
         Assert.Equal("HOST", Assert.Throws<WcpException>(() => _client.CanStreamOn(0x800, 0x7FF, extended: false)).Code);
     }
@@ -402,6 +456,105 @@ public class WcpReviewFixTests : IDisposable
     [InlineData("plain", "plain")]
     [InlineData("é", "\\xC3\\xA9")]
     public void EscapingRoundTrips(string text, string wire)
+    {
+        Assert.Equal(wire, Wcp.Escape(Encoding.UTF8.GetBytes(text)));
+        Assert.Equal(text, Wcp.Unescape(wire));
+    }
+
+    // ----- as the merged firmware sends it (docs/WCP.md, 569f4e8) ----------------------
+
+    [Fact]
+    public void Fw_AReconfigDisarmIsNotAFault()
+    {
+        string? why = null;
+        _client.Disarmed += r => why = r;
+        _client.CanStart();
+        _client.CanArm();
+
+        _device.Reconfigure();
+
+        Assert.True(Eventually(() => why is not null));
+        Assert.Equal("reconfig", why);
+        Assert.False(_client.IsArmed);
+        Assert.Null(_client.TransmitFault);
+    }
+
+    [Fact]
+    public void Fw_AnUnknownDisarmReasonIsPassedOn()
+    {
+        string? why = null;
+        _client.Disarmed += r => why = r;
+        _device.AfterElmPrompt.Add("!DISARM moon-phase");
+        _link.Write("ATI\r"u8);
+
+        Assert.True(Eventually(() => why is not null));
+        Assert.Equal("moon-phase", why);
+        Assert.Equal("moon-phase", _client.LastDisarmReason);
+        Assert.Null(_client.TransmitFault);
+    }
+
+    [Fact]
+    public void Fw_ABusErrorsLatchIsReadFromTheEventAndFromCanStatus()
+    {
+        _client.CanStart();
+        _client.CanArm();
+
+        _device.LatchFault("bus-errors");
+        Assert.True(Eventually(() => _client.TransmitFault == "bus-errors"));
+
+        _client.CanResume();
+        Assert.Equal("none", _client.CanStatus()[WcpWire.LatchKey]);
+        Assert.Null(_client.TransmitFault);
+    }
+
+    [Fact]
+    public void Fw_CanArmWithTheControllerOffIsCanOff()
+    {
+        WcpException e = Assert.Throws<WcpException>(() => _client.CanArm());
+        Assert.True(e.IsCanOff);
+    }
+
+    [Fact]
+    public void Fw_LogListCountsWhatItSkipped()
+    {
+        _device.LogFiles["a.db"] = [1];
+        _device.LogFiles["b c.db"] = [2];
+
+        Assert.Single(_client.LogList());
+        Assert.Equal(1, _client.LogListSkipped);
+
+        Assert.Equal(3, WcpClient.SkippedIn("2 files; 3 skipped (name not readable by log read)"));
+        Assert.Equal(0, WcpClient.SkippedIn(""));
+    }
+
+    [Fact]
+    public void Fw_AStuckScriptIsNamed()
+    {
+        _device.LuaScripts["a"] = "x"u8.ToArray();
+        _client.LuaRun("a");
+        _device.StuckScripts.Add("a");
+
+        WcpException e = Assert.Throws<WcpException>(() => _client.LuaStop());
+
+        Assert.Equal("STATE", e.Code);
+        Assert.Contains("still stopping: a", e.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Fw_ALongSecretIsReadWholeOnceUnlocked()
+    {
+        string json = "[" + string.Join(",", Enumerable.Range(0, 12).Select(i => $"{{\"ssid\":\"net{i}\",\"pass\":\"p{i}\"}}")) + "]";
+        _client.ConfigSet("sta_fallbacks", json);
+        _client.ConfigUnlock();
+
+        Assert.Equal(json, _client.ConfigSecrets()["sta_fallbacks"]);
+        Assert.Contains($"config secrets sta_fallbacks {WcpWire.Base64Flag}", _device.Commands);
+    }
+
+    [Theory]
+    [InlineData("a\\b", "a\\x5Cb")]
+    [InlineData("\\x41", "\\x5Cx41")]
+    public void Fw_ABackslashIsEscapedSoAPrintedEscapeSurvives(string text, string wire)
     {
         Assert.Equal(wire, Wcp.Escape(Encoding.UTF8.GetBytes(text)));
         Assert.Equal(text, Wcp.Unescape(wire));

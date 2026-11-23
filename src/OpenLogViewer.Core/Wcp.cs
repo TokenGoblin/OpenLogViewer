@@ -129,9 +129,9 @@ public static class Wcp
     ///
     /// <para>
     /// The bytes are decoded as UTF-8, since that is what a script printing text
-    /// most often holds. The firmware does not escape a backslash, so a script that
-    /// prints the four characters <c>\x41</c> shows here as <c>A</c>; only the
-    /// firmware could tell the two apart.
+    /// most often holds. The firmware escapes a backslash too, as <c>\x5C</c>, so a
+    /// script that prints the four characters <c>\x41</c> arrives as <c>\x5Cx41</c>
+    /// and is shown as it was printed. Its hex is uppercase; lowercase is read as well.
     /// </para>
     /// </summary>
     public static string Unescape(string text)
@@ -169,7 +169,7 @@ public static class Wcp
 
         foreach (byte b in bytes)
         {
-            if (b is < 0x20 or > 0x7E or (byte)'>') text.Append(CultureInfo.InvariantCulture, $"\\x{b:X2}");
+            if (b is < 0x20 or > 0x7E or (byte)'>' or (byte)'\\') text.Append(CultureInfo.InvariantCulture, $"\\x{b:X2}");
             else text.Append((char)b);
         }
 
@@ -383,9 +383,9 @@ public sealed class WcpSequence
 /// in one place.
 ///
 /// <para>
-/// <b>Why one place.</b> These were written while the firmware fixes were being
-/// made in parallel, from the fix list rather than from the firmware itself, so a
-/// word here may turn out to be spelled differently on the device. Every parser
+/// <b>Why one place.</b> These were first written from the fix list while the
+/// firmware was being fixed in parallel, then checked against what it sends: the
+/// firmware's <c>docs/WCP.md</c> at <c>claude-console</c> 569f4e8. Every parser
 /// that reads one goes through this class, and reads it tolerantly — a prefix
 /// rather than a whole line, <c>key=value</c> with unknown keys ignored — so a
 /// correction is a change to a constant, not a hunt.
@@ -393,8 +393,47 @@ public sealed class WcpSequence
 /// </summary>
 public static class WcpWire
 {
-    /// <summary>The error code a booting unit answers with, e.g. <c>ERR BUSY booting</c>.</summary>
+    /// <summary>The error code a booting unit answers with, <c>ERR BUSY booting</c>, and a locked console with <c>ERR BUSY console</c>.</summary>
     public const string Busy = "BUSY";
+
+    /// <summary>
+    /// <c>ERR BUSY console</c>: the request waited 1.5 s for the console lock and did
+    /// not run. Never stored by the firmware, so it is retried like <c>ERR CRC</c>,
+    /// with the same seq. <c>ping</c>, <c>hello</c> and <c>status</c> never get it.
+    /// </summary>
+    public const string BusyConsole = "console";
+
+    /// <summary><c>ERR BUSY booting</c>: the unit is not ready yet.</summary>
+    public const string BusyBooting = "booting";
+
+    /// <summary><c>ERR STATE can-off</c>: an arm or a stream with the controller stopped.</summary>
+    public const string CanOff = "can-off";
+
+    /// <summary><c>ERR STATE no-can-task</c>: an arm refused because the firmware's CAN service task never started.</summary>
+    public const string NoCanTask = "no-can-task";
+
+    /// <summary><c>!DISARM reconfig</c>: something outside WCP reconfigured the controller (sleep, slcan, a protocol change, OTA).</summary>
+    public const string Reconfig = "reconfig";
+
+    /// <summary>The flag on <c>can stream on &lt;id&gt; &lt;mask&gt; s</c> marking a standard (11-bit) filter.</summary>
+    public const string StandardFlag = "s";
+
+    /// <summary><c>can status</c>: the latched fault, <c>latch=&lt;none|reason&gt;</c>.</summary>
+    public const string LatchKey = "latch";
+
+    /// <summary><c>can status</c>: the transmit and receive error counters.</summary>
+    public const string Tec = "tec";
+
+    public const string Rec = "rec";
+
+    /// <summary>
+    /// <c>lua stop</c> with scripts that did not stop in 2 s:
+    /// <c>ERR STATE timeout stopping=a,b</c>.
+    /// </summary>
+    public const string Stopping = "stopping=";
+
+    /// <summary>The <c>log list</c> summary's word for names it left out: <c>&lt;k&gt; files; &lt;m&gt; skipped (…)</c>.</summary>
+    public const string Skipped = "skipped";
 
     /// <summary>The <c>ERR STATE</c> message refusing an arm or a first Lua send on a silent bus: <c>ERR STATE no-traffic</c>.</summary>
     public const string NoTraffic = "no-traffic";
@@ -423,8 +462,8 @@ public static class WcpWire
     /// <summary>The first word of a <c>!DISARM</c> reason for a latched transmit fault: <c>!DISARM fault &lt;reason&gt;</c>.</summary>
     public const string Fault = "fault";
 
-    /// <summary>The fault reasons the fix list names. Others are passed through as they come.</summary>
-    public static readonly IReadOnlyList<string> FaultReasons = ["tx-timeout", "bus-off", "error-passive", "tec"];
+    /// <summary>The fault reasons the firmware sends. Others are passed through as they come.</summary>
+    public static readonly IReadOnlyList<string> FaultReasons = ["tx-timeout", "bus-off", "error-passive", "tec", "bus-errors"];
 
     /// <summary><c>can status</c>: frames received in the last second.</summary>
     public const string RxRecent = "rx_recent";
@@ -433,10 +472,10 @@ public static class WcpWire
     public const string StackFree = "stack_free";
 
     /// <summary>
-    /// Keys a <c>can status</c> may use to report a latched fault. None is in the
-    /// fix list; read if present, so a firmware that adds one is shown.
+    /// Keys a <c>can status</c> may use to report a latched fault: <c>latch</c> is
+    /// the firmware's; the others are read if present.
     /// </summary>
-    public static readonly IReadOnlyList<string> FaultKeys = ["tx_fault", "fault", "latch"];
+    public static readonly IReadOnlyList<string> FaultKeys = [LatchKey, "tx_fault", "fault"];
 
     /// <summary>Whether a <c>!DISARM</c> reason is a fault, and which: <c>fault tx-timeout</c> gives <c>tx-timeout</c>.</summary>
     public static bool IsFault(string reason, out string fault)

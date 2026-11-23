@@ -450,4 +450,32 @@ public class WicanWorkflowTests : IDisposable
         Assert.Equal("v4.50p+wcp1", vm.Wican!.Identity!.Firmware);
         Assert.Equal("COM8", vm.Wican.Port);
     }
+
+    [Fact]
+    public async Task CanStatusShowsTheLatchAndTheCounters()
+    {
+        MainViewModel vm = Connected(out FakeWcpDevice device);
+        vm.Wican!.Client.CanStart();
+        device.Tec = 96;
+        device.Rec = 3;
+        device.LatchFault("bus-errors");
+
+        object status = await WicanTools.WicanCanStatus(vm, _ui);
+
+        Assert.Equal("bus-errors", Get<string>(status, "latch"));
+        Assert.Equal(96L, Get<long?>(status, "tec"));
+        Assert.Equal(3L, Get<long?>(status, "rec"));
+        Assert.Equal("bus-errors", Get<string>(status, "transmitFault"));
+    }
+
+    [Fact]
+    public void ArmingWithTheControllerOffSaysToStartIt()
+    {
+        MainViewModel vm = Connected(out _);
+
+        WicanOutcome arm = vm.WicanCanArm();
+
+        Assert.False(arm.Done);
+        Assert.Contains("not running", arm.Message, StringComparison.Ordinal);
+    }
 }

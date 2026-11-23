@@ -126,7 +126,8 @@ public class WcpClientTests : IDisposable
         _device.LoseReplies = 1;
 
         Assert.Equal("0", _client.Status()["armed"]);
-        Assert.Equal(["status", "status"], _device.Commands);
+        // Run once; the retry, with the same seq, is answered from the store.
+        Assert.Equal(["status"], _device.Commands);
     }
 
     [Fact]
@@ -416,7 +417,7 @@ public class WcpClientTests : IDisposable
         _client.CanStart();
         _client.CanStreamOn(0x7E8, 0x7F8);
 
-        Assert.Equal("can stream on 7E8 7F8", _device.Commands[^1]);
+        Assert.Equal("can stream on 7E8 7F8 s", _device.Commands[^1]);
     }
 
     [Fact]

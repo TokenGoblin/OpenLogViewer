@@ -223,8 +223,8 @@ hardware**: built and tested against a simulation of the firmware. See
 | `wican_config_save` | Saves the staged settings to the unit's flash. **Asks a person**, listing every change. Refused if the unit's settings changed since staging |
 | `wican_console` | Runs one of the firmware's console commands |
 | `wican_autopid` | The unit's AutoPID values, all or one |
-| `wican_log_list`, `wican_log_read` | The SD logger's files; download one to this computer |
-| `wican_can_status`, `wican_can_txlog` | The CAN controller, including `rxRecent` (frames in the last second) and `transmitFault` with a warning when transmit is latched off; and the last 32 frames transmitted |
+| `wican_log_list`, `wican_log_read` | The SD logger's files (with a count of any whose names cannot be read); download one to this computer |
+| `wican_can_status`, `wican_can_txlog` | The CAN controller, including `rxRecent` (frames in the last second), the error counters `tec` and `rec`, and `latch` and `transmitFault` with a warning when transmit is latched off; and the last 32 frames transmitted |
 | `wican_can_stream` | `start` records the bus listen-only to a bounded file (time and frame limits, optional id/mask filter; a filter wider than 11 bits is sent as extended); `stop` ends it and writes a byte log `open_log` can open |
 | `wican_can_arm` | Arms transmit, any identifier, until disarmed, a restart or 10 s of silence. **Asks a person, once per arming**. Refused without asking while a fault is latched, and by the unit (`no-traffic`) when it has heard nothing on the bus in the last second |
 | `wican_can_resume` | Clears a latched transmit fault so transmit can be armed again. Does not arm. **Asks a person**, naming the fault |

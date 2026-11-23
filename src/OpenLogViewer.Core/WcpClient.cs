@@ -37,6 +37,9 @@ public sealed class WcpException(string code, string message, string command = "
     /// </summary>
     public bool IsNoTraffic => Code == "STATE" && WcpWire.Says(Message, WcpWire.NoTraffic);
 
+    /// <summary><c>ERR STATE can-off</c>: an arm or a stream refused because the controller is not running.</summary>
+    public bool IsCanOff => Code == "STATE" && WcpWire.Says(Message, WcpWire.CanOff);
+
     /// <summary><c>ERR STATE timeout</c>: Lua that ran past the device's time limit and was stopped.</summary>
     public bool IsLuaTimeout => Code == "STATE" && WcpWire.Says(Message, WcpWire.LuaTimeout);
 
@@ -389,7 +392,8 @@ public sealed class WcpClient : IDisposable
     /// <summary>
     /// The device disarmed, with its reason: <c>host</c>, <c>idle</c>, or
     /// <c>fault &lt;reason&gt;</c> for a latched transmit fault (see
-    /// <see cref="TransmitFault"/>) — or <c>link</c> or <c>boot</c> when this host saw
+    /// <see cref="TransmitFault"/>), <c>reconfig</c> when something outside WCP
+    /// reconfigured the controller, or any other word a later firmware adds — or <c>link</c> or <c>boot</c> when this host saw
     /// the link close or the unit restart.
     /// </summary>
     public event Action<string>? Disarmed;
@@ -581,7 +585,11 @@ public sealed class WcpClient : IDisposable
                 // it is asked again where asking again is harmless — under a new
                 // seq, so that it runs again rather than being answered from the
                 // store without the lines that went missing.
-                bool crc = final.Kind == WcpLineKind.Error && final.Code == "CRC";
+                // ERR BUSY console is the same promise: it waited for the console
+                // lock and did not run, and the firmware never stores it.
+                bool crc = final.Kind == WcpLineKind.Error
+                           && (final.Code == "CRC"
+                               || final.Code == WcpWire.Busy && WcpWire.Says(final.Text, WcpWire.BusyConsole));
                 bool lost = (pending.Tainted || short_) && retryOnTimeout;
                 int allowed = replayed ? 2 : 1;
 
@@ -1023,14 +1031,26 @@ public sealed class WcpClient : IDisposable
     /// sent as base64 data lines. The way to read a value the plain form cut short
     /// with a <c>~</c>; passwords are masked in it as everywhere else.
     /// </summary>
-    public string ConfigGetFull(string key)
+    public string ConfigGetFull(string key) => FullValue("config get", key);
+
+    /// <summary>
+    /// <c>config secrets &lt;key&gt; --b64</c>: the same, unmasked. Refused (<c>DENIED</c>)
+    /// without <see cref="ConfigUnlock"/>.
+    /// </summary>
+    public string ConfigSecretFull(string key) => FullValue("config secrets", key);
+
+    /// <summary>
+    /// The base64 form: data lines of the whole value's text, and a final
+    /// <c>OK n=&lt;lines&gt; &lt;bytes&gt;</c> whose byte count is checked against what decoded.
+    /// </summary>
+    private string FullValue(string verb, string key)
     {
         CheckKey(key);
 
-        IReadOnlyList<string> lines = Request($"config get {key} {WcpWire.Base64Flag}").Data;
+        WcpReply reply = Request($"{verb} {key} {WcpWire.Base64Flag}");
 
         // Tolerant of a firmware that labels the first line with the key.
-        List<string> parts = [.. lines
+        List<string> parts = [.. reply.Data
             .Select((l, i) => i == 0 && l.StartsWith(key + "=", StringComparison.Ordinal) ? l[(key.Length + 1)..] : l)
             .Select(l => l.Trim())
             .Where(l => l.Length > 0)];
@@ -1038,18 +1058,23 @@ public sealed class WcpClient : IDisposable
         byte[] bytes = DecodeBase64Lines(parts)
                        ?? throw new InvalidDataException($"The value of {key} did not arrive as base64.");
 
+        string said = reply.Summary.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+
+        if (long.TryParse(said, NumberStyles.None, CultureInfo.InvariantCulture, out long expected) && expected != bytes.Length)
+            throw new InvalidDataException($"The value of {key} arrived as {bytes.Length} bytes where the WiCAN said {expected}.");
+
         return Encoding.UTF8.GetString(bytes);
     }
 
     private static bool IsCut(string value) => value.Length > 0 && value[^1] == WcpWire.Truncated;
 
     /// <summary>The same settings with every value the device cut short read again whole.</summary>
-    private WcpValues Expanded(WcpValues values)
+    private WcpValues Expanded(WcpValues values, bool secrets = false)
     {
         if (!values.Pairs.Any(p => IsCut(p.Value))) return values;
 
         return new WcpValues(values.Pairs.Select(p =>
-            $"{p.Key}={(IsCut(p.Value) && IsKey(p.Key) ? ConfigGetFull(p.Key) : p.Value)}"));
+            $"{p.Key}={(IsCut(p.Value) && IsKey(p.Key) ? (secrets ? ConfigSecretFull(p.Key) : ConfigGetFull(p.Key)) : p.Value)}"));
     }
 
     private static bool IsKey(string key) =>
@@ -1083,7 +1108,7 @@ public sealed class WcpClient : IDisposable
     /// refuses it (<c>DENIED</c>) unless <see cref="ConfigUnlock"/> ran first in
     /// this session.
     /// </summary>
-    public WcpValues ConfigSecrets() => new(Request("config secrets").Data);
+    public WcpValues ConfigSecrets() => Expanded(new WcpValues(Request("config secrets").Data), secrets: true);
 
     /// <summary>
     /// <c>config unlock</c>: allows <see cref="ConfigSecrets"/> until disconnect or
@@ -1252,12 +1277,21 @@ public sealed class WcpClient : IDisposable
     /// <summary><c>log status</c>: whether the SD logger is on, its file, size and the card's free space.</summary>
     public WcpValues LogStatus() => new(Request("log status").Data);
 
-    /// <summary><c>log list</c>: the files in <c>/sdcard/obd_logs/</c>.</summary>
+    /// <summary>
+    /// How many files the last <see cref="LogList"/> said it left out, because
+    /// <c>log read</c> could not read them by name (<c>&lt;k&gt; files; &lt;m&gt; skipped (…)</c>).
+    /// </summary>
+    public int LogListSkipped { get; private set; }
+
+    /// <summary><c>log list</c>: the files in <c>/sdcard/obd_logs/</c> that <c>log read</c> can read.</summary>
     public IReadOnlyList<WcpLogFile> LogList()
     {
         var files = new List<WcpLogFile>();
+        WcpReply reply = Request("log list");
 
-        foreach (string line in Request("log list").Data)
+        LogListSkipped = SkippedIn(reply.Summary);
+
+        foreach (string line in reply.Data)
         {
             string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 2) continue;
@@ -1268,6 +1302,21 @@ public sealed class WcpClient : IDisposable
         }
 
         return files;
+    }
+
+    /// <summary>The <c>m</c> of "<c>…; m skipped (…)</c>", or 0.</summary>
+    internal static int SkippedIn(string summary)
+    {
+        string[] words = summary.Split([' ', ';', ','], StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 1; i < words.Length; i++)
+        {
+            if (words[i].Equals(WcpWire.Skipped, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(words[i - 1], NumberStyles.None, CultureInfo.InvariantCulture, out int n))
+                return n;
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -1437,7 +1486,7 @@ public sealed class WcpClient : IDisposable
     public void CanStop() => Request("can stop");
 
     /// <summary>
-    /// <c>can stream on [id mask [x]]</c>: starts <c>!CAN</c> events, optionally only
+    /// <c>can stream on [id mask x|s]</c>: starts <c>!CAN</c> events, optionally only
     /// for frames whose identifier matches <paramref name="id"/> where
     /// <paramref name="mask"/> has a bit set.
     ///
@@ -1448,8 +1497,8 @@ public sealed class WcpClient : IDisposable
     ///
     /// <para>
     /// A filter is for standard (11-bit) frames or extended (29-bit) ones, and an
-    /// extended one is said so with a trailing <c>x</c> rather than left to the
-    /// width of the numbers: <c>18DAF110</c> written as <c>0x00000123</c> is still
+    /// extended one is said so with a trailing <c>x</c>, a standard one with <c>s</c>,
+    /// rather than left to the width of the numbers: <c>18DAF110</c> written as <c>0x00000123</c> is still
     /// extended. The device answers <c>ERR STATE</c> while the controller is
     /// stopped, so <see cref="CanStart"/> comes first.
     /// </para>
@@ -1480,7 +1529,7 @@ public sealed class WcpClient : IDisposable
         string digits = x ? "X8" : "X3";
 
         Request(string.Create(CultureInfo.InvariantCulture,
-            $"can stream on {i.ToString(digits, CultureInfo.InvariantCulture)} {m.ToString(digits, CultureInfo.InvariantCulture)}{(x ? " " + WcpWire.ExtendedFlag : "")}"));
+            $"can stream on {i.ToString(digits, CultureInfo.InvariantCulture)} {m.ToString(digits, CultureInfo.InvariantCulture)} {(x ? WcpWire.ExtendedFlag : WcpWire.StandardFlag)}"));
     }
 
     /// <summary><c>can stream off</c>.</summary>
@@ -1781,17 +1830,32 @@ public sealed class WcpClient : IDisposable
     /// <c>lua stop [name]</c>: one script, or — with no name — all of them. Without a
     /// name this is the kill switch, and it stops Lua transmitting at once.
     /// </summary>
+    /// <exception cref="WcpException">
+    /// <c>STATE</c> when a script did not stop within the firmware's 2 s, naming the
+    /// ones still stopping (<c>ERR STATE timeout stopping=a,b</c>).
+    /// </exception>
     public void LuaStop(string? name = null)
     {
-        if (name is null)
-        {
-            Request("lua stop");
-            return;
-        }
+        if (name is not null) CheckScriptName(name);
 
-        CheckScriptName(name);
-        Request($"lua stop {name}");
+        string command = name is null ? "lua stop" : $"lua stop {name}";
+
+        try
+        {
+            Request(command, Longer(LuaStopTimeout));
+        }
+        catch (WcpException e) when (e.Code == "STATE" && e.Message.Contains(WcpWire.Stopping, StringComparison.Ordinal))
+        {
+            string names = e.Message[(e.Message.IndexOf(WcpWire.Stopping, StringComparison.Ordinal) + WcpWire.Stopping.Length)..].Trim();
+
+            throw new WcpException(e.Code,
+                $"Not every script stopped within the WiCAN's 2 s; still stopping: {names}. The rest are stopped. "
+                + "Ask again, or restart the WiCAN to be sure.", e.Command);
+        }
     }
+
+    /// <summary>How long <c>lua stop</c> is waited for: the firmware gives the scripts 2 s, and the review asked for 10 here.</summary>
+    public static readonly TimeSpan LuaStopTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// <c>lua eval &lt;base64&gt;</c>: a one-off chunk in a scratch VM, with its output.

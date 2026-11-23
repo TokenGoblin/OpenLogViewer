@@ -236,7 +236,8 @@ same confirmation dialog as an ECU write. A tool call waits until it is answered
   arm (`no-traffic`) unless it has received CAN frames in the last second, which is
   its check that the bitrate is right before it drives the bus.
 - **Clearing a transmit fault.** If a frame cannot be sent (a transmit timeout,
-  bus-off, error-passive, or the error counter climbing), the unit latches
+  bus-off, error-passive, the error counter climbing, or more than 100 bus
+  errors in a second), the unit latches
   transmit off: it disarms with the fault as the reason, goes back to
   listen-only and suspends Lua transmit. `wican_can_status` shows the fault. It
   stays latched until it is cleared, and clearing it is asked like an arming,
@@ -264,8 +265,10 @@ Disarming and stopping scripts never ask.
 Serial-B drops bytes while the unit writes flash, so every line carries a CRC and
 a request can be asked again. A retry after a timeout keeps the request's number,
 and the firmware answers a number it has already run from a store of its last
-eight replies, without running the command again. A frame send, `lua run`,
-`lua eval` and a restart are never retried at all.
+eight replies, without running the command again (a reply over 1 KB is not
+kept, and runs again). A request that found the unit's console busy for 1.5 s
+did not run, and is retried the same way. A frame send, `lua run`, `lua eval`
+and a restart are never retried at all.
 
 - **Uploads resume.** If a chunk of a Lua upload loses its answer, OpenLogViewer
   asks for the stored size and carries on from the end of what landed, or starts
@@ -274,8 +277,8 @@ eight replies, without running the command again. A frame send, `lua run`,
   carry and marks it with `~`; OpenLogViewer then asks for that value again as
   base64, so the value you see is complete.
 - **Script output is shown as printed.** The unit escapes `>` and unprintable
-  bytes as `\xHH` so they cannot be mistaken for the ELM327 prompt; OpenLogViewer
-  turns them back.
+  bytes, and the backslash itself, as `\xHH` so they cannot be mistaken for the
+  ELM327 prompt; OpenLogViewer turns them back.
 - **WCP waits its turn.** A WCP request is held while the ELM327 chip is still
   answering an OBD2 command, for at most 1.7 s, so the two do not contend for the
   port.

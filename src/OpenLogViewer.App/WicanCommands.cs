@@ -227,11 +227,20 @@ public sealed partial class MainViewModel
         }
         catch (Exception e) when (IsWcpFailure(e))
         {
-            return WicanOutcome.Refused(e is WcpException { IsNoTraffic: true }
-                ? "The WiCAN refused to arm: it has received no CAN frames cleanly in the last second, which is its "
-                  + "check that the bitrate is right before it lets the controller drive the bus. Is the controller "
-                  + "started (wican_can_stream start) at the vehicle's bitrate, and the ignition on?"
-                : $"The WiCAN did not arm: {e.Message}");
+            return WicanOutcome.Refused(e switch
+            {
+                WcpException { IsNoTraffic: true } =>
+                    "The WiCAN refused to arm: it has received no CAN frames cleanly in the last second, which is its "
+                    + "check that the bitrate is right before it lets the controller drive the bus. Is the controller "
+                    + "started at the vehicle's bitrate, and the ignition on?",
+                WcpException { IsCanOff: true } =>
+                    "The WiCAN refused to arm: its CAN controller is not running. Start it first (wican_can_stream "
+                    + "start, or can start through the console), at the vehicle's bitrate.",
+                WcpException { Code: "STATE" } x when WcpWire.Says(x.Message, WcpWire.NoCanTask) =>
+                    "The WiCAN refused to arm: its CAN service task never started, so its transmit gate is not "
+                    + "running. Restart the WiCAN.",
+                _ => $"The WiCAN did not arm: {e.Message}",
+            });
         }
     }
 

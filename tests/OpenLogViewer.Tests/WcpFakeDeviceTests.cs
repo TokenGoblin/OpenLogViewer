@@ -350,7 +350,9 @@ public class WcpFakeDeviceTests : IDisposable
         _device.BusFrame(0x110, false, 2);
         Assert.Equal(["!CAN 0 18DAF110 x 1 01"], Drain());
 
-        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can stream on 18DAF110 1FFFFFFF")), StringComparison.Ordinal);
+        // With no flag, the old rule: more than three hex digits is extended.
+        Ok("can stream on 18DAF110 1FFFFFFF");
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can stream on 800 7FF s")), StringComparison.Ordinal);
         Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can stream on 110 7FF q")), StringComparison.Ordinal);
     }
 
@@ -905,4 +907,116 @@ public class WcpFakeDeviceTests : IDisposable
         // tab in Lua's "nil<TAB>reason" arrives escaped (F11).
         Assert.Contains($"#{_seq + 1}:nil\\x09lua_can_tx disabled", Ask("lua eval " + B64("can.send(0x7E0, \"\\x01\")")));
     }
+
+    // ----- as the merged firmware sends it (docs/WCP.md, 569f4e8) ----------------------
+
+    [Fact]
+    public void Fw_ArmingNeedsTheControllerAndTheTask()
+    {
+        Assert.Equal($"#{_seq + 1}.ERR STATE can-off", Final(Ask("can arm")));
+
+        Ok("can start");
+        _device.NoCanTask = true;
+        Assert.Equal($"#{_seq + 1}.ERR STATE no-can-task", Final(Ask("can arm")));
+
+        _device.NoCanTask = false;
+        Ok("can arm");
+        Assert.Equal($"#{_seq + 1}.OK n=0 already armed", Final(Ask("can arm")));
+    }
+
+    [Fact]
+    public void Fw_StreamingWithCanOffIsCanOff() =>
+        Assert.Equal($"#{_seq + 1}.ERR STATE can-off", Final(Ask("can stream on")));
+
+    [Fact]
+    public void Fw_CanStatusAndStatusCarryTheNewKeys()
+    {
+        Ok("can start");
+        List<string> can = Ask("can status");
+
+        foreach (string key in new[] { "bus_errors_recent", "stock_tx", "stock_tx_refused", "rx_lost", "tec", "rec", "rx_recent" })
+            Assert.Contains(can, l => l.StartsWith($"#{_seq}:{key}=", StringComparison.Ordinal));
+
+        Assert.Contains($"#{_seq}:latch=none", can);
+
+        List<string> status = Ask("status");
+        foreach (string key in new[] { "elm_hold_timeouts", "wcp_out_drops", "wcp_replays" })
+            Assert.Contains(status, l => l.StartsWith($"#{_seq}:{key}=", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Fw_B64EndsWithLinesAndBytes()
+    {
+        Ok("config set sta_ssid=Garage");
+        Assert.Equal($"#{_seq + 1}.OK n=1 6", Final(Ask("config get sta_ssid --b64")));
+
+        Ok("config unlock");
+        Assert.Equal($"#{_seq + 1}.OK n=1 10", Final(Ask("config secrets sta_pass --b64")));
+    }
+
+    [Fact]
+    public void Fw_LogListSaysWhatItSkipped()
+    {
+        _device.LogFiles["a.db"] = [1];
+        _device.LogFiles["b c.db"] = [2];
+
+        Assert.Equal($"#{_seq + 1}.OK n=1 1 files; 1 skipped (name not readable by log read)", Final(Ask("log list")));
+    }
+
+    [Fact]
+    public void Fw_ALuaStopWithAStuckScriptNamesIt()
+    {
+        _device.LuaScripts["a"] = "x"u8.ToArray();
+        _device.LuaScripts["b"] = "x"u8.ToArray();
+        Ok("lua run a");
+        Ok("lua run b");
+        _device.StuckScripts.Add("b");
+
+        Assert.Equal($"#{_seq + 1}.ERR STATE timeout stopping=b", Final(Ask("lua stop")));
+        Assert.Equal("stopped", _device.LuaStates["a"]);
+    }
+
+    [Fact]
+    public void Fw_OutsideReconfigurationDisarms()
+    {
+        Ok("can start");
+        Ok("can arm");
+
+        _device.Reconfigure();
+
+        Assert.Equal(["!DISARM reconfig"], Drain());
+        Assert.False(_device.Armed);
+    }
+
+    [Fact]
+    public void Fw_TheBackslashIsEscapedAndEventsAreAtMost220()
+    {
+        _device.LuaPrint("s", "a\\b");
+        Assert.Equal(["!LUA s print a\\x5Cb"], Drain());
+
+        _device.LuaPrint("s", new string('y', 400));
+        Assert.Equal(FakeWcpDevice.MaxEventLine, Drain().Single().Length);
+    }
+
+    [Fact]
+    public void Fw_BusyConsoleIsNotStored()
+    {
+        _device.BusyConsole = 1;
+        string line = Wcp.Request(++_seq, "lua list") + "\r";
+
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        Assert.Equal($"#{_seq}.ERR BUSY console", Final(Drain()));
+
+        _device.Write(Encoding.ASCII.GetBytes(line));
+        Assert.StartsWith($"#{_seq}.OK", Final(Drain()), StringComparison.Ordinal);
+        Assert.Empty(_device.Replayed);
+
+        // ping, hello and status never wait for the console.
+        _device.BusyConsole = 1;
+        Ok("ping");
+    }
+
+    [Fact]
+    public void Fw_ResumeTakesNoArguments() =>
+        Assert.StartsWith($"#{_seq + 1}.ERR ARGS", Final(Ask("can resume now")), StringComparison.Ordinal);
 }

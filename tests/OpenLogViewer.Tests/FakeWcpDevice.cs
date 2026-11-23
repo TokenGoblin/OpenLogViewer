@@ -33,8 +33,14 @@ namespace OpenLogViewer.Tests;
 /// dropped after 10 s of silence (F24), as is an unlock; the <c>x</c> stream filter;
 /// arming refused <c>ERR STATE no-traffic</c> on a silent bus and <c>rx_recent</c> (F27);
 /// and the transmit fault latch, <c>!DISARM fault &lt;reason&gt;</c> and
-/// <c>can resume</c> (F26). The exact words are the host's guesses, kept in
-/// <see cref="WcpWire"/>; the firmware agents' reports say what they really are.
+/// <c>can resume</c> (F26). Checked against the merged firmware's own record of
+/// its wire formats (<c>docs/WCP.md</c> at <c>claude-console</c> 569f4e8): the reply
+/// store keeps whole replies up to 1 KB, keyed on seq and text, cleared by
+/// <c>hello</c> and a session end; <c>ERR BUSY console</c>; <c>can-off</c> and
+/// <c>no-can-task</c>; <c>!DISARM reconfig</c>; the extra <c>can status</c> and
+/// <c>status</c> keys; <c>--b64</c> ending <c>OK n=&lt;lines&gt; &lt;bytes&gt;</c>; the
+/// <c>x|s</c> stream flag; <c>log list</c>'s skipped count; a stuck <c>lua stop</c>;
+/// and the backslash escaped as <c>\x5C</c>. The words themselves are in <see cref="WcpWire"/>.
 /// </para>
 ///
 /// <para>
@@ -147,6 +153,9 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     /// </summary>
     public bool ReplayStore { get; set; } = true;
 
+    /// <summary>Replay only the final line, as a firmware storing no data lines would; the host must cope with both.</summary>
+    public bool ReplayFinalOnly { get; set; }
+
     /// <summary>
     /// A car on the bus, sending all the time, while the controller runs: what
     /// arming's traffic check sees (review item F27). Off for a bus with nothing
@@ -156,6 +165,39 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
     /// <summary>Fail the next WCP send with <c>ERR IO tx-timeout</c>, latching a transmit fault (review item F26).</summary>
     public bool FailNextSend { get; set; }
+
+    /// <summary>
+    /// Answer the next this-many requests other than <c>ping</c>, <c>hello</c> and
+    /// <c>status</c> with <c>ERR BUSY console</c>, as when a console command holds
+    /// the lock for more than 1.5 s (F22). Not run, and not stored.
+    /// </summary>
+    public int BusyConsole { get; set; }
+
+    /// <summary>The CAN service task never started (F30): <c>can arm</c> answers <c>ERR STATE no-can-task</c>.</summary>
+    public bool NoCanTask { get; set; }
+
+    /// <summary>Scripts that do not stop within the 2 s of <c>lua stop</c>.</summary>
+    public HashSet<string> StuckScripts { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The transmit and receive error counters <c>can status</c> reports.</summary>
+    public int Tec { get; set; }
+
+    public int Rec { get; set; }
+
+    /// <summary>
+    /// Something outside WCP — sleep, slcan <c>C</c>, a protocol change, OTA —
+    /// reconfigures the controller: an arming ends with <c>!DISARM reconfig</c>.
+    /// </summary>
+    public void Reconfigure()
+    {
+        lock (_gate)
+        {
+            if (!Armed) return;
+
+            Armed = false;
+            EmitLocked($"!DISARM {WcpWire.Reconfig}");
+        }
+    }
 
     /// <summary>
     /// Lose the reply — run or answered from the store — to the next this-many
@@ -242,9 +284,15 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
     private DateTime _lastRequest;
 
-    /// <summary>The last eight (request, final line) pairs, newest last.</summary>
-    private readonly List<(string Request, string Final)> _replies = [];
+    /// <summary>
+    /// The last eight (request, reply lines) pairs, newest last: the data lines and
+    /// the final line, for a reply of at most <see cref="ReplyStoreBytes"/>.
+    /// </summary>
+    private readonly List<(string Request, List<string> Lines)> _replies = [];
     public const int ReplyStoreSize = 8;
+
+    /// <summary>The largest reply the store keeps; a longer one is not kept, and its retry runs again.</summary>
+    public const int ReplyStoreBytes = 1024;
 
     /// <summary>When each frame of the last second was received, for <c>rx_recent</c>.</summary>
     private readonly Queue<DateTime> _rxTimes = new();
@@ -369,6 +417,9 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             Unlocked = false;
             Streaming = false;
             _out.Clear();
+
+            // The end of a session clears the reply store, as hello does.
+            _replies.Clear();
             Monitor.PulseAll(_gate);
         }
     }
@@ -687,31 +738,45 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
         string command = body[(space + 1)..];
 
-        // F17: a request seen again is answered from the store, not run again.
-        // CHOICE: the store is keyed on the whole request, seq and command, not
-        // the seq alone — so a new host session that happens to reuse a seq for
-        // something else is not handed another command's answer. The fix list
-        // says "seq"; this is the safer reading, and worth asking the firmware for.
+        // F17: a request seen again — the same seq and the same text — is answered
+        // from the store, data lines and all, not run again.
         if (ReplayStore && _replies.FindLastIndex(r => r.Request == body) is int at and >= 0)
         {
             Replayed.Add(body);
 
-            string stored = _replies[at].Final;
+            List<string> stored = _replies[at].Lines;
 
             if (LoseReplies > 0) LoseReplies--;
-            else if (!Take(ref _loseTo, command)) EmitLocked(stored);
+            else if (!Take(ref _loseTo, command))
+                foreach (string l in stored)
+                    if (!ReplayFinalOnly || !IsData(l)) EmitLocked(l, data: IsData(l));
 
             return;
         }
+
+        string verb = command.Split(' ', 2)[0];
+
+        // F22: waited 1.5 s for the console lock, and did not run.
+        if (BusyConsole > 0 && verb is not ("ping" or "hello" or "status"))
+        {
+            BusyConsole--;
+            EmitLocked($"#{seq}.ERR {WcpWire.Busy} {WcpWire.BusyConsole}");
+            return;
+        }
+
+        // hello starts a session: a new host may start its seqs again at 1.
+        if (verb == "hello") _replies.Clear();
 
         Commands.Add(command);
 
         var reply = new Reply(seq);
         Run(command, reply);
 
-        if (reply.Lines.LastOrDefault(l => !IsData(l)) is { } final && !reply.Busy)
+        if (!reply.Busy && reply.Lines.Sum(l => l.Length + 6) <= ReplyStoreBytes)
         {
-            _replies.Add((body, final));
+            // A seq reused for different text replaces its entry.
+            _replies.RemoveAll(e => e.Request.StartsWith($"#{seq} ", StringComparison.Ordinal));
+            _replies.Add((body, [.. reply.Lines]));
             if (_replies.Count > ReplyStoreSize) _replies.RemoveAt(0);
         }
 
@@ -928,6 +993,9 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
         r.Data("sd=ok");
         r.Data("heap=182340");
         r.Data("psram=7864320");
+        r.Data("elm_hold_timeouts=0");
+        r.Data("wcp_out_drops=0");
+        r.Data($"wcp_replays={Replayed.Count}");
         r.Ok();
     }
 
@@ -952,9 +1020,11 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                     return;
                 }
 
-                // The whole value, as base64 lines of at most 160 characters.
-                Base64Lines(r, Encoding.UTF8.GetBytes(Shown(words[2], whole)));
-                r.Ok();
+                // The whole value, as base64 lines of at most 160 characters,
+                // and OK n=<lines> <bytes>.
+                byte[] text = Encoding.UTF8.GetBytes(Shown(words[2], whole));
+                Base64Lines(r, text);
+                r.Ok(text.Length.ToString(CultureInfo.InvariantCulture));
                 return;
             }
 
@@ -977,6 +1047,20 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 if (!Unlocked)
                 {
                     r.Err("DENIED", "config unlock first");
+                    return;
+                }
+
+                if (words.Length == 4 && words[3] == WcpWire.Base64Flag)
+                {
+                    if (!Staged.TryGetValue(words[2], out string? secret))
+                    {
+                        r.Err("ARGS", $"unknown key {words[2]}");
+                        return;
+                    }
+
+                    byte[] text = Encoding.UTF8.GetBytes(secret);
+                    Base64Lines(r, text);
+                    r.Ok(text.Length.ToString(CultureInfo.InvariantCulture));
                     return;
                 }
 
@@ -1188,9 +1272,27 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 return;
 
             case "list":
-                foreach ((string name, byte[] bytes) in LogFiles) r.Data($"{name} {bytes.Length} 1763812800");
-                r.Ok();
+            {
+                // F24: only names log read accepts; the rest are counted.
+                int skipped = 0;
+
+                foreach ((string name, byte[] bytes) in LogFiles)
+                {
+                    if (name.Any(c => c is ' ' or '/' or '\\' or '*') || name.Contains("..", StringComparison.Ordinal))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    r.Data($"{name} {bytes.Length} 1763812800");
+                }
+
+                int listed = LogFiles.Count - skipped;
+
+                if (skipped > 0) r.Ok($"{listed} files; {skipped} skipped (name not readable by log read)");
+                else r.Ok();
                 return;
+            }
 
             case "read":
                 LogRead(words, r);
@@ -1273,8 +1375,19 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 r.Data($"rx={_rx}");
                 r.Data($"{WcpWire.RxRecent}={RxRecentLocked()}");
                 r.Data($"tx={_tx}");
+                r.Data("tx_fail=0");
                 r.Data($"drop={_dropsTotal}");
+                r.Data("rx_lost=0");
                 r.Data("bus_errors=0");
+                r.Data("bus_errors_recent=0");
+                r.Data($"bus_state={(!CanRunning ? "stopped" : Tec >= 128 ? "error-passive" : "running")}");
+                r.Data($"{WcpWire.Tec}={Tec}");
+                r.Data($"{WcpWire.Rec}={Rec}");
+                r.Data($"{WcpWire.LatchKey}={TxFault ?? "none"}");
+                r.Data("stock_tx=0");
+                r.Data("stock_tx_refused=0");
+                r.Data($"stream={(Streaming ? "on" : "off")}");
+                r.Data($"lua_tx={(LuaTxSuspended is not null ? "suspended" : Saved["lua_can_tx"] == "enable" ? "enabled" : "disabled")}");
                 r.Data($"armed={(Armed ? 1 : 0)}");
                 r.Data($"tx_rate_cap={WcpTxRate}");
                 r.Ok();
@@ -1338,6 +1451,12 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 // F26: the one way back from a latched fault besides lua resume-tx.
                 // CHOICE: it lifts the Lua suspension the latch imposed as well,
                 // since the latch is one thing. Resuming with nothing latched is OK.
+                if (words.Length > 2)
+                {
+                    r.Err("ARGS", "can resume takes no arguments");
+                    return;
+                }
+
                 if (TxFault is not null && LuaTxSuspended == TxFault) LuaTxSuspended = null;
                 TxFault = null;
                 r.Ok("resumed");
@@ -1369,20 +1488,17 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             return;
         }
 
-        // Review: with CAN off this answers ERR STATE (the firmware changes to match).
         if (!CanRunning)
         {
-            r.Err("STATE", "can start first");
+            r.Err("STATE", WcpWire.CanOff);
             return;
         }
 
         if (words.Length is 5 or 6)
         {
-            bool x = words.Length == 6;
-
-            if (x && words[5] != WcpWire.ExtendedFlag)
+            if (words.Length == 6 && words[5] is not (WcpWire.ExtendedFlag or WcpWire.StandardFlag))
             {
-                r.Err("ARGS", "can stream on <id> <mask> [x]");
+                r.Err("ARGS", "can stream on <id> <mask> [x|s]");
                 return;
             }
 
@@ -1393,9 +1509,15 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 return;
             }
 
+            // x is extended, s standard; with no flag, the old rule: more than
+            // three hex digits, or over 7FF, is extended.
+            bool x = words.Length == 6
+                ? words[5] == WcpWire.ExtendedFlag
+                : words[3].Length > 3 || id > 0x7FF;
+
             if (!x && (id > 0x7FF || mask > 0x7FF))
             {
-                r.Err("ARGS", "an id or mask over 7FF needs x");
+                r.Err("ARGS", "a standard id or mask is at most 7FF");
                 return;
             }
 
@@ -1429,6 +1551,19 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             return;
         }
 
+        if (!CanRunning)
+        {
+            r.Err("STATE", WcpWire.CanOff);
+            return;
+        }
+
+        // F30: the task that runs the gate never started.
+        if (NoCanTask)
+        {
+            r.Err("STATE", WcpWire.NoCanTask);
+            return;
+        }
+
         // F26: no way back from a latched fault but can resume.
         if (TxFault is not null)
         {
@@ -1444,14 +1579,18 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
             return;
         }
 
-        bool was = Armed;
-        Armed = true;
+        if (Armed)
+        {
+            // Not repeated, and no second !ARMED.
+            r.Ok("already armed");
+            return;
+        }
 
+        Armed = true;
         r.Ok("armed");
 
-        // !ARMED has no fields (contract 8.5). CHOICE: it is not repeated for an
-        // arm while already armed.
-        if (!was) r.After.Add("!ARMED");
+        // !ARMED has no fields (contract 8.5).
+        r.After.Add("!ARMED");
     }
 
     /// <summary>
@@ -1569,7 +1708,7 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     {
         if (Saved["lua_can_tx"] != "enable") return (false, "lua_can_tx disabled");
         if (LuaTxSuspended is not null) return (false, "tx suspended");
-        if (!CanRunning) return (false, "can stopped");
+        if (!CanRunning) return (false, "can not running");
         if (data.Length > 8 || (!extended && id > 0x7FF)) return (false, "bad frame");
 
         // F25: back to listen-only after 10 s without a script sending.
@@ -1609,8 +1748,15 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
     /// </summary>
     public void LuaPrint(string script, string text)
     {
-        lock (_gate) EmitLocked($"!LUA {script} print {Wcp.Escape(Encoding.UTF8.GetBytes(text))}");
+        // An event line is at most 220 characters.
+        string body = $"!LUA {script} print {Wcp.Escape(Encoding.UTF8.GetBytes(text))}";
+        if (body.Length > MaxEventLine) body = body[..MaxEventLine];
+
+        lock (_gate) EmitLocked(body);
     }
+
+    /// <summary>The longest event line, before its CRC.</summary>
+    public const int MaxEventLine = 220;
 
     /// <summary>The controller went bus-off: section 7.3.4 suspends all Lua transmit until <c>lua resume-tx</c>.</summary>
     public void SuspendLuaTx(string reason)
@@ -1750,6 +1896,19 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
                 if (words.Length == 2)
                 {
                     StopAllLuaLocked(r);
+
+                    // F5: every slot signalled at once, one 2 s wait, and the
+                    // stragglers named.
+                    List<string> stuck = [.. StuckScripts.Where(LuaStates.ContainsKey).Order(StringComparer.Ordinal)];
+
+                    if (stuck.Count > 0)
+                    {
+                        foreach (string s in stuck) LuaStates[s] = "running";
+                        r.After.RemoveAll(a => stuck.Any(s => a == $"!LUA {s} state stopped"));
+                        r.Err("STATE", $"{WcpWire.LuaTimeout} {WcpWire.Stopping}{string.Join(",", stuck)}");
+                        return;
+                    }
+
                     r.Ok("all stopped");
                     return;
                 }
