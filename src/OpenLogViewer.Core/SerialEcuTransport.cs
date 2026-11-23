@@ -6,7 +6,7 @@ namespace OpenLogViewer.Core;
 /// A serial port, whether that is a USB tuning cable or a Bluetooth adapter —
 /// both appear as a COM port and neither knows the difference.
 /// </summary>
-public sealed class SerialEcuTransport(string portName, int baudRate = 115200) : IEcuTransport
+public sealed class SerialEcuTransport(string portName, int baudRate = 115200) : IEcuTransport, IReadsAvailable
 {
     /// <summary>
     /// Whether DTR and RTS are asserted on open. True by default, because some
@@ -15,6 +15,14 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
     /// bench opens it with both held off.
     /// </summary>
     public bool AssertControlLines { get; init; } = true;
+
+    /// <summary>
+    /// How much the driver may hold for a reader that has not caught up, in bytes.
+    /// The framework's default, 4 KB, is a third of a second of a quiet ELM327 and
+    /// about 20 ms of a WiCAN Pro streaming CAN frames at 2 Mbaud, so a link that
+    /// carries a stream asks for more.
+    /// </summary>
+    public int ReadBufferBytes { get; init; } = 4096;
 
     private SerialPort? _port;
 
@@ -112,6 +120,8 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
             // them: see AssertControlLines.
             DtrEnable = AssertControlLines,
             RtsEnable = AssertControlLines,
+
+            ReadBufferSize = Math.Max(4096, ReadBufferBytes),
         };
 
         _port.Open();
@@ -243,6 +253,34 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// Whatever has arrived, as soon as anything has: one read of the port, which
+    /// returns the moment it has a byte and hands over everything else already
+    /// buffered with it. What a reader that does not know how much is coming
+    /// wants (see <see cref="IReadsAvailable"/>), where <see cref="Read"/> would
+    /// wait out its timeout trying to fill the buffer.
+    /// </summary>
+    public int ReadAvailable(Span<byte> buffer, TimeSpan timeout)
+    {
+        if (_port is not { IsOpen: true }) throw new InvalidOperationException("The port is not open.");
+        if (buffer.IsEmpty) return 0;
+
+        _port.ReadTimeout = Math.Max(1, (int)timeout.TotalMilliseconds);
+
+        var chunk = new byte[buffer.Length];
+
+        try
+        {
+            int read = _port.Read(chunk, 0, chunk.Length);
+            chunk.AsSpan(0, read).CopyTo(buffer);
+            return read;
+        }
+        catch (TimeoutException)
+        {
+            return 0;
+        }
     }
 
     /// <summary>
