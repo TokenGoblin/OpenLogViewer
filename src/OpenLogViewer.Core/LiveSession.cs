@@ -219,7 +219,15 @@ public sealed class LiveSession : IDisposable
         // was ever spoken to.
         if (_names.Length == 0) Adopt();
 
-        if (_names.Length == 0) throw new InvalidOperationException("No channels to record.");
+        if (_names.Length == 0)
+        {
+            // Opened above, and there is no poll thread yet to close it on a
+            // later Stop(), so leaving it open would leak the link (and, on a
+            // serial or D2XX source, the handle) for a session that never
+            // starts. From main's MaxxECU review, b194a21.
+            try { _source.Dispose(); } catch (Exception) { /* the link may already be gone */ }
+            throw new InvalidOperationException("No channels to record.");
+        }
 
         _clock.Restart();
 
@@ -247,10 +255,17 @@ public sealed class LiveSession : IDisposable
     /// </summary>
     private void Adopt()
     {
-        _names = [.. _source.Names];
-        _units = [.. _source.Units];
-        _digits = [.. _source.Digits];
-        _columns = [.. _names.Select(_ => new List<float>())];
+        // Under the lock every reader of these four fields takes. Start calls
+        // this from whichever thread opens the link, and without it a repaint
+        // mid-Adopt could see _names replaced but _columns not yet, a length
+        // mismatch every reader assumes cannot happen. From b194a21.
+        lock (_gate)
+        {
+            _names = [.. _source.Names];
+            _units = [.. _source.Units];
+            _digits = [.. _source.Digits];
+            _columns = [.. _names.Select(_ => new List<float>())];
+        }
     }
 
     /// <summary>
