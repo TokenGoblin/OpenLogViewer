@@ -71,6 +71,24 @@ public static class Obd2Adapters
         !string.IsNullOrWhiteSpace(name)
         && Names.Any(n => name.Contains(n, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// The USB interface behind a MeatPi WiCAN Pro's ELM327 port.
+    ///
+    /// The Pro's USB-C is a WCH CH342 dual serial bridge (VID 1A86, PID 55D2).
+    /// Interface 0 is the ESP32-S3's console; interface 2 is the ELM327 port, an
+    /// STN2120 behind it, at 2,000,000 baud with DTR and RTS held off. Measured on
+    /// a bench Pro (firmware v4.52, STN2120 v5.8.1, MIC3624 v2.3.22). A CH342 is
+    /// a generic chip, so this matches the interface, not the brand.
+    /// </summary>
+    public const string WiCanProUsbInterface = "VID_1A86&PID_55D2&MI_02";
+
+    /// <summary>The speed of that port: fixed in the firmware, not negotiated.</summary>
+    public const int WiCanProUsbBaud = 2_000_000;
+
+    /// <summary>Whether a Windows device id is a WiCAN Pro's ELM327 port.</summary>
+    public static bool IsWiCanProUsb(string? deviceId) =>
+        deviceId is not null && deviceId.Contains(WiCanProUsbInterface, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Whether any of several names does.</summary>
     public static bool LooksLikeOne(params string?[] names) =>
         names is not null && names.Any(LooksLikeOne);

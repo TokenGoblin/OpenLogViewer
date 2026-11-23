@@ -308,6 +308,24 @@ public static class SerialPortNames
     /// paired serial-port-profile device attaches under BTHENUM whatever the
     /// module happens to be called.
     /// </summary>
+    /// <summary>
+    /// The Windows device id behind a port name, or empty where it cannot be
+    /// read. WMI only, so nothing is opened: opening some ports resets what is
+    /// on the other end.
+    /// </summary>
+    public static string DeviceIdOf(string portName)
+    {
+        try
+        {
+            return FromDeviceTree().TryGetValue(portName, out Entry entry) ? entry.DeviceId : "";
+        }
+        catch (Exception e) when (e is ManagementException or System.Runtime.InteropServices.COMException
+                                      or UnauthorizedAccessException)
+        {
+            return "";
+        }
+    }
+
     private static Dictionary<string, Entry> FromDeviceTree()
     {
         var found = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);

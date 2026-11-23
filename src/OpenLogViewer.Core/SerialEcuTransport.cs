@@ -8,6 +8,14 @@ namespace OpenLogViewer.Core;
 /// </summary>
 public sealed class SerialEcuTransport(string portName, int baudRate = 115200) : IEcuTransport
 {
+    /// <summary>
+    /// Whether DTR and RTS are asserted on open. True by default, because some
+    /// adapters stay silent until they are. False for the ones those lines are
+    /// wired to reset: a MeatPi WiCAN Pro's USB bridge is one, and MeatPi's own
+    /// bench opens it with both held off.
+    /// </summary>
+    public bool AssertControlLines { get; init; } = true;
+
     private SerialPort? _port;
 
     public string PortName { get; } = portName;
@@ -100,9 +108,10 @@ public sealed class SerialEcuTransport(string portName, int baudRate = 115200) :
             WriteTimeout = (int)DefaultWriteTimeout.TotalMilliseconds,
 
             // Some adapters hold the line low until these are asserted, and stay
-            // silent rather than reporting anything wrong.
-            DtrEnable = true,
-            RtsEnable = true,
+            // silent rather than reporting anything wrong. Others are reset by
+            // them: see AssertControlLines.
+            DtrEnable = AssertControlLines,
+            RtsEnable = AssertControlLines,
         };
 
         _port.Open();

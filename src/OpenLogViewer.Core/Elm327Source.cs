@@ -371,7 +371,7 @@ public sealed class Elm327Source : ILiveSource
     /// negotiated by the radio, so the first attempt is the only one for a paired
     /// dongle.
     /// </summary>
-    public static IReadOnlyList<int> BaudRates { get; } = [38400, 115200, 9600, 500000];
+    public static IReadOnlyList<int> BaudRates { get; } = [38400, 115200, 9600, 500000, 2_000_000];
 
     /// <summary>
     /// Finds an adapter on a port, whatever speed it is set to.
@@ -383,13 +383,25 @@ public sealed class Elm327Source : ILiveSource
     /// <param name="memory">
     /// What batching has cost this adapter before, if anything is keeping track.
     /// </param>
-    public static Elm327Source ConnectOnPort(string portName, IObd2BatchMemory? memory = null)
+    /// <param name="bauds">
+    /// The speeds to try, where the adapter is already known; <see cref="BaudRates"/> otherwise.
+    /// </param>
+    /// <param name="assertControlLines">
+    /// False for an adapter that DTR and RTS reset (see <see cref="SerialEcuTransport.AssertControlLines"/>).
+    /// </param>
+    public static Elm327Source ConnectOnPort(
+        string portName, IObd2BatchMemory? memory = null,
+        IReadOnlyList<int>? bauds = null, bool assertControlLines = true)
     {
         Exception? last = null;
 
-        foreach (int baud in BaudRates)
+        foreach (int baud in bauds ?? BaudRates)
         {
-            var transport = new SerialEcuTransport(portName, baud) { OpenAttempts = 3 };
+            var transport = new SerialEcuTransport(portName, baud)
+            {
+                OpenAttempts = 3,
+                AssertControlLines = assertControlLines,
+            };
 
             try
             {

@@ -88,7 +88,6 @@ public sealed class WifiEcuTransport : IEcuTransport
         $"{DefaultHost}:{DefaultPort}",
         $"192.168.4.1:{DefaultPort}",
         WiCanAddress,
-        WiCanProAddress,
     ];
 
     /// <summary>
@@ -103,20 +102,12 @@ public sealed class WifiEcuTransport : IEcuTransport
     /// </summary>
     public const string WiCanAddress = "192.168.80.1:3333";
 
-    /// <summary>
-    /// Where a WiCAN Pro answers on its own access point: the Vgate's address, on
-    /// the WiCAN's port. Read from the firmware source (<c>wifi_network.c</c>),
-    /// not yet seen on a dongle. Which one is in the car is told by which of the
-    /// two answers.
-    /// </summary>
-    public const string WiCanProAddress = "192.168.0.10:3333";
 
     /// <summary>What the menu calls each of <see cref="KnownAddresses"/>.</summary>
     public static string Describe(string address) => address switch
     {
-        "192.168.0.10:35000" => "Vgate iCar Pro, and most of them",
+        "192.168.0.10:35000" => "Vgate iCar Pro, MeatPi WiCAN Pro, and most of them",
         WiCanAddress => "MeatPi WiCAN, on its own Wi-Fi",
-        WiCanProAddress => "MeatPi WiCAN Pro, on its own Wi-Fi",
         _ => "some other clones",
     };
 

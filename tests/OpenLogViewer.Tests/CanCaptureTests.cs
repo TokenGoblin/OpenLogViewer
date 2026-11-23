@@ -263,3 +263,38 @@ public class OxygenSensorPidTests
         Assert.Equal("Lambda B2", Obd2Pids.All.Single(x => x.Pid == 0x28).Channels[0].Name);
     }
 }
+
+/// <summary>
+/// A MeatPi WiCAN Pro over USB: its ELM327 port is told apart by USB interface,
+/// because the COM number moves and the chip is a generic one.
+/// </summary>
+public class WiCanProUsbTests
+{
+    [Theory]
+    [InlineData(@"USB\VID_1A86&PID_55D2&MI_02\7&DF7715D&0&0002", true)]   // the ELM327 port, measured
+    [InlineData(@"USB\VID_1A86&PID_55D2&MI_00\7&DF7715D&0&0000", false)]  // the ESP32 console beside it
+    [InlineData(@"USB\VID_2341&PID_0042\85735313932351E0B1D1", false)]     // a Speeduino
+    [InlineData(@"FTDIBUS\VID_0403+PID_6001+A50285BIA\0000", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OnlyTheElmInterfaceOfTheBridgeIsTheWiCan(string? deviceId, bool expected) =>
+        Assert.Equal(expected, Obd2Adapters.IsWiCanProUsb(deviceId));
+
+    [Fact]
+    public void ItsSpeedIsTheOneTheFirmwareFixes() =>
+        Assert.Equal(2_000_000, Obd2Adapters.WiCanProUsbBaud);
+
+    [Fact]
+    public void AnUnknownAdapterIsStillTriedAtTheFastStnSpeedLast()
+    {
+        Assert.Equal(38400, Elm327Source.BaudRates[0]);
+        Assert.Equal(2_000_000, Elm327Source.BaudRates[^1]);
+    }
+
+    [Fact]
+    public void ControlLinesAreAssertedUnlessToldOtherwise()
+    {
+        Assert.True(new SerialEcuTransport("COM99").AssertControlLines);
+        Assert.False(new SerialEcuTransport("COM99") { AssertControlLines = false }.AssertControlLines);
+    }
+}

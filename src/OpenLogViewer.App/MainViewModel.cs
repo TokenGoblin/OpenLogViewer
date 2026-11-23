@@ -4254,8 +4254,21 @@ public sealed partial class MainViewModel : ObservableObject
     /// every other link here it cannot be assumed — a genuine ELM327 ships at
     /// 38,400 and clones at anything.
     /// </summary>
-    public void ConnectObd2(string port) =>
-        StartObd2(Elm327Source.ConnectOnPort(port, BatchMemory), port);
+    public void ConnectObd2(string port)
+    {
+        // A MeatPi WiCAN Pro's ELM327 port runs at a fixed 2,000,000 baud and is
+        // reset by DTR and RTS. Recognised by its USB interface rather than its
+        // COM number, so it goes straight there instead of trying four other
+        // speeds, each of which could reset it on the way.
+        bool wiCanPro = Obd2Adapters.IsWiCanProUsb(SerialPortNames.DeviceIdOf(port));
+
+        StartObd2(
+            wiCanPro
+                ? Elm327Source.ConnectOnPort(
+                    port, BatchMemory, [Obd2Adapters.WiCanProUsbBaud], assertControlLines: false)
+                : Elm327Source.ConnectOnPort(port, BatchMemory),
+            port);
+    }
 
     /// <summary>
     /// What batching has already cost each adapter, kept in the settings file.

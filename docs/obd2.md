@@ -120,10 +120,9 @@ address is the whole of what it is reached by.
 
 | Address | Used by |
 | --- | --- |
-| `192.168.0.10:35000` | Vgate iCar Pro and most dongles built like it |
+| `192.168.0.10:35000` | Vgate iCar Pro, MeatPi WiCAN Pro, and most dongles built like it |
 | `192.168.4.1:35000` | Other Wi-Fi ELM327 clones |
 | `192.168.80.1:3333` | MeatPi WiCAN on its own network (`WiCAN_…`, password `@meatpi#`), protocol set to ELM327 |
-| `192.168.0.10:3333` | MeatPi WiCAN Pro on its own network |
 
 Any other address can be typed into **Another address…** in the same menu, or
 given with `--connect-wifi <address>`. That is how a WiCAN joined to a home
