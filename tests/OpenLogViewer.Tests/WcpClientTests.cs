@@ -561,7 +561,7 @@ public class WcpClientTests : IDisposable
     // ----- sharing the port with ELM327 -------------------------------------------
 
     [Fact]
-    public void AnObd2SessionAndWcpShareThePort()
+    public async Task AnObd2SessionAndWcpShareThePort()
     {
         // A CAN stream running, events slipped between the chip's lines, and WCP
         // requests from another thread — while an ELM327 session connects and
@@ -593,7 +593,7 @@ public class WcpClientTests : IDisposable
         for (int i = 0; i < 5; i++) values = source.Read();
 
         stop.Cancel();
-        wcp.Wait();
+        await wcp;
 
         int rpm = source.Names.ToList().IndexOf("RPM");
         Assert.Equal(1726, values[rpm], 1);
