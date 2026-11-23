@@ -18,7 +18,7 @@ public class CanCaptureTests
     [Fact]
     public void AStandardFrameIsRead()
     {
-        Assert.True(Slcan.TryParse("t2C48 1AF8000000000012".Replace(" ", ""), 1.5, out CanFrame f));
+        Assert.True(Slcan.TryParse("t2C48 1AF8000000000012".Replace(" ", ""), 1.5, out SlcanFrame f));
 
         Assert.Equal(0x2C4u, f.Id);
         Assert.False(f.Extended);
@@ -31,7 +31,7 @@ public class CanCaptureTests
     [Fact]
     public void AnExtendedFrameIsRead()
     {
-        Assert.True(Slcan.TryParse("T18DAF1102AABB", 0, out CanFrame f));
+        Assert.True(Slcan.TryParse("T18DAF1102AABB", 0, out SlcanFrame f));
 
         Assert.Equal(0x18DAF110u, f.Id);
         Assert.True(f.Extended);
@@ -41,14 +41,14 @@ public class CanCaptureTests
     [Fact]
     public void ATimestampAfterTheDataIsTolerated()
     {
-        Assert.True(Slcan.TryParse("t1232AABB1F40", 0, out CanFrame f));
+        Assert.True(Slcan.TryParse("t1232AABB1F40", 0, out SlcanFrame f));
         Assert.Equal([0xAA, 0xBB], f.Data);
     }
 
     [Fact]
     public void ARemoteFrameCarriesNoData()
     {
-        Assert.True(Slcan.TryParse("r7DF8", 0, out CanFrame f));
+        Assert.True(Slcan.TryParse("r7DF8", 0, out SlcanFrame f));
         Assert.True(f.Remote);
         Assert.Empty(f.Data);
     }
@@ -78,7 +78,7 @@ public class CanCaptureTests
     // ----- a capture against a stand-in dongle ------------------------------
 
     [Fact]
-    public void ACaptureRecordsEveryFrameAndWhichBytesMoved()
+    public async Task ACaptureRecordsEveryFrameAndWhichBytesMoved()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -124,7 +124,7 @@ public class CanCaptureTests
         while (capture.FrameCount < 44 && DateTime.UtcNow < deadline) Thread.Sleep(20);
 
         capture.Stop();
-        dongle.Wait(TimeSpan.FromSeconds(5));
+        await dongle.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.StartsWith("C\rS6\rL\r", received.ToString());
         Assert.Equal(44, capture.FrameCount);
@@ -152,12 +152,12 @@ public class CanCaptureTests
     [Fact]
     public void TheByteLogHasAChannelForEachMovingByteAndPairAndOpensInTheViewer()
     {
-        var frames = new List<CanFrame>();
+        var frames = new List<SlcanFrame>();
         for (int i = 0; i < 40; i++)
         {
             int rpm = 800 + i * 50;
-            frames.Add(new CanFrame(i * 0.05, 0x2C4, false, false, [(byte)(rpm >> 8), (byte)rpm, 0, 0]));
-            frames.Add(new CanFrame(i * 0.05 + 0.01, 0x3B4, false, false, [1, 2]));
+            frames.Add(new SlcanFrame(i * 0.05, 0x2C4, false, false, [(byte)(rpm >> 8), (byte)rpm, 0, 0]));
+            frames.Add(new SlcanFrame(i * 0.05 + 0.01, 0x3B4, false, false, [1, 2]));
         }
 
         string path = Path.Combine(Directory.CreateTempSubdirectory("olv-can").FullName, "bytes.csv");
@@ -177,7 +177,7 @@ public class CanCaptureTests
     [Fact]
     public void ACaptureWhereNothingMovedSaysSo()
     {
-        CanFrame[] frames = [new(0, 0x100, false, false, [1]), new(1, 0x100, false, false, [1])];
+        SlcanFrame[] frames = [new(0, 0x100, false, false, [1]), new(1, 0x100, false, false, [1])];
         string path = Path.Combine(Directory.CreateTempSubdirectory("olv-can").FullName, "bytes.csv");
 
         Assert.Throws<InvalidOperationException>(() => CanByteLog.Write(frames, path));

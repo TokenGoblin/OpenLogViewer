@@ -1456,7 +1456,7 @@ public partial class MainWindow : Window
         string summaryPath = System.IO.Path.ChangeExtension(capture.Path, ".summary.txt");
         System.IO.File.WriteAllText(summaryPath, capture.Summary());
 
-        IReadOnlyList<CanFrame> frames = capture.Frames;
+        IReadOnlyList<SlcanFrame> frames = capture.Frames;
         string? error = capture.Error;
         capture.Dispose();
 

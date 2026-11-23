@@ -5,7 +5,7 @@ namespace OpenLogViewer.Core;
 
 /// <summary>One frame seen on a CAN bus.</summary>
 /// <param name="Seconds">When it arrived, from the start of the capture, by this computer's clock.</param>
-public sealed record CanFrame(double Seconds, uint Id, bool Extended, bool Remote, byte[] Data)
+public sealed record SlcanFrame(double Seconds, uint Id, bool Extended, bool Remote, byte[] Data)
 {
     /// <summary>How the identifier is written: three hex digits for a standard one, eight for an extended one.</summary>
     public string IdText => Extended ? $"0x{Id:X8}" : $"0x{Id:X3}";
@@ -54,7 +54,7 @@ public static class Slcan
     /// carriage return an adapter answers a command with, its bell for an error,
     /// a version string, noise.
     /// </summary>
-    public static bool TryParse(string line, double seconds, out CanFrame frame)
+    public static bool TryParse(string line, double seconds, out SlcanFrame frame)
     {
         frame = null!;
         line = line.Trim();
@@ -97,7 +97,7 @@ public static class Slcan
             && !ushort.TryParse(line.AsSpan(dataAt + dataDigits, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
             return false;
 
-        frame = new CanFrame(seconds, id, extended, remote, data);
+        frame = new SlcanFrame(seconds, id, extended, remote, data);
         return true;
     }
 }
@@ -133,7 +133,7 @@ public sealed class CanIdSummary
     /// <summary>Frames a second over the time this id has been seen.</summary>
     public double Rate => Last > First ? (Count - 1) / (Last - First) : 0;
 
-    internal void Add(CanFrame frame)
+    internal void Add(SlcanFrame frame)
     {
         if (Count == 0)
         {
@@ -173,7 +173,7 @@ public sealed class CanCapture : IDisposable
     private readonly int _kbps;
     private readonly object _gate = new();
     private readonly Dictionary<(uint, bool), CanIdSummary> _ids = [];
-    private readonly List<CanFrame> _frames = [];
+    private readonly List<SlcanFrame> _frames = [];
     private StreamWriter? _file;
     private Thread? _thread;
     private volatile bool _stop;
@@ -226,7 +226,7 @@ public sealed class CanCapture : IDisposable
     }
 
     /// <summary>The frames kept in memory, in arrival order.</summary>
-    public IReadOnlyList<CanFrame> Frames
+    public IReadOnlyList<SlcanFrame> Frames
     {
         get
         {
@@ -331,7 +331,7 @@ public sealed class CanCapture : IDisposable
 
     private void Take(string text, double now)
     {
-        if (!Slcan.TryParse(text, now, out CanFrame frame))
+        if (!Slcan.TryParse(text, now, out SlcanFrame frame))
         {
             OtherLines++;
             return;
@@ -421,7 +421,7 @@ public sealed class CanCapture : IDisposable
 /// </summary>
 public static class CanByteLog
 {
-    public static void Write(IReadOnlyList<CanFrame> frames, string path, double hz = 20)
+    public static void Write(IReadOnlyList<SlcanFrame> frames, string path, double hz = 20)
     {
         ArgumentNullException.ThrowIfNull(frames);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(hz, 0);
@@ -432,7 +432,7 @@ public static class CanByteLog
         var moving = new Dictionary<(uint, bool), bool[]>();
         var last = new Dictionary<(uint, bool), byte[]>();
 
-        foreach (CanFrame f in frames)
+        foreach (SlcanFrame f in frames)
         {
             var key = (f.Id, f.Extended);
             if (!moving.TryGetValue(key, out bool[]? m)) moving[key] = m = new bool[8];
@@ -464,7 +464,7 @@ public static class CanByteLog
         // Each identifier starts at its first value rather than blank, so a slow one
         // does not open the log with a gap that reads as a dropout.
         var current = new Dictionary<(uint, bool), byte[]>();
-        foreach (CanFrame f in frames) current.TryAdd((f.Id, f.Extended), f.Data);
+        foreach (SlcanFrame f in frames) current.TryAdd((f.Id, f.Extended), f.Data);
 
         double step = 1 / hz;
         double end = frames[^1].Seconds;
