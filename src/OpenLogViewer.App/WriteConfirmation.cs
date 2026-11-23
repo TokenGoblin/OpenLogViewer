@@ -22,6 +22,18 @@ public enum WriteKind
 
     /// <summary>The vehicle's stored fault codes, and everything stored with them.</summary>
     FaultErase,
+
+    /// <summary>A WiCAN Pro's staged settings, into its flash.</summary>
+    DeviceSettingsSave,
+
+    /// <summary>CAN transmit on a WiCAN Pro, armed for any identifier until it is disarmed.</summary>
+    CanArm,
+
+    /// <summary>A Lua script, into a WiCAN Pro's flash.</summary>
+    LuaUpload,
+
+    /// <summary>A Lua script or chunk, run on a WiCAN Pro now.</summary>
+    LuaRun,
 }
 
 /// <summary>
@@ -46,7 +58,8 @@ public sealed record WriteRequest(WriteKind Kind, string Question, string Detail
     /// A burn and an erase survive a power cycle; a write to working memory does
     /// not. It is the only distinction that changes how firmly to ask.
     /// </summary>
-    public bool Permanent => Kind is WriteKind.TableBurn or WriteKind.SettingsBurn or WriteKind.FaultErase;
+    public bool Permanent => Kind is WriteKind.TableBurn or WriteKind.SettingsBurn or WriteKind.FaultErase
+        or WriteKind.DeviceSettingsSave or WriteKind.LuaUpload;
 }
 
 /// <summary>

@@ -4260,14 +4260,17 @@ public sealed partial class MainViewModel : ObservableObject
         // reset by DTR and RTS. Recognised by its USB interface rather than its
         // COM number, so it goes straight there instead of trying four other
         // speeds, each of which could reset it on the way.
-        bool wiCanPro = Obd2Adapters.IsWiCanProUsb(SerialPortNames.DeviceIdOf(port));
+        //
+        // And asked whether it runs the custom WCP firmware before the ELM327
+        // session starts on the same port: see WicanPro.
+        if (Obd2Adapters.IsWiCanProUsb(SerialPortNames.DeviceIdOf(port)))
+        {
+            WicanProConnection pro = WicanPro.ConnectOnPort(port, BatchMemory);
+            StartObd2(pro.Source, port, pro.Wcp);
+            return;
+        }
 
-        StartObd2(
-            wiCanPro
-                ? Elm327Source.ConnectOnPort(
-                    port, BatchMemory, [Obd2Adapters.WiCanProUsbBaud], assertControlLines: false)
-                : Elm327Source.ConnectOnPort(port, BatchMemory),
-            port);
+        StartObd2(Elm327Source.ConnectOnPort(port, BatchMemory), port);
     }
 
     /// <summary>
@@ -4686,9 +4689,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private int _lastFaultCount;
 
-    private void StartObd2(Elm327Source source, string port)
+    /// <param name="wcp">
+    /// The WiCAN Pro's control lane, when the unit runs the custom firmware.
+    /// Taken over by the session and disposed with it.
+    /// </param>
+    private void StartObd2(Elm327Source source, string port, WcpClient? wcp = null)
     {
         Disconnect();
+
+        if (wcp is not null) _wican = new WicanDevice(wcp, port);
 
         string? recording = _settings.RecordOnConnect ? Workspace.NewRecording(DateTime.Now) : null;
 
@@ -4731,10 +4740,15 @@ public sealed partial class MainViewModel : ObservableObject
                      + "rather than 25 times — the protocol's limit, not the link's. ")
                + "A standard vehicle has no tune to read, so calibration "
                + "shows its fault codes instead."
-               + (Obd2Gaps.Length > 0 ? $"  {Obd2Gaps}." : "");
+               + (Obd2Gaps.Length > 0 ? $"  {Obd2Gaps}." : "")
+               + (_wican?.Identity is { } wcpHello
+                   ? $"  This WiCAN runs the custom WCP firmware ({wcpHello.Firmware}): its settings, logs and "
+                     + "CAN stream are reachable alongside the OBD2 session."
+                   : "");
 
         Raise(nameof(IsLive));
         Raise(nameof(IsObd2Live));
+        Raise(nameof(IsWicanLive));
         Raise(nameof(ShowNoTuneNotice));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanExport));
@@ -4984,6 +4998,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_live is null) return;
 
+        // Before the session, while the link is still open: disposing it disarms
+        // CAN transmit if it was armed and ends any recording cleanly.
+        _wican?.Dispose();
+        _wican = null;
+
         _live.Stop();
         _live.Dispose();
         _live = null;
@@ -5000,6 +5019,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         Raise(nameof(IsLive));
         Raise(nameof(IsObd2Live));
+        Raise(nameof(IsWicanLive));
         Raise(nameof(ShowNoTuneNotice));
         Raise(nameof(LiveDetail));
         Raise(nameof(CanRecord));

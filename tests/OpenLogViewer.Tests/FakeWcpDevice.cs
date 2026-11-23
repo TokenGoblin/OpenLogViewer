@@ -55,6 +55,28 @@ internal sealed class FakeWcpDevice : IEcuTransport, IReadsAvailable
 
     public FakeElm Elm { get; }
 
+    /// <summary>A car behind the chip: the same one the OBD2 tests use.</summary>
+    public static FakeElm Car()
+    {
+        var car = new FakeElm();
+
+        car.Answers[0x00] = [0b1001_1000, 0b0011_1010, 0b1000_0000, 0b0000_0001];
+        car.Answers[0x20] = [0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0001];
+        car.Answers[0x40] = [0b0100_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000];
+
+        car.Answers[0x01] = [0x00, 0x07, 0x65, 0x04];
+        car.Answers[0x04] = [0x7F];
+        car.Answers[0x05] = [0x5A];
+        car.Answers[0x0B] = [0x64];
+        car.Answers[0x0C] = [0x1A, 0xF8];
+        car.Answers[0x0D] = [0x40];
+        car.Answers[0x0F] = [0x46];
+        car.Answers[0x11] = [0x33];
+        car.Answers[0x42] = [0x37, 0x1A];
+
+        return car;
+    }
+
     public bool ManualClock { get; }
 
     public DateTime Now => ManualClock ? _manualNow : DateTime.UtcNow;

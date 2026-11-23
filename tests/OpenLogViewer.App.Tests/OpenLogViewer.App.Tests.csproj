@@ -39,6 +39,9 @@
     <Compile Include="..\OpenLogViewer.Tests\FakeElm.cs" Link="FakeElm.cs" />
     <Compile Include="..\OpenLogViewer.Tests\FakeElmOverTcp.cs" Link="FakeElmOverTcp.cs" />
     <Compile Include="..\OpenLogViewer.Tests\FakeSubaru.cs" Link="FakeSubaru.cs" />
+
+    <!-- The WiCAN Pro's custom firmware in software, for the view model and MCP tools. -->
+    <Compile Include="..\OpenLogViewer.Tests\FakeWcpDevice.cs" Link="FakeWcpDevice.cs" />
   </ItemGroup>
 
 </Project>

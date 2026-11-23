@@ -35,7 +35,7 @@ public class WcpRecorderTests : IDisposable
     [Fact]
     public void ACustomUnitGivesBothHalves()
     {
-        var device = new FakeWcpDevice(WcpClientTests.Car());
+        var device = new FakeWcpDevice(FakeWcpDevice.Car());
         WicanProConnection pro = WicanPro.Connect(device);
 
         try
@@ -57,7 +57,7 @@ public class WcpRecorderTests : IDisposable
     [Fact]
     public void AStockUnitIsPlainElm327()
     {
-        var device = new FakeWcpDevice(WcpClientTests.Car()) { Stock = true };
+        var device = new FakeWcpDevice(FakeWcpDevice.Car()) { Stock = true };
         WicanProConnection pro = WicanPro.Connect(device, helloTimeout: TimeSpan.FromMilliseconds(300));
 
         try
