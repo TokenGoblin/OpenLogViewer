@@ -1,0 +1,116 @@
+<Window x:Class="OpenLogViewer.App.ProjectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tuning project" Height="700" Width="820"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Bg}">
+
+    <DockPanel>
+        <!--
+            The vehicle first, because everything below belongs to one and a
+            project read against the wrong car is worse than no project.
+        -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="16,12">
+            <StackPanel>
+                <TextBlock Text="Which vehicle" FontSize="11" Margin="0,0,0,6"
+                           Foreground="{DynamicResource Muted}"/>
+
+                <!--
+                    Two controls rather than one editable ComboBox. The app's
+                    ComboBox template has no PART_EditableTextBox, so an
+                    editable one renders as an empty box that cannot be typed
+                    into — and picking an existing project and starting a new
+                    one are different actions anyway, which one control asks
+                    somebody to work out for themselves.
+                -->
+                <DockPanel LastChildFill="False">
+                    <ComboBox x:Name="Vehicles" DockPanel.Dock="Left" Width="300"
+                              ToolTip="Projects on this machine"/>
+                    <Button DockPanel.Dock="Left" Content="Open" Margin="8,0,0,0" Padding="14,4"
+                            Click="OnOpenClick"/>
+                    <Button DockPanel.Dock="Right" Content="Record this log" Padding="14,4"
+                            Click="OnRecordClick"
+                            ToolTip="Runs the insights over the log in hand and keeps what they found"/>
+                </DockPanel>
+
+                <DockPanel Margin="0,6,0,0" LastChildFill="False">
+                    <TextBox x:Name="NewVehicle" DockPanel.Dock="Left" Width="300" Padding="6,4"
+                             ToolTip="A name for a car with no project yet"/>
+                    <Button DockPanel.Dock="Left" Content="Start a new one" Margin="8,0,0,0"
+                            Padding="14,4" Click="OnStartClick"/>
+                </DockPanel>
+
+                <!--
+                    The note is what turns a row of findings into evidence about
+                    a change: "after VE +4% above 150 kPa" is the difference
+                    between a record and a pile of measurements.
+                -->
+                <TextBox x:Name="Note" Margin="0,8,0,0" Padding="6,4"
+                         ToolTip="What this sitting was — what you changed before it, what you are testing"/>
+                <TextBlock Text="What changed before this log, if anything" FontSize="10" Margin="2,3,0,0"
+                           Foreground="{DynamicResource Muted}"/>
+
+                <!--
+                    What changed between two tunes. Hidden until there are two
+                    to compare, because a pair of empty pickers on a fresh
+                    project is a question nobody can answer yet.
+                -->
+                <DockPanel x:Name="CompareRow" Margin="0,10,0,0" LastChildFill="False"
+                           Visibility="Collapsed">
+                    <TextBlock DockPanel.Dock="Left" Text="What changed from" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="{DynamicResource Muted}"/>
+                    <ComboBox x:Name="FromVersion" DockPanel.Dock="Left" Width="90"/>
+                    <TextBlock DockPanel.Dock="Left" Text="to" FontSize="11"
+                               VerticalAlignment="Center" Margin="6,0,6,0"
+                               Foreground="{DynamicResource Muted}"/>
+                    <ComboBox x:Name="ToVersion" DockPanel.Dock="Left" Width="90"/>
+                    <Button DockPanel.Dock="Left" Content="Compare" Margin="8,0,0,0" Padding="12,3"
+                            Click="OnCompareClick"
+                            ToolTip="Setting by setting, in the firmware's own units — not byte by byte"/>
+                    <Button DockPanel.Dock="Right" Content="Back to the project" Padding="12,3"
+                            Click="OnBackClick"/>
+                </DockPanel>
+
+                <TextBlock Text="{Binding Summary}" FontSize="11" Margin="0,8,0,0"
+                           TextWrapping="Wrap" Foreground="{DynamicResource Text}"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="16,10">
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" Content="Copy" Padding="12,4" Margin="0,0,8,0"
+                        Click="OnCopyClick"
+                        ToolTip="Puts the whole project on the clipboard, which is what to paste to an assistant"/>
+                <Button DockPanel.Dock="Left" Content="Open the folder" Padding="12,4"
+                        Margin="0,0,8,0" Click="OnFolderClick"/>
+
+                <!--
+                    Keeping the tune in hand as a version is the other half of
+                    the project: a sitting says what the log showed, a version
+                    says what the ECU was running while it did.
+                -->
+                <Button DockPanel.Dock="Left" Content="Keep this tune" Padding="12,4"
+                        Click="OnKeepTuneClick"
+                        ToolTip="Records the tune now in hand as a version of this project, with the note above"/>
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource Muted}"
+                           Text="Nothing here is sent anywhere. The file is yours."/>
+            </DockPanel>
+        </Border>
+
+        <!--
+            The project as prose rather than as a grid of fields. It is read the
+            way notes are read, and it is the same text an assistant is handed.
+        -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+            <TextBox x:Name="Brief"
+                     IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                     TextWrapping="Wrap" AcceptsReturn="True"
+                     FontFamily="{DynamicResource DataFont}" FontSize="12"
+                     Foreground="{DynamicResource Text}"/>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

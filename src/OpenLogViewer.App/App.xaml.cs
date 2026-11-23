@@ -47,7 +47,7 @@ public partial class App : Application
         // the following argument, so "--insights run.mlg" opened no log at all
         // while "run.mlg --insights" worked — which reads as intermittent.
         "--open-tune", "--save-tune", "--compare-tune", "--plan-restore",
-        "--faults", "--connect-ssm", "--connect-wifi",
+        "--faults", "--connect-ssm", "--connect-wifi", "--tuning-project",
         // The serial that "--connect-maxxecu-usb" may be narrowed with. It is a
         // switch of its own rather than a value after that one, because the
         // value is optional — one MaxxECU needs no naming — and a switch listed
@@ -157,6 +157,17 @@ public partial class App : Application
         int connect = Array.IndexOf(e.Args, "--connect");
         if (connect >= 0 && connect + 1 < e.Args.Length)
             window.ConnectTo(e.Args[connect + 1], e.Args.Contains("--obd2"));
+
+        // "--tuning-project [vehicle]" opens the project window, and the vehicle
+        // with it where one is named.
+        int project = Array.IndexOf(e.Args, "--tuning-project");
+        if (project >= 0)
+        {
+            window.ShowProject(
+                project + 1 < e.Args.Length && !e.Args[project + 1].StartsWith("--", StringComparison.Ordinal)
+                    ? e.Args[project + 1]
+                    : null);
+        }
 
         // "--connect-ssm COM10" opens a Subaru over its own protocol, which is a
         // deliberate choice rather than something guessed from the adapter.

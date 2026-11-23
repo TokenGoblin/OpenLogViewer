@@ -183,6 +183,37 @@ public partial class MainWindow : Window
     private void OnDefinitionsClick(object sender, RoutedEventArgs e) =>
         OpenFolder(_vm.Workspace.EnsureDefinitions());
 
+    private ProjectWindow? _project;
+
+    /// <summary>
+    /// The vehicle's project, in a window of its own.
+    ///
+    /// Kept alive rather than made fresh, so recording a sitting and then
+    /// looking at what it did does not lose the vehicle that was picked.
+    /// </summary>
+    private void OnProjectClick(object sender, RoutedEventArgs e)
+    {
+        if (_project is null)
+        {
+            _project = new ProjectWindow(_vm) { Owner = this };
+            _project.Closed += (_, _) => _project = null;
+            _project.Show();
+        }
+        else
+        {
+            _project.Activate();
+        }
+    }
+
+    /// <summary>Opens the project window, for a scripted run.</summary>
+    public void ShowProject(string? vehicle)
+    {
+        if (vehicle is { Length: > 0 }) Report(_vm.OpenProject(vehicle));
+
+        OnProjectClick(this, new RoutedEventArgs());
+        Report($"project window opened: {_vm.ProjectSummary}");
+    }
+
     private CalculatorsWindow? _calculators;
 
     /// <summary>

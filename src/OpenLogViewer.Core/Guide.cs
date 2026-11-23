@@ -638,6 +638,66 @@ public static class Guide
                 + "condition."),
         ]),
 
+        new("The tuning project",
+            "What is wrong with this tune, what you tried, and whether it worked.",
+        [
+            new("Why it exists",
+                "The analysis is the easy half. A log tells you the mixture is lean above 150 kPa; "
+                + "what it cannot tell you is that you knew that three weeks ago, put four per cent "
+                + "into the top of the VE table, and it got better but not right. That half "
+                + "normally lives in somebody's head and in a folder of files called claude01 "
+                + "through claude07."),
+
+            new("Open one",
+                "Tools ▸ Tuning project. Name the vehicle, or pick one you have already. "
+                + "Everything below belongs to that car."),
+
+            new("Record a sitting",
+                "Record this log runs the insights and keeps what they found. Put what you changed "
+                + "beforehand in the note box first — \"after VE +4% above 150 kPa\" is the "
+                + "difference between a row of findings and evidence about a change, and it is the "
+                + "thing nobody writes down unless asked while they still know it."),
+
+            new("Fixes",
+                "A warning raises one the first time it is seen. Seeing the same fault again notes "
+                + "it against the fix already open rather than raising a second — and on a fix you "
+                + "have already applied, that note is the evidence the change did not work. Each "
+                + "carries what is wrong, what you changed, and what has been seen since."),
+
+            new("Copy",
+                "Puts the whole project on the clipboard as plain text. That is what to paste to "
+                + "an assistant: it is the part no single log can tell it."),
+        ]),
+
+        new("Tune versions",
+            "Which tune is which, and what changed between them.",
+        [
+            new("What a version is",
+                "A tune kept at a moment worth keeping, with why it was kept. It sits in the "
+                + "project's folder as an ordinary .msq that TunerStudio still opens — a history "
+                + "nothing else can read would be a trap rather than a feature."),
+
+            new("The same tune is not kept twice",
+                "Identity is the bytes. Reading the tune at the start of two sessions that changed "
+                + "nothing gives one version, and burning a version already recorded is news about "
+                + "it rather than a new one."),
+
+            new("What changed",
+                "Two versions are compared setting by setting, not byte by byte — two tunes can "
+                + "differ in bits no constant declares and be the same tune. What you get back is "
+                + "a list of names and values, in the firmware's own units."),
+
+            new("Which tune a log came from",
+                "A sitting records the version the controller was running. That is the join the "
+                + "whole thing turns on: without it, \"still lean\" and \"lean again after the "
+                + "change\" are the same sentence. With it, a clean run recorded on the tune from "
+                + "before the change is correctly not counted as evidence for it."),
+
+            new("Nothing branches",
+                "A tune is one thing on one controller. There is no merge, deliberately — merging "
+                + "two sets of engine settings is not something anyone should be offered."),
+        ]),
+
         new("Dyno",
             "What the engine made, worked out from a pull already in your log.",
         [

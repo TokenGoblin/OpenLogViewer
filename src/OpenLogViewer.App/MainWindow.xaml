@@ -170,6 +170,9 @@
                 <MenuItem Header="_Dyno…" Click="OnDynoClick"
                           IsEnabled="{Binding HasDocument}"
                           ToolTip="Power from how hard the car accelerated, held against the fuel and the air"/>
+                <Separator/>
+                <MenuItem Header="Tuning _project…" Click="OnProjectClick"
+                          ToolTip="What is wrong with this tune, what has been tried, and whether it worked"/>
             </MenuItem>
 
             <!--
@@ -256,6 +259,15 @@
                 <Button DockPanel.Dock="Right" Content="✦  Overview"
                         Click="OnOverviewClick" Padding="10,3" Margin="0,0,8,0"
                         ToolTip="What a connected AI agent found in the open tune and log, with the changes it proposes"/>
+
+                <!--
+                    The one thing here that outlives a session: what was already
+                    tried, and whether it worked. Enabled always, unlike Insights:
+                    a project is worth opening with no log at all.
+                -->
+                <Button DockPanel.Dock="Right" Content="⌸  Project"
+                        Click="OnProjectClick" Padding="10,3" Margin="0,0,8,0"
+                        ToolTip="What is wrong with this tune, what you changed, whether it worked — and which tune each log came from"/>
 
                 <Button Content="Open log…" Click="OnOpenClick" DockPanel.Dock="Left"/>
 

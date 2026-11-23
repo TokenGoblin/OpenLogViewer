@@ -1328,6 +1328,9 @@ public sealed partial class MainViewModel : ObservableObject
     private string _liveStatus = "";
     private string _livePort = "";
     private string _liveSignature = "";
+
+    /// <summary>The firmware on the other end, for anything that reports on the session.</summary>
+    public string LiveSignature => _liveSignature;
     private string _liveVersion = "";
     private string _liveIni = "";
     private string _liveRecording = "";
@@ -2534,6 +2537,9 @@ public sealed partial class MainViewModel : ObservableObject
                 return "This firmware declares no way to burn the pages that were written.";
             }
 
+            // Both burn paths record a version in the open project, if any.
+            KeepBurnedTune();
+
             Raise(nameof(CanBurnSettings));
 
             return WriteResult.Sent(
@@ -3362,6 +3368,8 @@ public sealed partial class MainViewModel : ObservableObject
             // table side is the sibling path that was not doing it.
             _settingsPagesWritten.Remove(page.Index);
             RaiseWriteGates();
+
+            KeepBurnedTune();
 
             return WriteResult.Sent($"Burned page {page.Index}. This survives a power cycle.");
         }
